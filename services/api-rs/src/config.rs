@@ -2,6 +2,7 @@ use std::{env, net::SocketAddr};
 
 pub struct ApiConfig {
     pub bind_addr: SocketAddr,
+    pub node_fingerprint: String,
 }
 
 impl ApiConfig {
@@ -14,6 +15,16 @@ impl ApiConfig {
             )
         });
 
-        Self { bind_addr }
+        let node_fingerprint = env::var("API_NODE_FINGERPRINT")
+            .unwrap_or_else(|_| "hexrelay-local-fingerprint".to_string());
+
+        if node_fingerprint.trim().is_empty() {
+            panic!("Invalid API_NODE_FINGERPRINT. Value must not be empty");
+        }
+
+        Self {
+            bind_addr,
+            node_fingerprint,
+        }
     }
 }

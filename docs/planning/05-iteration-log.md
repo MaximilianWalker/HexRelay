@@ -30,6 +30,185 @@
 
 ## Log Entries
 
+### 2026-03-04 (key-at-rest encryption and persona session revoke wiring)
+
+- Area affected: Iteration 1 web security and session lifecycle execution (`T2.1.2`, `T2.1.3`, `T2.3.1`)
+- Change summary:
+  - Replaced plain localStorage private-key persistence with persona-scoped AES-GCM encrypted storage.
+  - Added Home persona remove action and switch-time session revoke integration using `POST /v1/auth/sessions/revoke`.
+  - Added persona cleanup paths to remove encrypted key/session records on persona deletion.
+  - Added lightweight onboarding/home telemetry event tracking for API flow stages and failures.
+- Rationale:
+  - Tighten local key handling and enforce deterministic session lifecycle behavior during persona transitions.
+- Linked docs updated:
+  - `apps/web/lib/sessions.ts`
+  - `apps/web/lib/personas.ts`
+  - `apps/web/lib/api.ts`
+  - `apps/web/lib/telemetry.ts`
+  - `apps/web/app/home/page.tsx`
+  - `apps/web/app/home/home.module.css`
+  - `apps/web/app/onboarding/identity/page.tsx`
+  - `apps/web/app/onboarding/access/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (identity auth wiring and invite create UX integration)
+
+- Area affected: Iteration 1 onboarding API integration (`T2.1.2`, `T2.2.1`, `T2.3.1`)
+- Change summary:
+  - Wired identity onboarding to live API flow: register identity key -> challenge issue -> challenge verify.
+  - Added client crypto utilities for ed25519 key generation/import parsing and nonce signature generation.
+  - Added persona-scoped local session/private-key storage utilities and stored auth session on successful verify.
+  - Added onboarding access action to create test invites via live `POST /v1/invites` before redemption.
+  - Extended web API client module to cover identity/auth/invite endpoints.
+- Rationale:
+  - Replace onboarding placeholders with executable integration against implemented Iteration 1 API primitives.
+- Linked docs updated:
+  - `apps/web/lib/api.ts`
+  - `apps/web/lib/crypto.ts`
+  - `apps/web/lib/sessions.ts`
+  - `apps/web/app/onboarding/identity/page.tsx`
+  - `apps/web/app/onboarding/access/page.tsx`
+  - `apps/web/package.json`
+  - `apps/web/package-lock.json`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (persona isolation scaffold)
+
+- Area affected: Iteration 1 web identity execution (`T2.1.3`)
+- Change summary:
+  - Added browser-local persona storage utilities with active-persona tracking.
+  - Wired onboarding identity step to persist/select persona before moving to recovery.
+  - Replaced `/home` placeholder with persona management and switching surface showing active-session context.
+- Rationale:
+  - Establish deterministic client-side persona/session isolation baseline before deeper auth/session integration.
+- Linked docs updated:
+  - `apps/web/lib/personas.ts`
+  - `apps/web/app/onboarding/identity/page.tsx`
+  - `apps/web/app/home/page.tsx`
+  - `apps/web/app/home/home.module.css`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (node fingerprint verification and onboarding API wiring)
+
+- Area affected: Iteration 1 join-flow security and web onboarding integration (`T2.4.1`)
+- Change summary:
+  - Added invite-bound node fingerprint enforcement in `api-rs` redeem flow; mismatched fingerprint now fails with `fingerprint_mismatch`.
+  - Added CORS middleware to API router so web onboarding can call local API endpoints in dev.
+  - Added `API_NODE_FINGERPRINT` runtime config and threaded value into application state.
+  - Added API tests for fingerprint mismatch rejection and updated invite redeem tests to include expected node fingerprint.
+  - Wired onboarding access screen to live `POST /v1/invites/redeem` calls and mapped API error codes (`invite_invalid`, `invite_expired`, `invite_exhausted`, `fingerprint_mismatch`).
+- Rationale:
+  - Enforce fail-closed join verification at API boundary and remove placeholder token simulation from onboarding.
+- Linked docs updated:
+  - `services/api-rs/src/config.rs`
+  - `services/api-rs/src/main.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/Cargo.toml`
+  - `services/api-rs/.env.example`
+  - `Cargo.lock`
+  - `apps/web/lib/api.ts`
+  - `apps/web/app/onboarding/access/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (onboarding flow shell implementation)
+
+- Area affected: Iteration 1 onboarding web execution (`T2.1.2`, `T2.1.4`)
+- Change summary:
+  - Replaced starter web screen with route-based onboarding flow: `/onboarding/identity`, `/onboarding/recovery`, `/onboarding/access`.
+  - Added identity create/import UX shell with validation-state feedback and persona labeling scaffold.
+  - Added mandatory recovery checkpoint UX requiring phrase word confirmation before progression.
+  - Added access choice UX for server invite, direct contact invite, or skip path plus `/home` post-onboarding placeholder.
+  - Updated global web styling baseline and font stack for a dedicated product visual direction.
+- Rationale:
+  - Move from scaffolding UI to executable onboarding flow aligned with Iteration 1 product requirements.
+- Linked docs updated:
+  - `apps/web/app/page.tsx`
+  - `apps/web/app/layout.tsx`
+  - `apps/web/app/globals.css`
+  - `apps/web/app/onboarding/onboarding.module.css`
+  - `apps/web/app/onboarding/page.tsx`
+  - `apps/web/app/onboarding/identity/page.tsx`
+  - `apps/web/app/onboarding/recovery/page.tsx`
+  - `apps/web/app/onboarding/access/page.tsx`
+  - `apps/web/app/home/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (invite create/redeem baseline)
+
+- Area affected: Iteration 1 invite execution (`T2.2.1`)
+- Change summary:
+  - Implemented `POST /v1/invites` and `POST /v1/invites/redeem` in `services/api-rs`.
+  - Added invite mode/expiry/max-uses validation including one-time invite max-use enforcement.
+  - Added deterministic invalid, expired, and exhausted invite behavior with explicit error codes.
+  - Added API tests for multi-use redeem success, one-time exhaustion, and expired invite rejection.
+  - Updated Iteration 1 OpenAPI with invite create/redeem response schemas.
+- Rationale:
+  - Complete baseline invite lifecycle behavior needed for Iteration 1 join/auth flow dependencies.
+- Linked docs updated:
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/validation.rs`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (auth verify and session revoke baseline)
+
+- Area affected: Iteration 1 auth execution (`T2.3.1`)
+- Change summary:
+  - Implemented `POST /v1/auth/verify` with nonce lookup/expiry checks, ed25519 signature verification, single-use challenge consumption, and in-memory session issuance.
+  - Implemented `POST /v1/auth/sessions/revoke` with deterministic invalid-session rejection.
+  - Added API tests covering verify/revoke success path and invalid signature rejection.
+  - Updated Iteration 1 OpenAPI to include `AuthVerifyResponse` and explicit `400/401` verify outcomes.
+- Rationale:
+  - Complete the core challenge-signature auth loop so session lifecycle behavior is executable before moving to invite/join hardening.
+- Linked docs updated:
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/validation.rs`
+  - `services/api-rs/src/errors.rs`
+  - `services/api-rs/Cargo.toml`
+  - `Cargo.lock`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (auth challenge endpoint baseline)
+
+- Area affected: Iteration 1 auth bootstrap execution (`T2.3.1`)
+- Change summary:
+  - Implemented `POST /v1/auth/challenge` in `services/api-rs` with registered-identity enforcement and nonce challenge issuance.
+  - Added in-memory challenge store to API state and modularized handler wiring to include auth challenge routing.
+  - Added API tests for challenge issuance (registered identity) and unknown identity rejection.
+  - Updated Iteration 1 OpenAPI contract to include `AuthChallengeResponse` schema.
+- Rationale:
+  - Unblock signature-verify flow by providing deterministic challenge issuance behavior aligned to the Iteration 1 contract.
+- Linked docs updated:
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/validation.rs`
+  - `services/api-rs/Cargo.toml`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (iteration 1 identity endpoint start)
 
 - Area affected: Iteration 1 `T2.1.1` execution progress

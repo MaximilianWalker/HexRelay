@@ -1,0 +1,173 @@
+.shell {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 9% 8%, #d8ecff 0%, transparent 40%),
+    radial-gradient(circle at 92% 0%, #ffe7be 0%, transparent 33%),
+    linear-gradient(170deg, #f3f8ff 0%, #eef6fb 55%, #f8f3ea 100%);
+}
+
+.card {
+  margin: 0 auto;
+  width: min(860px, 100%);
+  border: 1px solid #bfd6ea;
+  border-radius: 20px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 12px 28px rgba(16, 34, 53, 0.08);
+  color: #17314b;
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3b6288;
+}
+
+.title {
+  margin-bottom: 10px;
+  font-size: 2rem;
+}
+
+.subtitle {
+  margin-bottom: 20px;
+  color: #335473;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.badge {
+  border: 1px solid #c4d8eb;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #f4f9ff;
+  font-size: 0.85rem;
+}
+
+.createRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid #bad0e6;
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #16324c;
+  background: #fff;
+}
+
+.button {
+  border-radius: 12px;
+  padding: 11px 14px;
+  border: 1px solid #174062;
+  background: #174062;
+  color: #fff;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #c6daed;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fbff;
+}
+
+.itemName {
+  font-size: 0.95rem;
+  color: #1d3b57;
+}
+
+.itemMeta {
+  font-size: 0.78rem;
+  color: #4d6c8a;
+}
+
+.switchButton {
+  border-radius: 10px;
+  border: 1px solid #b8cee3;
+  background: #ffffff;
+  color: #21415f;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.switchActive {
+  border-color: #1c5d8d;
+  background: #1c5d8d;
+  color: #fff;
+}
+
+.removeButton {
+  border-radius: 10px;
+  border: 1px solid #e6b5b5;
+  background: #fff5f5;
+  color: #8a2b2b;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.itemActions {
+  display: flex;
+  gap: 8px;
+}
+
+.message {
+  margin-top: 10px;
+  margin-bottom: 14px;
+  border: 1px solid #c9def0;
+  background: #f4f9ff;
+  color: #274766;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+}
+
+.links {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.linkGhost {
+  border: 1px solid #b6cce1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fbff;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 16px;
+  }
+
+  .createRow {
+    flex-direction: column;
+  }
+
+  .button {
+    width: 100%;
+  }
+}

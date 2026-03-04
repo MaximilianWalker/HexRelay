@@ -12,7 +12,7 @@ async fn main() {
         )
         .init();
 
-    let app = build_app(AppState::default());
+    let app = build_app(AppState::new(config.node_fingerprint.clone()));
     let addr = config.bind_addr;
     info!(%addr, "starting api service");
 

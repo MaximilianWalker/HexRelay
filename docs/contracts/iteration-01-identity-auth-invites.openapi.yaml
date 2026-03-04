@@ -34,6 +34,10 @@ paths:
       responses:
         '200':
           description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
   /v1/auth/verify:
@@ -48,6 +52,12 @@ paths:
       responses:
         '200':
           description: Session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVerifyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /v1/auth/sessions/revoke:
@@ -76,6 +86,10 @@ paths:
       responses:
         '201':
           description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
   /v1/invites/redeem:
@@ -90,6 +104,10 @@ paths:
       responses:
         '200':
           description: Invite redeemed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteRedeemResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -123,6 +141,26 @@ components:
           type: string
         signature:
           type: string
+    AuthChallengeResponse:
+      type: object
+      required: [challenge_id, nonce, expires_at]
+      properties:
+        challenge_id:
+          type: string
+        nonce:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    AuthVerifyResponse:
+      type: object
+      required: [session_id, expires_at]
+      properties:
+        session_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
     SessionRevokeRequest:
       type: object
       required: [session_id]
@@ -152,6 +190,29 @@ components:
           type: string
         node_fingerprint:
           type: string
+    InviteCreateResponse:
+      type: object
+      required: [token, mode]
+      properties:
+        token:
+          type: string
+        mode:
+          type: string
+          enum: [one_time, multi_use]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        max_uses:
+          type: integer
+          minimum: 1
+          nullable: true
+    InviteRedeemResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
     ApiError:
       type: object
       required: [code, message]

@@ -6,11 +6,17 @@ edition = "2021"
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
 base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+hex = "0.4"
+rand = "0.8"
+ring = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "=1.10.0", features = ["v4"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

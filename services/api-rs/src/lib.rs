@@ -8,13 +8,59 @@ pub mod validation;
 
 #[cfg(test)]
 mod tests {
+    const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+
     use axum::{
-        body::Body,
+        body::{to_bytes, Body},
         http::{Request, StatusCode},
     };
+    use ring::{
+        rand::SystemRandom,
+        signature::{Ed25519KeyPair, KeyPair},
+    };
+    use serde::Deserialize;
     use tower::util::ServiceExt;
 
     use crate::{app::build_app, state::AppState};
+
+    #[derive(Deserialize)]
+    struct AuthChallengeResponse {
+        challenge_id: String,
+        nonce: String,
+    }
+
+    #[derive(Deserialize)]
+    struct AuthVerifyResponse {
+        session_id: String,
+    }
+
+    #[derive(Deserialize)]
+    struct InviteCreateResponse {
+        token: String,
+    }
+
+    async fn register_identity(
+        app: axum::Router,
+        identity_id: &str,
+        public_key: &str,
+    ) -> (StatusCode, axum::Router) {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/v1/identity/keys/register")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"identity_id":"{identity_id}","public_key":"{public_key}","algorithm":"ed25519"}}"#
+            )))
+            .expect("build register request");
+
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("register response");
+
+        (response.status(), app)
+    }
 
     #[tokio::test]
     async fn registers_identity_key_with_hex_key() {
@@ -62,5 +108,338 @@ mod tests {
 
         let response = app.oneshot(request).await.expect("get response");
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn issues_auth_challenge_for_registered_identity() {
+        let app = build_app(AppState::default());
+        let (register_status, app) = register_identity(
+            app,
+            "user-1",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+        .await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-1"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejects_auth_challenge_for_unknown_identity() {
+        let app = build_app(AppState::default());
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"missing-user"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn verifies_auth_challenge_and_revokes_session() {
+        let app = build_app(AppState::default());
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
+        let public_key = hex::encode(signing_key.public_key().as_ref());
+
+        let (register_status, app) = register_identity(app, "user-verify", &public_key).await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-verify"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .clone()
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+
+        let challenge_bytes = to_bytes(challenge_response.into_body(), usize::MAX)
+            .await
+            .expect("read challenge response body");
+        let challenge: AuthChallengeResponse =
+            serde_json::from_slice(&challenge_bytes).expect("decode challenge response");
+
+        let signature = signing_key.sign(challenge.nonce.as_bytes());
+        let signature_hex = hex::encode(signature.as_ref());
+
+        let verify_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"identity_id":"user-verify","challenge_id":"{}","signature":"{}"}}"#,
+                challenge.challenge_id, signature_hex
+            )))
+            .expect("build verify request");
+
+        let verify_response = app
+            .clone()
+            .oneshot(verify_request)
+            .await
+            .expect("verify response");
+        assert_eq!(verify_response.status(), StatusCode::OK);
+
+        let verify_bytes = to_bytes(verify_response.into_body(), usize::MAX)
+            .await
+            .expect("read verify response body");
+        let verify: AuthVerifyResponse =
+            serde_json::from_slice(&verify_bytes).expect("decode verify response");
+        assert!(!verify.session_id.is_empty());
+
+        let revoke_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/sessions/revoke")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"session_id":"{}"}}"#,
+                verify.session_id
+            )))
+            .expect("build revoke request");
+
+        let revoke_response = app.oneshot(revoke_request).await.expect("revoke response");
+        assert_eq!(revoke_response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_signature_on_verify() {
+        let app = build_app(AppState::default());
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
+        let public_key = hex::encode(signing_key.public_key().as_ref());
+
+        let (register_status, app) =
+            register_identity(app, "user-invalid-signature", &public_key).await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-invalid-signature"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .clone()
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+
+        let challenge_bytes = to_bytes(challenge_response.into_body(), usize::MAX)
+            .await
+            .expect("read challenge response body");
+        let challenge: AuthChallengeResponse =
+            serde_json::from_slice(&challenge_bytes).expect("decode challenge response");
+
+        let verify_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"identity_id":"user-invalid-signature","challenge_id":"{}","signature":"{}"}}"#,
+                challenge.challenge_id,
+                hex::encode([0_u8; 64])
+            )))
+            .expect("build verify request");
+
+        let verify_response = app.oneshot(verify_request).await.expect("verify response");
+        assert_eq!(verify_response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn creates_and_redeems_multi_use_invite() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"mode":"multi_use","max_uses":2}"#))
+            .expect("build create invite request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create invite response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create response body");
+        let created: InviteCreateResponse =
+            serde_json::from_slice(&create_bytes).expect("decode invite create response");
+
+        let redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                created.token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build redeem invite request");
+
+        let redeem_response = app
+            .clone()
+            .oneshot(redeem_request)
+            .await
+            .expect("redeem invite response");
+        assert_eq!(redeem_response.status(), StatusCode::OK);
+
+        let second_redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                created.token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build second redeem invite request");
+
+        let second_redeem_response = app
+            .oneshot(second_redeem_request)
+            .await
+            .expect("second redeem invite response");
+        assert_eq!(second_redeem_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejects_exhausted_one_time_invite() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"mode":"one_time"}"#))
+            .expect("build create invite request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create invite response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create response body");
+        let created: InviteCreateResponse =
+            serde_json::from_slice(&create_bytes).expect("decode invite create response");
+
+        let first_redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                created.token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build first redeem request");
+        let first_redeem_response = app
+            .clone()
+            .oneshot(first_redeem_request)
+            .await
+            .expect("first redeem response");
+        assert_eq!(first_redeem_response.status(), StatusCode::OK);
+
+        let second_redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                created.token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build second redeem request");
+        let second_redeem_response = app
+            .oneshot(second_redeem_request)
+            .await
+            .expect("second redeem response");
+        assert_eq!(second_redeem_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn rejects_expired_invite() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"mode":"multi_use","expires_at":"2000-01-01T00:00:00Z"}"#,
+            ))
+            .expect("build create invite request");
+
+        let create_response = app
+            .oneshot(create_request)
+            .await
+            .expect("create invite response");
+        assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn rejects_fingerprint_mismatch_on_redeem() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"mode":"multi_use","max_uses":2}"#))
+            .expect("build create invite request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create invite response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create response body");
+        let created: InviteCreateResponse =
+            serde_json::from_slice(&create_bytes).expect("decode invite create response");
+
+        let redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"mismatch-node"}}"#,
+                created.token
+            )))
+            .expect("build redeem request");
+
+        let redeem_response = app.oneshot(redeem_request).await.expect("redeem response");
+        assert_eq!(redeem_response.status(), StatusCode::BAD_REQUEST);
     }
 }
