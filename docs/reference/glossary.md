@@ -28,6 +28,9 @@
 - Nonce challenge: Server-issued one-time value signed by the client key to prove identity ownership at login.
 - Forward secrecy: Property where compromise of long-term keys does not expose past DM plaintext.
 - Profile replica: Node-stored copy of profile capsule data, with signed public data and encrypted private data.
+- Mediated friend request: Server-routed contact request where identity bootstrap data is shared only after recipient acceptance.
+- DM inbound policy: Per-user rule controlling who can start DMs (default friends-only, optional same-server or anyone).
+- DM offline outbox: Encrypted local sender queue used for best-effort retries when recipient is offline.
 
 ## Related Documents
 

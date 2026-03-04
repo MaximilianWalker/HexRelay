@@ -30,6 +30,101 @@
 
 ## Log Entries
 
+### 2026-03-04 (dm offline policy lock)
+
+- Area affected: DM reliability semantics and UX expectations
+- Change summary:
+  - Locked MVP DM offline behavior to best-effort online delivery.
+  - Added encrypted local outbox retry expectation to DM execution and verification docs.
+  - Registered config default, risk, and decision entries for offline DM behavior.
+- Rationale:
+  - Preserve direct user-to-user DM transport without introducing server-side DM queues in MVP.
+- Linked docs updated:
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/product/09-configuration-defaults-register.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/reference/glossary.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (dm transport architecture correction)
+
+- Area affected: Core messaging architecture and MVP execution tasks
+- Change summary:
+  - Corrected DM architecture to direct user-to-user transport with no guild/community server relay/storage.
+  - Updated plan, PRD, Iteration 2 tasks, REST/realtime contracts, data lifecycle matrix, and verification matrix to match this model.
+  - Removed server-ciphertext DM assumptions from execution and validation language.
+- Rationale:
+  - Align implementation docs with core product intent: server communities should not be DM transport intermediaries.
+- Linked docs updated:
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/architecture/02-data-lifecycle-retention-replication.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (execution hardening deep-pass)
+
+- Area affected: Full-MVP documentation precision and implementation readiness
+- Change summary:
+  - Added MVP REST contract coverage baseline for Iterations 2-4.
+  - Added canonical screen-state spec and configuration defaults register.
+  - Added architecture-level data lifecycle/retention/replication matrix.
+  - Added MVP operations runbook and requirement-to-evidence verification matrix.
+  - Added UI/flow state mappings and evidence ledgers to Iterations 1-4 boards.
+  - Updated docs indexes to register new canonical artifacts.
+- Rationale:
+  - Reduce cross-team ambiguity during parallel implementation.
+  - Make requirement -> task -> evidence trace deterministic.
+- Linked docs updated:
+  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/product/08-screen-state-spec.md`
+  - `docs/product/09-configuration-defaults-register.md`
+  - `docs/architecture/02-data-lifecycle-retention-replication.md`
+  - `docs/operations/01-mvp-runbook.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/testing/README.md`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/03-sprint-board.md`
+  - `docs/planning/iterations/04-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/product/README.md`
+  - `docs/architecture/README.md`
+  - `docs/operations/README.md`
+  - `docs/planning/README.md`
+  - `docs/README.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (privacy-first social policy lock)
+
+- Area affected: MVP friend request and DM onboarding behavior
+- Change summary:
+  - Locked server-mediated friend request model for in-server contact flows.
+  - Locked default privacy rule preventing raw key/profile-identifying data exposure before acceptance.
+  - Added Iteration 2 tasks for mediated identity bootstrap release and DM inbound policy defaults/overrides.
+  - Added risk and decision coverage for identity scraping prevention.
+- Rationale:
+  - Preserve user privacy by default while keeping server-assisted contact discovery usable.
+- Linked docs updated:
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/reference/glossary.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (server invite policy normalization)
 
 - Area affected: MVP server onboarding policy and invite semantics

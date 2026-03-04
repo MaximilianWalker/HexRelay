@@ -13,7 +13,7 @@
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-03-04 documentation standardization pass.
+- Latest meaningful change: 2026-03-04 added MVP operations runbook baseline.
 
 ## Purpose
 
@@ -26,3 +26,4 @@
 - Issue templates: `.github/ISSUE_TEMPLATE/`
 - Pull request template: `.github/pull_request_template.md`
 - Contributor workflow: `docs/operations/contributor-guide.md`
+- MVP runbook: `docs/operations/01-mvp-runbook.md`

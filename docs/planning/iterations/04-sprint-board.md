@@ -84,6 +84,22 @@ Scope: Iteration 4 (Weeks 10-12) from `docs/product/01-mvp-plan.md`.
 - Discovery ingestion and publish validation outputs are linked for operator flows.
 - Observability dashboards and alert fault-injection reports are attached to release readiness notes.
 
+## UI and Flow State Mapping
+
+| Flow | Required states (authoritative set in `docs/product/08-screen-state-spec.md`) |
+|---|---|
+| Discovery and server join | loading, search_no_results, permission_denied, error |
+| Migration export/import | export_running, import_running, conflict_review, reconcile_running, completed, failed |
+| Observability/SLO review | loading, degraded, breached, recovered |
+
+## Evidence Ledger
+
+| Task set | Evidence artifact path | Validator |
+|---|---|---|
+| T7.1.x-T7.3.1 | `evidence/iteration-04/discovery-portability/` | registry and migration contract suites |
+| T7.4.x-T7.5.x | `evidence/iteration-04/profile-migration/` | replication + reconcile scenario matrix |
+| T8.1.x-T8.3.1 | `evidence/iteration-04/observability-beta/` | fault-injection + docs checklist |
+
 ## In Progress
 
 | ID | Task | Status | Notes |
@@ -138,4 +154,7 @@ Week 12:
 
 - `docs/product/01-mvp-plan.md`
 - `docs/product/02-prd-v1.md`
+- `docs/product/08-screen-state-spec.md`
+- `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/testing/01-mvp-verification-matrix.md`
 - `docs/reference/glossary.md`

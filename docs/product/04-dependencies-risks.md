@@ -44,6 +44,8 @@
 | R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
+| R-007 | User identity scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, hide raw key/profile-identifying data by default, release bootstrap data only on accepted requests | API |
+| R-008 | Missed DM delivery when recipient remains offline | medium | medium | Encrypted local outbox retries, explicit delivery-state UI, and user guidance that offline queue is best-effort in MVP | Core/Web |
 
 ## Review Cadence
 
@@ -61,6 +63,8 @@
 | R-004 | T7.1.2, T7.5.1, T7.5.2, T7.5.3 |
 | R-005 | T2.2.1, T2.3.1, T2.4.1 |
 | R-006 | T2.1.4, T7.5.2, T8.3.1 |
+| R-007 | T3.1.1, T3.1.2, T3.1.5, T4.1.2 |
+| R-008 | T4.5.2, T4.5.4, T4.1.2 |
 
 ## Decisions
 
@@ -71,6 +75,9 @@
 | DEC-003 | Profile data authority remains user-signed canonical data; server replicas are non-authoritative except server-owned security/membership fields | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-004 | Post-MVP discovery roadmap is hybrid: federation supported, trusted registries added, and full P2P discovery optional | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-005 | Server invite policy allows optional expiration/max-uses, including non-expiring multi-use links for open-access behavior | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-006 | Friend requests are server-mediated with privacy-first identity exposure; DM inbound defaults to friends-only with user-configurable overrides | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-007 | DM transport is direct user-to-user and guild/community servers do not relay/store DM payloads | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-008 | MVP DM offline behavior is best-effort online with encrypted local outbox retries and no guaranteed offline queue | accepted | `docs/product/01-mvp-plan.md` |
 
 ## Related Documents
 

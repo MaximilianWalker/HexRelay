@@ -16,7 +16,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-04 normalized server invites to allow non-expiring multi-use links.
+- Latest meaningful change: 2026-03-04 locked direct peer DM transport with best-effort offline retry policy.
 
 ## 1) Product Intent and Constraints
 
@@ -32,10 +32,11 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Multiple personas/accounts per device are supported in MVP.
 - Profile model: global profile by default, optional per-server overrides.
 - User discovery: direct user discovery supported globally and from shared servers.
-- No cross-server DM threads between servers.
+- DM transport is independent of guild/community servers (no server-mediated DM relay).
 - Message defaults: edits and mentions are required; retention default is forever and configurable per server.
 - Moderation model: no centralized platform moderation; only node-owner controls.
 - Privacy baseline: encrypted transport and at-rest encryption everywhere; E2EE DMs in MVP.
+- DM transport baseline: direct user-to-user channels; guild/community servers do not relay/store DM payloads.
 - Voice target: competitive quality; screen share included in MVP.
 - UI direction: heavily Discord-inspired interaction model, except server navigation uses scalable list/card paradigms (no small circular server rail).
 - Server navigation supports dual mode: sidebar list/folders and topbar tabbed navigation (browser-like tabs/saved tabs).
@@ -59,6 +60,9 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked dual server-navigation mode (sidebar + topbar tabs) and burger collapse behavior in server workspace.
 - 2026-03-04: Execution hardening aligned E2EE scope across plan/risk/iteration tasks and introduced contract/dependency gates.
 - 2026-03-04: Locked server invite policy allowing non-expiring multi-use invite links as an open-access pattern.
+- 2026-03-04: Locked privacy-first social policy: mediated friend requests, no default key/profile scraping, and opt-in DM permissions.
+- 2026-03-04: Locked DM transport to direct user-to-user channels; guild servers do not relay/store DM payloads.
+- 2026-03-04: Locked MVP DM offline policy to best-effort online delivery with encrypted local outbox retries.
 
 ## 2) Architecture Decision (Locked)
 
@@ -88,6 +92,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Friends graph: add/remove/block/mute + presence.
 - User discovery (global and shared-server contexts) with direct contact requests.
 - Direct user-to-user add flow via expiring contact invite link or QR.
+- Friend requests via servers are intent-based and mediated; raw key/profile-identifying data is not exposed by default.
 - Dedicated global hubs for browsing servers and contacts with searchable card views.
 - Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
 - Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
@@ -154,11 +159,23 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - Accepting invite creates a friend request or direct friend edge per user settings.
   - Expired/invalid/exhausted tokens fail with deterministic error codes.
 
+### Privacy-First Social Graph Policy (MVP)
+
+- Servers do not expose raw key/profile-identifying data to other users by default.
+- Friend requests through a server are mediated actions:
+  - User A requests contact with User B through server-local reference.
+  - Server sends request notification to User B.
+  - Only after User B accepts, both sides receive bootstrap material required for direct relationship setup.
+- DM policy defaults to opt-in:
+  - Default allow-list: friends/accepted requests only.
+  - Per-user override options: allow DMs from same-server members or from anyone.
+
 ### Encryption Model
 
 - Transport: TLS for all client/server and server/server channels.
 - At-rest: database and blob encryption for node-stored data.
-- DMs: E2EE with forward secrecy (server stores ciphertext and delivery metadata only).
+- DMs: E2EE with forward secrecy over direct user-to-user channels (no guild server relay/storage for DM payloads).
+- Offline delivery policy (MVP): best-effort online delivery only; sender keeps encrypted local outbox and retries when recipient comes online.
 - Keys: private keys remain client-controlled and encrypted at rest on device.
 
 ### Authentication Flow

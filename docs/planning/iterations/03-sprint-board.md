@@ -76,6 +76,22 @@ Scope: Iteration 3 (Weeks 7-9) from `docs/product/01-mvp-plan.md`.
 - Screen-share reconnection evidence and media retry reliability reports are attached.
 - Local moderation audit-log schema checks are included in final verification output.
 
+## UI and Flow State Mapping
+
+| Flow | Required states (authoritative set in `docs/product/08-screen-state-spec.md`) |
+|---|---|
+| Voice and call lifecycle | connecting, connected, reconnecting, quality_degraded, ended, error |
+| Screen share lifecycle | connecting, connected, reconnecting, ended, error |
+| Attachment transfer flow | loading, success, retryable_failure, policy_denied |
+
+## Evidence Ledger
+
+| Task set | Evidence artifact path | Validator |
+|---|---|---|
+| T5.1.x-T5.3.1 | `evidence/iteration-03/voice/` | KPI profile run + reconnect suite |
+| T6.1.x | `evidence/iteration-03/media/` | transfer and retry reliability suites |
+| T6.2.1-T6.3.1 | `evidence/iteration-03/moderation/` | policy and audit-log assertions |
+
 ## In Progress
 
 | ID | Task | Status | Notes |
@@ -128,4 +144,7 @@ Week 9:
 
 - `docs/product/01-mvp-plan.md`
 - `docs/product/02-prd-v1.md`
+- `docs/product/08-screen-state-spec.md`
+- `docs/product/09-configuration-defaults-register.md`
+- `docs/testing/01-mvp-verification-matrix.md`
 - `docs/reference/glossary.md`

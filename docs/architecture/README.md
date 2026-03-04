@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 documentation standardization pass.
+- Latest meaningful change: 2026-03-04 added data lifecycle and retention boundary spec.
 
 ## Purpose
 
@@ -24,3 +24,7 @@
 ## ADR Index
 
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
+
+## Architecture Specs
+
+- `docs/architecture/02-data-lifecycle-retention-replication.md`: persistence boundaries, retention, and reconciliation behavior.

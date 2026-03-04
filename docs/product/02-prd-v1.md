@@ -14,7 +14,7 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-04 normalized server invites to allow non-expiring multi-use links.
+- Latest meaningful change: 2026-03-04 locked direct peer DM transport and best-effort offline retry semantics.
 
 ## Product Summary
 
@@ -95,8 +95,9 @@ Build a communication stack where users and communities control identity, data l
 
 1. Users establish DM session and exchange encryption material.
 2. Client encrypts outbound DM payloads.
-3. Server stores ciphertext and required delivery metadata.
+3. Payload is transported over direct user-to-user channel (not via guild server relay).
 4. Recipient client decrypts locally.
+5. If recipient is offline, sender keeps encrypted local outbox and retries on reconnect (best-effort, no guaranteed offline queue in MVP).
 
 ### 4) New Device Restore
 
@@ -130,6 +131,13 @@ Build a communication stack where users and communities control identity, data l
 4. Recipient accepts and a friend request/edge is created.
 5. Invalid/expired/exhausted tokens fail with explicit error feedback.
 
+### 8) Send Friend Request Through a Server (Mediated)
+
+1. User A requests contact with User B using server-local reference.
+2. Server sends request notification to User B without exposing raw key/profile-identifying data to User A.
+3. User B accepts or declines.
+4. On accept, both users receive only the bootstrap data required for direct relationship setup.
+
 ## Functional Requirements
 
 - Identity
@@ -143,8 +151,17 @@ Build a communication stack where users and communities control identity, data l
   - Users can generate expiring contact invite links or QR payloads.
   - One-time by default, optional bounded max-uses.
   - Redeem flow must return deterministic error states (`invite_invalid`, `invite_expired`, `invite_exhausted`).
+- Friend requests and identity exposure
+  - Server-mediated friend request flow is required for in-server user discovery paths.
+  - Raw key/profile-identifying data is not exposed to other users by default.
+  - Bootstrap identity material is shared only after request acceptance.
 - Messaging
-  - DMs/group DMs/server channels with edits, mentions, and moderation-visible edit history.
+  - DMs/group DMs and server channels with edits, mentions, and replies.
+  - Moderation-visible edit history applies to server channels, not direct DMs.
+  - Guild/community servers do not relay or store DM payloads.
+  - DM offline behavior is best-effort online delivery with encrypted local retry queue on sender device.
+  - Default DM policy allows incoming DMs only from friends/accepted requests.
+  - Per-user override options: allow same-server members or anyone.
 - Navigation and Information Architecture
   - Discord-like overall layout and interaction model are baseline.
   - Server navigation must not rely on small circular icon rails as the primary pattern.

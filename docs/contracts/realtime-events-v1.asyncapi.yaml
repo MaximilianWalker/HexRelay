@@ -1,59 +1,341 @@
 asyncapi: 3.0.0
+id: urn:hexrelay:contracts:realtime-events:v1
 info:
   title: HexRelay Realtime Events Contract
-  version: 0.1.0
+  version: 0.2.0
   description: |
-    Baseline realtime event contract for Iteration 2 and Iteration 3.
-    Defines stable channel names and payload schemas used by Web and Realtime services.
+    Realtime event contract baseline for Iteration 2 and Iteration 3.
+    DM events are direct user-to-user transport events and are not relayed
+    by guild/community servers.
+defaultContentType: application/json
+servers:
+  staging:
+    host: realtime.hexrelay.local
+    protocol: wss
+    description: Staging realtime gateway
 channels:
-  presence.updated:
+  presenceUpdated:
     address: presence.updated
+    description: User presence transition event.
     messages:
-      presenceUpdated:
-        payload:
-          type: object
-          required: [user_id, status, updated_at]
-          properties:
-            user_id:
-              type: string
-            status:
-              type: string
-              enum: [online, idle, dnd, offline]
-            updated_at:
-              type: string
-              format: date-time
-  dm.message.created:
+      presenceUpdatedV1:
+        $ref: '#/components/messages/PresenceUpdatedV1'
+  dmMessageCreated:
     address: dm.message.created
+    description: Direct peer DM message creation event.
     messages:
-      dmMessageCreated:
-        payload:
-          type: object
-          required: [message_id, thread_id, sender_id, created_at, ciphertext]
-          properties:
-            message_id:
-              type: string
-            thread_id:
-              type: string
-            sender_id:
-              type: string
-            created_at:
-              type: string
-              format: date-time
-            ciphertext:
-              type: string
-  call.state.changed:
+      dmMessageCreatedV1:
+        $ref: '#/components/messages/DmMessageCreatedV1'
+  callStateChanged:
     address: call.state.changed
+    description: Voice/call lifecycle state transition event.
     messages:
-      callStateChanged:
-        payload:
-          type: object
-          required: [call_id, state, updated_at]
+      callStateChangedV1:
+        $ref: '#/components/messages/CallStateChangedV1'
+  channelMessageCreated:
+    address: channel.message.created
+    description: Server-channel message creation event for guild/community channels.
+    messages:
+      channelMessageCreatedV1:
+        $ref: '#/components/messages/ChannelMessageCreatedV1'
+operations:
+  receivePresenceUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/presenceUpdated'
+    messages:
+      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
+  receiveDmMessageCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/dmMessageCreated'
+    messages:
+      - $ref: '#/channels/dmMessageCreated/messages/dmMessageCreatedV1'
+  receiveCallStateChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/callStateChanged'
+    messages:
+      - $ref: '#/channels/callStateChanged/messages/callStateChangedV1'
+  receiveChannelMessageCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageCreated'
+    messages:
+      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+components:
+  messages:
+    PresenceUpdatedV1:
+      name: PresenceUpdatedV1
+      title: Presence Updated
+      summary: Published when a user's presence changes.
+      payload:
+        $ref: '#/components/schemas/PresenceUpdatedEventV1'
+      examples:
+        - name: online
+          payload:
+            event_id: 8d08fdf4-8de6-4f8e-9dc6-64eb98508f6f
+            event_type: presence.updated
+            event_version: 1
+            occurred_at: 2026-03-04T14:52:00Z
+            correlation_id: 721be58b-65f0-43fd-bec8-3f8671b3d5c2
+            producer: realtime-gateway
+            data:
+              user_id: 8a76fb90-4049-49de-9b8e-d1277f6c0ac4
+              status: online
+              updated_at: 2026-03-04T14:52:00Z
+              presence_seq: 120
+    DmMessageCreatedV1:
+      name: DmMessageCreatedV1
+      title: DM Message Created
+      summary: Published when a new direct message is created.
+      payload:
+        $ref: '#/components/schemas/DmMessageCreatedEventV1'
+      examples:
+        - name: encrypted_direct_peer
+          payload:
+            event_id: be5468a6-bb4e-4e74-bec2-6f84e81226b1
+            event_type: dm.message.created
+            event_version: 1
+            occurred_at: 2026-03-04T14:52:01Z
+            correlation_id: adfd8d5c-3b7f-474f-8f02-8ba62f33f5c6
+            producer: dm-direct-transport
+            data:
+              message_id: ad6b1131-e301-4b2e-a531-d6024f2f8ec4
+              thread_id: 86588f8f-78f8-4234-b5fb-f53e90f8889d
+              sender_id: d7cf2d6e-2905-43de-bf74-90b06ff5ed20
+              created_at: 2026-03-04T14:52:01Z
+              ciphertext: BASE64_CIPHERTEXT_PLACEHOLDER
+              key_id: dm-key-018
+              thread_seq: 401
+              transport_scope: direct_peer
+    CallStateChangedV1:
+      name: CallStateChangedV1
+      title: Call State Changed
+      summary: Published when call state transitions.
+      payload:
+        $ref: '#/components/schemas/CallStateChangedEventV1'
+      examples:
+        - name: active
+          payload:
+            event_id: 4f4baf8e-2c17-42f7-bd67-650f3326d4bd
+            event_type: call.state.changed
+            event_version: 1
+            occurred_at: 2026-03-04T14:52:05Z
+            correlation_id: c4f08be4-2fe4-467b-9bf4-67e7a009f717
+            producer: voice-signaling
+            data:
+              call_id: 8f415f6e-48df-4573-a225-88f3f6ab4029
+              state: active
+              updated_at: 2026-03-04T14:52:05Z
+              call_seq: 16
+    ChannelMessageCreatedV1:
+      name: ChannelMessageCreatedV1
+      title: Channel Message Created
+      summary: Published when a server-channel message is created.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
+      examples:
+        - name: guild_channel_message
+          payload:
+            event_id: a7408485-73c0-48d1-b4ff-8794de5a6f84
+            event_type: channel.message.created
+            event_version: 1
+            occurred_at: 2026-03-04T14:53:00Z
+            correlation_id: 0202c016-b114-47c1-a45b-8e8ecf5408d2
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              sender_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              created_at: 2026-03-04T14:53:00Z
+              channel_seq: 922
+  schemas:
+    EventEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - event_type
+        - event_version
+        - occurred_at
+        - correlation_id
+        - producer
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          minLength: 3
+          maxLength: 128
+        event_version:
+          type: integer
+          minimum: 1
+        occurred_at:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          format: uuid
+        producer:
+          type: string
+          minLength: 2
+          maxLength: 64
+    PresenceUpdatedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - status
+        - updated_at
+        - presence_seq
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [online, idle, dnd, offline]
+        updated_at:
+          type: string
+          format: date-time
+        presence_seq:
+          type: integer
+          minimum: 1
+    PresenceUpdatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
           properties:
-            call_id:
-              type: string
-            state:
-              type: string
-              enum: [ringing, active, ended]
-            updated_at:
-              type: string
-              format: date-time
+            event_type:
+              const: presence.updated
+            data:
+              $ref: '#/components/schemas/PresenceUpdatedDataV1'
+    DmMessageCreatedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - thread_id
+        - sender_id
+        - created_at
+        - ciphertext
+        - key_id
+        - thread_seq
+        - transport_scope
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        thread_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        ciphertext:
+          type: string
+          minLength: 24
+        key_id:
+          type: string
+          minLength: 4
+          maxLength: 64
+        thread_seq:
+          type: integer
+          minimum: 1
+        transport_scope:
+          type: string
+          enum: [direct_peer]
+    DmMessageCreatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.message.created
+            data:
+              $ref: '#/components/schemas/DmMessageCreatedDataV1'
+    CallStateChangedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - call_id
+        - state
+        - updated_at
+        - call_seq
+      properties:
+        call_id:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [ringing, active, ended, failed]
+        updated_at:
+          type: string
+          format: date-time
+        call_seq:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          maxLength: 128
+    CallStateChangedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: call.state.changed
+            data:
+              $ref: '#/components/schemas/CallStateChangedDataV1'
+    ChannelMessageCreatedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - guild_id
+        - channel_id
+        - sender_id
+        - created_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        guild_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageCreatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.created
+            data:
+              $ref: '#/components/schemas/ChannelMessageCreatedDataV1'

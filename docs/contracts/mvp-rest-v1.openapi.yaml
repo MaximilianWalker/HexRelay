@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: HexRelay MVP REST API
+  version: 0.1.0
+  description: |
+    Contract coverage baseline for MVP scope beyond Iteration 1 identity/auth/invite.
+    This file is an execution-hardening contract map and should be expanded before
+    each iteration begins.
+servers:
+  - url: https://api.hexrelay.local
+paths:
+  /v1/friends/requests:
+    post:
+      summary: Create friend request
+    get:
+      summary: List inbound/outbound friend requests
+  /v1/friends/requests/{request_id}/accept:
+    post:
+      summary: Accept friend request
+  /v1/friends/requests/{request_id}/decline:
+    post:
+      summary: Decline friend request
+  /v1/friends:
+    get:
+      summary: List friends
+  /v1/friends/{user_id}/block:
+    post:
+      summary: Block user
+  /v1/friends/{user_id}/mute:
+    post:
+      summary: Mute user
+  /v1/contact-invites:
+    post:
+      summary: Create user contact invite token
+  /v1/contact-invites/redeem:
+    post:
+      summary: Redeem user contact invite token
+  /v1/discovery/users:
+    get:
+      summary: Query global/shared-server user discovery
+  /v1/dm/privacy-policy:
+    get:
+      summary: Get user DM inbound policy
+    post:
+      summary: Update user DM inbound policy
+  /v1/guilds:
+    post:
+      summary: Create server (guild)
+    get:
+      summary: List joined servers
+  /v1/guilds/{guild_id}/channels:
+    post:
+      summary: Create channel
+  /v1/messages/{message_id}:
+    patch:
+      summary: Edit message
+    delete:
+      summary: Delete message
+  /v1/profile/public:
+    get:
+      summary: Get signed public profile card
+    post:
+      summary: Update signed public profile card
+  /v1/profile/private:
+    get:
+      summary: Get encrypted private profile capsule
+    post:
+      summary: Update encrypted private profile capsule
+  /v1/migration/export:
+    post:
+      summary: Start full migration export
+  /v1/migration/import:
+    post:
+      summary: Start migration import and reconciliation
+  /v1/migration/cutover:
+    post:
+      summary: Revoke old sessions after successful migration
+  /v1/discovery/registry:
+    get:
+      summary: Fetch signed discovery registry entries

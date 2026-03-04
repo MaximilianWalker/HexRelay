@@ -13,11 +13,12 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added KPI/SLO test profile as canonical planning artifact.
+- Latest meaningful change: 2026-03-04 added hardening references for testing matrix and execution evidence.
 
 ## Contents
 
 - Iteration boards index (canonical execution planning source): `docs/planning/iterations/README.md`
 - Iteration change log: `docs/planning/05-iteration-log.md`
 - KPI/SLO fixed benchmark profile: `docs/planning/kpi-slo-test-profile.md`
+- MVP verification matrix: `docs/testing/01-mvp-verification-matrix.md`
 - Use `docs/planning/sprint-board-template.md` for new iterations.

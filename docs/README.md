@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 registered realtime contract and KPI/SLO test profile as canonical planning artifacts.
+- Latest meaningful change: 2026-03-04 registered hardening artifacts for screen state, config defaults, data lifecycle, runbook, and verification.
 
 ## Purpose
 
@@ -26,13 +26,19 @@
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
 | Iteration 1 API contract baseline | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any identity/auth/invite schema or error contract change |
+| MVP REST contract coverage baseline | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Any social/messaging/discovery/migration REST schema or behavior change |
 | Realtime event/signaling contract baseline | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Any websocket/signaling event schema change |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
+| MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
+| Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
 | Dependencies and risk register | `docs/product/04-dependencies-risks.md` | Product/architecture maintainers | Dependency status or risk severity/mitigation changes |
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
+| Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
+| MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
+| MVP requirement-to-evidence verification | `docs/testing/01-mvp-verification-matrix.md` | Delivery/QA maintainers | Verification mapping, evidence format, or validator rules change |
 | Contributor workflow and release hygiene | `docs/operations/contributor-guide.md` | Maintainers | Branch/PR policy, validation gates, or release workflow changes |
 | Architecture decisions (ADR set) | `docs/architecture/README.md` and `docs/architecture/adr-*.md` | Architecture maintainers | Any accepted/rejected architecture decision |
 | Project glossary and canonical terms | `docs/reference/glossary.md` | Product/engineering maintainers | New domain term appears or an existing term meaning changes |
@@ -45,6 +51,7 @@
 - `docs/architecture/`: architecture decision records (ADRs)
 - `docs/operations/`: contributor and process operations
 - `docs/reference/`: shared definitions and reference material
+- `docs/testing/`: verification and evidence governance
 
 ## Lightweight Governance
 
@@ -67,8 +74,14 @@
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
 - `docs/product/07-ui-navigation-spec.md`
+- `docs/product/08-screen-state-spec.md`
+- `docs/product/09-configuration-defaults-register.md`
 - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/operations/01-mvp-runbook.md`
 - `docs/planning/kpi-slo-test-profile.md`
+- `docs/testing/01-mvp-verification-matrix.md`
 - `docs/planning/05-iteration-log.md`
 - `docs/operations/contributor-guide.md`

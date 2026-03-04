@@ -88,6 +88,13 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 - Security test output for nonce replay, fingerprint mismatch, and invite exhaustion is attached.
 - Final demo notes include end-to-end identity join/auth scenario and session revoke verification.
 
+## Evidence Ledger
+
+| Task set | Evidence artifact path | Validator |
+|---|---|---|
+| T1.1.x-T1.3.1 | `evidence/iteration-01/foundation/` | startup + CI gate verification |
+| T2.1.x-T2.4.1 | `evidence/iteration-01/identity-auth-invites/` | OpenAPI conformance + security integration suite |
+
 ## In Progress
 
 | ID | Task | Status | Notes |
