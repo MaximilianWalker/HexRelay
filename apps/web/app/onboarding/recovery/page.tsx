@@ -1,16 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { getOrCreateRecoveryPhrase } from "@/lib/recovery";
+import { readActivePersonaId } from "@/lib/personas";
+import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
 import styles from "../onboarding.module.css";
 
 export default function RecoveryOnboardingPage() {
-  const phrase = useMemo(() => getOrCreateRecoveryPhrase(), []);
+  const [phrase, setPhrase] = useState<string[]>([]);
   const [word3, setWord3] = useState("");
   const [word7, setWord7] = useState("");
   const [word11, setWord11] = useState("");
+
+  useEffect(() => {
+    const personaId = readActivePersonaId();
+    if (!personaId) {
+      return;
+    }
+
+    void getOrCreateRecoveryPhraseForPersona(personaId).then((resolved) => {
+      setPhrase(resolved);
+    });
+  }, []);
 
   const confirmed = useMemo(
     () =>

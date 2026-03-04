@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 confidence hardening pass started Phase 1 and 2 with runtime authority/runbook tightening plus recovery/key/invite security upgrades.
+- Latest meaningful change: 2026-03-04 confidence hardening expanded realtime contract routing, websocket schema/error tests, and realtime->api transport safety defaults.
 
 ## Purpose
 
@@ -29,6 +29,34 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (confidence hardening: realtime contract and transport safety)
+
+- Area affected: Realtime trust boundary and contract conformance
+- Change summary:
+  - Hardened realtime config to enforce valid API URL scheme and require HTTPS for non-loopback API upstreams.
+  - Added strict realtime HTTP client timeout/connect-timeout defaults for auth validation calls.
+  - Replaced websocket text echo behavior with structured event-envelope routing for call signaling event types.
+  - Enforced realtime sender identity binding by validating `from_user_id` against authenticated session identity before accepting signaling payloads.
+  - Added realtime contract tests for event version validation, unsupported event handling, malformed payloads, and websocket roundtrip envelope shape.
+  - Added negative integration test for websocket auth flow when API upstream is unreachable.
+  - Added DB migration backfill test for invite plaintext-token hashing and removed plaintext fallback from invite redeem queries.
+  - Added web unit tests for secure-store provider failure fallback and recovery phrase derivation stability.
+  - Aligned product stack wording to current HMAC bearer token model (removed JWT phrasing drift).
+- Rationale:
+  - Reduce auth-gate failure ambiguity and establish deterministic realtime event contract behavior before broader fanout feature work.
+- Linked docs updated:
+  - `services/realtime-rs/src/config.rs`
+  - `services/realtime-rs/src/state.rs`
+  - `services/realtime-rs/src/handlers.rs`
+  - `services/realtime-rs/Cargo.toml`
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/migrations/0007_invites_hash_backfill.sql`
+  - `services/api-rs/src/invite_handlers.rs`
+  - `apps/web/lib/secure-store.test.ts`
+  - `apps/web/lib/recovery.test.ts`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-04 (confidence hardening phase 1-2 kickoff)
 

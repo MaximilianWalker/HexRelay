@@ -27,6 +27,10 @@ const MIGRATIONS: &[Migration] = &[
         "0006_invites",
         include_str!("../migrations/0006_invites.sql"),
     ),
+    (
+        "0007_invites_hash_backfill",
+        include_str!("../migrations/0007_invites_hash_backfill.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
@@ -114,6 +118,8 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
 mod tests {
     use std::env;
 
+    use ring::digest::{digest, SHA256};
+
     use super::{connect_and_prepare, run_migrations};
 
     async fn prepare_test_pool() -> Option<PgPool> {
@@ -165,5 +171,55 @@ mod tests {
         run_migrations(&pool)
             .await
             .expect("lock should be released after mismatch");
+    }
+
+    #[tokio::test]
+    async fn invite_backfill_hashes_legacy_plaintext_tokens() {
+        let Some(pool) = prepare_test_pool().await else {
+            return;
+        };
+
+        let plaintext_token = "legacy-token-backfill-test";
+        let insert = sqlx::query(
+            "
+            INSERT INTO invites (token, mode, node_fingerprint, uses)
+            VALUES ($1, 'one_time', 'hexrelay-local-fingerprint', 0)
+            ON CONFLICT (token) DO NOTHING
+            ",
+        )
+        .bind(plaintext_token)
+        .execute(&pool)
+        .await;
+
+        if insert.is_err() {
+            return;
+        }
+
+        sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
+            .bind("0007_invites_hash_backfill")
+            .execute(&pool)
+            .await
+            .expect("clear 0007 migration marker");
+
+        run_migrations(&pool)
+            .await
+            .expect("re-run invite hash backfill migration");
+
+        let legacy_exists =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
+                .bind(plaintext_token)
+                .fetch_one(&pool)
+                .await
+                .expect("count plaintext invite token");
+        assert_eq!(legacy_exists, 0);
+
+        let expected_hash = hex::encode(digest(&SHA256, plaintext_token.as_bytes()).as_ref());
+        let hashed_exists =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
+                .bind(expected_hash)
+                .fetch_one(&pool)
+                .await
+                .expect("count hashed invite token");
+        assert_eq!(hashed_exists, 1);
     }
 }

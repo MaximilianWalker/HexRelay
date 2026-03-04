@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 confidence hardening started Phase 1/2 updates for runtime authority clarity plus recovery/key/invite security baselines.
+- Latest meaningful change: 2026-03-04 confidence hardening added realtime event-envelope routing, websocket contract tests, and realtime upstream transport safety defaults.
 
 ## Iteration Scope
 

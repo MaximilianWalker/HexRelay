@@ -128,12 +128,11 @@ pub async fn redeem_invite(
             "
             SELECT node_fingerprint, expires_at, max_uses, uses
             FROM invites
-            WHERE token = $1 OR token = $2
+            WHERE token = $1
             FOR UPDATE
             ",
         )
         .bind(&token_hash)
-        .bind(&payload.token)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| crate::errors::internal_error("storage_unavailable", "failed to read invite"))?
@@ -177,11 +176,10 @@ pub async fn redeem_invite(
             "
             UPDATE invites
             SET uses = uses + 1
-            WHERE token = $1 OR token = $2
+            WHERE token = $1
             ",
         )
         .bind(&token_hash)
-        .bind(&payload.token)
         .execute(&mut *tx)
         .await
         .map_err(|_| {
