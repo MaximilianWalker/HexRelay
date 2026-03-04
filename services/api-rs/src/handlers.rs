@@ -1,4 +1,8 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    Json,
+};
 use chrono::{Duration, Utc};
 use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -9,14 +13,17 @@ use crate::{
     errors::{bad_request, unauthorized, ApiResult},
     models::{
         AuthChallengeRecord, AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest,
-        AuthVerifyResponse, HealthResponse, IdentityKeyRegistrationRequest, InviteCreateRequest,
-        InviteCreateResponse, InviteRecord, InviteRedeemRequest, InviteRedeemResponse,
-        RegisteredIdentityKey, SessionRecord, SessionRevokeRequest,
+        AuthVerifyResponse, ContactListQuery, ContactListResponse, ContactSummary,
+        FriendRequestCreate, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord,
+        HealthResponse, IdentityKeyRegistrationRequest, InviteCreateRequest, InviteCreateResponse,
+        InviteRecord, InviteRedeemRequest, InviteRedeemResponse, RegisteredIdentityKey,
+        ServerListQuery, ServerListResponse, ServerSummary, SessionRecord, SessionRevokeRequest,
     },
     state::AppState,
     validation::{
         decode_32_bytes, decode_64_bytes, validate_auth_challenge_request,
-        validate_auth_verify_request, validate_identity_registration,
+        validate_auth_verify_request, validate_friend_request_create,
+        validate_friend_request_list_query, validate_identity_registration,
         validate_invite_create_request, validate_invite_redeem_request,
         validate_session_revoke_request,
     },
@@ -302,6 +309,216 @@ pub async fn redeem_invite(
     invite.uses += 1;
 
     Ok(Json(InviteRedeemResponse { accepted: true }))
+}
+
+pub async fn list_servers(Query(query): Query<ServerListQuery>) -> Json<ServerListResponse> {
+    let mut items = vec![
+        ServerSummary {
+            id: "srv-atlas-core".to_string(),
+            name: "Atlas Core".to_string(),
+            unread: 2,
+            favorite: true,
+            muted: false,
+        },
+        ServerSummary {
+            id: "srv-relay-lab".to_string(),
+            name: "Relay Lab".to_string(),
+            unread: 0,
+            favorite: false,
+            muted: true,
+        },
+        ServerSummary {
+            id: "srv-dev-signals".to_string(),
+            name: "Dev Signals".to_string(),
+            unread: 5,
+            favorite: true,
+            muted: false,
+        },
+        ServerSummary {
+            id: "srv-ops-watch".to_string(),
+            name: "Ops Watch".to_string(),
+            unread: 0,
+            favorite: false,
+            muted: false,
+        },
+    ];
+
+    if query.favorites_only.unwrap_or(false) {
+        items.retain(|item| item.favorite);
+    }
+    if query.unread_only.unwrap_or(false) {
+        items.retain(|item| item.unread > 0);
+    }
+    if query.muted_only.unwrap_or(false) {
+        items.retain(|item| item.muted);
+    }
+    if let Some(search) = query.search.as_ref() {
+        if !search.trim().is_empty() {
+            let needle = search.to_lowercase();
+            items.retain(|item| item.name.to_lowercase().contains(&needle));
+        }
+    }
+
+    Json(ServerListResponse { items })
+}
+
+pub async fn list_contacts(Query(query): Query<ContactListQuery>) -> Json<ContactListResponse> {
+    let mut items = vec![
+        ContactSummary {
+            id: "usr-nora-k".to_string(),
+            name: "Nora K".to_string(),
+            status: "online".to_string(),
+            unread: 1,
+            favorite: true,
+            inbound_request: false,
+            pending_request: false,
+        },
+        ContactSummary {
+            id: "usr-alex-r".to_string(),
+            name: "Alex R".to_string(),
+            status: "offline".to_string(),
+            unread: 0,
+            favorite: false,
+            inbound_request: false,
+            pending_request: true,
+        },
+        ContactSummary {
+            id: "usr-mina-s".to_string(),
+            name: "Mina S".to_string(),
+            status: "online".to_string(),
+            unread: 3,
+            favorite: true,
+            inbound_request: false,
+            pending_request: false,
+        },
+        ContactSummary {
+            id: "usr-jules-p".to_string(),
+            name: "Jules P".to_string(),
+            status: "away".to_string(),
+            unread: 0,
+            favorite: false,
+            inbound_request: true,
+            pending_request: false,
+        },
+    ];
+
+    if query.online_only.unwrap_or(false) {
+        items.retain(|item| item.status == "online");
+    }
+    if query.unread_only.unwrap_or(false) {
+        items.retain(|item| item.unread > 0);
+    }
+    if query.favorites_only.unwrap_or(false) {
+        items.retain(|item| item.favorite);
+    }
+    if let Some(search) = query.search.as_ref() {
+        if !search.trim().is_empty() {
+            let needle = search.to_lowercase();
+            items.retain(|item| item.name.to_lowercase().contains(&needle));
+        }
+    }
+
+    Json(ContactListResponse { items })
+}
+
+pub async fn create_friend_request(
+    State(state): State<AppState>,
+    Json(payload): Json<FriendRequestCreate>,
+) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
+    validate_friend_request_create(&payload)?;
+
+    let mut guard = state
+        .friend_requests
+        .write()
+        .expect("acquire friend request write lock");
+
+    let existing = guard.values().find(|item| {
+        item.requester_identity_id == payload.requester_identity_id
+            && item.target_identity_id == payload.target_identity_id
+            && item.status == "pending"
+    });
+
+    if existing.is_some() {
+        return Err(bad_request(
+            "identity_invalid",
+            "pending friend request already exists",
+        ));
+    }
+
+    let record = FriendRequestRecord {
+        request_id: Uuid::new_v4().to_string(),
+        requester_identity_id: payload.requester_identity_id,
+        target_identity_id: payload.target_identity_id,
+        status: "pending".to_string(),
+        created_at: Utc::now().to_rfc3339(),
+    };
+
+    guard.insert(record.request_id.clone(), record.clone());
+
+    Ok((StatusCode::CREATED, Json(record)))
+}
+
+pub async fn list_friend_requests(
+    State(state): State<AppState>,
+    Query(query): Query<FriendRequestListQuery>,
+) -> ApiResult<Json<FriendRequestPage>> {
+    validate_friend_request_list_query(&query)?;
+
+    let guard = state
+        .friend_requests
+        .read()
+        .expect("acquire friend request read lock");
+
+    let mut items: Vec<FriendRequestRecord> = guard
+        .values()
+        .filter(|item| match query.direction.as_deref() {
+            Some("inbound") => item.target_identity_id == query.identity_id,
+            Some("outbound") => item.requester_identity_id == query.identity_id,
+            _ => {
+                item.requester_identity_id == query.identity_id
+                    || item.target_identity_id == query.identity_id
+            }
+        })
+        .cloned()
+        .collect();
+
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    Ok(Json(FriendRequestPage { items }))
+}
+
+pub async fn accept_friend_request(
+    State(state): State<AppState>,
+    axum::extract::Path(request_id): axum::extract::Path<String>,
+) -> ApiResult<Json<FriendRequestRecord>> {
+    let mut guard = state
+        .friend_requests
+        .write()
+        .expect("acquire friend request write lock");
+
+    let request = guard
+        .get_mut(&request_id)
+        .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    request.status = "accepted".to_string();
+    Ok(Json(request.clone()))
+}
+
+pub async fn decline_friend_request(
+    State(state): State<AppState>,
+    axum::extract::Path(request_id): axum::extract::Path<String>,
+) -> ApiResult<StatusCode> {
+    let mut guard = state
+        .friend_requests
+        .write()
+        .expect("acquire friend request write lock");
+
+    let request = guard
+        .get_mut(&request_id)
+        .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    request.status = "declined".to_string();
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn random_hex(byte_len: usize) -> String {

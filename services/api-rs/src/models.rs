@@ -79,6 +79,78 @@ pub struct InviteRedeemResponse {
     pub accepted: bool,
 }
 
+#[derive(Deserialize)]
+pub struct ServerListQuery {
+    pub search: Option<String>,
+    pub favorites_only: Option<bool>,
+    pub unread_only: Option<bool>,
+    pub muted_only: Option<bool>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ServerSummary {
+    pub id: String,
+    pub name: String,
+    pub unread: u32,
+    pub favorite: bool,
+    pub muted: bool,
+}
+
+#[derive(Serialize)]
+pub struct ServerListResponse {
+    pub items: Vec<ServerSummary>,
+}
+
+#[derive(Deserialize)]
+pub struct ContactListQuery {
+    pub search: Option<String>,
+    pub online_only: Option<bool>,
+    pub unread_only: Option<bool>,
+    pub favorites_only: Option<bool>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ContactSummary {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub unread: u32,
+    pub favorite: bool,
+    pub inbound_request: bool,
+    pub pending_request: bool,
+}
+
+#[derive(Serialize)]
+pub struct ContactListResponse {
+    pub items: Vec<ContactSummary>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct FriendRequestRecord {
+    pub request_id: String,
+    pub requester_identity_id: String,
+    pub target_identity_id: String,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(Deserialize)]
+pub struct FriendRequestCreate {
+    pub requester_identity_id: String,
+    pub target_identity_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct FriendRequestListQuery {
+    pub identity_id: String,
+    pub direction: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct FriendRequestPage {
+    pub items: Vec<FriendRequestRecord>,
+}
+
 #[derive(Serialize)]
 pub struct HealthResponse {
     pub service: &'static str,

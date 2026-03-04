@@ -1,51 +1,79 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
+import Link from "next/link";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
+import { fetchServers } from "@/lib/api";
 
 import styles from "../surfaces.module.css";
 
 type Server = {
+  id: string;
   name: string;
   unread: number;
   favorite: boolean;
   muted: boolean;
 };
 
-const SERVERS: Server[] = [
-  { name: "Atlas Core", unread: 2, favorite: true, muted: false },
-  { name: "Relay Lab", unread: 0, favorite: false, muted: true },
-  { name: "Dev Signals", unread: 5, favorite: true, muted: false },
-  { name: "Ops Watch", unread: 0, favorite: false, muted: false },
-];
-
 export default function ServersPage() {
+  const [servers, setServers] = useState<Server[]>([]);
   const [search, setSearch] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [mutedOnly, setMutedOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
-  const filtered = useMemo(() => {
-    return SERVERS.filter((server) => {
-      if (favoritesOnly && !server.favorite) {
-        return false;
+  useEffect(() => {
+    let active = true;
+
+    void fetchServers({
+      search,
+      favoritesOnly,
+      unreadOnly,
+      mutedOnly,
+    }).then((result) => {
+      if (!active) {
+        return;
       }
-      if (unreadOnly && server.unread === 0) {
-        return false;
+
+      if (!result.ok) {
+        setHasError(true);
+        setServers([]);
+        setLoading(false);
+        return;
       }
-      if (mutedOnly && !server.muted) {
-        return false;
-      }
-      if (search.trim() && !server.name.toLowerCase().includes(search.toLowerCase())) {
-        return false;
-      }
-      return true;
+
+      setServers(result.data.items);
+      setLoading(false);
     });
+
+    return () => {
+      active = false;
+    };
   }, [favoritesOnly, mutedOnly, search, unreadOnly]);
 
-  const state =
-    SERVERS.length === 0 ? "empty" : filtered.length === 0 ? "search_no_results" : "ready";
+  function setFilterState(update: () => void): void {
+    setLoading(true);
+    setHasError(false);
+    update();
+  }
+
+  const filtered = useMemo(() => {
+    return servers;
+  }, [servers]);
+
+  const state = loading
+    ? "loading"
+    : hasError
+      ? "error"
+      : filtered.length === 0
+        ? search.trim() || favoritesOnly || unreadOnly || mutedOnly
+          ? "search_no_results"
+          : "empty"
+        : "ready";
 
   return (
     <WorkspaceShell
@@ -60,19 +88,35 @@ export default function ServersPage() {
     >
       <section>
         <div className={styles.row}>
-          <button className={styles.pill} onClick={() => setFavoritesOnly((v) => !v)} type="button">
+          <button
+            className={styles.pill}
+            onClick={() => setFilterState(() => setFavoritesOnly((value) => !value))}
+            type="button"
+          >
             favorites {favoritesOnly ? "on" : "off"}
           </button>
-          <button className={styles.pill} onClick={() => setUnreadOnly((v) => !v)} type="button">
+          <button
+            className={styles.pill}
+            onClick={() => setFilterState(() => setUnreadOnly((value) => !value))}
+            type="button"
+          >
             unread {unreadOnly ? "on" : "off"}
           </button>
-          <button className={styles.pill} onClick={() => setMutedOnly((v) => !v)} type="button">
+          <button
+            className={styles.pill}
+            onClick={() => setFilterState(() => setMutedOnly((value) => !value))}
+            type="button"
+          >
             muted {mutedOnly ? "on" : "off"}
           </button>
         </div>
         <input
           className={styles.search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) =>
+            setFilterState(() => {
+              setSearch(event.target.value);
+            })
+          }
           placeholder="Search servers"
           value={search}
         />
@@ -80,8 +124,10 @@ export default function ServersPage() {
         {filtered.length > 0 ? (
           <div className={styles.grid}>
             {filtered.map((server) => (
-              <article className={styles.card} key={server.name}>
-                <p className={styles.title}>{server.name}</p>
+              <article className={styles.card} key={server.id}>
+                <p className={styles.title}>
+                  <Link href={`/servers/${server.id}`}>{server.name}</Link>
+                </p>
                 <p className={styles.meta}>
                   unread {server.unread} · {server.favorite ? "favorite" : "standard"} ·{" "}
                   {server.muted ? "muted" : "audible"}

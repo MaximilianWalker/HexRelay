@@ -30,6 +30,67 @@
 
 ## Log Entries
 
+### 2026-03-04 (onboarding scope simplification)
+
+- Area affected: Onboarding UX scope (`T2.1.4`)
+- Change summary:
+  - Removed server join/contact invite actions from onboarding access step.
+  - Converted access step into completion/handoff screen that routes users into the main app hubs for join/invite flows.
+- Rationale:
+  - Reduce onboarding complexity and user confusion by keeping onboarding focused on identity and recovery only.
+- Linked docs updated:
+  - `apps/web/app/onboarding/access/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (friend-request API baseline and contacts request actions)
+
+- Area affected: Iteration 2 social graph bootstrap (`T3.1.1`, `T3.1.2`)
+- Change summary:
+  - Implemented friend-request endpoints in `api-rs`: create/list plus accept/decline transitions.
+  - Added query validation and in-memory state tracking for pending request lifecycle.
+  - Added API tests for create/list and accept/decline behavior.
+  - Wired Contacts hub to live friend-request endpoints and added send/accept/decline UI actions.
+  - Added API-backed Servers/Contacts read endpoints and dynamic server workspace route scaffold for route continuity.
+- Rationale:
+  - Start Iteration 2 social graph execution on top of already stable identity/auth/invite primitives while keeping implementation deterministic and test-covered.
+- Linked docs updated:
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/validation.rs`
+  - `services/api-rs/src/lib.rs`
+  - `apps/web/lib/api.ts`
+  - `apps/web/app/contacts/page.tsx`
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/servers/[serverId]/page.tsx`
+  - `apps/web/app/surfaces.module.css`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (servers and contacts API-backed hub wiring)
+
+- Area affected: Iteration 1 web/backend integration (`T2.1.3` support)
+- Change summary:
+  - Added API read endpoints `GET /v1/servers` and `GET /v1/contacts` with deterministic query filtering.
+  - Added backend tests covering server/contact list filtering paths.
+  - Rewired web Servers and Contacts routes to call live API endpoints instead of local in-file datasets.
+  - Added dynamic server workspace route scaffold at `/servers/[serverId]` and linked server cards to workspace route navigation.
+  - Preserved screen-state mapping (`loading`, `error`, `empty`, `search_no_results`, request states) while changing data source to backend.
+- Rationale:
+  - Reduce placeholder logic and align hub surfaces with real API contracts ahead of friend/guild persistence work.
+- Linked docs updated:
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/lib.rs`
+  - `apps/web/lib/api.ts`
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/contacts/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (hub state interactivity pass)
 
 - Area affected: Iteration 1 web hub/state execution (`T2.1.3` support)

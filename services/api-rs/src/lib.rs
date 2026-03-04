@@ -39,6 +39,26 @@ mod tests {
         token: String,
     }
 
+    #[derive(Deserialize)]
+    struct ServerListResponse {
+        items: Vec<serde_json::Value>,
+    }
+
+    #[derive(Deserialize)]
+    struct ContactListResponse {
+        items: Vec<serde_json::Value>,
+    }
+
+    #[derive(Deserialize)]
+    struct FriendRequestRecord {
+        request_id: String,
+    }
+
+    #[derive(Deserialize)]
+    struct FriendRequestPage {
+        items: Vec<serde_json::Value>,
+    }
+
     async fn register_identity(
         app: axum::Router,
         identity_id: &str,
@@ -441,5 +461,163 @@ mod tests {
 
         let redeem_response = app.oneshot(redeem_request).await.expect("redeem response");
         assert_eq!(redeem_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn lists_servers_with_filters() {
+        let app = build_app(AppState::default());
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/servers?favorites_only=true&unread_only=true")
+            .body(Body::empty())
+            .expect("build servers list request");
+
+        let response = app.oneshot(request).await.expect("servers response");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read servers response body");
+        let payload: ServerListResponse =
+            serde_json::from_slice(&body).expect("decode server list response");
+        assert!(!payload.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn lists_contacts_with_search_filter() {
+        let app = build_app(AppState::default());
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/contacts?search=nora")
+            .body(Body::empty())
+            .expect("build contacts list request");
+
+        let response = app.oneshot(request).await.expect("contacts response");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read contacts response body");
+        let payload: ContactListResponse =
+            serde_json::from_slice(&body).expect("decode contacts list response");
+        assert_eq!(payload.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn creates_and_lists_friend_requests() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/friends/requests")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-jules-p"}"#,
+            ))
+            .expect("build friend request create request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create friend request response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let list_request = Request::builder()
+            .method("GET")
+            .uri("/v1/friends/requests?identity_id=usr-jules-p&direction=inbound")
+            .body(Body::empty())
+            .expect("build friend request list request");
+
+        let list_response = app
+            .oneshot(list_request)
+            .await
+            .expect("list friend request response");
+        assert_eq!(list_response.status(), StatusCode::OK);
+
+        let list_body = to_bytes(list_response.into_body(), usize::MAX)
+            .await
+            .expect("read friend request list body");
+        let list_payload: FriendRequestPage =
+            serde_json::from_slice(&list_body).expect("decode friend request page");
+        assert_eq!(list_payload.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn accepts_and_declines_friend_requests() {
+        let app = build_app(AppState::default());
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/friends/requests")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"requester_identity_id":"usr-mina-s","target_identity_id":"usr-alex-r"}"#,
+            ))
+            .expect("build create request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_body = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create body");
+        let created: FriendRequestRecord =
+            serde_json::from_slice(&create_body).expect("decode create response");
+
+        let accept_request = Request::builder()
+            .method("POST")
+            .uri(format!(
+                "/v1/friends/requests/{}/accept",
+                created.request_id
+            ))
+            .body(Body::empty())
+            .expect("build accept request");
+        let accept_response = app
+            .clone()
+            .oneshot(accept_request)
+            .await
+            .expect("accept response");
+        assert_eq!(accept_response.status(), StatusCode::OK);
+
+        let create_decline_request = Request::builder()
+            .method("POST")
+            .uri("/v1/friends/requests")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-alex-r"}"#,
+            ))
+            .expect("build create decline request");
+
+        let create_decline_response = app
+            .clone()
+            .oneshot(create_decline_request)
+            .await
+            .expect("create decline response");
+        assert_eq!(create_decline_response.status(), StatusCode::CREATED);
+
+        let decline_body = to_bytes(create_decline_response.into_body(), usize::MAX)
+            .await
+            .expect("read decline create body");
+        let decline_created: FriendRequestRecord =
+            serde_json::from_slice(&decline_body).expect("decode decline create");
+
+        let decline_request = Request::builder()
+            .method("POST")
+            .uri(format!(
+                "/v1/friends/requests/{}/decline",
+                decline_created.request_id
+            ))
+            .body(Body::empty())
+            .expect("build decline request");
+        let decline_response = app
+            .oneshot(decline_request)
+            .await
+            .expect("decline response");
+        assert_eq!(decline_response.status(), StatusCode::NO_CONTENT);
     }
 }

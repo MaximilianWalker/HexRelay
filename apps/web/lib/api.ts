@@ -120,6 +120,152 @@ export async function createInvite(input: {
   );
 }
 
+export async function fetchServers(input: {
+  search?: string;
+  favoritesOnly?: boolean;
+  unreadOnly?: boolean;
+  mutedOnly?: boolean;
+}): Promise<
+  ApiResult<{
+    items: Array<{
+      id: string;
+      name: string;
+      unread: number;
+      favorite: boolean;
+      muted: boolean;
+    }>;
+  }>
+> {
+  const params = new URLSearchParams();
+  if (input.search) {
+    params.set("search", input.search);
+  }
+  if (input.favoritesOnly) {
+    params.set("favorites_only", "true");
+  }
+  if (input.unreadOnly) {
+    params.set("unread_only", "true");
+  }
+  if (input.mutedOnly) {
+    params.set("muted_only", "true");
+  }
+
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/servers?${params.toString()}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function fetchContacts(input: {
+  search?: string;
+  onlineOnly?: boolean;
+  unreadOnly?: boolean;
+  favoritesOnly?: boolean;
+}): Promise<
+  ApiResult<{
+    items: Array<{
+      id: string;
+      name: string;
+      status: string;
+      unread: number;
+      favorite: boolean;
+      inbound_request: boolean;
+      pending_request: boolean;
+    }>;
+  }>
+> {
+  const params = new URLSearchParams();
+  if (input.search) {
+    params.set("search", input.search);
+  }
+  if (input.onlineOnly) {
+    params.set("online_only", "true");
+  }
+  if (input.unreadOnly) {
+    params.set("unread_only", "true");
+  }
+  if (input.favoritesOnly) {
+    params.set("favorites_only", "true");
+  }
+
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/contacts?${params.toString()}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function createFriendRequest(input: {
+  requesterIdentityId: string;
+  targetIdentityId: string;
+}): Promise<ApiResult<{ request_id: string; status: string }>> {
+  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      requester_identity_id: input.requesterIdentityId,
+      target_identity_id: input.targetIdentityId,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
+export async function fetchFriendRequests(input: {
+  identityId: string;
+  direction?: "inbound" | "outbound";
+}): Promise<
+  ApiResult<{
+    items: Array<{
+      request_id: string;
+      requester_identity_id: string;
+      target_identity_id: string;
+      status: string;
+      created_at: string;
+    }>;
+  }>
+> {
+  const params = new URLSearchParams();
+  params.set("identity_id", input.identityId);
+  if (input.direction) {
+    params.set("direction", input.direction);
+  }
+
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests?${params.toString()}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function acceptFriendRequest(input: {
+  requestId: string;
+}): Promise<ApiResult<{ request_id: string; status: string }>> {
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/accept`,
+    { method: "POST" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function declineFriendRequest(input: {
+  requestId: string;
+}): Promise<ApiResult<undefined>> {
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
+    { method: "POST" },
+  );
+
+  return parseResponse(response);
+}
+
 export async function redeemInvite(input: {
   token: string;
   nodeFingerprint: string;

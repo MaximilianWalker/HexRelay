@@ -1,59 +1,144 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
+import {
+  acceptFriendRequest,
+  createFriendRequest,
+  declineFriendRequest,
+  fetchContacts,
+  fetchFriendRequests,
+} from "@/lib/api";
+import { readActivePersonaId, readPersonas } from "@/lib/personas";
 
 import styles from "../surfaces.module.css";
 
 type Contact = {
+  id: string;
   name: string;
   status: "online" | "offline" | "away";
   unread: number;
   favorite: boolean;
-  inboundRequest?: boolean;
-  pendingRequest?: boolean;
 };
 
-const CONTACTS: Contact[] = [
-  { name: "Nora K", status: "online", unread: 1, favorite: true },
-  { name: "Alex R", status: "offline", unread: 0, favorite: false, pendingRequest: true },
-  { name: "Mina S", status: "online", unread: 3, favorite: true },
-  { name: "Jules P", status: "away", unread: 0, favorite: false, inboundRequest: true },
-];
+type FriendRequest = {
+  request_id: string;
+  requester_identity_id: string;
+  target_identity_id: string;
+  status: string;
+};
 
 export default function ContactsPage() {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [search, setSearch] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
-  const filtered = useMemo(() => {
-    return CONTACTS.filter((contact) => {
-      if (onlineOnly && contact.status !== "online") {
-        return false;
+  const identityId = useMemo(() => {
+    const active = readActivePersonaId();
+    if (active) {
+      return active;
+    }
+    return readPersonas()[0]?.id ?? "usr-nora-k";
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    void Promise.all([
+      fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly }),
+      fetchFriendRequests({ identityId }),
+    ]).then(([contactsResult, requestsResult]) => {
+      if (!active) {
+        return;
       }
-      if (unreadOnly && contact.unread === 0) {
-        return false;
+
+      if (!contactsResult.ok || !requestsResult.ok) {
+        setContacts([]);
+        setFriendRequests([]);
+        setHasError(true);
+        setLoading(false);
+        return;
       }
-      if (favoritesOnly && !contact.favorite) {
-        return false;
-      }
-      if (search.trim() && !contact.name.toLowerCase().includes(search.toLowerCase())) {
-        return false;
-      }
-      return true;
+
+      setContacts(
+        contactsResult.data.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          status: item.status as "online" | "offline" | "away",
+          unread: item.unread,
+          favorite: item.favorite,
+        })),
+      );
+      setFriendRequests(requestsResult.data.items);
+      setLoading(false);
     });
-  }, [favoritesOnly, onlineOnly, search, unreadOnly]);
 
-  const state =
-    CONTACTS.length === 0
-      ? "empty"
-      : filtered.length === 0
-        ? "search_no_results"
-        : filtered.some((item) => item.inboundRequest)
+    return () => {
+      active = false;
+    };
+  }, [favoritesOnly, identityId, onlineOnly, search, unreadOnly]);
+
+  function setFilterState(update: () => void): void {
+    setLoading(true);
+    setHasError(false);
+    update();
+  }
+
+  async function refreshRequests(): Promise<void> {
+    const result = await fetchFriendRequests({ identityId });
+    if (result.ok) {
+      setFriendRequests(result.data.items);
+    }
+  }
+
+  async function handleCreateRequest(targetIdentityId: string): Promise<void> {
+    const result = await createFriendRequest({
+      requesterIdentityId: identityId,
+      targetIdentityId,
+    });
+    if (result.ok) {
+      await refreshRequests();
+    }
+  }
+
+  async function handleAcceptRequest(requestId: string): Promise<void> {
+    const result = await acceptFriendRequest({ requestId });
+    if (result.ok) {
+      await refreshRequests();
+    }
+  }
+
+  async function handleDeclineRequest(requestId: string): Promise<void> {
+    const result = await declineFriendRequest({ requestId });
+    if (result.ok) {
+      await refreshRequests();
+    }
+  }
+
+  const inboundPending = friendRequests.filter(
+    (item) => item.target_identity_id === identityId && item.status === "pending",
+  );
+  const outboundPending = friendRequests.filter(
+    (item) => item.requester_identity_id === identityId && item.status === "pending",
+  );
+
+  const state = loading
+    ? "loading"
+    : hasError
+      ? "error"
+      : contacts.length === 0
+        ? search.trim() || onlineOnly || unreadOnly || favoritesOnly
+          ? "search_no_results"
+          : "empty"
+        : inboundPending.length > 0
           ? "friend_request_inbound"
-          : filtered.some((item) => item.pendingRequest)
+          : outboundPending.length > 0
             ? "friend_request_pending"
             : "ready";
 
@@ -70,37 +155,85 @@ export default function ContactsPage() {
     >
       <section>
         <div className={styles.row}>
-          <button className={styles.pill} onClick={() => setOnlineOnly((v) => !v)} type="button">
+          <button
+            className={styles.pill}
+            onClick={() => setFilterState(() => setOnlineOnly((value) => !value))}
+            type="button"
+          >
             online {onlineOnly ? "on" : "off"}
           </button>
-          <button className={styles.pill} onClick={() => setUnreadOnly((v) => !v)} type="button">
+          <button
+            className={styles.pill}
+            onClick={() => setFilterState(() => setUnreadOnly((value) => !value))}
+            type="button"
+          >
             unread {unreadOnly ? "on" : "off"}
           </button>
           <button
             className={styles.pill}
-            onClick={() => setFavoritesOnly((v) => !v)}
+            onClick={() => setFilterState(() => setFavoritesOnly((value) => !value))}
             type="button"
           >
             favorites {favoritesOnly ? "on" : "off"}
           </button>
         </div>
+
         <input
           className={styles.search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) =>
+            setFilterState(() => {
+              setSearch(event.target.value);
+            })
+          }
           placeholder="Search contacts"
           value={search}
         />
 
-        {filtered.length > 0 ? (
+        {contacts.length > 0 ? (
           <div className={styles.grid}>
-            {filtered.map((contact) => (
-              <article className={styles.card} key={contact.name}>
+            {contacts.map((contact) => (
+              <article className={styles.card} key={contact.id}>
                 <p className={styles.title}>{contact.name}</p>
                 <p className={styles.meta}>
                   {contact.status} · unread {contact.unread} · {contact.favorite ? "favorite" : "normal"}
                 </p>
+                <div className={styles.row}>
+                  <button
+                    className={styles.pill}
+                    onClick={() => void handleCreateRequest(contact.id)}
+                    type="button"
+                  >
+                    request
+                  </button>
+                </div>
               </article>
             ))}
+          </div>
+        ) : null}
+
+        {inboundPending.length > 0 ? (
+          <div className={styles.state}>
+            inbound requests: {inboundPending.length}
+            <div className={styles.row}>
+              {inboundPending.map((request) => (
+                <span key={request.request_id}>
+                  <button
+                    className={styles.pill}
+                    onClick={() => void handleAcceptRequest(request.request_id)}
+                    type="button"
+                  >
+                    accept
+                  </button>
+                  <button
+                    className={styles.pill}
+                    onClick={() => void handleDeclineRequest(request.request_id)}
+                    type="button"
+                  >
+                    decline
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         ) : null}
 

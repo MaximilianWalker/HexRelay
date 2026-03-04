@@ -3,8 +3,9 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use crate::{
     errors::{bad_request, ApiResult},
     models::{
-        AuthChallengeRequest, AuthVerifyRequest, IdentityKeyRegistrationRequest,
-        InviteCreateRequest, InviteRedeemRequest, SessionRevokeRequest,
+        AuthChallengeRequest, AuthVerifyRequest, FriendRequestCreate, FriendRequestListQuery,
+        IdentityKeyRegistrationRequest, InviteCreateRequest, InviteRedeemRequest,
+        SessionRevokeRequest,
     },
 };
 
@@ -107,6 +108,43 @@ pub fn validate_invite_redeem_request(payload: &InviteRedeemRequest) -> ApiResul
             "fingerprint_mismatch",
             "node_fingerprint must not be empty",
         ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_friend_request_create(payload: &FriendRequestCreate) -> ApiResult<()> {
+    if payload.requester_identity_id.trim().is_empty()
+        || payload.target_identity_id.trim().is_empty()
+    {
+        return Err(bad_request(
+            "identity_invalid",
+            "requester_identity_id and target_identity_id are required",
+        ));
+    }
+
+    if payload.requester_identity_id == payload.target_identity_id {
+        return Err(bad_request(
+            "identity_invalid",
+            "requester and target must be different identities",
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_friend_request_list_query(query: &FriendRequestListQuery) -> ApiResult<()> {
+    if query.identity_id.trim().is_empty() {
+        return Err(bad_request("identity_invalid", "identity_id is required"));
+    }
+
+    if let Some(direction) = query.direction.as_ref() {
+        if direction != "inbound" && direction != "outbound" {
+            return Err(bad_request(
+                "identity_invalid",
+                "direction must be inbound or outbound when provided",
+            ));
+        }
     }
 
     Ok(())
