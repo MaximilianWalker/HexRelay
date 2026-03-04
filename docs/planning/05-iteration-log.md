@@ -30,6 +30,23 @@
 
 ## Log Entries
 
+### 2026-03-04 (iteration 1 identity endpoint start)
+
+- Area affected: Iteration 1 `T2.1.1` execution progress
+- Change summary:
+  - Implemented `POST /v1/identity/keys/register` in `services/api-rs` with fail-fast validation for algorithm and public key format.
+  - Added API tests covering success path and invalid algorithm/key rejection.
+  - Aligned Iteration 1 OpenAPI error-code enum with identity registration validation errors.
+  - Marked `T2.1.1` as in progress in the Iteration 1 board.
+- Rationale:
+  - Establish executable identity registration baseline before challenge/verify and invite flows.
+- Linked docs updated:
+  - `services/api-rs/src/main.rs`
+  - `services/api-rs/Cargo.toml`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (iteration 1 quality and config gates)
 
 - Area affected: Iteration 1 quality gate enforcement and configuration validation

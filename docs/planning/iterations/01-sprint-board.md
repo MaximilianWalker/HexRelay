@@ -99,7 +99,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| None | - | - | No tasks currently in progress |
+| T2.1.1 | Implement key identity schema + key registration endpoints | In progress | Added `/v1/identity/keys/register` with algorithm/key validation and API tests in `services/api-rs`; persistence currently in-memory |
 
 ## Done
 

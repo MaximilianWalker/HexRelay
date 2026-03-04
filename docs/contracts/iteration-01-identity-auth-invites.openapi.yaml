@@ -163,6 +163,9 @@ components:
             - invite_expired
             - invite_exhausted
             - fingerprint_mismatch
+            - identity_invalid
+            - public_key_invalid
+            - algorithm_invalid
             - nonce_invalid
             - signature_invalid
             - session_invalid

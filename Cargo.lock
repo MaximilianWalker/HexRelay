@@ -16,8 +16,11 @@ name = "api-rs"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "serde",
+ "serde_json",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
