@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import styles from "./home.module.css";
+import { WorkspaceShell } from "@/components/workspace-shell";
 import { revokeSession } from "@/lib/api";
 import {
   ensurePersona,
@@ -97,8 +98,17 @@ export default function HomePage() {
   }
 
   return (
-    <main className={styles.shell}>
-      <section className={styles.card}>
+    <WorkspaceShell
+      activeTabId="home"
+      subtitle="Recent activity and persona-scoped session control"
+      tabs={[
+        { id: "home", label: "Home" },
+        { id: "alerts", label: "Alerts" },
+        { id: "resume", label: "Resume" },
+      ]}
+      title="Home"
+    >
+      <section>
         <p className={styles.eyebrow}>HexRelay workspace</p>
         <h1 className={styles.title}>Onboarding complete</h1>
         <p className={styles.subtitle}>
@@ -181,6 +191,6 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
-    </main>
+    </WorkspaceShell>
   );
 }

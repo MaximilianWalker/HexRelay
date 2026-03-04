@@ -30,6 +30,27 @@
 
 ## Log Entries
 
+### 2026-03-04 (workspace shell and top-level navigation surfaces)
+
+- Area affected: Iteration 1 web navigation execution (`T2.1.3`, `T2.1.4` support)
+- Change summary:
+  - Added shared workspace shell component with top-level navigation (`Home`, `Servers`, `Contacts`, `Settings`) and mobile tab switcher.
+  - Added server dual-navigation baseline affordances: collapsible sidebar preference and top tab strip.
+  - Added initial route surfaces for `/servers`, `/contacts`, and `/settings` aligned with hub/filter state requirements.
+  - Migrated `/home` to run inside shared shell while preserving persona/session controls.
+- Rationale:
+  - Align executable UI structure with navigation spec so subsequent feature work lands on stable route/layout primitives.
+- Linked docs updated:
+  - `apps/web/components/workspace-shell.tsx`
+  - `apps/web/components/workspace-shell.module.css`
+  - `apps/web/app/home/page.tsx`
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/contacts/page.tsx`
+  - `apps/web/app/settings/page.tsx`
+  - `apps/web/app/surfaces.module.css`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (key-at-rest encryption and persona session revoke wiring)
 
 - Area affected: Iteration 1 web security and session lifecycle execution (`T2.1.2`, `T2.1.3`, `T2.3.1`)
