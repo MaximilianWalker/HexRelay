@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 expanded T3.1.x execution with bearer-token session enforcement, revoke auth checks, and migration checksum governance.
+- Latest meaningful change: 2026-03-04 stabilization follow-up added atomic challenge consumption, DB auth/migration integration tests, and contract sync for bearer session APIs.
 
 ## Iteration Scope
 
@@ -118,7 +118,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline/cancel endpoints in `api-rs` with Postgres-backed persistence, migration checksums + advisory lock, centralized auth extractor, pending-only transition guards, idempotent terminal-action semantics, auth-required revoke/session validation, and non-test DB-required execution |
+| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline/cancel endpoints in `api-rs` with Postgres-backed persistence, migration checksums + advisory lock, centralized auth extractor, pending-only transition guards, idempotent terminal-action semantics, auth-required revoke/session validation, atomic challenge consume-on-verify, and DB integration tests for session/migration paths |
 | T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub calls live friend-request endpoints with send/accept/decline actions and explicit screen states; web transport migrated to bearer-token auth (`access_token`) across contacts/servers/session lifecycle paths |
 
 ## Done

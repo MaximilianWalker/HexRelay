@@ -128,10 +128,9 @@ pub async fn verify_auth_challenge(
 
     let challenge_record = state
         .auth_challenges
-        .read()
-        .expect("acquire challenge read lock")
-        .get(&payload.challenge_id)
-        .cloned()
+        .write()
+        .expect("acquire challenge write lock")
+        .remove(&payload.challenge_id)
         .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?;
 
     if challenge_record.identity_id != payload.identity_id {
@@ -175,12 +174,6 @@ pub async fn verify_auth_challenge(
         &signature_bytes,
     )
     .map_err(|_| unauthorized("signature_invalid", "signature verification failed"))?;
-
-    state
-        .auth_challenges
-        .write()
-        .expect("acquire challenge write lock")
-        .remove(&payload.challenge_id);
 
     let identity_id = payload.identity_id.clone();
 

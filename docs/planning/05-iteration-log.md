@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 session hardening finalized bearer-token enforcement across API/Web and migration checksum governance.
+- Latest meaningful change: 2026-03-04 stabilization batch closed challenge replay race, added DB auth/migration integration tests, and synced auth contract docs.
 
 ## Purpose
 
@@ -29,6 +29,25 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (stabilization follow-up: replay race, migration safety, contract sync)
+
+- Area affected: Auth/session correctness and persistence safety gates
+- Change summary:
+  - Made auth challenge consumption atomic in verify flow (challenge removed under write lock before signature verification) to eliminate replay race window.
+  - Hardened migration lock lifecycle with guaranteed unlock attempt after migration execution path returns.
+  - Added DB-backed integration tests for session validate/revoke lifecycle and migration checksum mismatch detection/lock release behavior.
+  - Added concurrent replay test ensuring only one verify succeeds for duplicate challenge verification attempts.
+  - Updated Iteration 1 OpenAPI contract to include bearer-auth requirements, session validate endpoint, and `access_token` in auth verify response.
+- Rationale:
+  - Complete mandatory hardening preconditions so future Iteration 2 feature work builds on deterministic auth and migration invariants.
+- Linked docs updated:
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/src/lib.rs`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/planning/iterations/02-sprint-board.md`
 
 ### 2026-03-04 (session-token enforcement and migration checksum hardening)
 

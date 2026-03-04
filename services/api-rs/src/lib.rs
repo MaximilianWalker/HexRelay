@@ -13,7 +13,7 @@ pub mod validation;
 mod tests {
     const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
 
-    use std::collections::HashMap;
+    use std::{collections::HashMap, env};
 
     use axum::{
         body::{to_bytes, Body},
@@ -28,7 +28,8 @@ mod tests {
     use tower::util::ServiceExt;
 
     use crate::{
-        app::build_app, models::SessionRecord, session_token::issue_session_token, state::AppState,
+        app::build_app, db::connect_and_prepare, models::SessionRecord,
+        session_token::issue_session_token, state::AppState,
     };
 
     #[derive(Deserialize)]
@@ -89,6 +90,16 @@ mod tests {
             .expect("register response");
 
         (response.status(), app)
+    }
+
+    async fn app_with_database() -> Option<axum::Router> {
+        let database_url = match env::var("API_DATABASE_URL") {
+            Ok(value) if !value.trim().is_empty() => value,
+            _ => return None,
+        };
+
+        let pool = connect_and_prepare(&database_url).await.ok()?;
+        Some(build_app(AppState::default().with_db_pool(pool)))
     }
 
     fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, String>) {
@@ -898,5 +909,184 @@ mod tests {
             .await
             .expect("session validate response");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn validates_and_revokes_db_backed_session() {
+        let Some(app) = app_with_database().await else {
+            return;
+        };
+
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
+        let public_key = hex::encode(signing_key.public_key().as_ref());
+
+        let (register_status, app) = register_identity(app, "db-user-verify", &public_key).await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"db-user-verify"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .clone()
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+
+        let challenge_bytes = to_bytes(challenge_response.into_body(), usize::MAX)
+            .await
+            .expect("read challenge response body");
+        let challenge: AuthChallengeResponse =
+            serde_json::from_slice(&challenge_bytes).expect("decode challenge response");
+
+        let signature = signing_key.sign(challenge.nonce.as_bytes());
+        let signature_hex = hex::encode(signature.as_ref());
+
+        let verify_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"identity_id":"db-user-verify","challenge_id":"{}","signature":"{}"}}"#,
+                challenge.challenge_id, signature_hex
+            )))
+            .expect("build verify request");
+
+        let verify_response = app
+            .clone()
+            .oneshot(verify_request)
+            .await
+            .expect("verify response");
+        assert_eq!(verify_response.status(), StatusCode::OK);
+
+        let verify_bytes = to_bytes(verify_response.into_body(), usize::MAX)
+            .await
+            .expect("read verify response body");
+        let verify: AuthVerifyResponse =
+            serde_json::from_slice(&verify_bytes).expect("decode verify response");
+
+        let validate_request = Request::builder()
+            .method("GET")
+            .uri("/v1/auth/sessions/validate")
+            .header("authorization", format!("Bearer {}", verify.access_token))
+            .body(Body::empty())
+            .expect("build validate request");
+
+        let validate_response = app
+            .clone()
+            .oneshot(validate_request)
+            .await
+            .expect("validate response");
+        assert_eq!(validate_response.status(), StatusCode::OK);
+
+        let revoke_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/sessions/revoke")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {}", verify.access_token))
+            .body(Body::from(format!(
+                r#"{{"session_id":"{}"}}"#,
+                verify.session_id
+            )))
+            .expect("build revoke request");
+
+        let revoke_response = app
+            .clone()
+            .oneshot(revoke_request)
+            .await
+            .expect("revoke response");
+        assert_eq!(revoke_response.status(), StatusCode::NO_CONTENT);
+
+        let validate_after_revoke = Request::builder()
+            .method("GET")
+            .uri("/v1/auth/sessions/validate")
+            .header("authorization", format!("Bearer {}", verify.access_token))
+            .body(Body::empty())
+            .expect("build post-revoke validate request");
+
+        let validate_after_revoke_response = app
+            .oneshot(validate_after_revoke)
+            .await
+            .expect("post-revoke validate response");
+        assert_eq!(
+            validate_after_revoke_response.status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_replayed_challenge_verification() {
+        let app = build_app(AppState::default());
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
+        let public_key = hex::encode(signing_key.public_key().as_ref());
+
+        let (register_status, app) = register_identity(app, "user-replay", &public_key).await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-replay"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .clone()
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+
+        let challenge_bytes = to_bytes(challenge_response.into_body(), usize::MAX)
+            .await
+            .expect("read challenge response body");
+        let challenge: AuthChallengeResponse =
+            serde_json::from_slice(&challenge_bytes).expect("decode challenge response");
+
+        let signature = signing_key.sign(challenge.nonce.as_bytes());
+        let signature_hex = hex::encode(signature.as_ref());
+
+        let verify_body = format!(
+            r#"{{"identity_id":"user-replay","challenge_id":"{}","signature":"{}"}}"#,
+            challenge.challenge_id, signature_hex
+        );
+
+        let request_a = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(verify_body.clone()))
+            .expect("build verify request a");
+
+        let request_b = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(verify_body))
+            .expect("build verify request b");
+
+        let (response_a, response_b) = tokio::join!(
+            app.clone().oneshot(request_a),
+            app.clone().oneshot(request_b)
+        );
+
+        let status_a = response_a.expect("verify response a").status();
+        let status_b = response_b.expect("verify response b").status();
+
+        let success_count =
+            usize::from(status_a == StatusCode::OK) + usize::from(status_b == StatusCode::OK);
+        let unauthorized_count = usize::from(status_a == StatusCode::UNAUTHORIZED)
+            + usize::from(status_b == StatusCode::UNAUTHORIZED);
+
+        assert_eq!(success_count, 1);
+        assert_eq!(unauthorized_count, 1);
     }
 }
