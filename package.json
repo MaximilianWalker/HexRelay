@@ -1,0 +1,10 @@
+{
+  "name": "hexrelay-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "run": "bash scripts/run.sh",
+    "test": "bash scripts/test.sh"
+  }
+}

@@ -30,6 +30,22 @@
 
 ## Log Entries
 
+### 2026-03-04 (iteration 1 foundation kickoff)
+
+- Area affected: Iteration 1 execution tracking
+- Change summary:
+  - Marked `T1.1.1`, `T1.1.2`, and `T1.1.3` as complete in the Iteration 1 board.
+  - Added one-command workspace flows via root npm scripts (`setup`, `run`, `test`).
+  - Updated root getting-started guidance to reflect runnable scaffold bootstrap.
+- Rationale:
+  - Align task status with completed implementation bootstrap work before moving to `T1.2.x` and `T1.3.1`.
+- Linked docs updated:
+  - `README.md`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `scripts/README.md`
+  - `package.json`
+
 ### 2026-03-04 (development bootstrap execution)
 
 - Area affected: Project development readiness and execution gates

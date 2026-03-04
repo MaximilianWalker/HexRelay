@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ ! -f "infra/.env" ]; then
+  echo "[setup] Creating infra/.env from infra/.env.example"
+  cp "infra/.env.example" "infra/.env"
+fi
+
 echo "[setup] Installing web dependencies"
 npm install --prefix "apps/web"
 

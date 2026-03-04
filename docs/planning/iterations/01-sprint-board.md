@@ -99,13 +99,15 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| None | - | Not started | Iteration board created; execution not started |
+| None | - | - | No tasks currently in progress |
 
 ## Done
 
 | ID | Task | Completed In | Notes |
 |---|---|---|---|
-| None | - | - | - |
+| T1.1.1 | Monorepo layout | 2026-03-04 | `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` initialized with runnable scaffolds |
+| T1.1.2 | Local infra compose stack | 2026-03-04 | Postgres/Redis/MinIO/coturn compose stack with health checks and infra runbook |
+| T1.1.3 | Setup/run/test scripts | 2026-03-04 | Root `Makefile`, `scripts/*.sh`, and root npm scripts provide one-command setup/run/test |
 
 ## Suggested Sprint Sequencing
 

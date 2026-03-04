@@ -44,7 +44,9 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
   - Local infra via `docker compose --env-file infra/.env up -d`
-  - Workspace checks via `bash scripts/test.sh`
+  - One-command bootstrap via `npm run setup`
+  - One-command local startup via `npm run run`
+  - Workspace checks via `npm run test`
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`
 
