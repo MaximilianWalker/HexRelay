@@ -1,5 +1,6 @@
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::Utc;
+use ring::digest::{digest, SHA256};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -54,6 +55,7 @@ pub async fn create_invite(
     };
 
     let token = Uuid::new_v4().to_string();
+    let token_hash = hash_invite_token(&token);
 
     if let Some(pool) = state.db_pool.as_ref() {
         sqlx::query(
@@ -62,7 +64,7 @@ pub async fn create_invite(
             VALUES ($1, $2, $3, $4, $5, 0)
             ",
         )
-        .bind(&token)
+        .bind(&token_hash)
         .bind(&payload.mode)
         .bind(&state.node_fingerprint)
         .bind(expires_at)
@@ -89,7 +91,7 @@ pub async fn create_invite(
         .write()
         .expect("acquire invite write lock")
         .insert(
-            token.clone(),
+            token_hash,
             InviteRecord {
                 mode: payload.mode.clone(),
                 node_fingerprint: state.node_fingerprint.clone(),
@@ -115,6 +117,7 @@ pub async fn redeem_invite(
     Json(payload): Json<InviteRedeemRequest>,
 ) -> ApiResult<Json<InviteRedeemResponse>> {
     validate_invite_redeem_request(&payload)?;
+    let token_hash = hash_invite_token(&payload.token);
 
     if let Some(pool) = state.db_pool.as_ref() {
         let mut tx = pool.begin().await.map_err(|_| {
@@ -125,10 +128,11 @@ pub async fn redeem_invite(
             "
             SELECT node_fingerprint, expires_at, max_uses, uses
             FROM invites
-            WHERE token = $1
+            WHERE token = $1 OR token = $2
             FOR UPDATE
             ",
         )
+        .bind(&token_hash)
         .bind(&payload.token)
         .fetch_optional(&mut *tx)
         .await
@@ -173,9 +177,10 @@ pub async fn redeem_invite(
             "
             UPDATE invites
             SET uses = uses + 1
-            WHERE token = $1
+            WHERE token = $1 OR token = $2
             ",
         )
+        .bind(&token_hash)
         .bind(&payload.token)
         .execute(&mut *tx)
         .await
@@ -192,7 +197,7 @@ pub async fn redeem_invite(
 
     let mut guard = state.invites.write().expect("acquire invite write lock");
     let invite = guard
-        .get_mut(&payload.token)
+        .get_mut(&token_hash)
         .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
     if invite.node_fingerprint != payload.node_fingerprint {
@@ -217,4 +222,8 @@ pub async fn redeem_invite(
     invite.uses += 1;
 
     Ok(Json(InviteRedeemResponse { accepted: true }))
+}
+
+fn hash_invite_token(token: &str) -> String {
+    hex::encode(digest(&SHA256, token.as_bytes()).as_ref())
 }

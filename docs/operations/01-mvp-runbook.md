@@ -13,7 +13,7 @@
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-04 added operating modes for desktop local-first runtime and dedicated server deployments.
+- Latest meaningful change: 2026-03-04 expanded dedicated-server procedures with concrete startup, health, restart, and TLS boundary assumptions.
 
 ## Core Procedures
 
@@ -30,6 +30,37 @@
   - restart service scope (single service, full stack)
   - rotate leaked invite tokens
   - revoke compromised sessions
+
+## Dedicated Server Baseline
+
+- Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
+- Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
+- Minimum environment:
+  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEY`, `API_ALLOWED_ORIGINS`.
+  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`.
+- Startup sequence:
+  1. Start database dependencies.
+  2. Start API service and verify `GET /health` returns 200.
+  3. Start realtime service and verify `GET /health` returns 200.
+  4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
+
+## TLS and Network Boundary Assumptions
+
+- External dedicated deployments terminate TLS at ingress/reverse proxy.
+- API and realtime processes should not be exposed directly without TLS termination.
+- For local desktop mode, loopback (`127.0.0.1`) bindings are the default trust boundary.
+
+## Restart and Recovery Procedures
+
+- Single-service restart:
+  - Restart `api-rs` when auth/session or invite endpoints degrade.
+  - Restart `realtime-rs` when websocket fanout/signaling degrades.
+- Full runtime restart:
+  - Restart both services if cross-service auth validation fails repeatedly.
+- Post-restart validation:
+  - API and realtime `/health` probes return 200.
+  - Session validate endpoint works with existing active token.
+  - Realtime websocket auth handshake passes with valid bearer token.
 
 ## Backup and Restore
 

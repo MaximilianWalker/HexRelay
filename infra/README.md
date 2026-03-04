@@ -2,6 +2,12 @@
 
 This directory defines the local development infrastructure for HexRelay blocker D-002.
 
+## Authority
+
+- Runtime/deployment mode authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
+- Operational procedure authority: `docs/operations/01-mvp-runbook.md`.
+- This file is environment-focused (compose services and local verification), not deployment-policy authority.
+
 ## Services
 
 - Postgres (`localhost:5432`)

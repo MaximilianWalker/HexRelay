@@ -1,3 +1,5 @@
+import { secureGetItem, secureRemoveItem, secureSetItem } from "@/lib/secure-store";
+
 const SESSION_PREFIX = "hexrelay.session.v1";
 const PRIVATE_KEY_PREFIX = "hexrelay.identity.private.v1";
 const MASTER_KEY_STORAGE = "hexrelay.identity.master-key.v1";
@@ -19,24 +21,24 @@ function base64ToBytes(value: string): Uint8Array {
   return output;
 }
 
-function getOrCreateMasterKeyMaterial(): ArrayBuffer {
-  const existing = window.localStorage.getItem(MASTER_KEY_STORAGE);
+async function getOrCreateMasterKeyMaterial(): Promise<Uint8Array> {
+  const existing = await secureGetItem(MASTER_KEY_STORAGE);
   if (existing) {
-    const decoded = base64ToBytes(existing);
-    return decoded.buffer.slice(0) as ArrayBuffer;
+    return Uint8Array.from(base64ToBytes(existing));
   }
 
   const material = new Uint8Array(32);
   crypto.getRandomValues(material);
-  window.localStorage.setItem(MASTER_KEY_STORAGE, bytesToBase64(material));
-  return material.buffer.slice(0) as ArrayBuffer;
+  await secureSetItem(MASTER_KEY_STORAGE, bytesToBase64(material));
+  return Uint8Array.from(material);
 }
 
 async function derivePersonaAesKey(personaId: string): Promise<CryptoKey> {
-  const masterMaterial = getOrCreateMasterKeyMaterial();
+  const masterMaterial = await getOrCreateMasterKeyMaterial();
+  const rawMaster = masterMaterial.buffer.slice(0) as ArrayBuffer;
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    new Uint8Array(masterMaterial),
+    rawMaster,
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -156,7 +158,7 @@ export async function setPersonaPrivateKey(
   }
 
   const encrypted = await encryptText(personaId, privateKeyHex);
-  window.localStorage.setItem(`${PRIVATE_KEY_PREFIX}.${personaId}`, encrypted);
+  await secureSetItem(`${PRIVATE_KEY_PREFIX}.${personaId}`, encrypted);
 }
 
 export async function getPersonaPrivateKey(personaId: string): Promise<string | null> {
@@ -164,7 +166,7 @@ export async function getPersonaPrivateKey(personaId: string): Promise<string | 
     return null;
   }
 
-  const encrypted = window.localStorage.getItem(`${PRIVATE_KEY_PREFIX}.${personaId}`);
+  const encrypted = await secureGetItem(`${PRIVATE_KEY_PREFIX}.${personaId}`);
   if (!encrypted) {
     return null;
   }
@@ -189,5 +191,5 @@ export function clearPersonaPrivateKey(personaId: string): void {
     return;
   }
 
-  window.localStorage.removeItem(`${PRIVATE_KEY_PREFIX}.${personaId}`);
+  void secureRemoveItem(`${PRIVATE_KEY_PREFIX}.${personaId}`);
 }

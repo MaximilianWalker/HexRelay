@@ -17,6 +17,15 @@
 
 ## Terms
 
+### Runtime Term Mapping
+
+- `Node`: deployable HexRelay server runtime context (API + realtime + data services).
+- `Dedicated server`: node running headless for remote clients.
+- `Desktop local-first`: user-installed app running local UI plus local node runtime.
+- `Guild/server`: user-facing community container in product UX, not equivalent to deployment node.
+
+### Definitions
+
 - Node: A self-hosted HexRelay server instance operated locally or on a VPS.
 - Persona: A distinct user account/profile context available on the same device.
 - Guild: A server/community space containing channels and role permissions.

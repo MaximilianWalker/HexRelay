@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 documentation alignment locked desktop local-first runtime and dedicated-server deployment model across product/architecture/operations docs.
+- Latest meaningful change: 2026-03-04 confidence hardening pass started Phase 1 and 2 with runtime authority/runbook tightening plus recovery/key/invite security upgrades.
 
 ## Purpose
 
@@ -29,6 +29,36 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (confidence hardening phase 1-2 kickoff)
+
+- Area affected: Deployment clarity and security baseline
+- Change summary:
+  - Added explicit source-of-truth authority notes in infra and service READMEs to reduce runtime/deployment guidance drift.
+  - Expanded MVP runbook with concrete dedicated-server startup order, TLS boundary assumptions, and restart validation checks.
+  - Added runtime term mapping in glossary and linked PRD/plan runtime sections to glossary authority.
+  - Replaced static onboarding recovery phrase with generated per-session phrase flow.
+  - Introduced secure-store abstraction for private key encryption materials (provider-backed when available, session fallback otherwise).
+  - Hardened invite storage by persisting hashed invite tokens instead of plaintext tokens for new records (with backward-compatible redeem matching).
+  - Aligned long-range REST contract bearer token format wording to current token model (`HEXTOKEN`).
+- Rationale:
+  - Raise readiness confidence before further feature expansion by tightening both contributor-operational clarity and critical auth/privacy handling paths.
+- Linked docs updated:
+  - `infra/README.md`
+  - `services/api-rs/README.md`
+  - `services/realtime-rs/README.md`
+  - `docs/operations/01-mvp-runbook.md`
+  - `docs/operations/contributor-guide.md`
+  - `docs/reference/glossary.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `apps/web/lib/secure-store.ts`
+  - `apps/web/lib/sessions.ts`
+  - `apps/web/lib/recovery.ts`
+  - `apps/web/app/onboarding/recovery/page.tsx`
+  - `services/api-rs/src/invite_handlers.rs`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-04 (documentation alignment: runtime/deployment model)
 

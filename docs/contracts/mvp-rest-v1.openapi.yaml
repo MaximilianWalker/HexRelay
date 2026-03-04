@@ -442,7 +442,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: HEXTOKEN
   parameters:
     RequestIdParam:
       name: request_id

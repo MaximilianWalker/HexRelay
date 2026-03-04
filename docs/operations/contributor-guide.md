@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-04 clarified contributor expectations for desktop local-first plus dedicated server runtime modes.
+- Latest meaningful change: 2026-03-04 added runtime consistency checks against ADR-0002 and removed scaffold-era validation wording.
 
 ## Purpose
 
@@ -45,17 +45,16 @@
   - Verify links and paths resolve.
   - Keep metadata and `last_updated` fields accurate.
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
-- For code changes (once scaffold exists):
+- For code changes:
   - Run lint, tests, and build for touched projects.
   - Keep security-sensitive data out of logs and fixtures.
 
 ## CI Expectations
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
-- Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs` when each crate exists.
-- Web gate runs `lint`, `test`, and `build` for `apps/web` when the app scaffold exists.
-- Bootstrap behavior is intentional: missing scaffold files emit explicit CI notices and skip checks until the project is present.
-- Once a project exists, missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
+- Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
+- Web gate runs `lint`, `test`, and `build` for `apps/web`.
+- Missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
 
 ## Docs QA Checklist
 
@@ -63,6 +62,7 @@
 - Canonical ownership is explicit in `docs/README.md` source-of-truth matrix.
 - New links point to canonical indexes where possible (for example, iteration index over repeated board lists).
 - Related documents section is updated when new canonical docs are introduced.
+- Runtime/deployment wording matches `docs/architecture/adr-0002-runtime-deployment-modes.md` and does not introduce conflicting authority text.
 
 ## PR Checklist
 

@@ -72,6 +72,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Dedicated server mode is supported for operators who want headless hosting.
 - Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when distributed as one installer.
 - Browser-only usage is a compatibility path, not the primary runtime target.
+- Terminology mapping for runtime words (`node`, `server`, `dedicated server`, `guild`) is canonical in `docs/reference/glossary.md`.
 
 ## 2) Architecture Decision (Locked)
 

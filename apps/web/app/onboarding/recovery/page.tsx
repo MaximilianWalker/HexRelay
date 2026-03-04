@@ -3,34 +3,22 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { getOrCreateRecoveryPhrase } from "@/lib/recovery";
 import styles from "../onboarding.module.css";
 
-const PHRASE = [
-  "amber",
-  "violet",
-  "atlas",
-  "linen",
-  "shell",
-  "ridge",
-  "orbit",
-  "grain",
-  "harbor",
-  "whisper",
-  "delta",
-  "cedar",
-];
-
 export default function RecoveryOnboardingPage() {
+  const phrase = useMemo(() => getOrCreateRecoveryPhrase(), []);
   const [word3, setWord3] = useState("");
   const [word7, setWord7] = useState("");
   const [word11, setWord11] = useState("");
 
   const confirmed = useMemo(
     () =>
-      word3.trim().toLowerCase() === PHRASE[2] &&
-      word7.trim().toLowerCase() === PHRASE[6] &&
-      word11.trim().toLowerCase() === PHRASE[10],
-    [word11, word3, word7],
+      phrase.length === 12 &&
+      word3.trim().toLowerCase() === phrase[2] &&
+      word7.trim().toLowerCase() === phrase[6] &&
+      word11.trim().toLowerCase() === phrase[10],
+    [phrase, word11, word3, word7],
   );
 
   return (
@@ -61,8 +49,8 @@ export default function RecoveryOnboardingPage() {
             Write this phrase down offline, then prove backup with selected words.
           </p>
 
-          <div className={`${styles.status} ${styles.warn}`}>
-            {PHRASE.join(" ")}
+          <div className={`${styles.status} ${styles.warn}`} suppressHydrationWarning>
+            {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
           </div>
 
           <div className={styles.fieldGroup}>

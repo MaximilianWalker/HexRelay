@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 execution batch added contacts optimistic transitions, in-app invite create/redeem controls, and cross-service smoke CI path.
+- Latest meaningful change: 2026-03-04 confidence hardening started Phase 1/2 updates for runtime authority clarity plus recovery/key/invite security baselines.
 
 ## Iteration Scope
 

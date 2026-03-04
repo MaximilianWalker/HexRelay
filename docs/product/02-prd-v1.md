@@ -27,6 +27,7 @@ HexRelay is an open-source, self-hostable communication platform with a modern D
 - Local runtime allows UI launch either inside desktop shell or in a local browser session on localhost.
 - Dedicated server deployments are supported as an optional operator mode.
 - Browser-only hosted usage is a compatibility mode, not the core product assumption.
+- Runtime term mapping is canonical in `docs/reference/glossary.md`.
 
 ## Vision
 
