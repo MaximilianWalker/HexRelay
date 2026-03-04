@@ -1,15 +1,52 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
 import { WorkspaceShell } from "@/components/workspace-shell";
 
 import styles from "../surfaces.module.css";
 
-const SERVERS = [
-  { name: "Atlas Core", unread: 2, mode: "favorite" },
-  { name: "Relay Lab", unread: 0, mode: "muted" },
-  { name: "Dev Signals", unread: 5, mode: "active" },
-  { name: "Ops Watch", unread: 0, mode: "active" },
+type Server = {
+  name: string;
+  unread: number;
+  favorite: boolean;
+  muted: boolean;
+};
+
+const SERVERS: Server[] = [
+  { name: "Atlas Core", unread: 2, favorite: true, muted: false },
+  { name: "Relay Lab", unread: 0, favorite: false, muted: true },
+  { name: "Dev Signals", unread: 5, favorite: true, muted: false },
+  { name: "Ops Watch", unread: 0, favorite: false, muted: false },
 ];
 
 export default function ServersPage() {
+  const [search, setSearch] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [mutedOnly, setMutedOnly] = useState(false);
+
+  const filtered = useMemo(() => {
+    return SERVERS.filter((server) => {
+      if (favoritesOnly && !server.favorite) {
+        return false;
+      }
+      if (unreadOnly && server.unread === 0) {
+        return false;
+      }
+      if (mutedOnly && !server.muted) {
+        return false;
+      }
+      if (search.trim() && !server.name.toLowerCase().includes(search.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  }, [favoritesOnly, mutedOnly, search, unreadOnly]);
+
+  const state =
+    SERVERS.length === 0 ? "empty" : filtered.length === 0 ? "search_no_results" : "ready";
+
   return (
     <WorkspaceShell
       activeTabId="servers"
@@ -23,24 +60,38 @@ export default function ServersPage() {
     >
       <section>
         <div className={styles.row}>
-          <span className={styles.pill}>filter: favorites</span>
-          <span className={styles.pill}>filter: unread</span>
-          <span className={styles.pill}>filter: muted</span>
+          <button className={styles.pill} onClick={() => setFavoritesOnly((v) => !v)} type="button">
+            favorites {favoritesOnly ? "on" : "off"}
+          </button>
+          <button className={styles.pill} onClick={() => setUnreadOnly((v) => !v)} type="button">
+            unread {unreadOnly ? "on" : "off"}
+          </button>
+          <button className={styles.pill} onClick={() => setMutedOnly((v) => !v)} type="button">
+            muted {mutedOnly ? "on" : "off"}
+          </button>
         </div>
-        <input className={styles.search} placeholder="Search servers" readOnly value="" />
-        <div className={styles.grid}>
-          {SERVERS.map((server) => (
-            <article className={styles.card} key={server.name}>
-              <p className={styles.title}>{server.name}</p>
-              <p className={styles.meta}>
-                unread {server.unread} · {server.mode}
-              </p>
-            </article>
-          ))}
-        </div>
-        <p className={styles.state}>
-          Empty-state contract: include Join server and Create server actions when list is empty.
-        </p>
+        <input
+          className={styles.search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search servers"
+          value={search}
+        />
+
+        {filtered.length > 0 ? (
+          <div className={styles.grid}>
+            {filtered.map((server) => (
+              <article className={styles.card} key={server.name}>
+                <p className={styles.title}>{server.name}</p>
+                <p className={styles.meta}>
+                  unread {server.unread} · {server.favorite ? "favorite" : "standard"} ·{" "}
+                  {server.muted ? "muted" : "audible"}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        <p className={styles.state}>state: {state}</p>
       </section>
     </WorkspaceShell>
   );

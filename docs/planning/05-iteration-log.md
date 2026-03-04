@@ -30,6 +30,22 @@
 
 ## Log Entries
 
+### 2026-03-04 (hub state interactivity pass)
+
+- Area affected: Iteration 1 web hub/state execution (`T2.1.3` support)
+- Change summary:
+  - Upgraded Servers and Contacts routes to client-interactive hubs with search and filter toggles.
+  - Added explicit screen-state rendering outputs (`empty`, `search_no_results`, `friend_request_pending`, `friend_request_inbound`, `ready`) in hub surfaces.
+  - Added Settings DM inbound policy persistence (`friends_only`, `same_server`, `anyone`) with per-device local preference storage.
+- Rationale:
+  - Move hub pages from static placeholders to stateful surfaces aligned with MVP screen-state spec before deeper backend query wiring.
+- Linked docs updated:
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/contacts/page.tsx`
+  - `apps/web/app/settings/page.tsx`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (workspace shell and top-level navigation surfaces)
 
 - Area affected: Iteration 1 web navigation execution (`T2.1.3`, `T2.1.4` support)
