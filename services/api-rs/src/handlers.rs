@@ -8,7 +8,6 @@ use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
 use sqlx::PgPool;
 use sqlx::Row;
-use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -21,7 +20,9 @@ use crate::{
         HealthResponse, IdentityKeyRegistrationRequest, InviteCreateRequest, InviteCreateResponse,
         InviteRecord, InviteRedeemRequest, InviteRedeemResponse, RegisteredIdentityKey,
         ServerListQuery, ServerListResponse, ServerSummary, SessionRecord, SessionRevokeRequest,
+        SessionValidateResponse,
     },
+    session_token::issue_session_token,
     state::AppState,
     validation::{
         decode_32_bytes, decode_64_bytes, validate_auth_challenge_request,
@@ -50,7 +51,14 @@ pub async fn register_identity_key(
         .write()
         .expect("acquire identity key write lock");
 
-    let previous = guard.insert(
+    if guard.contains_key(&payload.identity_id) {
+        return Err(conflict(
+            "identity_exists",
+            "identity_id already has a registered key",
+        ));
+    }
+
+    guard.insert(
         payload.identity_id,
         RegisteredIdentityKey {
             public_key: payload.public_key,
@@ -58,15 +66,15 @@ pub async fn register_identity_key(
         },
     );
 
-    if let Some(existing) = previous {
-        info!(
-            previous_algorithm = %existing.algorithm,
-            previous_public_key_len = existing.public_key.len(),
-            "replaced existing identity key registration"
-        );
-    }
-
     Ok(StatusCode::CREATED)
+}
+
+pub async fn validate_session(auth: AuthSession) -> ApiResult<Json<SessionValidateResponse>> {
+    Ok(Json(SessionValidateResponse {
+        session_id: auth.session_id,
+        identity_id: auth.identity_id,
+        expires_at: auth.expires_at,
+    }))
 }
 
 pub async fn issue_auth_challenge(
@@ -174,6 +182,8 @@ pub async fn verify_auth_challenge(
         .expect("acquire challenge write lock")
         .remove(&payload.challenge_id);
 
+    let identity_id = payload.identity_id.clone();
+
     let session_id = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + Duration::hours(12);
 
@@ -184,22 +194,55 @@ pub async fn verify_auth_challenge(
         .insert(
             session_id.clone(),
             SessionRecord {
-                identity_id: payload.identity_id,
+                identity_id: identity_id.clone(),
                 expires_at,
             },
         );
 
+    if let Some(pool) = state.db_pool.as_ref() {
+        sqlx::query(
+            "
+            INSERT INTO sessions (session_id, identity_id, expires_at)
+            VALUES ($1, $2, $3)
+            ",
+        )
+        .bind(&session_id)
+        .bind(&identity_id)
+        .bind(expires_at)
+        .execute(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to persist session")
+        })?;
+    }
+
+    let access_token = issue_session_token(
+        &session_id,
+        &identity_id,
+        expires_at.timestamp(),
+        &state.session_signing_key,
+    );
+
     Ok(Json(AuthVerifyResponse {
         session_id,
+        access_token,
         expires_at: expires_at.to_rfc3339(),
     }))
 }
 
 pub async fn revoke_session(
+    auth: AuthSession,
     State(state): State<AppState>,
     Json(payload): Json<SessionRevokeRequest>,
 ) -> ApiResult<StatusCode> {
     validate_session_revoke_request(&payload)?;
+
+    if payload.session_id != auth.session_id {
+        return Err(unauthorized(
+            "session_invalid",
+            "session_id does not match authenticated session",
+        ));
+    }
 
     let removed = state
         .sessions
@@ -208,7 +251,45 @@ pub async fn revoke_session(
         .remove(&payload.session_id);
 
     if removed.is_none() {
+        if let Some(pool) = state.db_pool.as_ref() {
+            let updated = sqlx::query(
+                "
+                UPDATE sessions
+                SET revoked_at = NOW()
+                WHERE session_id = $1 AND revoked_at IS NULL
+                ",
+            )
+            .bind(&payload.session_id)
+            .execute(pool)
+            .await
+            .map_err(|_| {
+                crate::errors::internal_error("storage_unavailable", "failed to revoke session")
+            })?;
+
+            if updated.rows_affected() == 0 {
+                return Err(bad_request("session_invalid", "session_id is invalid"));
+            }
+
+            return Ok(StatusCode::NO_CONTENT);
+        }
+
         return Err(bad_request("session_invalid", "session_id is invalid"));
+    }
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        sqlx::query(
+            "
+            UPDATE sessions
+            SET revoked_at = NOW()
+            WHERE session_id = $1 AND revoked_at IS NULL
+            ",
+        )
+        .bind(&payload.session_id)
+        .execute(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to revoke session")
+        })?;
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -314,7 +395,10 @@ pub async fn redeem_invite(
     Ok(Json(InviteRedeemResponse { accepted: true }))
 }
 
-pub async fn list_servers(Query(query): Query<ServerListQuery>) -> Json<ServerListResponse> {
+pub async fn list_servers(
+    _auth: AuthSession,
+    Query(query): Query<ServerListQuery>,
+) -> Json<ServerListResponse> {
     let mut items = vec![
         ServerSummary {
             id: "srv-atlas-core".to_string(),
@@ -365,7 +449,10 @@ pub async fn list_servers(Query(query): Query<ServerListQuery>) -> Json<ServerLi
     Json(ServerListResponse { items })
 }
 
-pub async fn list_contacts(Query(query): Query<ContactListQuery>) -> Json<ContactListResponse> {
+pub async fn list_contacts(
+    _auth: AuthSession,
+    Query(query): Query<ContactListQuery>,
+) -> Json<ContactListResponse> {
     let mut items = vec![
         ContactSummary {
             id: "usr-nora-k".to_string(),
@@ -439,13 +526,32 @@ pub async fn create_friend_request(
         ));
     }
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        let record = create_friend_request_db(pool, payload)
-            .await
-            .map_err(map_friend_request_db_error)?;
-        return Ok((StatusCode::CREATED, Json(record)));
-    }
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(crate::errors::internal_error(
+                "storage_unavailable",
+                "friend request storage requires configured database pool",
+            ));
+        }
 
+        #[cfg(test)]
+        {
+            return create_friend_request_in_memory(state, payload);
+        }
+    };
+
+    let record = create_friend_request_db(pool, payload)
+        .await
+        .map_err(map_friend_request_db_error)?;
+    Ok((StatusCode::CREATED, Json(record)))
+}
+
+#[cfg(test)]
+fn create_friend_request_in_memory(
+    state: AppState,
+    payload: FriendRequestCreate,
+) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
     let mut guard = state
         .friend_requests
         .write()
@@ -492,13 +598,32 @@ pub async fn list_friend_requests(
         ));
     }
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        let items = list_friend_requests_db(pool, &query)
-            .await
-            .map_err(map_friend_request_db_error)?;
-        return Ok(Json(FriendRequestPage { items }));
-    }
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(crate::errors::internal_error(
+                "storage_unavailable",
+                "friend request storage requires configured database pool",
+            ));
+        }
 
+        #[cfg(test)]
+        {
+            return list_friend_requests_in_memory(state, query);
+        }
+    };
+
+    let items = list_friend_requests_db(pool, &query)
+        .await
+        .map_err(map_friend_request_db_error)?;
+    Ok(Json(FriendRequestPage { items }))
+}
+
+#[cfg(test)]
+fn list_friend_requests_in_memory(
+    state: AppState,
+    query: FriendRequestListQuery,
+) -> ApiResult<Json<FriendRequestPage>> {
     let guard = state
         .friend_requests
         .read()
@@ -529,25 +654,45 @@ pub async fn accept_friend_request(
 ) -> ApiResult<Json<FriendRequestRecord>> {
     let actor_identity = auth.identity_id;
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        let updated = update_friend_request_status_db(
-            pool,
-            &request_id,
-            "accepted",
-            &actor_identity,
-            ActorRole::Target,
-        )
-        .await
-        .map_err(map_friend_request_db_error)?
-        .ok_or_else(|| {
-            bad_request(
-                "identity_invalid",
-                "friend request not found or not actionable by current session",
-            )
-        })?;
-        return Ok(Json(updated));
-    }
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(crate::errors::internal_error(
+                "storage_unavailable",
+                "friend request storage requires configured database pool",
+            ));
+        }
 
+        #[cfg(test)]
+        {
+            return accept_friend_request_in_memory(state, request_id, actor_identity);
+        }
+    };
+
+    let updated = update_friend_request_status_db(
+        pool,
+        &request_id,
+        "accepted",
+        &actor_identity,
+        ActorRole::Target,
+    )
+    .await
+    .map_err(map_friend_request_db_error)?
+    .ok_or_else(|| {
+        bad_request(
+            "identity_invalid",
+            "friend request not found or not actionable by current session",
+        )
+    })?;
+    Ok(Json(updated))
+}
+
+#[cfg(test)]
+fn accept_friend_request_in_memory(
+    state: AppState,
+    request_id: String,
+    actor_identity: String,
+) -> ApiResult<Json<FriendRequestRecord>> {
     let mut guard = state
         .friend_requests
         .write()
@@ -574,27 +719,47 @@ pub async fn decline_friend_request(
 ) -> ApiResult<StatusCode> {
     let actor_identity = auth.identity_id;
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        let updated = update_friend_request_status_db(
-            pool,
-            &request_id,
-            "declined",
-            &actor_identity,
-            ActorRole::Target,
-        )
-        .await
-        .map_err(map_friend_request_db_error)?;
-
-        if updated.is_none() {
-            return Err(bad_request(
-                "identity_invalid",
-                "friend request not found or not actionable by current session",
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(crate::errors::internal_error(
+                "storage_unavailable",
+                "friend request storage requires configured database pool",
             ));
         }
 
-        return Ok(StatusCode::NO_CONTENT);
+        #[cfg(test)]
+        {
+            return decline_friend_request_in_memory(state, request_id, actor_identity);
+        }
+    };
+
+    let updated = update_friend_request_status_db(
+        pool,
+        &request_id,
+        "declined",
+        &actor_identity,
+        ActorRole::Target,
+    )
+    .await
+    .map_err(map_friend_request_db_error)?;
+
+    if updated.is_none() {
+        return Err(bad_request(
+            "identity_invalid",
+            "friend request not found or not actionable by current session",
+        ));
     }
 
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+fn decline_friend_request_in_memory(
+    state: AppState,
+    request_id: String,
+    actor_identity: String,
+) -> ApiResult<StatusCode> {
     let mut guard = state
         .friend_requests
         .write()
@@ -621,27 +786,47 @@ pub async fn cancel_friend_request(
 ) -> ApiResult<StatusCode> {
     let actor_identity = auth.identity_id;
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        let updated = update_friend_request_status_db(
-            pool,
-            &request_id,
-            "cancelled",
-            &actor_identity,
-            ActorRole::Requester,
-        )
-        .await
-        .map_err(map_friend_request_db_error)?;
-
-        if updated.is_none() {
-            return Err(bad_request(
-                "identity_invalid",
-                "friend request not found or not actionable by current session",
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(crate::errors::internal_error(
+                "storage_unavailable",
+                "friend request storage requires configured database pool",
             ));
         }
 
-        return Ok(StatusCode::NO_CONTENT);
+        #[cfg(test)]
+        {
+            return cancel_friend_request_in_memory(state, request_id, actor_identity);
+        }
+    };
+
+    let updated = update_friend_request_status_db(
+        pool,
+        &request_id,
+        "cancelled",
+        &actor_identity,
+        ActorRole::Requester,
+    )
+    .await
+    .map_err(map_friend_request_db_error)?;
+
+    if updated.is_none() {
+        return Err(bad_request(
+            "identity_invalid",
+            "friend request not found or not actionable by current session",
+        ));
     }
 
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+fn cancel_friend_request_in_memory(
+    state: AppState,
+    request_id: String,
+    actor_identity: String,
+) -> ApiResult<StatusCode> {
     let mut guard = state
         .friend_requests
         .write()
@@ -853,6 +1038,7 @@ enum ActorRole {
     Target,
 }
 
+#[cfg(test)]
 fn apply_friend_request_transition_in_memory(
     request: &mut FriendRequestRecord,
     next_status: &str,

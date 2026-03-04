@@ -1,4 +1,4 @@
-use realtime_rs::{app::build_app, config::RealtimeConfig};
+use realtime_rs::{app::build_app, config::RealtimeConfig, state::AppState};
 use std::env;
 use tracing::info;
 
@@ -12,7 +12,7 @@ async fn main() {
         )
         .init();
 
-    let app = build_app();
+    let app = build_app(AppState::new(config.api_base_url.clone()));
 
     let addr = config.bind_addr;
     info!(%addr, "starting realtime service");

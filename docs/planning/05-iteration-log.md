@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 execution hardening aligned E2EE scope, dependencies, and sprint task precision.
+- Latest meaningful change: 2026-03-04 session hardening finalized bearer-token enforcement across API/Web and migration checksum governance.
 
 ## Purpose
 
@@ -29,6 +29,73 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (session-token enforcement and migration checksum hardening)
+
+- Area affected: Cross-cutting auth/session and persistence integrity
+- Change summary:
+  - Added signed bearer session token flow end-to-end: API issues `access_token` on verify and web stores/uses it for protected API calls.
+  - Tightened API auth-sensitive routes by requiring authenticated context for revoke and list endpoints, with session-id match enforcement for revoke.
+  - Updated API CORS allow-headers to include `Authorization` for browser preflight compatibility.
+  - Added DB `sessions` migration plus migration checksum tracking and advisory-lock guarded migration execution.
+  - Updated realtime API-validation bridge to require and forward `Authorization` when checking websocket session validity.
+  - Rewired web hubs/onboarding/home to consume `access_token` consistently for servers/contacts/friend-request and session revoke paths.
+- Rationale:
+  - Remove header-forgery-prone session-only transport as the primary path and align runtime auth to signed token + server-side validation.
+- Linked docs updated:
+  - `services/api-rs/migrations/0003_sessions.sql`
+  - `services/api-rs/src/session_token.rs`
+  - `services/api-rs/src/auth.rs`
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/Cargo.toml`
+  - `services/realtime-rs/src/handlers.rs`
+  - `apps/web/lib/sessions.ts`
+  - `apps/web/lib/api.ts`
+  - `apps/web/app/onboarding/identity/page.tsx`
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/contacts/page.tsx`
+  - `apps/web/app/home/page.tsx`
+  - `Cargo.lock`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-03-04 (quality hardening batch: auth, cors, realtime gate)
+
+- Area affected: Cross-cutting quality/security hardening
+- Change summary:
+  - Added identity registration conflict guard to prevent silent key overwrite for existing identities.
+  - Added `GET /v1/auth/sessions/validate` and reused centralized `AuthSession` extractor for server-side session-bound auth context.
+  - Restricted API CORS from wildcard to env-driven explicit allowlist (`API_ALLOWED_ORIGINS`).
+  - Hardened friend-request handlers to require database pool in non-test runtime and keep in-memory path only for tests.
+  - Added realtime websocket auth gate by validating `x-session-id` against API before upgrade.
+  - Improved frontend hubs (`/servers`, `/contacts`) with explicit network error catch/finalization paths.
+- Rationale:
+  - Close immediate trust-boundary and operational safety gaps before additional feature expansion.
+- Linked docs updated:
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/auth.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/errors.rs`
+  - `services/api-rs/src/config.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/main.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/.env.example`
+  - `services/realtime-rs/src/state.rs`
+  - `services/realtime-rs/src/config.rs`
+  - `services/realtime-rs/src/app.rs`
+  - `services/realtime-rs/src/handlers.rs`
+  - `services/realtime-rs/src/main.rs`
+  - `services/realtime-rs/.env.example`
+  - `services/realtime-rs/Cargo.toml`
+  - `apps/web/app/servers/page.tsx`
+  - `apps/web/app/contacts/page.tsx`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-04 (migration governance and transition-matrix hardening)
 

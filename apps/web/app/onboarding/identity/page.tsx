@@ -112,6 +112,7 @@ export default function IdentityOnboardingPage() {
 
       setPersonaSession(identityId, {
         sessionId: verifyResult.data.session_id,
+        accessToken: verifyResult.data.access_token,
         expiresAt: verifyResult.data.expires_at,
       });
 

@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added explicit iteration entry criteria and exit evidence requirements.
+- Latest meaningful change: 2026-03-04 expanded T3.1.x execution with bearer-token session enforcement, revoke auth checks, and migration checksum governance.
 
 ## Iteration Scope
 
@@ -118,8 +118,8 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline/cancel endpoints in `api-rs` with Postgres-backed persistence, versioned migration runner, centralized session-auth extractor, pending-only transition guards, and idempotent terminal-action semantics |
-| T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub now calls live friend-request endpoints and supports send/accept/decline actions with state mapping; optimistic and persistence hardening pending |
+| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline/cancel endpoints in `api-rs` with Postgres-backed persistence, migration checksums + advisory lock, centralized auth extractor, pending-only transition guards, idempotent terminal-action semantics, auth-required revoke/session validation, and non-test DB-required execution |
+| T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub calls live friend-request endpoints with send/accept/decline actions and explicit screen states; web transport migrated to bearer-token auth (`access_token`) across contacts/servers/session lifecycle paths |
 
 ## Done
 

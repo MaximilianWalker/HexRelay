@@ -9,6 +9,16 @@ type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };
 
+function authHeaders(accessToken?: string): HeadersInit {
+  if (!accessToken) {
+    return {};
+  }
+
+  return {
+    authorization: `Bearer ${accessToken}`,
+  };
+}
+
 async function parseResponse<T>(response: Response): Promise<ApiResult<T>> {
   if (response.ok) {
     if (response.status === 204) {
@@ -66,7 +76,7 @@ export async function verifyAuthChallenge(input: {
   identityId: string;
   challengeId: string;
   signature: string;
-}): Promise<ApiResult<{ session_id: string; expires_at: string }>> {
+}): Promise<ApiResult<{ session_id: string; access_token: string; expires_at: string }>> {
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/verify`, {
     method: "POST",
     headers: {
@@ -79,16 +89,20 @@ export async function verifyAuthChallenge(input: {
     }),
   });
 
-  return parseResponse<{ session_id: string; expires_at: string }>(response);
+  return parseResponse<{ session_id: string; access_token: string; expires_at: string }>(
+    response,
+  );
 }
 
 export async function revokeSession(input: {
   sessionId: string;
+  accessToken: string;
 }): Promise<ApiResult<undefined>> {
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/sessions/revoke`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       session_id: input.sessionId,
@@ -125,6 +139,7 @@ export async function fetchServers(input: {
   favoritesOnly?: boolean;
   unreadOnly?: boolean;
   mutedOnly?: boolean;
+  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -152,7 +167,10 @@ export async function fetchServers(input: {
 
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/servers?${params.toString()}`,
-    { method: "GET" },
+    {
+      method: "GET",
+      headers: authHeaders(input.accessToken),
+    },
   );
 
   return parseResponse(response);
@@ -163,6 +181,7 @@ export async function fetchContacts(input: {
   onlineOnly?: boolean;
   unreadOnly?: boolean;
   favoritesOnly?: boolean;
+  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -192,7 +211,10 @@ export async function fetchContacts(input: {
 
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/contacts?${params.toString()}`,
-    { method: "GET" },
+    {
+      method: "GET",
+      headers: authHeaders(input.accessToken),
+    },
   );
 
   return parseResponse(response);
@@ -201,13 +223,13 @@ export async function fetchContacts(input: {
 export async function createFriendRequest(input: {
   requesterIdentityId: string;
   targetIdentityId: string;
-  sessionId: string;
+  accessToken: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-session-id": input.sessionId,
+      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       requester_identity_id: input.requesterIdentityId,
@@ -221,7 +243,7 @@ export async function createFriendRequest(input: {
 export async function fetchFriendRequests(input: {
   identityId: string;
   direction?: "inbound" | "outbound";
-  sessionId: string;
+  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -243,9 +265,7 @@ export async function fetchFriendRequests(input: {
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests?${params.toString()}`,
     {
       method: "GET",
-      headers: {
-        "x-session-id": input.sessionId,
-      },
+      headers: authHeaders(input.accessToken),
     },
   );
 
@@ -254,15 +274,13 @@ export async function fetchFriendRequests(input: {
 
 export async function acceptFriendRequest(input: {
   requestId: string;
-  sessionId: string;
+  accessToken: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/accept`,
     {
       method: "POST",
-      headers: {
-        "x-session-id": input.sessionId,
-      },
+      headers: authHeaders(input.accessToken),
     },
   );
 
@@ -271,15 +289,13 @@ export async function acceptFriendRequest(input: {
 
 export async function declineFriendRequest(input: {
   requestId: string;
-  sessionId: string;
+  accessToken: string;
 }): Promise<ApiResult<undefined>> {
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
     {
       method: "POST",
-      headers: {
-        "x-session-id": input.sessionId,
-      },
+      headers: authHeaders(input.accessToken),
     },
   );
 

@@ -5,12 +5,15 @@ pub mod db;
 pub mod errors;
 pub mod handlers;
 pub mod models;
+pub mod session_token;
 pub mod state;
 pub mod validation;
 
 #[cfg(test)]
 mod tests {
     const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+
+    use std::collections::HashMap;
 
     use axum::{
         body::{to_bytes, Body},
@@ -24,7 +27,9 @@ mod tests {
     use serde::Deserialize;
     use tower::util::ServiceExt;
 
-    use crate::{app::build_app, models::SessionRecord, state::AppState};
+    use crate::{
+        app::build_app, models::SessionRecord, session_token::issue_session_token, state::AppState,
+    };
 
     #[derive(Deserialize)]
     struct AuthChallengeResponse {
@@ -35,6 +40,7 @@ mod tests {
     #[derive(Deserialize)]
     struct AuthVerifyResponse {
         session_id: String,
+        access_token: String,
     }
 
     #[derive(Deserialize)]
@@ -85,8 +91,9 @@ mod tests {
         (response.status(), app)
     }
 
-    fn app_with_sessions(identity_ids: &[&str]) -> axum::Router {
+    fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, String>) {
         let state = AppState::default();
+        let mut bearer_tokens = HashMap::new();
 
         {
             let mut sessions = state
@@ -95,17 +102,30 @@ mod tests {
                 .expect("acquire session write lock for tests");
 
             for identity_id in identity_ids {
+                let expires_at = Utc::now() + Duration::hours(1);
+                let session_id = format!("sess-{identity_id}");
+
                 sessions.insert(
-                    format!("sess-{identity_id}"),
+                    session_id.clone(),
                     SessionRecord {
                         identity_id: (*identity_id).to_string(),
-                        expires_at: Utc::now() + Duration::hours(1),
+                        expires_at,
                     },
+                );
+
+                bearer_tokens.insert(
+                    (*identity_id).to_string(),
+                    issue_session_token(
+                        &session_id,
+                        identity_id,
+                        expires_at.timestamp(),
+                        &state.session_signing_key,
+                    ),
                 );
             }
         }
 
-        build_app(state)
+        (build_app(state), bearer_tokens)
     }
 
     #[tokio::test]
@@ -122,6 +142,35 @@ mod tests {
 
         let response = app.oneshot(request).await.expect("get response");
         assert_eq!(response.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn rejects_duplicate_identity_registration() {
+        let app = build_app(AppState::default());
+        let request = Request::builder()
+            .method("POST")
+            .uri("/v1/identity/keys/register")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"identity_id":"user-dup","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
+            ))
+            .expect("build first request");
+        let first_response = app.clone().oneshot(request).await.expect("first response");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+
+        let duplicate_request = Request::builder()
+            .method("POST")
+            .uri("/v1/identity/keys/register")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"identity_id":"user-dup","public_key":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","algorithm":"ed25519"}"#,
+            ))
+            .expect("build duplicate request");
+        let duplicate_response = app
+            .oneshot(duplicate_request)
+            .await
+            .expect("duplicate response");
+        assert_eq!(duplicate_response.status(), StatusCode::CONFLICT);
     }
 
     #[tokio::test]
@@ -260,6 +309,7 @@ mod tests {
             .method("POST")
             .uri("/v1/auth/sessions/revoke")
             .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {}", verify.access_token))
             .body(Body::from(format!(
                 r#"{{"session_id":"{}"}}"#,
                 verify.session_id
@@ -491,10 +541,11 @@ mod tests {
 
     #[tokio::test]
     async fn lists_servers_with_filters() {
-        let app = build_app(AppState::default());
+        let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
         let request = Request::builder()
             .method("GET")
             .uri("/v1/servers?favorites_only=true&unread_only=true")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
             .body(Body::empty())
             .expect("build servers list request");
 
@@ -511,10 +562,11 @@ mod tests {
 
     #[tokio::test]
     async fn lists_contacts_with_search_filter() {
-        let app = build_app(AppState::default());
+        let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
         let request = Request::builder()
             .method("GET")
             .uri("/v1/contacts?search=nora")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
             .body(Body::empty())
             .expect("build contacts list request");
 
@@ -531,13 +583,13 @@ mod tests {
 
     #[tokio::test]
     async fn creates_and_lists_friend_requests() {
-        let app = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+        let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-nora-k")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-jules-p"}"#,
             ))
@@ -553,7 +605,7 @@ mod tests {
         let list_request = Request::builder()
             .method("GET")
             .uri("/v1/friends/requests?identity_id=usr-jules-p&direction=inbound")
-            .header("x-session-id", "sess-usr-jules-p")
+            .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
             .body(Body::empty())
             .expect("build friend request list request");
 
@@ -573,13 +625,13 @@ mod tests {
 
     #[tokio::test]
     async fn accepts_and_declines_friend_requests() {
-        let app = app_with_sessions(&["usr-mina-s", "usr-alex-r", "usr-nora-k"]);
+        let (app, tokens) = app_with_sessions(&["usr-mina-s", "usr-alex-r", "usr-nora-k"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-mina-s")
+            .header("authorization", format!("Bearer {}", tokens["usr-mina-s"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-mina-s","target_identity_id":"usr-alex-r"}"#,
             ))
@@ -604,7 +656,7 @@ mod tests {
                 "/v1/friends/requests/{}/accept",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-alex-r")
+            .header("authorization", format!("Bearer {}", tokens["usr-alex-r"]))
             .body(Body::empty())
             .expect("build accept request");
         let accept_response = app
@@ -618,7 +670,7 @@ mod tests {
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-nora-k")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-alex-r"}"#,
             ))
@@ -643,7 +695,7 @@ mod tests {
                 "/v1/friends/requests/{}/decline",
                 decline_created.request_id
             ))
-            .header("x-session-id", "sess-usr-alex-r")
+            .header("authorization", format!("Bearer {}", tokens["usr-alex-r"]))
             .body(Body::empty())
             .expect("build decline request");
         let decline_response = app
@@ -655,13 +707,13 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_conflicting_transition_when_not_pending() {
-        let app = app_with_sessions(&["usr-a", "usr-b"]);
+        let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-a")
+            .header("authorization", format!("Bearer {}", tokens["usr-a"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-a","target_identity_id":"usr-b"}"#,
             ))
@@ -686,7 +738,7 @@ mod tests {
                 "/v1/friends/requests/{}/accept",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-b")
+            .header("authorization", format!("Bearer {}", tokens["usr-b"]))
             .body(Body::empty())
             .expect("build first accept");
         let first_accept_response = app
@@ -702,7 +754,7 @@ mod tests {
                 "/v1/friends/requests/{}/accept",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-b")
+            .header("authorization", format!("Bearer {}", tokens["usr-b"]))
             .body(Body::empty())
             .expect("build idempotent accept");
         let idempotent_accept_response = app
@@ -718,7 +770,7 @@ mod tests {
                 "/v1/friends/requests/{}/decline",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-b")
+            .header("authorization", format!("Bearer {}", tokens["usr-b"]))
             .body(Body::empty())
             .expect("build conflicting decline");
         let conflicting_decline_response = app
@@ -730,13 +782,13 @@ mod tests {
 
     #[tokio::test]
     async fn requester_can_cancel_pending_friend_request() {
-        let app = app_with_sessions(&["usr-c", "usr-d"]);
+        let (app, tokens) = app_with_sessions(&["usr-c", "usr-d"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-c")
+            .header("authorization", format!("Bearer {}", tokens["usr-c"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-c","target_identity_id":"usr-d"}"#,
             ))
@@ -761,7 +813,7 @@ mod tests {
                 "/v1/friends/requests/{}/cancel",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-c")
+            .header("authorization", format!("Bearer {}", tokens["usr-c"]))
             .body(Body::empty())
             .expect("build cancel request");
 
@@ -771,13 +823,13 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_transition_by_wrong_actor() {
-        let app = app_with_sessions(&["usr-e", "usr-f", "usr-g"]);
+        let (app, tokens) = app_with_sessions(&["usr-e", "usr-f", "usr-g"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
-            .header("x-session-id", "sess-usr-e")
+            .header("authorization", format!("Bearer {}", tokens["usr-e"]))
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-e","target_identity_id":"usr-f"}"#,
             ))
@@ -802,7 +854,7 @@ mod tests {
                 "/v1/friends/requests/{}/accept",
                 created.request_id
             ))
-            .header("x-session-id", "sess-usr-g")
+            .header("authorization", format!("Bearer {}", tokens["usr-g"]))
             .body(Body::empty())
             .expect("build wrong actor accept request");
 
@@ -814,7 +866,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rejects_friend_request_without_session_header() {
+    async fn rejects_friend_request_without_authorization_header() {
         let app = build_app(AppState::default());
 
         let request = Request::builder()
@@ -828,5 +880,23 @@ mod tests {
             .await
             .expect("friend request list response");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn validates_session_with_header() {
+        let (app, tokens) = app_with_sessions(&["usr-session"]);
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/auth/sessions/validate")
+            .header("authorization", format!("Bearer {}", tokens["usr-session"]))
+            .body(Body::empty())
+            .expect("build session validate request");
+
+        let response = app
+            .oneshot(request)
+            .await
+            .expect("session validate response");
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

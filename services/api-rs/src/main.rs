@@ -16,7 +16,14 @@ async fn main() {
         .await
         .expect("connect and prepare API database");
 
-    let app = build_app(AppState::new(config.node_fingerprint.clone()).with_db_pool(db_pool));
+    let app = build_app(
+        AppState::new(
+            config.node_fingerprint.clone(),
+            config.allowed_origins.clone(),
+            config.session_signing_key.clone(),
+        )
+        .with_db_pool(db_pool),
+    );
     let addr = config.bind_addr;
     info!(%addr, "starting api service");
 

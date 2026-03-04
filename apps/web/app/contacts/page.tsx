@@ -48,50 +48,66 @@ export default function ContactsPage() {
     return readPersonas()[0]?.id ?? "usr-nora-k";
   }, []);
 
-  const sessionId = useMemo(() => getPersonaSession(identityId)?.sessionId ?? null, [identityId]);
+  const session = useMemo(() => getPersonaSession(identityId), [identityId]);
+  const accessToken = session?.accessToken ?? null;
 
   useEffect(() => {
     let active = true;
 
-    if (!sessionId) {
+    if (!accessToken) {
       return () => {
         active = false;
       };
     }
 
-    void Promise.all([
-      fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly }),
-      fetchFriendRequests({ identityId, sessionId }),
-    ]).then(([contactsResult, requestsResult]) => {
-      if (!active) {
-        return;
-      }
+    const run = async (): Promise<void> => {
+      try {
+        const [contactsResult, requestsResult] = await Promise.all([
+          fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly, accessToken }),
+          fetchFriendRequests({ identityId, accessToken }),
+        ]);
 
-      if (!contactsResult.ok || !requestsResult.ok) {
+        if (!active) {
+          return;
+        }
+
+        if (!contactsResult.ok || !requestsResult.ok) {
+          setContacts([]);
+          setFriendRequests([]);
+          setHasError(true);
+          setLoading(false);
+          return;
+        }
+
+        setContacts(
+          contactsResult.data.items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            status: item.status as "online" | "offline" | "away",
+            unread: item.unread,
+            favorite: item.favorite,
+          })),
+        );
+        setFriendRequests(requestsResult.data.items);
+        setLoading(false);
+      } catch {
+        if (!active) {
+          return;
+        }
+
         setContacts([]);
         setFriendRequests([]);
         setHasError(true);
         setLoading(false);
-        return;
       }
+    };
 
-      setContacts(
-        contactsResult.data.items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          status: item.status as "online" | "offline" | "away",
-          unread: item.unread,
-          favorite: item.favorite,
-        })),
-      );
-      setFriendRequests(requestsResult.data.items);
-      setLoading(false);
-    });
+    void run();
 
     return () => {
       active = false;
     };
-  }, [favoritesOnly, identityId, onlineOnly, search, sessionId, unreadOnly]);
+  }, [accessToken, favoritesOnly, identityId, onlineOnly, search, unreadOnly]);
 
   function setFilterState(update: () => void): void {
     setLoading(true);
@@ -100,25 +116,25 @@ export default function ContactsPage() {
   }
 
   async function refreshRequests(): Promise<void> {
-    if (!sessionId) {
+    if (!accessToken) {
       return;
     }
 
-    const result = await fetchFriendRequests({ identityId, sessionId });
+    const result = await fetchFriendRequests({ identityId, accessToken });
     if (result.ok) {
       setFriendRequests(result.data.items);
     }
   }
 
   async function handleCreateRequest(targetIdentityId: string): Promise<void> {
-    if (!sessionId) {
+    if (!accessToken) {
       return;
     }
 
     const result = await createFriendRequest({
       requesterIdentityId: identityId,
       targetIdentityId,
-      sessionId,
+      accessToken,
     });
     if (result.ok) {
       await refreshRequests();
@@ -126,22 +142,22 @@ export default function ContactsPage() {
   }
 
   async function handleAcceptRequest(requestId: string): Promise<void> {
-    if (!sessionId) {
+    if (!accessToken) {
       return;
     }
 
-    const result = await acceptFriendRequest({ requestId, sessionId });
+    const result = await acceptFriendRequest({ requestId, accessToken });
     if (result.ok) {
       await refreshRequests();
     }
   }
 
   async function handleDeclineRequest(requestId: string): Promise<void> {
-    if (!sessionId) {
+    if (!accessToken) {
       return;
     }
 
-    const result = await declineFriendRequest({ requestId, sessionId });
+    const result = await declineFriendRequest({ requestId, accessToken });
     if (result.ok) {
       await refreshRequests();
     }
@@ -154,9 +170,9 @@ export default function ContactsPage() {
     (item) => item.requester_identity_id === identityId && item.status === "pending",
   );
 
-  const visibleContacts = sessionId ? contacts : [];
+  const visibleContacts = accessToken ? contacts : [];
 
-  const state = !sessionId
+  const state = !accessToken
       ? "error"
     : loading
       ? "loading"

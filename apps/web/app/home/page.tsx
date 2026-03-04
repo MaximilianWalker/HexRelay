@@ -51,7 +51,10 @@ export default function HomePage() {
       return;
     }
 
-    const result = await revokeSession({ sessionId: existingSession.sessionId });
+    const result = await revokeSession({
+      sessionId: existingSession.sessionId,
+      accessToken: existingSession.accessToken,
+    });
     clearPersonaSession(personaId);
 
     if (!result.ok) {

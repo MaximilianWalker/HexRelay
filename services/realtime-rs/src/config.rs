@@ -1,6 +1,7 @@
 use std::{env, net::SocketAddr};
 
 pub struct RealtimeConfig {
+    pub api_base_url: String,
     pub bind_addr: SocketAddr,
 }
 
@@ -14,6 +15,16 @@ impl RealtimeConfig {
             )
         });
 
-        Self { bind_addr }
+        let api_base_url = env::var("REALTIME_API_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+
+        if api_base_url.trim().is_empty() {
+            panic!("Invalid REALTIME_API_BASE_URL. Value must not be empty");
+        }
+
+        Self {
+            api_base_url,
+            bind_addr,
+        }
     }
 }

@@ -15,3 +15,10 @@ pub fn unauthorized(code: &'static str, message: &'static str) -> (StatusCode, J
 pub fn conflict(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
     (StatusCode::CONFLICT, Json(ApiError { code, message }))
 }
+
+pub fn internal_error(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ApiError { code, message }),
+    )
+}

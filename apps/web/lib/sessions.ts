@@ -100,7 +100,7 @@ async function decryptText(personaId: string, cipherText: string): Promise<strin
 
 export function setPersonaSession(
   personaId: string,
-  value: { sessionId: string; expiresAt: string },
+  value: { sessionId: string; accessToken: string; expiresAt: string },
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -117,7 +117,7 @@ export function setPersonaSession(
 
 export function getPersonaSession(
   personaId: string,
-): { sessionId: string; expiresAt: string } | null {
+): { sessionId: string; accessToken: string; expiresAt: string } | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -128,12 +128,20 @@ export function getPersonaSession(
   }
 
   try {
-    const parsed = JSON.parse(raw) as { sessionId?: string; expiresAt?: string };
-    if (!parsed.sessionId || !parsed.expiresAt) {
+    const parsed = JSON.parse(raw) as {
+      sessionId?: string;
+      accessToken?: string;
+      expiresAt?: string;
+    };
+    if (!parsed.sessionId || !parsed.expiresAt || !parsed.accessToken) {
       return null;
     }
 
-    return { sessionId: parsed.sessionId, expiresAt: parsed.expiresAt };
+    return {
+      sessionId: parsed.sessionId,
+      accessToken: parsed.accessToken,
+      expiresAt: parsed.expiresAt,
+    };
   } catch {
     return null;
   }

@@ -1,5 +1,5 @@
 use axum::{
-    http::{header, Method},
+    http::{header, HeaderValue, Method},
     routing::{get, post},
     Router,
 };
@@ -9,19 +9,23 @@ use crate::{
     handlers::{
         accept_friend_request, cancel_friend_request, create_friend_request, create_invite,
         decline_friend_request, health, issue_auth_challenge, list_contacts, list_friend_requests,
-        list_servers, redeem_invite, register_identity_key, revoke_session, verify_auth_challenge,
+        list_servers, redeem_invite, register_identity_key, revoke_session, validate_session,
+        verify_auth_challenge,
     },
     state::AppState,
 };
 
 pub fn build_app(state: AppState) -> Router {
+    let allowed_origins = state
+        .allowed_origins
+        .iter()
+        .filter_map(|origin| HeaderValue::from_str(origin).ok())
+        .collect::<Vec<_>>();
+
     let cors = CorsLayer::new()
-        .allow_origin(tower_http::cors::Any)
+        .allow_origin(allowed_origins)
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            axum::http::HeaderName::from_static("x-session-id"),
-        ]);
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     Router::new()
         .route("/health", get(health))
@@ -29,6 +33,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/auth/challenge", post(issue_auth_challenge))
         .route("/v1/auth/verify", post(verify_auth_challenge))
         .route("/v1/auth/sessions/revoke", post(revoke_session))
+        .route("/v1/auth/sessions/validate", get(validate_session))
         .route("/v1/invites", post(create_invite))
         .route("/v1/invites/redeem", post(redeem_invite))
         .route("/v1/servers", get(list_servers))

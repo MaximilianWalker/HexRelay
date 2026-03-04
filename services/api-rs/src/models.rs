@@ -30,6 +30,14 @@ pub struct AuthVerifyRequest {
 #[derive(Serialize)]
 pub struct AuthVerifyResponse {
     pub session_id: String,
+    pub access_token: String,
+    pub expires_at: String,
+}
+
+#[derive(Serialize)]
+pub struct SessionValidateResponse {
+    pub session_id: String,
+    pub identity_id: String,
     pub expires_at: String,
 }
 

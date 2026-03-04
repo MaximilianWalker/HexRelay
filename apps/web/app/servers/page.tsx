@@ -6,6 +6,8 @@ import Link from "next/link";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { fetchServers } from "@/lib/api";
+import { readActivePersonaId, readPersonas } from "@/lib/personas";
+import { getPersonaSession } from "@/lib/sessions";
 
 import styles from "../surfaces.module.css";
 
@@ -26,34 +28,66 @@ export default function ServersPage() {
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
+  const identityId = useMemo(() => {
+    const active = readActivePersonaId();
+    if (active) {
+      return active;
+    }
+
+    return readPersonas()[0]?.id ?? "usr-nora-k";
+  }, []);
+
+  const accessToken = useMemo(() => getPersonaSession(identityId)?.accessToken ?? null, [identityId]);
+
   useEffect(() => {
     let active = true;
 
-    void fetchServers({
-      search,
-      favoritesOnly,
-      unreadOnly,
-      mutedOnly,
-    }).then((result) => {
-      if (!active) {
-        return;
-      }
+    if (!accessToken) {
+      return () => {
+        active = false;
+      };
+    }
 
-      if (!result.ok) {
+    const run = async (): Promise<void> => {
+      try {
+        const result = await fetchServers({
+          search,
+          favoritesOnly,
+          unreadOnly,
+          mutedOnly,
+          accessToken,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        if (!result.ok) {
+          setHasError(true);
+          setServers([]);
+          setLoading(false);
+          return;
+        }
+
+        setServers(result.data.items);
+        setLoading(false);
+      } catch {
+        if (!active) {
+          return;
+        }
+
         setHasError(true);
         setServers([]);
         setLoading(false);
-        return;
       }
+    };
 
-      setServers(result.data.items);
-      setLoading(false);
-    });
+    void run();
 
     return () => {
       active = false;
     };
-  }, [favoritesOnly, mutedOnly, search, unreadOnly]);
+  }, [accessToken, favoritesOnly, mutedOnly, search, unreadOnly]);
 
   function setFilterState(update: () => void): void {
     setLoading(true);
@@ -65,11 +99,15 @@ export default function ServersPage() {
     return servers;
   }, [servers]);
 
-  const state = loading
-    ? "loading"
+  const visibleServers = accessToken ? filtered : [];
+
+  const state = !accessToken
+    ? "error"
+    : loading
+      ? "loading"
     : hasError
       ? "error"
-      : filtered.length === 0
+      : visibleServers.length === 0
         ? search.trim() || favoritesOnly || unreadOnly || mutedOnly
           ? "search_no_results"
           : "empty"
@@ -121,9 +159,9 @@ export default function ServersPage() {
           value={search}
         />
 
-        {filtered.length > 0 ? (
+        {visibleServers.length > 0 ? (
           <div className={styles.grid}>
-            {filtered.map((server) => (
+            {visibleServers.map((server) => (
               <article className={styles.card} key={server.id}>
                 <p className={styles.title}>
                   <Link href={`/servers/${server.id}`}>{server.name}</Link>
