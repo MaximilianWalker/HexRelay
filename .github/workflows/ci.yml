@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches:
+      - master
       - main
   pull_request:
 
@@ -23,34 +24,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Detect Rust crate
-        id: detect
-        run: |
-          if [ -f "${{ matrix.service }}/Cargo.toml" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping ${{ matrix.service }}. Missing ${{ matrix.service }}/Cargo.toml. Add scaffold with a valid Cargo project to enable Rust CI gates."
-          fi
-
       - name: Setup Rust toolchain
-        if: steps.detect.outputs.exists == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
       - name: Cargo fmt (check)
-        if: steps.detect.outputs.exists == 'true'
         working-directory: ${{ matrix.service }}
         run: cargo fmt --all -- --check
 
       - name: Cargo clippy
-        if: steps.detect.outputs.exists == 'true'
         working-directory: ${{ matrix.service }}
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Cargo test
-        if: steps.detect.outputs.exists == 'true'
         working-directory: ${{ matrix.service }}
         run: cargo test --all-features
 
@@ -61,24 +48,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Detect web project
-        id: detect
-        run: |
-          if [ -f "apps/web/package.json" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping apps/web. Missing apps/web/package.json. Add web scaffold and lockfile to enable web CI gates."
-          fi
-
       - name: Setup Node.js
-        if: steps.detect.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Validate package manager lockfile and scripts
-        if: steps.detect.outputs.exists == 'true'
         working-directory: apps/web
         run: |
           if [ ! -f package-lock.json ] && [ ! -f pnpm-lock.yaml ] && [ ! -f yarn.lock ]; then
@@ -89,7 +64,6 @@ jobs:
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const s=p.scripts||{};const missing=['lint','test','build'].filter((k)=>!s[k]);if(missing.length){console.error('::error::Missing required scripts in apps/web/package.json: '+missing.join(', ')+'. Add these scripts to enable CI gates.');process.exit(1);}"
 
       - name: Install dependencies
-        if: steps.detect.outputs.exists == 'true'
         working-directory: apps/web
         run: |
           if [ -f pnpm-lock.yaml ]; then
@@ -104,7 +78,6 @@ jobs:
           fi
 
       - name: Lint
-        if: steps.detect.outputs.exists == 'true'
         working-directory: apps/web
         run: |
           if [ -f pnpm-lock.yaml ]; then
@@ -116,7 +89,6 @@ jobs:
           fi
 
       - name: Test
-        if: steps.detect.outputs.exists == 'true'
         working-directory: apps/web
         run: |
           if [ -f pnpm-lock.yaml ]; then
@@ -128,7 +100,6 @@ jobs:
           fi
 
       - name: Build
-        if: steps.detect.outputs.exists == 'true'
         working-directory: apps/web
         run: |
           if [ -f pnpm-lock.yaml ]; then

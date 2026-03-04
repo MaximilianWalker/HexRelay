@@ -30,6 +30,25 @@
 
 ## Log Entries
 
+### 2026-03-04 (iteration 1 quality and config gates)
+
+- Area affected: Iteration 1 quality gate enforcement and configuration validation
+- Change summary:
+  - Hardened CI workflow to run active Rust/Web quality gates without scaffold-skip detection.
+  - Added runtime environment validation for API and realtime services (`API_BIND`, `REALTIME_BIND`).
+  - Added web environment schema validation for API and realtime endpoint URLs.
+  - Added `.env.example` templates for `apps/web`, `services/api-rs`, and `services/realtime-rs`.
+  - Marked `T1.2.1` and `T1.3.1` completed in the Iteration 1 board.
+- Rationale:
+  - Ensure invalid configuration fails fast and CI gates are enforceable before starting identity/auth implementation tasks.
+- Linked docs updated:
+  - `.github/workflows/ci.yml`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `apps/web/.env.example`
+  - `services/api-rs/.env.example`
+  - `services/realtime-rs/.env.example`
+
 ### 2026-03-04 (iteration 1 foundation kickoff)
 
 - Area affected: Iteration 1 execution tracking

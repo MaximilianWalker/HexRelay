@@ -108,6 +108,8 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T1.1.1 | Monorepo layout | 2026-03-04 | `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` initialized with runnable scaffolds |
 | T1.1.2 | Local infra compose stack | 2026-03-04 | Postgres/Redis/MinIO/coturn compose stack with health checks and infra runbook |
 | T1.1.3 | Setup/run/test scripts | 2026-03-04 | Root `Makefile`, `scripts/*.sh`, and root npm scripts provide one-command setup/run/test |
+| T1.2.1 | CI matrix (Rust + web) | 2026-03-04 | `.github/workflows/ci.yml` enforces active Rust/Web lint/test/build gates on `master` and PRs |
+| T1.3.1 | Env schema validation + config templates | 2026-03-04 | Runtime env validation added in services and web; `.env.example` templates added for web/api/realtime/infra |
 
 ## Suggested Sprint Sequencing
 
