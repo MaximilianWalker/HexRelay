@@ -201,11 +201,13 @@ export async function fetchContacts(input: {
 export async function createFriendRequest(input: {
   requesterIdentityId: string;
   targetIdentityId: string;
+  sessionId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      "x-session-id": input.sessionId,
     },
     body: JSON.stringify({
       requester_identity_id: input.requesterIdentityId,
@@ -219,6 +221,7 @@ export async function createFriendRequest(input: {
 export async function fetchFriendRequests(input: {
   identityId: string;
   direction?: "inbound" | "outbound";
+  sessionId: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -238,7 +241,12 @@ export async function fetchFriendRequests(input: {
 
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests?${params.toString()}`,
-    { method: "GET" },
+    {
+      method: "GET",
+      headers: {
+        "x-session-id": input.sessionId,
+      },
+    },
   );
 
   return parseResponse(response);
@@ -246,10 +254,16 @@ export async function fetchFriendRequests(input: {
 
 export async function acceptFriendRequest(input: {
   requestId: string;
+  sessionId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/accept`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: {
+        "x-session-id": input.sessionId,
+      },
+    },
   );
 
   return parseResponse(response);
@@ -257,10 +271,16 @@ export async function acceptFriendRequest(input: {
 
 export async function declineFriendRequest(input: {
   requestId: string;
+  sessionId: string;
 }): Promise<ApiResult<undefined>> {
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: {
+        "x-session-id": input.sessionId,
+      },
+    },
   );
 
   return parseResponse(response);

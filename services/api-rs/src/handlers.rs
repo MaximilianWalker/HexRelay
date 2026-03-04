@@ -6,10 +6,13 @@ use axum::{
 use chrono::{Duration, Utc};
 use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
+use sqlx::PgPool;
+use sqlx::Row;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
+    auth::AuthSession,
     errors::{bad_request, unauthorized, ApiResult},
     models::{
         AuthChallengeRecord, AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest,
@@ -423,9 +426,25 @@ pub async fn list_contacts(Query(query): Query<ContactListQuery>) -> Json<Contac
 
 pub async fn create_friend_request(
     State(state): State<AppState>,
+    auth: AuthSession,
     Json(payload): Json<FriendRequestCreate>,
 ) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
     validate_friend_request_create(&payload)?;
+    let actor_identity = auth.identity_id;
+
+    if payload.requester_identity_id != actor_identity {
+        return Err(unauthorized(
+            "identity_invalid",
+            "requester_identity_id must match authenticated session",
+        ));
+    }
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let record = create_friend_request_db(pool, payload)
+            .await
+            .map_err(map_friend_request_db_error)?;
+        return Ok((StatusCode::CREATED, Json(record)));
+    }
 
     let mut guard = state
         .friend_requests
@@ -460,9 +479,25 @@ pub async fn create_friend_request(
 
 pub async fn list_friend_requests(
     State(state): State<AppState>,
+    auth: AuthSession,
     Query(query): Query<FriendRequestListQuery>,
 ) -> ApiResult<Json<FriendRequestPage>> {
     validate_friend_request_list_query(&query)?;
+    let actor_identity = auth.identity_id;
+
+    if query.identity_id != actor_identity {
+        return Err(unauthorized(
+            "identity_invalid",
+            "identity_id must match authenticated session",
+        ));
+    }
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let items = list_friend_requests_db(pool, &query)
+            .await
+            .map_err(map_friend_request_db_error)?;
+        return Ok(Json(FriendRequestPage { items }));
+    }
 
     let guard = state
         .friend_requests
@@ -489,8 +524,25 @@ pub async fn list_friend_requests(
 
 pub async fn accept_friend_request(
     State(state): State<AppState>,
+    auth: AuthSession,
     axum::extract::Path(request_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<FriendRequestRecord>> {
+    let actor_identity = auth.identity_id;
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let updated =
+            update_friend_request_status_db(pool, &request_id, "accepted", &actor_identity)
+                .await
+                .map_err(map_friend_request_db_error)?
+                .ok_or_else(|| {
+                    bad_request(
+                        "identity_invalid",
+                        "friend request not found or not actionable by current session",
+                    )
+                })?;
+        return Ok(Json(updated));
+    }
+
     let mut guard = state
         .friend_requests
         .write()
@@ -499,6 +551,20 @@ pub async fn accept_friend_request(
     let request = guard
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    if request.target_identity_id != actor_identity {
+        return Err(unauthorized(
+            "identity_invalid",
+            "friend request cannot be accepted by this session",
+        ));
+    }
+
+    if request.status != "pending" {
+        return Err(bad_request(
+            "identity_invalid",
+            "friend request is not pending",
+        ));
+    }
 
     request.status = "accepted".to_string();
     Ok(Json(request.clone()))
@@ -506,8 +572,27 @@ pub async fn accept_friend_request(
 
 pub async fn decline_friend_request(
     State(state): State<AppState>,
+    auth: AuthSession,
     axum::extract::Path(request_id): axum::extract::Path<String>,
 ) -> ApiResult<StatusCode> {
+    let actor_identity = auth.identity_id;
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let updated =
+            update_friend_request_status_db(pool, &request_id, "declined", &actor_identity)
+                .await
+                .map_err(map_friend_request_db_error)?;
+
+        if updated.is_none() {
+            return Err(bad_request(
+                "identity_invalid",
+                "friend request not found or not actionable by current session",
+            ));
+        }
+
+        return Ok(StatusCode::NO_CONTENT);
+    }
+
     let mut guard = state
         .friend_requests
         .write()
@@ -516,6 +601,20 @@ pub async fn decline_friend_request(
     let request = guard
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    if request.target_identity_id != actor_identity {
+        return Err(unauthorized(
+            "identity_invalid",
+            "friend request cannot be declined by this session",
+        ));
+    }
+
+    if request.status != "pending" {
+        return Err(bad_request(
+            "identity_invalid",
+            "friend request is not pending",
+        ));
+    }
 
     request.status = "declined".to_string();
     Ok(StatusCode::NO_CONTENT)
@@ -530,4 +629,127 @@ fn random_hex(byte_len: usize) -> String {
 fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
     let key = UnparsedPublicKey::new(&ED25519, public_key);
     key.verify(message, signature).map_err(|_| ())
+}
+
+async fn create_friend_request_db(
+    pool: &PgPool,
+    payload: FriendRequestCreate,
+) -> Result<FriendRequestRecord, sqlx::Error> {
+    let request_id = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "
+        INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
+        VALUES ($1, $2, $3, 'pending')
+        ",
+    )
+    .bind(&request_id)
+    .bind(&payload.requester_identity_id)
+    .bind(&payload.target_identity_id)
+    .execute(pool)
+    .await?;
+
+    let row = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE request_id = $1
+        ",
+    )
+    .bind(&request_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(FriendRequestRecord {
+        request_id: row.try_get::<String, _>("request_id")?,
+        requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
+        target_identity_id: row.try_get::<String, _>("target_identity_id")?,
+        status: row.try_get::<String, _>("status")?,
+        created_at: row
+            .try_get::<chrono::DateTime<Utc>, _>("created_at")?
+            .to_rfc3339(),
+    })
+}
+
+async fn list_friend_requests_db(
+    pool: &PgPool,
+    query: &FriendRequestListQuery,
+) -> Result<Vec<FriendRequestRecord>, sqlx::Error> {
+    let rows = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE (
+            $2::TEXT = 'inbound' AND target_identity_id = $1
+        ) OR (
+            $2::TEXT = 'outbound' AND requester_identity_id = $1
+        ) OR (
+            $2::TEXT IS NULL AND (requester_identity_id = $1 OR target_identity_id = $1)
+        )
+        ORDER BY created_at DESC
+        ",
+    )
+    .bind(&query.identity_id)
+    .bind(query.direction.as_deref())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            Ok(FriendRequestRecord {
+                request_id: row.try_get::<String, _>("request_id")?,
+                requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
+                target_identity_id: row.try_get::<String, _>("target_identity_id")?,
+                status: row.try_get::<String, _>("status")?,
+                created_at: row
+                    .try_get::<chrono::DateTime<Utc>, _>("created_at")?
+                    .to_rfc3339(),
+            })
+        })
+        .collect()
+}
+
+async fn update_friend_request_status_db(
+    pool: &PgPool,
+    request_id: &str,
+    next_status: &str,
+    actor_identity_id: &str,
+) -> Result<Option<FriendRequestRecord>, sqlx::Error> {
+    let maybe_row = sqlx::query(
+        "
+        UPDATE friend_requests
+        SET status = $2
+        WHERE request_id = $1 AND target_identity_id = $3 AND status = 'pending'
+        RETURNING request_id, requester_identity_id, target_identity_id, status, created_at
+        ",
+    )
+    .bind(request_id)
+    .bind(next_status)
+    .bind(actor_identity_id)
+    .fetch_optional(pool)
+    .await?;
+
+    maybe_row
+        .map(|row| {
+            Ok(FriendRequestRecord {
+                request_id: row.try_get::<String, _>("request_id")?,
+                requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
+                target_identity_id: row.try_get::<String, _>("target_identity_id")?,
+                status: row.try_get::<String, _>("status")?,
+                created_at: row
+                    .try_get::<chrono::DateTime<Utc>, _>("created_at")?
+                    .to_rfc3339(),
+            })
+        })
+        .transpose()
+}
+
+fn map_friend_request_db_error(error: sqlx::Error) -> (StatusCode, Json<crate::models::ApiError>) {
+    if let sqlx::Error::Database(db_error) = &error {
+        if db_error.code().as_deref() == Some("23505") {
+            return bad_request("identity_invalid", "pending friend request already exists");
+        }
+    }
+
+    bad_request("identity_invalid", "friend request storage failure")
 }

@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
-  acceptFriendRequest,
-  createFriendRequest,
-  declineFriendRequest,
-  fetchContacts,
-  fetchFriendRequests,
+    acceptFriendRequest,
+    createFriendRequest,
+    declineFriendRequest,
+    fetchContacts,
+    fetchFriendRequests,
 } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
+import { getPersonaSession } from "@/lib/sessions";
 
 import styles from "../surfaces.module.css";
 
@@ -47,12 +48,20 @@ export default function ContactsPage() {
     return readPersonas()[0]?.id ?? "usr-nora-k";
   }, []);
 
+  const sessionId = useMemo(() => getPersonaSession(identityId)?.sessionId ?? null, [identityId]);
+
   useEffect(() => {
     let active = true;
 
+    if (!sessionId) {
+      return () => {
+        active = false;
+      };
+    }
+
     void Promise.all([
       fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly }),
-      fetchFriendRequests({ identityId }),
+      fetchFriendRequests({ identityId, sessionId }),
     ]).then(([contactsResult, requestsResult]) => {
       if (!active) {
         return;
@@ -82,7 +91,7 @@ export default function ContactsPage() {
     return () => {
       active = false;
     };
-  }, [favoritesOnly, identityId, onlineOnly, search, unreadOnly]);
+  }, [favoritesOnly, identityId, onlineOnly, search, sessionId, unreadOnly]);
 
   function setFilterState(update: () => void): void {
     setLoading(true);
@@ -91,16 +100,25 @@ export default function ContactsPage() {
   }
 
   async function refreshRequests(): Promise<void> {
-    const result = await fetchFriendRequests({ identityId });
+    if (!sessionId) {
+      return;
+    }
+
+    const result = await fetchFriendRequests({ identityId, sessionId });
     if (result.ok) {
       setFriendRequests(result.data.items);
     }
   }
 
   async function handleCreateRequest(targetIdentityId: string): Promise<void> {
+    if (!sessionId) {
+      return;
+    }
+
     const result = await createFriendRequest({
       requesterIdentityId: identityId,
       targetIdentityId,
+      sessionId,
     });
     if (result.ok) {
       await refreshRequests();
@@ -108,14 +126,22 @@ export default function ContactsPage() {
   }
 
   async function handleAcceptRequest(requestId: string): Promise<void> {
-    const result = await acceptFriendRequest({ requestId });
+    if (!sessionId) {
+      return;
+    }
+
+    const result = await acceptFriendRequest({ requestId, sessionId });
     if (result.ok) {
       await refreshRequests();
     }
   }
 
   async function handleDeclineRequest(requestId: string): Promise<void> {
-    const result = await declineFriendRequest({ requestId });
+    if (!sessionId) {
+      return;
+    }
+
+    const result = await declineFriendRequest({ requestId, sessionId });
     if (result.ok) {
       await refreshRequests();
     }
@@ -128,11 +154,15 @@ export default function ContactsPage() {
     (item) => item.requester_identity_id === identityId && item.status === "pending",
   );
 
-  const state = loading
-    ? "loading"
+  const visibleContacts = sessionId ? contacts : [];
+
+  const state = !sessionId
+      ? "error"
+    : loading
+      ? "loading"
     : hasError
       ? "error"
-      : contacts.length === 0
+      : visibleContacts.length === 0
         ? search.trim() || onlineOnly || unreadOnly || favoritesOnly
           ? "search_no_results"
           : "empty"
@@ -189,9 +219,9 @@ export default function ContactsPage() {
           value={search}
         />
 
-        {contacts.length > 0 ? (
+        {visibleContacts.length > 0 ? (
           <div className={styles.grid}>
-            {contacts.map((contact) => (
+            {visibleContacts.map((contact) => (
               <article className={styles.card} key={contact.id}>
                 <p className={styles.title}>{contact.name}</p>
                 <p className={styles.meta}>

@@ -30,6 +30,32 @@
 
 ## Log Entries
 
+### 2026-03-04 (friend request Postgres persistence hardening)
+
+- Area affected: Iteration 2 social graph persistence (`T3.1.1`)
+- Change summary:
+  - Added `sqlx` Postgres integration in `api-rs` with startup schema preparation for `friend_requests`.
+  - Added DB-backed create/list/accept/decline friend-request handlers with fallback to in-memory state for non-DB contexts.
+  - Added centralized Axum auth extractor (`AuthSession`) for session-bound actor enforcement via `x-session-id` and server-side session lookup.
+  - Added pending-only transition guards so accept/decline cannot mutate non-pending requests or unauthorized actors.
+  - Added runtime `API_DATABASE_URL` config and updated service env template.
+  - Preserved and revalidated full Rust/Web test suite after dependency/version compatibility pinning.
+- Rationale:
+  - Move friend-request lifecycle off volatile in-memory storage to a durable persistence path before expanding social graph features.
+- Linked docs updated:
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/src/config.rs`
+  - `services/api-rs/src/main.rs`
+  - `services/api-rs/src/state.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/models.rs`
+  - `services/api-rs/src/validation.rs`
+  - `services/api-rs/Cargo.toml`
+  - `services/api-rs/.env.example`
+  - `Cargo.lock`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (onboarding scope simplification)
 
 - Area affected: Onboarding UX scope (`T2.1.4`)

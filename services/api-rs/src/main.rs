@@ -1,4 +1,4 @@
-use api_rs::{app::build_app, config::ApiConfig, state::AppState};
+use api_rs::{app::build_app, config::ApiConfig, db::connect_and_prepare, state::AppState};
 use std::env;
 use tracing::info;
 
@@ -12,7 +12,11 @@ async fn main() {
         )
         .init();
 
-    let app = build_app(AppState::new(config.node_fingerprint.clone()));
+    let db_pool = connect_and_prepare(&config.database_url)
+        .await
+        .expect("connect and prepare API database");
+
+    let app = build_app(AppState::new(config.node_fingerprint.clone()).with_db_pool(db_pool));
     let addr = config.bind_addr;
     info!(%addr, "starting api service");
 

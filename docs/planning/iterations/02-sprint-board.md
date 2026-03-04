@@ -118,7 +118,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added in-memory `POST/GET /v1/friends/requests` plus accept/decline endpoints in `api-rs` with pending/accepted/declined transitions and coverage tests; DB constraints still pending |
+| T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline endpoints in `api-rs` with Postgres-backed persistence path, centralized session-auth extractor, and pending-only transition guards; full DB migration governance still pending |
 | T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub now calls live friend-request endpoints and supports send/accept/decline actions with state mapping; optimistic and persistence hardening pending |
 
 ## Done

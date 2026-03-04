@@ -1,5 +1,7 @@
 pub mod app;
+pub mod auth;
 pub mod config;
+pub mod db;
 pub mod errors;
 pub mod handlers;
 pub mod models;
@@ -14,6 +16,7 @@ mod tests {
         body::{to_bytes, Body},
         http::{Request, StatusCode},
     };
+    use chrono::{Duration, Utc};
     use ring::{
         rand::SystemRandom,
         signature::{Ed25519KeyPair, KeyPair},
@@ -21,7 +24,7 @@ mod tests {
     use serde::Deserialize;
     use tower::util::ServiceExt;
 
-    use crate::{app::build_app, state::AppState};
+    use crate::{app::build_app, models::SessionRecord, state::AppState};
 
     #[derive(Deserialize)]
     struct AuthChallengeResponse {
@@ -80,6 +83,29 @@ mod tests {
             .expect("register response");
 
         (response.status(), app)
+    }
+
+    fn app_with_sessions(identity_ids: &[&str]) -> axum::Router {
+        let state = AppState::default();
+
+        {
+            let mut sessions = state
+                .sessions
+                .write()
+                .expect("acquire session write lock for tests");
+
+            for identity_id in identity_ids {
+                sessions.insert(
+                    format!("sess-{identity_id}"),
+                    SessionRecord {
+                        identity_id: (*identity_id).to_string(),
+                        expires_at: Utc::now() + Duration::hours(1),
+                    },
+                );
+            }
+        }
+
+        build_app(state)
     }
 
     #[tokio::test]
@@ -505,12 +531,13 @@ mod tests {
 
     #[tokio::test]
     async fn creates_and_lists_friend_requests() {
-        let app = build_app(AppState::default());
+        let app = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
+            .header("x-session-id", "sess-usr-nora-k")
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-jules-p"}"#,
             ))
@@ -526,6 +553,7 @@ mod tests {
         let list_request = Request::builder()
             .method("GET")
             .uri("/v1/friends/requests?identity_id=usr-jules-p&direction=inbound")
+            .header("x-session-id", "sess-usr-jules-p")
             .body(Body::empty())
             .expect("build friend request list request");
 
@@ -545,12 +573,13 @@ mod tests {
 
     #[tokio::test]
     async fn accepts_and_declines_friend_requests() {
-        let app = build_app(AppState::default());
+        let app = app_with_sessions(&["usr-mina-s", "usr-alex-r", "usr-nora-k"]);
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
+            .header("x-session-id", "sess-usr-mina-s")
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-mina-s","target_identity_id":"usr-alex-r"}"#,
             ))
@@ -575,6 +604,7 @@ mod tests {
                 "/v1/friends/requests/{}/accept",
                 created.request_id
             ))
+            .header("x-session-id", "sess-usr-alex-r")
             .body(Body::empty())
             .expect("build accept request");
         let accept_response = app
@@ -588,6 +618,7 @@ mod tests {
             .method("POST")
             .uri("/v1/friends/requests")
             .header("content-type", "application/json")
+            .header("x-session-id", "sess-usr-nora-k")
             .body(Body::from(
                 r#"{"requester_identity_id":"usr-nora-k","target_identity_id":"usr-alex-r"}"#,
             ))
@@ -612,6 +643,7 @@ mod tests {
                 "/v1/friends/requests/{}/decline",
                 decline_created.request_id
             ))
+            .header("x-session-id", "sess-usr-alex-r")
             .body(Body::empty())
             .expect("build decline request");
         let decline_response = app
@@ -619,5 +651,81 @@ mod tests {
             .await
             .expect("decline response");
         assert_eq!(decline_response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn rejects_friend_request_transition_when_not_pending() {
+        let app = app_with_sessions(&["usr-a", "usr-b"]);
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/friends/requests")
+            .header("content-type", "application/json")
+            .header("x-session-id", "sess-usr-a")
+            .body(Body::from(
+                r#"{"requester_identity_id":"usr-a","target_identity_id":"usr-b"}"#,
+            ))
+            .expect("build create request");
+
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("create response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_body = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create body");
+        let created: FriendRequestRecord =
+            serde_json::from_slice(&create_body).expect("decode create response");
+
+        let first_accept = Request::builder()
+            .method("POST")
+            .uri(format!(
+                "/v1/friends/requests/{}/accept",
+                created.request_id
+            ))
+            .header("x-session-id", "sess-usr-b")
+            .body(Body::empty())
+            .expect("build first accept");
+        let first_accept_response = app
+            .clone()
+            .oneshot(first_accept)
+            .await
+            .expect("first accept response");
+        assert_eq!(first_accept_response.status(), StatusCode::OK);
+
+        let second_accept = Request::builder()
+            .method("POST")
+            .uri(format!(
+                "/v1/friends/requests/{}/accept",
+                created.request_id
+            ))
+            .header("x-session-id", "sess-usr-b")
+            .body(Body::empty())
+            .expect("build second accept");
+        let second_accept_response = app
+            .oneshot(second_accept)
+            .await
+            .expect("second accept response");
+        assert_eq!(second_accept_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn rejects_friend_request_without_session_header() {
+        let app = build_app(AppState::default());
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/friends/requests?identity_id=usr-a")
+            .body(Body::empty())
+            .expect("build friend request list request");
+
+        let response = app
+            .oneshot(request)
+            .await
+            .expect("friend request list response");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }
