@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 readiness uplift expanded DB-backed challenge/invite durability and added websocket-gate integration tests with stronger web coverage thresholds.
+- Latest meaningful change: 2026-03-04 execution batch started T3.1.2/T3.1.3 UX refinement and added cross-service smoke CI for web->api->realtime flow.
 
 ## Purpose
 
@@ -29,6 +29,28 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (execution batch: contacts optimism, invite UX, cross-service smoke gate)
+
+- Area affected: Iteration 2 delivery velocity and integration safety
+- Change summary:
+  - Added optimistic friend-request UX behavior in Contacts hub with rollback/error messaging and action busy states for send/accept/decline.
+  - Added in-app invite create/redeem controls to Contacts hub to execute invite workflows outside onboarding.
+  - Added cross-service smoke path for `web -> api -> realtime` with CI `integration-smoke` job (Postgres-backed services + websocket auth handshake validation).
+  - Added smoke runner script (`apps/web/scripts/e2e-smoke.mjs`) and web package command `e2e:smoke`.
+  - Started API handler modularization by extracting invite handlers into `services/api-rs/src/invite_handlers.rs` and re-exporting via `services/api-rs/src/handlers.rs`.
+- Rationale:
+  - Continue feature delivery while preserving confidence through real cross-service validation and reducing handler-file growth pressure.
+- Linked docs updated:
+  - `apps/web/app/contacts/page.tsx`
+  - `apps/web/scripts/e2e-smoke.mjs`
+  - `apps/web/package.json`
+  - `.github/workflows/ci.yml`
+  - `services/api-rs/src/invite_handlers.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/lib.rs`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/planning/iterations/02-sprint-board.md`
 
 ### 2026-03-04 (readiness uplift: persistence and CI coverage gates)
 

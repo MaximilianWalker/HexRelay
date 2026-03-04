@@ -184,7 +184,7 @@ describe("api auth transport", () => {
       challengeId: "challenge-1",
       signature: "b".repeat(128),
     });
-    const invite = await createInvite({ mode: "one_time" });
+    const invite = await createInvite({ mode: "one_time", accessToken: "token-1" });
     const redeem = await redeemInvite({ token: "inv-1", nodeFingerprint: "node-1" });
 
     expect(verify.ok).toBe(true);

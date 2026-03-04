@@ -116,11 +116,13 @@ export async function createInvite(input: {
   mode: "one_time" | "multi_use";
   maxUses?: number;
   expiresAt?: string;
+  accessToken: string;
 }): Promise<ApiResult<{ token: string; mode: string; max_uses?: number; expires_at?: string }>> {
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       mode: input.mode,
