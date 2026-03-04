@@ -2,7 +2,11 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "AGENTS.md",
-    "MVP_PLAN.md"
+    "README.md",
+    "docs/product/02-prd-v1.md",
+    "docs/product/01-mvp-plan.md",
+    "docs/product/04-dependencies-risks.md",
+    "docs/README.md"
   ],
   "watcher": {
     "ignore": [
