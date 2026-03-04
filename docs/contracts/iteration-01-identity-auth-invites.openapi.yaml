@@ -1,0 +1,183 @@
+openapi: 3.1.0
+info:
+  title: HexRelay Iteration 1 Identity/Auth/Invites API
+  version: 0.1.0
+  description: |
+    Contract baseline for Iteration 1 execution.
+    This artifact must be updated before implementation when endpoint payloads change.
+servers:
+  - url: https://api.hexrelay.local
+paths:
+  /v1/identity/keys/register:
+    post:
+      summary: Register a public identity key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdentityKeyRegistrationRequest'
+      responses:
+        '201':
+          description: Identity key registered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/auth/challenge:
+    post:
+      summary: Issue a nonce challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthChallengeRequest'
+      responses:
+        '200':
+          description: Challenge issued
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/auth/verify:
+    post:
+      summary: Verify challenge signature and issue session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthVerifyRequest'
+      responses:
+        '200':
+          description: Session issued
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/auth/sessions/revoke:
+    post:
+      summary: Revoke an active session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRevokeRequest'
+      responses:
+        '204':
+          description: Session revoked
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/invites:
+    post:
+      summary: Create an invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCreateRequest'
+      responses:
+        '201':
+          description: Invite created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/invites/redeem:
+    post:
+      summary: Redeem an invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteRedeemRequest'
+      responses:
+        '200':
+          description: Invite redeemed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  schemas:
+    IdentityKeyRegistrationRequest:
+      type: object
+      required: [identity_id, public_key, algorithm]
+      properties:
+        identity_id:
+          type: string
+        public_key:
+          type: string
+        algorithm:
+          type: string
+          enum: [ed25519]
+    AuthChallengeRequest:
+      type: object
+      required: [identity_id]
+      properties:
+        identity_id:
+          type: string
+    AuthVerifyRequest:
+      type: object
+      required: [identity_id, challenge_id, signature]
+      properties:
+        identity_id:
+          type: string
+        challenge_id:
+          type: string
+        signature:
+          type: string
+    SessionRevokeRequest:
+      type: object
+      required: [session_id]
+      properties:
+        session_id:
+          type: string
+    InviteCreateRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [one_time, multi_use]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        max_uses:
+          type: integer
+          minimum: 1
+          nullable: true
+    InviteRedeemRequest:
+      type: object
+      required: [token, node_fingerprint]
+      properties:
+        token:
+          type: string
+        node_fingerprint:
+          type: string
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - invite_invalid
+            - invite_expired
+            - invite_exhausted
+            - fingerprint_mismatch
+            - nonce_invalid
+            - signature_invalid
+            - session_invalid
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Authentication or verification failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'

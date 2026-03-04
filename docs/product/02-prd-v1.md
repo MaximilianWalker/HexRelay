@@ -1,5 +1,21 @@
 # HexRelay PRD v1
 
+## Document Metadata
+
+- Doc ID: prd-v1
+- Owner: Product maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-03-04
+- Source of truth: `docs/product/02-prd-v1.md`
+
+## Quick Context
+
+- Primary edit location for product requirements and success metrics.
+- Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
+- Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
+- Latest meaningful change: 2026-03-04 normalized server invites to allow non-expiring multi-use links.
+
 ## Product Summary
 
 HexRelay is an open-source, self-hostable communication platform with a modern Discord-like experience and strong user ownership guarantees. The MVP focuses on portable identity, encrypted direct messaging, high-quality voice/screen share, and reliable migration across devices and servers without centralized account infrastructure.
@@ -22,31 +38,21 @@ Build a communication stack where users and communities control identity, data l
 - Developer and open-source communities.
 - Private friend groups and self-hosters.
 
-## Non-Negotiable MVP Decisions
+## Locked Product Decisions
 
-- Multiple personas/accounts per device.
-- Global profile by default with optional per-server overrides.
-- Direct user discovery globally and from shared servers.
-- No cross-server DMs.
-- Message baseline: edits + mentions + core chat primitives.
-- Default message retention: forever; configurable by server owner.
-- Message edit history visible to node moderators/owners.
-- E2EE for 1:1 DMs in MVP.
-- Competitive voice quality plus screen share in MVP.
-- No global file size cap (node operators can set quotas).
-- Migration keeps old device active by default; optional cutover revoke.
-- Bot/plugin ecosystem deferred post-MVP.
-- License: AGPL-3.0.
-- Contributions: DCO sign-off required, no CLA in MVP.
+- Canonical source: `docs/product/01-mvp-plan.md` section "1.1) Locked Product Decisions (Founder Input)".
+- This PRD references those decisions and does not duplicate them to avoid drift.
+- Any change to a locked decision must be updated in `docs/product/01-mvp-plan.md` first, then reflected here only where requirement wording depends on it.
 
 ## In Scope (MVP)
 
 - Portable key-based identity and node-local membership binding.
-- Secure invite links with expiration and one-time/multi-use modes.
+- Secure invite links with expiration, max-uses, and one-time/multi-use modes.
 - Challenge-signature authentication and session management.
 - Friends graph, presence, block/mute, user discovery.
+- Global server and contact hub pages with searchable card views.
 - DMs/group DMs, servers/channels/roles, edits, mentions, replies.
-- E2EE 1:1 DMs with rotation and metadata-safe storage behavior.
+- E2EE 1:1 and group DMs with rotation and metadata-safe storage behavior.
 - Voice channels, 1:1 calls, and screen share.
 - Media upload/download with node-configurable quotas/policies.
 - Local node-owner controls (kick/ban/logs).
@@ -61,6 +67,12 @@ Build a communication stack where users and communities control identity, data l
 - Full bot/plugin platform.
 - Enterprise-grade global active-active architecture.
 
+## Post-MVP Discovery Direction
+
+- Keep federation discovery as a supported path (default registry + optional custom registries).
+- Add trusted-registry scopes for friend/community-only discoverability.
+- Add optional full P2P discovery mode later, while preserving private/invite-only operation.
+
 ## Key User Flows
 
 ### 1) Create Identity and Join a Server
@@ -68,7 +80,7 @@ Build a communication stack where users and communities control identity, data l
 1. User creates/imports key-based identity.
 2. User opens invite link containing node endpoint, fingerprint, and invite token.
 3. Client verifies node fingerprint.
-4. Invite is redeemed (mode + expiration checks).
+4. Invite is redeemed (mode checks, and expiration/max-use checks when configured).
 5. Public key is bound to node membership.
 6. User enters server with profile hydrated from portable profile data.
 
@@ -100,30 +112,66 @@ Build a communication stack where users and communities control identity, data l
 3. New device verifies signature, decrypts, restores state, and reconciles with servers.
 4. Optional cutover revokes old-device sessions.
 
+### 6) Navigate Servers and Contacts at Scale
+
+1. User opens global `Servers` hub to browse all joined servers in a searchable card grid.
+2. User can pin/favorite servers and group them into folders for sidebar ordering.
+3. User can switch server navigation mode between sidebar list/folders and topbar tabs (browser-like).
+4. User can save/pin topbar tabs and organize frequent destinations in folders.
+5. User can toggle a burger control to collapse/hide server navigation while focused in a server.
+6. User opens global `Contacts` hub to browse DMs/friends in a searchable card/list view.
+7. User jumps from hub cards directly into the selected server or DM context.
+
+### 7) Add a User Directly by Invite
+
+1. User generates a contact invite link or QR from contacts UI.
+2. Invite token includes inviter identity binding, expiration, and usage policy.
+3. Recipient redeems token and sees inviter preview.
+4. Recipient accepts and a friend request/edge is created.
+5. Invalid/expired/exhausted tokens fail with explicit error feedback.
+
 ## Functional Requirements
 
 - Identity
   - Multi-persona support per device.
   - Key generation/import/export with secure local storage.
 - Invites
-  - One-time or multi-use; expiration required.
+  - One-time or multi-use; expiration and max-uses are optional policy controls.
+  - Non-expiring multi-use links are allowed for intentionally open-access servers.
+  - MVP invite scope is join eligibility only (no role/channel scoped grants).
+- User contact invites
+  - Users can generate expiring contact invite links or QR payloads.
+  - One-time by default, optional bounded max-uses.
+  - Redeem flow must return deterministic error states (`invite_invalid`, `invite_expired`, `invite_exhausted`).
 - Messaging
   - DMs/group DMs/server channels with edits, mentions, and moderation-visible edit history.
+- Navigation and Information Architecture
+  - Discord-like overall layout and interaction model are baseline.
+  - Server navigation must not rely on small circular icon rails as the primary pattern.
+  - Global `Servers` and `Contacts` hubs are required and act as first-class navigation surfaces.
+  - Server navigation must support both sidebar and topbar tab modes.
+  - Topbar navigation must support saved tabs and folder organization.
+  - A burger control must allow collapsing/hiding server navigation in server workspace.
 - Voice
   - Competitive baseline quality and screen share support.
 - Discovery
   - Global and shared-server user discovery.
   - Server discovery supports public listings; private hidden by default.
+  - Discovery endpoints enforce rate limiting and node-level denylist controls.
 - Data Portability
   - Export/import and full migration paths with integrity verification.
+  - Canonical profile data comes from valid user-signed profile state; server replicas are non-authoritative for profile-field precedence.
 
 ## Non-Functional Requirements
 
 - Reliability
   - Stable reconnect and event ordering behavior.
 - Security
-  - TLS everywhere, encrypted at rest for node data, E2EE for 1:1 DMs.
+  - TLS everywhere, encrypted at rest for node data, E2EE for 1:1 and group DMs.
   - No key/invite secret leakage to logs.
+  - Nonce challenge is single-use with strict TTL and replay rejection.
+- Onboarding
+  - Recovery phrase setup is mandatory before onboarding completion.
 - Performance
   - Realtime and voice SLOs tracked in dashboard.
 - Operability
@@ -147,20 +195,18 @@ Build a communication stack where users and communities control identity, data l
 
 ## Risks and Mitigations
 
-- E2EE complexity risk
-  - Limit MVP to 1:1 DM E2EE; defer group E2EE if needed.
-- Voice/screen share network variability
-  - TURN fallback, diagnostics, and soak tests.
-- Migration data integrity risk
-  - Signed/encrypted bundles with schema versioning and reconcile checks.
-- Scope creep
-  - Defer bot ecosystem and advanced federation until after MVP stability.
+- Canonical risk register: `docs/product/04-dependencies-risks.md`.
+- This section stays intentionally short to avoid duplicate risk tracking.
 
 ## Delivery References
 
-- Master plan: `MVP_PLAN.md`
-- Iteration boards:
-  - `ITERATION_1_SPRINT_BOARD.md`
-  - `ITERATION_2_SPRINT_BOARD.md`
-  - `ITERATION_3_SPRINT_BOARD.md`
-  - `ITERATION_4_SPRINT_BOARD.md`
+- Master plan: `docs/product/01-mvp-plan.md`
+- Iteration boards index: `docs/planning/iterations/README.md`
+
+## Related Documents
+
+- `README.md`
+- `docs/README.md`
+- `docs/product/03-clarifications.md`
+- `docs/product/04-dependencies-risks.md`
+- `docs/reference/glossary.md`

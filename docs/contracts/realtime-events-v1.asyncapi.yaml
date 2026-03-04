@@ -1,0 +1,59 @@
+asyncapi: 3.0.0
+info:
+  title: HexRelay Realtime Events Contract
+  version: 0.1.0
+  description: |
+    Baseline realtime event contract for Iteration 2 and Iteration 3.
+    Defines stable channel names and payload schemas used by Web and Realtime services.
+channels:
+  presence.updated:
+    address: presence.updated
+    messages:
+      presenceUpdated:
+        payload:
+          type: object
+          required: [user_id, status, updated_at]
+          properties:
+            user_id:
+              type: string
+            status:
+              type: string
+              enum: [online, idle, dnd, offline]
+            updated_at:
+              type: string
+              format: date-time
+  dm.message.created:
+    address: dm.message.created
+    messages:
+      dmMessageCreated:
+        payload:
+          type: object
+          required: [message_id, thread_id, sender_id, created_at, ciphertext]
+          properties:
+            message_id:
+              type: string
+            thread_id:
+              type: string
+            sender_id:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            ciphertext:
+              type: string
+  call.state.changed:
+    address: call.state.changed
+    messages:
+      callStateChanged:
+        payload:
+          type: object
+          required: [call_id, state, updated_at]
+          properties:
+            call_id:
+              type: string
+            state:
+              type: string
+              enum: [ringing, active, ended]
+            updated_at:
+              type: string
+              format: date-time

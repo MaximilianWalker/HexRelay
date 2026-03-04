@@ -2,6 +2,22 @@
 
 HexRelay is an open-source, Discord-like communication platform built for user control: free core features, self-hostable nodes, and a phased path to decentralized discovery and federation.
 
+## Document Metadata
+
+- Doc ID: mvp-plan
+- Owner: Product and architecture maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-03-04
+- Source of truth: `docs/product/01-mvp-plan.md`
+
+## Quick Context
+
+- Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
+- Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
+- Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
+- Latest meaningful change: 2026-03-04 normalized server invites to allow non-expiring multi-use links.
+
 ## 1) Product Intent and Constraints
 
 - Free core forever: friends, DMs, servers/channels, voice, file sharing.
@@ -21,11 +37,28 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Moderation model: no centralized platform moderation; only node-owner controls.
 - Privacy baseline: encrypted transport and at-rest encryption everywhere; E2EE DMs in MVP.
 - Voice target: competitive quality; screen share included in MVP.
+- UI direction: heavily Discord-inspired interaction model, except server navigation uses scalable list/card paradigms (no small circular server rail).
+- Server navigation supports dual mode: sidebar list/folders and topbar tabbed navigation (browser-like tabs/saved tabs).
+- Server navigation chrome can be collapsed/hidden with a burger toggle while inside a server workspace.
 - File handling: no product-level hard file size cap in MVP (server operators may set local quotas).
 - Migration default keeps old device active; optional explicit device revoke is available.
 - Bot ecosystem deferred until post-MVP; core stability first.
 - License choice: AGPL-3.0.
 - Contribution policy: DCO sign-off required, no CLA for MVP.
+
+## 1.2) Decision Log
+
+- 2026-03-03: Added docs metadata and decision-log section to standardize documentation governance.
+- 2026-03-04: Locked MVP invite scope semantics to mode + expiration + max-uses only; role/channel scoped invites deferred post-MVP.
+- 2026-03-04: Added MVP Crypto Profile v1 and Iteration 1 OpenAPI contract baseline for identity/invite/auth.
+- 2026-03-04: Locked group DM E2EE as required in MVP.
+- 2026-03-04: Locked discovery abuse baseline as signed registry + rate limiting + denylist support.
+- 2026-03-04: Locked recovery setup as mandatory during onboarding.
+- 2026-03-04: Locked MVP UI behavior authority to per-flow state tables in sprint boards.
+- 2026-03-04: Locked global server and contact hub pages as first-class navigation surfaces for MVP.
+- 2026-03-04: Locked dual server-navigation mode (sidebar + topbar tabs) and burger collapse behavior in server workspace.
+- 2026-03-04: Execution hardening aligned E2EE scope across plan/risk/iteration tasks and introduced contract/dependency gates.
+- 2026-03-04: Locked server invite policy allowing non-expiring multi-use invite links as an open-access pattern.
 
 ## 2) Architecture Decision (Locked)
 
@@ -54,12 +87,16 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Multiple personas/accounts on one device.
 - Friends graph: add/remove/block/mute + presence.
 - User discovery (global and shared-server contexts) with direct contact requests.
+- Direct user-to-user add flow via expiring contact invite link or QR.
+- Dedicated global hubs for browsing servers and contacts with searchable card views.
+- Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
+- Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
 - DM and group DM messaging (edits, mentions, deletes, replies).
 - Servers (guilds), text channels, role/permission v1.
 - Voice channels, 1:1 calls, and screen share.
 - Attachments upload/download (operator-configurable quotas, no global product cap).
 - Node-owner controls: local kick/ban/logging tools (no global moderation authority).
-- E2EE DMs (1:1 required, group DM optional if schedule permits).
+- E2EE DMs (1:1 and group DM required in MVP).
 - Data ownership v1: full export and import.
 
 ### Out of Scope (Post-MVP)
@@ -70,6 +107,18 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Multi-region active-active global architecture.
 - Video conferencing parity with enterprise platforms.
 - Bot/plugin ecosystem.
+
+### Post-MVP Discovery Roadmap
+
+- Phase A (federated discovery hardening):
+  - Keep default registry discovery and optional custom registries.
+  - Add trusted-registry scopes for friend/community-only visibility.
+- Phase B (hybrid discovery):
+  - Support simultaneous federation + P2P discovery.
+  - Node/user discoverability policies remain explicit (`private`, `trusted`, `public`).
+- Phase C (full P2P optional path):
+  - Add decentralized discovery (DHT/gossip style) as an opt-in mode.
+  - Preserve self-hosting and privacy controls so users/servers can stay non-global if desired.
 
 ## 4) Identity, Auth, and Profile Portability (Locked)
 
@@ -83,10 +132,27 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Invite and Join Flow
 
 - Server owner chooses invite mode: one-time or multi-use.
-- Invite token only carries expiration as scope control in MVP.
-- Invite link contains node endpoint, node fingerprint, and one-time token data.
+- Invite token fields in MVP: mode, optional expiration, optional max_uses, issuer, and opaque token id.
+- Invite scope in MVP is limited to join eligibility only (no role/channel/grant scopes).
+- Invite link contains node endpoint, node fingerprint, and token.
+- Non-expiring multi-use invite links are allowed and represent an intentionally open join policy.
 - Client verifies node fingerprint before redeeming token.
 - On first join, client binds its public key to the server membership record.
+
+### User Contact Invite Flow (MVP)
+
+- Users can generate direct contact invites for adding friends without relying on global discovery.
+- Contact invite formats:
+  - Shareable link (`hexrelay://contact-invite/<token>`)
+  - QR payload encoding the same token.
+- Contact invite token requirements:
+  - Expiration required.
+  - One-time by default; optional bounded max-uses for trusted sharing.
+  - Bound to inviter identity id and signature metadata.
+- Redeem behavior:
+  - Recipient redeems token and sees inviter identity preview.
+  - Accepting invite creates a friend request or direct friend edge per user settings.
+  - Expired/invalid/exhausted tokens fail with deterministic error codes.
 
 ### Encryption Model
 
@@ -102,16 +168,56 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Server verifies signature against bound public key and issues session token.
 - Subsequent logins use challenge-response; no centralized credentials.
 
+### MVP Crypto Profile v1 (Execution Baseline)
+
+- Identity signing key: Ed25519.
+- Session key exchange baseline: X25519 + HKDF-SHA256.
+- Symmetric encryption baseline for E2EE DM payloads: XChaCha20-Poly1305.
+- Signature payload canonicalization: UTF-8 JSON canonical form with sorted keys.
+- Challenge nonce requirements: at least 96 bits entropy, single-use, 60-second TTL.
+- Replay protection: nonce id persisted until TTL expiry; duplicate nonce use is rejected.
+- Key rotation baseline: rotate DM session keys every 100 messages or 24 hours, whichever comes first.
+- Error contract baseline: cryptographic verification failures return explicit `*_invalid` codes with no secret-bearing detail.
+
+### Iteration 1 OpenAPI Contract Baseline
+
+- Publish these endpoints before parallel API/web implementation starts:
+  - `POST /v1/identity/keys/register`
+  - `POST /v1/auth/challenge`
+  - `POST /v1/auth/verify`
+  - `POST /v1/auth/sessions/revoke`
+  - `POST /v1/invites`
+  - `POST /v1/invites/redeem`
+- Required shared error code set for Iteration 1:
+  - `invite_invalid`
+  - `invite_expired`
+  - `invite_exhausted`
+  - `fingerprint_mismatch`
+  - `nonce_invalid`
+  - `signature_invalid`
+  - `session_invalid`
+- Contract freeze rule: once Week 2 starts, schema changes require explicit changelog entry in `docs/planning/05-iteration-log.md`.
+- Canonical artifact path: `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`.
+- Artifact gate: `T2.*` tasks are `blocked` until this contract is committed and referenced in the sprint board.
+
+### Discovery Abuse-Control Baseline (MVP)
+
+- Signed registry metadata remains the source for discovery entries.
+- Discovery query paths must enforce per-node rate limits.
+- Nodes must support a denylist mechanism for discovery abuse response.
+
 ### Portable Profile Capsule
 
 - Public identity card (signed): display name, avatar pointer/hash, bio, metadata.
 - Private profile capsule (encrypted client-side): preferences and private metadata.
 - Servers store signed public profile and encrypted private blob replicas.
 - Profile updates are versioned and signed; newest valid version wins.
+- Profile authority rule: user-signed profile data is canonical; server copies are cache/replica only and must not override valid signed user profile fields.
 
 ### Recovery and Multi-Device
 
-- User receives recovery phrase or device-based key backup at onboarding.
+- Recovery phrase setup is mandatory during onboarding before account setup is considered complete.
+- Device-based key backup remains supported as an additional recovery method.
 - New devices are linked using a short-lived signed device-link token/QR from a trusted device.
 - Optional offline export file for identity/profile backup.
 
@@ -127,6 +233,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Bundle contains: identity keys (encrypted), profile data, joined server list, app settings, local-only state, optional media cache.
 - Transfer options: local network direct transfer (preferred) or encrypted file export/import.
 - New device verifies signature, decrypts bundle, restores state, then reconciles with servers.
+- Migration conflict precedence: for profile fields, newest valid signed user state wins; server-owned security and membership enforcement fields remain server-authoritative.
 - Optional cutover mode revokes old device sessions after successful import.
 
 ## 5) Rust-First Technology Stack
@@ -204,7 +311,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### E2 Stories
 
 - S2.1: As a user, I can create/import a portable key-based identity.
-- S2.2: As a server owner, I can issue secure invite links with TTL and scopes.
+- S2.2: As a server owner, I can issue secure invite links with TTL and usage mode.
 - S2.3: As a user, I can join a node by redeeming an invite and binding my public key.
 - S2.4: As a user, I can auth with signed challenge and manage active sessions.
 
@@ -222,6 +329,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - S4.3: As a member, I can send/edit/delete/reply/mention in messages.
 - S4.4: As a server owner, permission checks are enforced server-side.
 - S4.5: As a user, my 1:1 DM messages are E2EE by default.
+- S4.6: As a user, my group DM messages are E2EE by default.
 
 ### E5 Stories
 
@@ -249,65 +357,11 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - S8.2: As a maintainer, I can enforce SLO alerts for auth, messaging, and voice paths.
 - S8.3: As a beta tester, onboarding and basic docs are available.
 
-## 9) Tasks (Derived from Stories)
+## 9) Execution Task Ownership
 
-### Iteration 1 Tasks
-
-- T1.1.1: Create monorepo layout (`apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`).
-- T1.1.2: Add Docker Compose for Postgres, Redis, object storage emulator, coturn.
-- T1.1.3: Add `make`/scripts for setup, run, test.
-- T1.2.1: Configure CI matrix (Rust fmt/clippy/test + web lint/typecheck/test/build).
-- T1.3.1: Add env schema validation and per-environment config templates.
-- T2.1.1: Implement key identity schema and key registration endpoints.
-- T2.1.2: Build client key generation/import and secure local key storage flow.
-- T2.2.1: Implement invite token creation/redeem APIs with mode (one-time or multi-use) and expiration.
-- T2.3.1: Implement nonce challenge-signature auth flow and session revoke endpoint.
-- T2.4.1: Add node fingerprint verification in join flow and auth security tests.
-
-### Iteration 2 Tasks
-
-- T3.1.1: Implement friend request state machine and DB constraints.
-- T3.1.2: Build friends list UI and request actions.
-- T3.2.1: Implement block/mute logic in API and message fanout filters.
-- T3.3.1: Implement presence service with Redis-backed ephemeral state.
-- T3.4.1: Implement global user discovery index and shared-server discovery query.
-- T4.1.1: Implement DM/group DM models and message history pagination.
-- T4.2.1: Implement guild/channel/role schema.
-- T4.2.2: Build server/channel management UI.
-- T4.3.1: Implement message CRUD/reply/mention endpoints.
-- T4.3.2: Add websocket event fanout and optimistic UI.
-- T4.4.1: Add server-side permission middleware and tests.
-- T4.5.1: Implement E2EE DM key exchange/session bootstrap for 1:1 DMs.
-- T4.5.2: Implement E2EE DM encrypt/decrypt flow with forward-secrecy rotation.
-
-### Iteration 3 Tasks
-
-- T5.1.1: Implement voice signaling endpoints and websocket events.
-- T5.1.2: Configure coturn and ICE/TURN credentials flow.
-- T5.2.1: Implement 1:1 call session lifecycle.
-- T5.3.1: Implement screen share session lifecycle in voice calls/channels.
-- T6.1.1: Add attachment upload service with pre-signed URLs.
-- T6.1.2: Build attachment UI (upload progress, retry, preview).
-- T6.2.1: Add node-owner configurable storage quotas and media policies.
-- T6.3.1: Implement local kick/ban APIs and local admin event log.
-
-### Iteration 4 Tasks
-
-- T7.1.1: Build JSON export package for account/server data and media index.
-- T7.1.2: Build import flow with id remapping and conflict handling.
-- T7.2.1: Implement signed registry document parser and periodic fetch.
-- T7.2.2: Add node discovery UI and server join flow.
-- T7.3.1: Implement node metadata publishing CLI/docs.
-- T7.4.1: Implement signed public profile card sync and conflict/version handling.
-- T7.4.2: Implement encrypted private profile replica sync and restore flow.
-- T7.5.1: Define encrypted migration bundle format (`.hxb`) and signature verification rules.
-- T7.5.2: Implement full migration export (identity, profile, settings, local state, optional media cache).
-- T7.5.3: Implement migration import and reconciliation flow with server state.
-- T7.5.4: Implement LAN direct transfer mode and fallback encrypted file import.
-- T7.5.5: Implement optional cutover action to revoke old device sessions.
-- T8.1.1: Add OpenTelemetry traces/metrics and simple dashboard views.
-- T8.2.1: Define and enforce SLO alerts for latency and errors.
-- T8.3.1: Publish beta admin guide + user onboarding docs.
+- Strategy-level sequencing stays in this document through iterations, epics, and stories.
+- Canonical task catalog and task-level status live in `docs/planning/iterations/README.md` and the referenced sprint boards.
+- When a story changes scope, update this document first, then update the affected sprint board(s) in the same PR.
 
 ## 10) Acceptance Criteria and Definition of Done
 
@@ -322,32 +376,26 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### MVP Exit Criteria
 
-- Message delivery p95 < 300ms in same-region load test.
-- Voice join success rate > 98% in beta cohort.
-- Crash-free session rate > 99.5%.
-- Successful export/import on at least 3 sample datasets.
-- Challenge-signature auth success rate > 99.5% under load tests.
-- E2EE DM decrypt success rate > 99.5% for active sessions.
-- Profile capsule replication and restore works across at least 2 nodes.
-- Full migration restore (bundle + reconcile) succeeds for at least 3 cross-device test scenarios.
-- Screen share success rate > 95% in beta cohort.
+- Canonical KPI definitions and thresholds are maintained in `docs/product/02-prd-v1.md`.
+- This plan tracks delivery sequencing; do not update KPI thresholds here.
 
 ## 11) Risks and Mitigations
 
-- Scope creep in decentralization: limit MVP to federation-lite signed registry discovery.
-- Voice instability across networks: enforce TURN fallback and connection diagnostics.
-- E2EE complexity risk: start with 1:1 DMs and defer group E2EE if schedule risk emerges.
-- Migration complexity: keep IDs versioned and add deterministic import conflict rules.
-- Invite leakage risk: short TTL, one-time tokens, hashed token storage, revoke support.
-- Key loss risk: recovery phrase/device-link flow and optional encrypted backup export.
-- Migration bundle exposure risk: mandatory encryption, signature validation, and short-lived transfer sessions.
+- Canonical dependency and risk register: `docs/product/04-dependencies-risks.md`.
+- Keep this section as a directional summary; update the risk register for status/severity changes.
 
 ## 12) Immediate Next Actions
 
 - Start Iteration 1 with E1 and E2 only.
 - Freeze API contracts before Iteration 2 UI expansion.
 - Run end-of-iteration demos with pass/fail against story acceptance.
-- Execute the week-by-week board in `ITERATION_1_SPRINT_BOARD.md`.
-- Track Iteration 2 delivery in `ITERATION_2_SPRINT_BOARD.md`.
-- Track Iteration 3 delivery in `ITERATION_3_SPRINT_BOARD.md`.
-- Track Iteration 4 delivery in `ITERATION_4_SPRINT_BOARD.md`.
+- Execute and track delivery via the iteration index: `docs/planning/iterations/README.md`.
+
+## 13) Related Documents
+
+- `README.md`
+- `docs/product/02-prd-v1.md`
+- `docs/product/03-clarifications.md`
+- `docs/product/04-dependencies-risks.md`
+- `docs/README.md`
+- `docs/reference/glossary.md`

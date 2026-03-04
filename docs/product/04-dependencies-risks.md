@@ -1,0 +1,80 @@
+# HexRelay Dependencies and Risks
+
+## Document Metadata
+
+- Doc ID: dependencies-risks
+- Owner: Product and architecture maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-03-04
+- Source of truth: `docs/product/04-dependencies-risks.md`
+
+## Quick Context
+
+- Primary edit location for dependency status and risk severity/likelihood updates.
+- Record material register changes in `docs/planning/05-iteration-log.md`.
+- Latest meaningful change: 2026-03-04 resolved realtime contract artifact and fixed KPI/SLO test profile dependencies.
+
+## Purpose
+
+- Keep one canonical dependency and risk register for MVP delivery.
+- Avoid duplicated risk tracking across PRD, plan, and sprint docs.
+
+## Dependency Register
+
+| ID | Dependency | Type | Status | Impact if delayed | Owner | Notes |
+|---|---|---|---|---|---|---|
+| D-001 | Monorepo scaffold (`apps/web`, Rust services, infra) | Internal | planned | Blocks all code implementation and local bootstrap | Core | Iteration 1 baseline |
+| D-002 | Local infra compose stack (Postgres, Redis, object storage, coturn) | Internal | planned | Blocks auth, messaging, and voice integration tests | Core | Iteration 1 task path |
+| D-003 | CI matrix for Rust + web lint/test/build | Internal | planned | Increases regression and integration risk | Platform | Must land before broad feature parallelization |
+| D-004 | Iteration 1 OpenAPI contract artifact (`docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
+| D-005 | MVP Crypto Profile v1 implementation alignment | Internal | planned | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Applies to Iteration 1 and Iteration 2 E2EE tasks |
+| D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
+| D-007 | TURN connectivity test environment for NAT-restricted scenarios | External | planned | Voice reliability gates cannot be validated realistically | Platform/Realtime | Required before Iteration 3 exit |
+| D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
+| D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
+
+## Risk Register
+
+| ID | Risk | Severity | Likelihood | Mitigation | Owner |
+|---|---|---|---|---|---|
+| R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery | Product |
+| R-002 | Voice quality instability across network conditions | high | medium | Enforce TURN fallback and add diagnostics/soak tests | Realtime |
+| R-003 | E2EE implementation complexity delays messaging roadmap | high | medium | Keep 1:1 and group DM E2EE in MVP scope; reduce risk by phased delivery (1:1 baseline then group rollout in Iteration 2 with explicit test gates) | API |
+| R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
+| R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
+| R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
+
+## Review Cadence
+
+- Review at each iteration start and end.
+- Update severity/likelihood when evidence changes.
+- Link material changes in `docs/planning/05-iteration-log.md`.
+
+## Risk to Task Mitigation Matrix
+
+| Risk ID | Mitigating task IDs |
+|---|---|
+| R-001 | T7.2.1, T7.2.2, T7.3.1 |
+| R-002 | T5.1.2, T5.2.1, T5.3.1 |
+| R-003 | T4.5.1, T4.5.2, T4.5.3, T4.5.4 |
+| R-004 | T7.1.2, T7.5.1, T7.5.2, T7.5.3 |
+| R-005 | T2.2.1, T2.3.1, T2.4.1 |
+| R-006 | T2.1.4, T7.5.2, T8.3.1 |
+
+## Decisions
+
+| Decision ID | Decision | Status | Source |
+|---|---|---|---|
+| DEC-001 | MVP stack baseline uses Next.js + Rust + PostgreSQL + Redis + S3-compatible storage + coturn | accepted | `docs/architecture/adr-0001-stack-baseline.md` |
+| DEC-002 | Task-level execution authority is owned by iteration boards, not strategy docs | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-003 | Profile data authority remains user-signed canonical data; server replicas are non-authoritative except server-owned security/membership fields | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-004 | Post-MVP discovery roadmap is hybrid: federation supported, trusted registries added, and full P2P discovery optional | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-005 | Server invite policy allows optional expiration/max-uses, including non-expiring multi-use links for open-access behavior | accepted | `docs/product/01-mvp-plan.md` |
+
+## Related Documents
+
+- `docs/product/01-mvp-plan.md`
+- `docs/product/02-prd-v1.md`
+- `docs/planning/iterations/01-sprint-board.md`
+- `docs/planning/05-iteration-log.md`
