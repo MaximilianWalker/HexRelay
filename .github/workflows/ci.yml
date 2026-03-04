@@ -14,6 +14,23 @@ jobs:
   rust-check:
     name: rust-check (${{ matrix.service }})
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hexrelay
+          POSTGRES_PASSWORD: hexrelay_dev_password
+          POSTGRES_DB: hexrelay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hexrelay -d hexrelay"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay
+      API_SESSION_SIGNING_KEY: ci-signing-key-hexrelay-12345
     strategy:
       fail-fast: false
       matrix:
@@ -92,11 +109,11 @@ jobs:
         working-directory: apps/web
         run: |
           if [ -f pnpm-lock.yaml ]; then
-            pnpm run test
+            pnpm run test:coverage
           elif [ -f yarn.lock ]; then
-            yarn test
+            yarn test:coverage
           else
-            npm run test
+            npm run test:coverage
           fi
 
       - name: Build

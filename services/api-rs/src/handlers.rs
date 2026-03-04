@@ -33,6 +33,8 @@ use crate::{
     },
 };
 
+const CHALLENGE_TTL_SECONDS: i64 = 60;
+
 pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         service: "api-rs",
@@ -45,6 +47,33 @@ pub async fn register_identity_key(
     Json(payload): Json<IdentityKeyRegistrationRequest>,
 ) -> ApiResult<StatusCode> {
     validate_identity_registration(&payload)?;
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let inserted = sqlx::query(
+            "
+            INSERT INTO identity_keys (identity_id, public_key, algorithm)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (identity_id) DO NOTHING
+            ",
+        )
+        .bind(&payload.identity_id)
+        .bind(&payload.public_key)
+        .bind(&payload.algorithm)
+        .execute(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to persist identity key")
+        })?;
+
+        if inserted.rows_affected() == 0 {
+            return Err(conflict(
+                "identity_exists",
+                "identity_id already has a registered key",
+            ));
+        }
+
+        return Ok(StatusCode::CREATED);
+    }
 
     let mut guard = state
         .identity_keys
@@ -83,11 +112,27 @@ pub async fn issue_auth_challenge(
 ) -> ApiResult<Json<AuthChallengeResponse>> {
     validate_auth_challenge_request(&payload)?;
 
-    let identity_exists = state
-        .identity_keys
-        .read()
-        .expect("acquire identity key read lock")
-        .contains_key(&payload.identity_id);
+    let identity_exists = if let Some(pool) = state.db_pool.as_ref() {
+        sqlx::query_scalar::<_, i64>(
+            "
+            SELECT COUNT(*)
+            FROM identity_keys
+            WHERE identity_id = $1
+            ",
+        )
+        .bind(&payload.identity_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to read identity keys")
+        })? > 0
+    } else {
+        state
+            .identity_keys
+            .read()
+            .expect("acquire identity key read lock")
+            .contains_key(&payload.identity_id)
+    };
 
     if !identity_exists {
         return Err(bad_request(
@@ -98,7 +143,32 @@ pub async fn issue_auth_challenge(
 
     let challenge_id = Uuid::new_v4().to_string();
     let nonce = random_hex(32);
-    let expires_at = (Utc::now() + Duration::minutes(5)).to_rfc3339();
+    let challenge_expires_at = Utc::now() + Duration::seconds(CHALLENGE_TTL_SECONDS);
+    let expires_at = challenge_expires_at.to_rfc3339();
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        sqlx::query(
+            "
+            INSERT INTO auth_challenges (challenge_id, identity_id, nonce, expires_at)
+            VALUES ($1, $2, $3, $4)
+            ",
+        )
+        .bind(&challenge_id)
+        .bind(&payload.identity_id)
+        .bind(&nonce)
+        .bind(challenge_expires_at)
+        .execute(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to persist challenge")
+        })?;
+
+        return Ok(Json(AuthChallengeResponse {
+            challenge_id,
+            nonce,
+            expires_at,
+        }));
+    }
 
     state
         .auth_challenges
@@ -109,7 +179,7 @@ pub async fn issue_auth_challenge(
             AuthChallengeRecord {
                 identity_id: payload.identity_id,
                 nonce: nonce.clone(),
-                expires_at: Utc::now() + Duration::minutes(5),
+                expires_at: challenge_expires_at,
             },
         );
 
@@ -126,12 +196,46 @@ pub async fn verify_auth_challenge(
 ) -> ApiResult<Json<AuthVerifyResponse>> {
     validate_auth_verify_request(&payload)?;
 
-    let challenge_record = state
-        .auth_challenges
-        .write()
-        .expect("acquire challenge write lock")
-        .remove(&payload.challenge_id)
+    let challenge_record = if let Some(pool) = state.db_pool.as_ref() {
+        let row = sqlx::query(
+            "
+            DELETE FROM auth_challenges
+            WHERE challenge_id = $1
+            RETURNING identity_id, nonce, expires_at
+            ",
+        )
+        .bind(&payload.challenge_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to read challenge")
+        })?
         .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?;
+
+        AuthChallengeRecord {
+            identity_id: row.try_get::<String, _>("identity_id").map_err(|_| {
+                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
+            })?,
+            nonce: row.try_get::<String, _>("nonce").map_err(|_| {
+                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
+            })?,
+            expires_at: row
+                .try_get::<chrono::DateTime<Utc>, _>("expires_at")
+                .map_err(|_| {
+                    crate::errors::internal_error(
+                        "storage_unavailable",
+                        "failed to decode challenge",
+                    )
+                })?,
+        }
+    } else {
+        state
+            .auth_challenges
+            .write()
+            .expect("acquire challenge write lock")
+            .remove(&payload.challenge_id)
+            .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
+    };
 
     if challenge_record.identity_id != payload.identity_id {
         return Err(unauthorized(
@@ -144,13 +248,42 @@ pub async fn verify_auth_challenge(
         return Err(unauthorized("nonce_invalid", "challenge has expired"));
     }
 
-    let key_record = state
-        .identity_keys
-        .read()
-        .expect("acquire identity key read lock")
-        .get(&payload.identity_id)
-        .cloned()
+    let key_record = if let Some(pool) = state.db_pool.as_ref() {
+        let row = sqlx::query(
+            "
+            SELECT public_key, algorithm
+            FROM identity_keys
+            WHERE identity_id = $1
+            ",
+        )
+        .bind(&payload.identity_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to read identity key")
+        })?
         .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?;
+
+        let public_key = row.try_get::<String, _>("public_key").map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
+        })?;
+        let algorithm = row.try_get::<String, _>("algorithm").map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
+        })?;
+
+        RegisteredIdentityKey {
+            public_key,
+            algorithm,
+        }
+    } else {
+        state
+            .identity_keys
+            .read()
+            .expect("acquire identity key read lock")
+            .get(&payload.identity_id)
+            .cloned()
+            .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
+    };
 
     if key_record.algorithm != "ed25519" {
         return Err(bad_request(
@@ -327,6 +460,36 @@ pub async fn create_invite(
     };
 
     let token = Uuid::new_v4().to_string();
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        sqlx::query(
+            "
+            INSERT INTO invites (token, mode, node_fingerprint, expires_at, max_uses, uses)
+            VALUES ($1, $2, $3, $4, $5, 0)
+            ",
+        )
+        .bind(&token)
+        .bind(&payload.mode)
+        .bind(&state.node_fingerprint)
+        .bind(expires_at)
+        .bind(max_uses.map(|value| value as i32))
+        .execute(pool)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to persist invite")
+        })?;
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(InviteCreateResponse {
+                token,
+                mode: payload.mode,
+                expires_at: expires_at.map(|value| value.to_rfc3339()),
+                max_uses,
+            }),
+        ));
+    }
+
     state
         .invites
         .write()
@@ -358,6 +521,80 @@ pub async fn redeem_invite(
     Json(payload): Json<InviteRedeemRequest>,
 ) -> ApiResult<Json<InviteRedeemResponse>> {
     validate_invite_redeem_request(&payload)?;
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let mut tx = pool.begin().await.map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to start invite tx")
+        })?;
+
+        let row = sqlx::query(
+            "
+            SELECT node_fingerprint, expires_at, max_uses, uses
+            FROM invites
+            WHERE token = $1
+            FOR UPDATE
+            ",
+        )
+        .bind(&payload.token)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| crate::errors::internal_error("storage_unavailable", "failed to read invite"))?
+        .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
+
+        let node_fingerprint = row.try_get::<String, _>("node_fingerprint").map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
+        })?;
+        let expires_at = row
+            .try_get::<Option<chrono::DateTime<Utc>>, _>("expires_at")
+            .map_err(|_| {
+                crate::errors::internal_error("storage_unavailable", "failed to decode invite")
+            })?;
+        let max_uses = row.try_get::<Option<i32>, _>("max_uses").map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
+        })?;
+        let uses = row.try_get::<i32, _>("uses").map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
+        })?;
+
+        if node_fingerprint != payload.node_fingerprint {
+            return Err(bad_request(
+                "fingerprint_mismatch",
+                "invite node fingerprint mismatch",
+            ));
+        }
+
+        if let Some(expires_at) = expires_at {
+            if Utc::now() > expires_at {
+                return Err(bad_request("invite_expired", "invite token is expired"));
+            }
+        }
+
+        if let Some(max_uses) = max_uses {
+            if uses >= max_uses {
+                return Err(bad_request("invite_exhausted", "invite token is exhausted"));
+            }
+        }
+
+        sqlx::query(
+            "
+            UPDATE invites
+            SET uses = uses + 1
+            WHERE token = $1
+            ",
+        )
+        .bind(&payload.token)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to update invite")
+        })?;
+
+        tx.commit().await.map_err(|_| {
+            crate::errors::internal_error("storage_unavailable", "failed to commit invite")
+        })?;
+
+        return Ok(Json(InviteRedeemResponse { accepted: true }));
+    }
 
     let mut guard = state.invites.write().expect("acquire invite write lock");
     let invite = guard

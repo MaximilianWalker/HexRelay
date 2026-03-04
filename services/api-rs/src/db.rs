@@ -15,6 +15,18 @@ const MIGRATIONS: &[Migration] = &[
         "0003_sessions",
         include_str!("../migrations/0003_sessions.sql"),
     ),
+    (
+        "0004_identity_keys",
+        include_str!("../migrations/0004_identity_keys.sql"),
+    ),
+    (
+        "0005_auth_challenges",
+        include_str!("../migrations/0005_auth_challenges.sql"),
+    ),
+    (
+        "0006_invites",
+        include_str!("../migrations/0006_invites.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

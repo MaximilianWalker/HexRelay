@@ -26,7 +26,7 @@ impl ApiConfig {
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay".to_string()
         });
         let session_signing_key = env::var("API_SESSION_SIGNING_KEY")
-            .unwrap_or_else(|_| "hexrelay-dev-signing-key-change-me".to_string());
+            .unwrap_or_else(|_| panic!("Missing API_SESSION_SIGNING_KEY environment variable"));
 
         let allowed_origins = allowed_origins_raw
             .split(',')

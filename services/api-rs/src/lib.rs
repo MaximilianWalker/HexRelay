@@ -28,8 +28,11 @@ mod tests {
     use tower::util::ServiceExt;
 
     use crate::{
-        app::build_app, db::connect_and_prepare, models::SessionRecord,
-        session_token::issue_session_token, state::AppState,
+        app::build_app,
+        db::connect_and_prepare,
+        models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord},
+        session_token::issue_session_token,
+        state::AppState,
     };
 
     #[derive(Deserialize)]
@@ -1088,5 +1091,153 @@ mod tests {
 
         assert_eq!(success_count, 1);
         assert_eq!(unauthorized_count, 1);
+    }
+
+    #[tokio::test]
+    async fn rejects_expired_challenge_verification() {
+        let state = AppState::default();
+
+        state
+            .identity_keys
+            .write()
+            .expect("acquire identity key write lock")
+            .insert(
+                "user-expired".to_string(),
+                RegisteredIdentityKey {
+                    public_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                        .to_string(),
+                    algorithm: "ed25519".to_string(),
+                },
+            );
+
+        state
+            .auth_challenges
+            .write()
+            .expect("acquire challenge write lock")
+            .insert(
+                "challenge-expired".to_string(),
+                AuthChallengeRecord {
+                    identity_id: "user-expired".to_string(),
+                    nonce: "deadbeef".to_string(),
+                    expires_at: Utc::now() - Duration::seconds(1),
+                },
+            );
+
+        let app = build_app(state);
+
+        let verify_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"identity_id":"user-expired","challenge_id":"challenge-expired","signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"}"#,
+            ))
+            .expect("build verify request");
+
+        let response = app.oneshot(verify_request).await.expect("verify response");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn redeems_db_invite_after_app_restart() {
+        let Some(app) = app_with_database().await else {
+            return;
+        };
+
+        let create_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"mode":"one_time"}"#))
+            .expect("build create invite request");
+
+        let create_response = app
+            .oneshot(create_request)
+            .await
+            .expect("create invite response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+
+        let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .expect("read create invite body");
+        let created: InviteCreateResponse =
+            serde_json::from_slice(&create_bytes).expect("decode invite create response");
+
+        let Some(app_after_restart) = app_with_database().await else {
+            return;
+        };
+
+        let redeem_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                created.token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build redeem invite request");
+
+        let redeem_response = app_after_restart
+            .oneshot(redeem_request)
+            .await
+            .expect("redeem invite response");
+        assert_eq!(redeem_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn verifies_db_challenge_after_app_restart() {
+        let Some(app) = app_with_database().await else {
+            return;
+        };
+
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
+        let public_key = hex::encode(signing_key.public_key().as_ref());
+
+        let (register_status, app) = register_identity(app, "db-user-restart", &public_key).await;
+        assert_eq!(register_status, StatusCode::CREATED);
+
+        let challenge_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"db-user-restart"}"#))
+            .expect("build challenge request");
+
+        let challenge_response = app
+            .oneshot(challenge_request)
+            .await
+            .expect("challenge response");
+        assert_eq!(challenge_response.status(), StatusCode::OK);
+
+        let challenge_bytes = to_bytes(challenge_response.into_body(), usize::MAX)
+            .await
+            .expect("read challenge response body");
+        let challenge: AuthChallengeResponse =
+            serde_json::from_slice(&challenge_bytes).expect("decode challenge response");
+
+        let signature = signing_key.sign(challenge.nonce.as_bytes());
+        let signature_hex = hex::encode(signature.as_ref());
+
+        let Some(app_after_restart) = app_with_database().await else {
+            return;
+        };
+
+        let verify_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/verify")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"identity_id":"db-user-restart","challenge_id":"{}","signature":"{}"}}"#,
+                challenge.challenge_id, signature_hex
+            )))
+            .expect("build verify request");
+
+        let verify_response = app_after_restart
+            .oneshot(verify_request)
+            .await
+            .expect("verify response");
+        assert_eq!(verify_response.status(), StatusCode::OK);
     }
 }

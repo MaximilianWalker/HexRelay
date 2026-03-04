@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 stabilization batch closed challenge replay race, added DB auth/migration integration tests, and synced auth contract docs.
+- Latest meaningful change: 2026-03-04 readiness uplift expanded DB-backed challenge/invite durability and added websocket-gate integration tests with stronger web coverage thresholds.
 
 ## Purpose
 
@@ -29,6 +29,36 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (readiness uplift: persistence and CI coverage gates)
+
+- Area affected: Future-development readiness hardening
+- Change summary:
+  - Added DB-backed identity-key persistence with new migration and API handler DB paths for registration/challenge/verify identity lookup.
+  - Added DB-backed auth-challenge and invite durability (`auth_challenges`, `invites`) with restart-safe verification/redeem test coverage.
+  - Aligned auth challenge TTL to 60 seconds (`CHALLENGE_TTL_SECONDS = 60`) to match crypto profile expectations.
+  - Made API session signing key mandatory from environment to remove insecure fallback-key behavior.
+  - Added realtime websocket-gate integration tests (authorized upgrade + unauthorized rejection) and expanded web API transport tests.
+  - Raised web coverage thresholds and enforced coverage execution in CI via `test:coverage`.
+  - Updated CI to provision Postgres for Rust checks and pass API DB/signing env vars so DB integration paths execute under CI.
+- Rationale:
+  - Raise confidence from "good" to "high" by ensuring critical auth/persistence paths are both enforced and continuously validated in CI.
+- Linked docs updated:
+  - `services/api-rs/migrations/0004_identity_keys.sql`
+  - `services/api-rs/migrations/0005_auth_challenges.sql`
+  - `services/api-rs/migrations/0006_invites.sql`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/src/config.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/realtime-rs/src/handlers.rs`
+  - `apps/web/lib/api.test.ts`
+  - `apps/web/vitest.config.ts`
+  - `apps/web/package.json`
+  - `apps/web/package-lock.json`
+  - `.github/workflows/ci.yml`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/planning/iterations/02-sprint-board.md`
 
 ### 2026-03-04 (stabilization follow-up: replay race, migration safety, contract sync)
 
