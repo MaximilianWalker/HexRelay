@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 registered hardening artifacts for screen state, config defaults, data lifecycle, runbook, and verification.
+- Latest meaningful change: 2026-03-04 added MVP crypto profile contract and crypto conformance checklist routing.
 
 ## Purpose
 
@@ -26,6 +26,7 @@
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
 | Iteration 1 API contract baseline | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any identity/auth/invite schema or error contract change |
+| MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
 | MVP REST contract coverage baseline | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Any social/messaging/discovery/migration REST schema or behavior change |
 | Realtime event/signaling contract baseline | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Any websocket/signaling event schema change |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
@@ -39,6 +40,7 @@
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | MVP requirement-to-evidence verification | `docs/testing/01-mvp-verification-matrix.md` | Delivery/QA maintainers | Verification mapping, evidence format, or validator rules change |
+| Crypto profile conformance verification | `docs/testing/crypto-conformance-checklist.md` | QA/core maintainers | Crypto profile requirement, verification steps, or evidence expectations change |
 | Contributor workflow and release hygiene | `docs/operations/contributor-guide.md` | Maintainers | Branch/PR policy, validation gates, or release workflow changes |
 | Architecture decisions (ADR set) | `docs/architecture/README.md` and `docs/architecture/adr-*.md` | Architecture maintainers | Any accepted/rejected architecture decision |
 | Project glossary and canonical terms | `docs/reference/glossary.md` | Product/engineering maintainers | New domain term appears or an existing term meaning changes |
@@ -77,11 +79,13 @@
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
 - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- `docs/contracts/crypto-profile-v1.md`
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/testing/01-mvp-verification-matrix.md`
+- `docs/testing/crypto-conformance-checklist.md`
 - `docs/planning/05-iteration-log.md`
 - `docs/operations/contributor-guide.md`

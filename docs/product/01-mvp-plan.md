@@ -55,7 +55,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked group DM E2EE as required in MVP.
 - 2026-03-04: Locked discovery abuse baseline as signed registry + rate limiting + denylist support.
 - 2026-03-04: Locked recovery setup as mandatory during onboarding.
-- 2026-03-04: Locked MVP UI behavior authority to per-flow state tables in sprint boards.
+- 2026-03-04: Locked MVP UI behavior authority to `docs/product/08-screen-state-spec.md` with sprint-board execution mappings.
 - 2026-03-04: Locked global server and contact hub pages as first-class navigation surfaces for MVP.
 - 2026-03-04: Locked dual server-navigation mode (sidebar + topbar tabs) and burger collapse behavior in server workspace.
 - 2026-03-04: Execution hardening aligned E2EE scope across plan/risk/iteration tasks and introduced contract/dependency gates.

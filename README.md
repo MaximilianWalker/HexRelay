@@ -15,15 +15,15 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 documentation standardization pass.
+- Latest meaningful change: 2026-03-04 development scaffold, infra stack, and CI bootstrap completed.
 
 ## Project Stage
 
-- Docs-first MVP planning
+- MVP planning complete and development bootstrap in progress
 
 ## Current Focus
 
-- Finalize MVP scope and guardrails before implementation scaffold.
+- Implement Iteration 1 foundations on top of the committed scaffolds.
 - Keep decentralization phased so core UX quality is not blocked.
 - Maintain portability/export-import guarantees across identity and data flows.
 
@@ -36,15 +36,15 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 ## Getting Started
 
-- Current repository state: planning-first. Implementation scaffold is not committed yet.
+- Current repository state: scaffolds and baseline infra/CI are initialized for development start.
 - If you want project direction and delivery scope first, read:
   - `docs/product/01-mvp-plan.md`
   - `docs/product/02-prd-v1.md`
   - `docs/planning/iterations/README.md`
-- First runnable milestone (planned in Iteration 1):
-  - Monorepo layout with `apps/web`, `services/api-rs`, `services/realtime-rs`, and `infra`
-  - Local infra via `docker compose up`
-  - One-command local bootstrap from a clean checkout
+- Baseline runnable components:
+  - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
+  - Local infra via `docker compose --env-file infra/.env up -d`
+  - Workspace checks via `bash scripts/test.sh`
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`
 

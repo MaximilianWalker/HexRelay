@@ -1,80 +1,727 @@
 openapi: 3.1.0
 info:
   title: HexRelay MVP REST API
-  version: 0.1.0
+  version: 0.2.0
   description: |
-    Contract coverage baseline for MVP scope beyond Iteration 1 identity/auth/invite.
-    This file is an execution-hardening contract map and should be expanded before
-    each iteration begins.
+    MVP REST contract coverage for Iterations 2-4.
+    This contract defines canonical request/response shapes, error semantics,
+    auth requirements, and pagination/idempotency conventions.
 servers:
   - url: https://api.hexrelay.local
+security:
+  - bearerAuth: []
 paths:
   /v1/friends/requests:
     post:
       summary: Create friend request
+      operationId: createFriendRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestCreate'
+      responses:
+        '201':
+          description: Friend request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
     get:
       summary: List inbound/outbound friend requests
+      operationId: listFriendRequests
+      parameters:
+        - $ref: '#/components/parameters/DirectionParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CursorParam'
+      responses:
+        '200':
+          description: Friend request page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestPage'
   /v1/friends/requests/{request_id}/accept:
     post:
       summary: Accept friend request
+      operationId: acceptFriendRequest
+      parameters:
+        - $ref: '#/components/parameters/RequestIdParam'
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendEdge'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/friends/requests/{request_id}/decline:
     post:
       summary: Decline friend request
+      operationId: declineFriendRequest
+      parameters:
+        - $ref: '#/components/parameters/RequestIdParam'
+      responses:
+        '204':
+          description: Request declined
   /v1/friends:
     get:
       summary: List friends
+      operationId: listFriends
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CursorParam'
+      responses:
+        '200':
+          description: Friends page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendEdgePage'
   /v1/friends/{user_id}/block:
     post:
       summary: Block user
+      operationId: blockUser
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '204':
+          description: User blocked
   /v1/friends/{user_id}/mute:
     post:
       summary: Mute user
+      operationId: muteUser
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '204':
+          description: User muted
   /v1/contact-invites:
     post:
       summary: Create user contact invite token
+      operationId: createContactInvite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactInviteCreate'
+      responses:
+        '201':
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactInvite'
   /v1/contact-invites/redeem:
     post:
       summary: Redeem user contact invite token
+      operationId: redeemContactInvite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactInviteRedeem'
+      responses:
+        '200':
+          description: Invite redeemed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /v1/discovery/users:
     get:
       summary: Query global/shared-server user discovery
+      operationId: discoveryUsers
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [global, shared_server]
+      responses:
+        '200':
+          description: Discovery result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDiscoveryPage'
   /v1/dm/privacy-policy:
     get:
       summary: Get user DM inbound policy
+      operationId: getDmPolicy
+      responses:
+        '200':
+          description: DM policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPolicy'
     post:
       summary: Update user DM inbound policy
+      operationId: updateDmPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmPolicyUpdate'
+      responses:
+        '200':
+          description: DM policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPolicy'
   /v1/guilds:
     post:
       summary: Create server (guild)
+      operationId: createGuild
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuildCreate'
+      responses:
+        '201':
+          description: Guild created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guild'
     get:
       summary: List joined servers
+      operationId: listGuilds
+      responses:
+        '200':
+          description: Guild list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guild'
   /v1/guilds/{guild_id}/channels:
     post:
       summary: Create channel
+      operationId: createChannel
+      parameters:
+        - $ref: '#/components/parameters/GuildIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelCreate'
+      responses:
+        '201':
+          description: Channel created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+  /v1/guilds/{guild_id}/channels/{channel_id}/messages:
+    get:
+      summary: List server-channel messages
+      operationId: listChannelMessages
+      parameters:
+        - $ref: '#/components/parameters/GuildIdParam'
+        - $ref: '#/components/parameters/ChannelIdParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CursorParam'
+      responses:
+        '200':
+          description: Channel message page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessagePage'
+    post:
+      summary: Create server-channel message
+      operationId: createChannelMessage
+      parameters:
+        - $ref: '#/components/parameters/GuildIdParam'
+        - $ref: '#/components/parameters/ChannelIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessage'
   /v1/messages/{message_id}:
     patch:
-      summary: Edit message
+      summary: Edit server-channel message
+      operationId: editChannelMessage
+      parameters:
+        - $ref: '#/components/parameters/MessageIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessagePatch'
+      responses:
+        '200':
+          description: Message updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessage'
     delete:
-      summary: Delete message
+      summary: Delete server-channel message
+      operationId: deleteChannelMessage
+      parameters:
+        - $ref: '#/components/parameters/MessageIdParam'
+      responses:
+        '204':
+          description: Message deleted
+  /v1/messages/{message_id}/reply:
+    post:
+      summary: Reply to server-channel message
+      operationId: replyChannelMessage
+      parameters:
+        - $ref: '#/components/parameters/MessageIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+      responses:
+        '201':
+          description: Reply created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessage'
   /v1/profile/public:
     get:
       summary: Get signed public profile card
+      operationId: getPublicProfile
+      responses:
+        '200':
+          description: Signed public profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfile'
     post:
       summary: Update signed public profile card
+      operationId: updatePublicProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicProfileUpdate'
+      responses:
+        '200':
+          description: Public profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfile'
   /v1/profile/private:
     get:
       summary: Get encrypted private profile capsule
+      operationId: getPrivateProfile
+      responses:
+        '200':
+          description: Encrypted private profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateProfileCapsule'
     post:
       summary: Update encrypted private profile capsule
+      operationId: updatePrivateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivateProfileCapsuleUpdate'
+      responses:
+        '200':
+          description: Private profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateProfileCapsule'
   /v1/migration/export:
     post:
       summary: Start full migration export
+      operationId: migrationExport
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationExportRequest'
+      responses:
+        '202':
+          description: Export accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationJob'
   /v1/migration/import:
     post:
       summary: Start migration import and reconciliation
+      operationId: migrationImport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationImportRequest'
+      responses:
+        '202':
+          description: Import accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationJob'
   /v1/migration/cutover:
     post:
       summary: Revoke old sessions after successful migration
+      operationId: migrationCutover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CutoverRequest'
+      responses:
+        '200':
+          description: Cutover applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CutoverResult'
   /v1/discovery/registry:
     get:
       summary: Fetch signed discovery registry entries
+      operationId: getRegistryEntries
+      responses:
+        '200':
+          description: Registry entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RegistryEntry'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    RequestIdParam:
+      name: request_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserIdParam:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GuildIdParam:
+      name: guild_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MessageIdParam:
+      name: message_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ChannelIdParam:
+      name: channel_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DirectionParam:
+      name: direction
+      in: query
+      required: false
+      schema: { type: string, enum: [inbound, outbound, all], default: all }
+    CursorParam:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string, minLength: 8, maxLength: 256 }
+    LimitParam:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+  responses:
+    BadRequest:
+      description: Invalid request payload or parameters
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: Request conflicts with current state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+    PageMeta:
+      type: object
+      properties:
+        next_cursor: { type: string, nullable: true }
+        limit: { type: integer }
+    FriendRequestCreate:
+      type: object
+      required: [target_user_id, source]
+      properties:
+        target_user_id: { type: string, format: uuid }
+        source: { type: string, enum: [server_mediated, contact_invite] }
+    FriendRequest:
+      type: object
+      required: [request_id, from_user_id, to_user_id, status, created_at]
+      properties:
+        request_id: { type: string, format: uuid }
+        from_user_id: { type: string, format: uuid }
+        to_user_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, accepted, declined, cancelled] }
+        created_at: { type: string, format: date-time }
+    FriendRequestPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FriendRequest' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    FriendEdge:
+      type: object
+      required: [user_id, friend_user_id, created_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        friend_user_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    FriendEdgePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FriendEdge' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    ContactInviteCreate:
+      type: object
+      required: [mode, expires_at]
+      properties:
+        mode: { type: string, enum: [one_time, multi_use], default: one_time }
+        expires_at: { type: string, format: date-time }
+        max_uses: { type: integer, minimum: 1, nullable: true }
+    ContactInvite:
+      type: object
+      required: [invite_id, token, mode, created_at]
+      properties:
+        invite_id: { type: string, format: uuid }
+        token: { type: string, minLength: 16 }
+        mode: { type: string, enum: [one_time, multi_use] }
+        expires_at: { type: string, format: date-time, nullable: true }
+        max_uses: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+    ContactInviteRedeem:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 16 }
+    UserDiscoveryPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [user_id, display_name]
+            properties:
+              user_id: { type: string, format: uuid }
+              display_name: { type: string, minLength: 1, maxLength: 64 }
+              mutual_servers: { type: integer, minimum: 0 }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    DmPolicy:
+      type: object
+      required: [inbound_policy, offline_delivery_mode]
+      properties:
+        inbound_policy: { type: string, enum: [friends_only, same_server, anyone] }
+        offline_delivery_mode: { type: string, enum: [best_effort_online] }
+    DmPolicyUpdate:
+      type: object
+      required: [inbound_policy]
+      properties:
+        inbound_policy: { type: string, enum: [friends_only, same_server, anyone] }
+    GuildCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+    Guild:
+      type: object
+      required: [guild_id, name]
+      properties:
+        guild_id: { type: string, format: uuid }
+        name: { type: string }
+    ChannelCreate:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        kind: { type: string, enum: [text, voice] }
+    Channel:
+      type: object
+      required: [channel_id, guild_id, name, kind]
+      properties:
+        channel_id: { type: string, format: uuid }
+        guild_id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { type: string }
+    MessagePatch:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 4000 }
+    MessageCreate:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 4000 }
+        mentions:
+          type: array
+          items: { type: string, format: uuid }
+          default: []
+    ChannelMessage:
+      type: object
+      required: [message_id, channel_id, sender_id, created_at]
+      properties:
+        message_id: { type: string, format: uuid }
+        channel_id: { type: string, format: uuid }
+        sender_id: { type: string, format: uuid }
+        content: { type: string }
+        reply_to_message_id: { type: string, format: uuid, nullable: true }
+        mentions:
+          type: array
+          items: { type: string, format: uuid }
+          default: []
+        created_at: { type: string, format: date-time }
+    ChannelMessagePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChannelMessage' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    PublicProfile:
+      type: object
+      required: [identity_id, display_name, signature]
+      properties:
+        identity_id: { type: string, format: uuid }
+        display_name: { type: string, minLength: 1, maxLength: 64 }
+        avatar_ref: { type: string, nullable: true }
+        signature: { type: string }
+        version: { type: integer, minimum: 1 }
+    PublicProfileUpdate:
+      type: object
+      required: [display_name, signature]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 64 }
+        avatar_ref: { type: string, nullable: true }
+        signature: { type: string }
+    PrivateProfileCapsule:
+      type: object
+      required: [ciphertext, signature, version]
+      properties:
+        ciphertext: { type: string, minLength: 16 }
+        signature: { type: string }
+        version: { type: integer, minimum: 1 }
+    PrivateProfileCapsuleUpdate:
+      type: object
+      required: [ciphertext, signature, version]
+      properties:
+        ciphertext: { type: string, minLength: 16 }
+        signature: { type: string }
+        version: { type: integer, minimum: 1 }
+    MigrationExportRequest:
+      type: object
+      properties:
+        include_media_cache: { type: boolean, default: false }
+    MigrationImportRequest:
+      type: object
+      required: [bundle_ref]
+      properties:
+        bundle_ref: { type: string }
+        dry_run: { type: boolean, default: false }
+    MigrationJob:
+      type: object
+      required: [job_id, status, created_at]
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, completed, failed] }
+        created_at: { type: string, format: date-time }
+    CutoverRequest:
+      type: object
+      required: [migration_job_id]
+      properties:
+        migration_job_id: { type: string, format: uuid }
+    CutoverResult:
+      type: object
+      required: [revoked_sessions]
+      properties:
+        revoked_sessions: { type: integer, minimum: 0 }
+    RegistryEntry:
+      type: object
+      required: [entry_id, endpoint, fingerprint, signature, ttl_seconds]
+      properties:
+        entry_id: { type: string, format: uuid }
+        endpoint: { type: string }
+        fingerprint: { type: string }
+        signature: { type: string }
+        ttl_seconds: { type: integer, minimum: 1 }

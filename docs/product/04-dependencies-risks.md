@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-04 resolved realtime contract artifact and fixed KPI/SLO test profile dependencies.
+- Latest meaningful change: 2026-03-04 marked D-001 through D-007 ready with scaffold, infra, CI, crypto, and TURN/NAT artifacts.
 
 ## Purpose
 
@@ -24,13 +24,13 @@
 
 | ID | Dependency | Type | Status | Impact if delayed | Owner | Notes |
 |---|---|---|---|---|---|---|
-| D-001 | Monorepo scaffold (`apps/web`, Rust services, infra) | Internal | planned | Blocks all code implementation and local bootstrap | Core | Iteration 1 baseline |
-| D-002 | Local infra compose stack (Postgres, Redis, object storage, coturn) | Internal | planned | Blocks auth, messaging, and voice integration tests | Core | Iteration 1 task path |
-| D-003 | CI matrix for Rust + web lint/test/build | Internal | planned | Increases regression and integration risk | Platform | Must land before broad feature parallelization |
+| D-001 | Monorepo scaffold (`apps/web`, Rust services, infra) | Internal | ready | Blocks all code implementation and local bootstrap | Core | Iteration 1 baseline completed with `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` |
+| D-002 | Local infra compose stack (Postgres, Redis, object storage, coturn) | Internal | ready | Blocks auth, messaging, and voice integration tests | Core | `infra/docker-compose.yml` and `infra/README.md` present |
+| D-003 | CI matrix for Rust + web lint/test/build | Internal | ready | Increases regression and integration risk | Platform | Implemented in `.github/workflows/ci.yml` with scaffold-aware bootstrap behavior |
 | D-004 | Iteration 1 OpenAPI contract artifact (`docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
-| D-005 | MVP Crypto Profile v1 implementation alignment | Internal | planned | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Applies to Iteration 1 and Iteration 2 E2EE tasks |
+| D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | TURN connectivity test environment for NAT-restricted scenarios | External | planned | Voice reliability gates cannot be validated realistically | Platform/Realtime | Required before Iteration 3 exit |
+| D-007 | TURN connectivity test environment for NAT-restricted scenarios | External | ready | Voice reliability gates cannot be validated realistically | Platform/Realtime | Profile and procedure defined in `docs/planning/turn-nat-test-profile.md`; required before Iteration 3 exit |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
 

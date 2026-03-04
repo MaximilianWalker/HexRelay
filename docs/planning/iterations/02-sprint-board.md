@@ -103,7 +103,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | Flow | Required states (authoritative set in `docs/product/08-screen-state-spec.md`) |
 |---|---|
 | Contacts and friend requests | loading, search_no_results, friend_request_pending, friend_request_inbound, error |
-| DM workspace onboarding | loading, empty, policy_denied, send_failed_retryable, reconnecting |
+| DM workspace onboarding | loading, empty, blocked, policy_denied, send_failed_retryable, reconnecting |
 | Servers/Contacts hubs | loading, empty, search_no_results, error |
 
 ## Evidence Ledger

@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-check:
+    name: rust-check (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - services/api-rs
+          - services/realtime-rs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Rust crate
+        id: detect
+        run: |
+          if [ -f "${{ matrix.service }}/Cargo.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.service }}. Missing ${{ matrix.service }}/Cargo.toml. Add scaffold with a valid Cargo project to enable Rust CI gates."
+          fi
+
+      - name: Setup Rust toolchain
+        if: steps.detect.outputs.exists == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cargo fmt (check)
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: ${{ matrix.service }}
+        run: cargo fmt --all -- --check
+
+      - name: Cargo clippy
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: ${{ matrix.service }}
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo test
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: ${{ matrix.service }}
+        run: cargo test --all-features
+
+  web-check:
+    name: web-check (apps/web)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect web project
+        id: detect
+        run: |
+          if [ -f "apps/web/package.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping apps/web. Missing apps/web/package.json. Add web scaffold and lockfile to enable web CI gates."
+          fi
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate package manager lockfile and scripts
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: apps/web
+        run: |
+          if [ ! -f package-lock.json ] && [ ! -f pnpm-lock.yaml ] && [ ! -f yarn.lock ]; then
+            echo "::error::No supported lockfile found in apps/web. Add one of: package-lock.json, pnpm-lock.yaml, or yarn.lock."
+            exit 1
+          fi
+
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const s=p.scripts||{};const missing=['lint','test','build'].filter((k)=>!s[k]);if(missing.length){console.error('::error::Missing required scripts in apps/web/package.json: '+missing.join(', ')+'. Add these scripts to enable CI gates.');process.exit(1);}"
+
+      - name: Install dependencies
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: apps/web
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable
+            corepack prepare pnpm@latest --activate
+            pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable
+            yarn install --immutable
+          else
+            npm ci
+          fi
+
+      - name: Lint
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: apps/web
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm run lint
+          elif [ -f yarn.lock ]; then
+            yarn lint
+          else
+            npm run lint
+          fi
+
+      - name: Test
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: apps/web
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm run test
+          elif [ -f yarn.lock ]; then
+            yarn test
+          else
+            npm run test
+          fi
+
+      - name: Build
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: apps/web
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm run build
+          elif [ -f yarn.lock ]; then
+            yarn build
+          else
+            npm run build
+          fi

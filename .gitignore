@@ -1,0 +1,6 @@
+target/
+**/node_modules/
+apps/web/.next/
+apps/web/coverage/
+infra/.env
+*.log

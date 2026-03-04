@@ -30,6 +30,23 @@
 
 ## Log Entries
 
+### 2026-03-04 (development bootstrap execution)
+
+- Area affected: Project development readiness and execution gates
+- Change summary:
+  - Initialized runnable web scaffold in `apps/web` with lint/test/build scripts.
+  - Initialized Rust service scaffolds in `services/api-rs` and `services/realtime-rs` with workspace `Cargo.toml`.
+  - Added local infra stack in `infra/` with compose, env defaults, and TURN configuration.
+  - Added CI workflow in `.github/workflows/ci.yml` with Rust/Web quality gates.
+  - Replaced placeholder workspace automation with executable scripts and `Makefile` targets.
+  - Promoted dependency gates `D-001` to `D-007` to `ready` in dependency register.
+- Rationale:
+  - Move from planning-only to an executable baseline so Iteration 1 development can begin with enforceable quality gates.
+- Linked docs updated:
+  - `README.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (dm offline policy lock)
 
 - Area affected: DM reliability semantics and UX expectations

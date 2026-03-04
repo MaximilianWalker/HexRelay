@@ -27,6 +27,9 @@
 | `invite.mode` | `multi_use` | `one_time`, `multi_use` | server |
 | `invite.expires_at` | `null` | ISO date-time or `null` | server |
 | `invite.max_uses` | `null` | integer >= 1 or `null` | server |
+| `contact_invite.mode` | `one_time` | `one_time`, `multi_use` | user |
+| `contact_invite.expires_at` | `24h` | ISO date-time | user |
+| `contact_invite.max_uses` | `1` | integer >= 1 | user |
 | `dm.inbound_policy` | `friends_only` | `friends_only`, `same_server`, `anyone` | user |
 | `dm.offline_delivery_mode` | `best_effort_online` | `best_effort_online` | user |
 | `discovery.listing_visibility` | `private` | `private`, `public` | server |

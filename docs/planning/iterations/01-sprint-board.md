@@ -146,16 +146,16 @@ Week 3:
 - Freeze identity/invite API contracts before frontend polish using the Iteration 1 OpenAPI baseline in `docs/product/01-mvp-plan.md`.
 - Apply navigation and screen hierarchy decisions from `docs/product/07-ui-navigation-spec.md` for all new UI surfaces.
 
-## UI State Tables (Authority for MVP Iteration 1)
+## UI State Tables (Iteration 1 Mapping)
 
 ### Identity Create/Import (`T2.1.2`)
 
 | State | Trigger | UI Behavior | Recovery Action |
 |---|---|---|---|
-| `identity_create_success` | Keypair generated and persisted | Success state and continue CTA | Proceed to next onboarding step |
-| `identity_import_success` | Valid key import and persistence | Success state and continue CTA | Proceed to next onboarding step |
-| `identity_key_invalid` | Invalid key format or verification failure | Inline error with guidance | Retry import with valid key material |
-| `identity_storage_failed` | Local encrypted storage write failure | Blocking error state | Retry write; show fallback instructions |
+| `success` | Keypair generated and persisted | Success state and continue CTA | Proceed to next onboarding step |
+| `success` | Valid key import and persistence | Success state and continue CTA | Proceed to next onboarding step |
+| `invalid_key` | Invalid key format or verification failure | Inline error with guidance | Retry import with valid key material |
+| `storage_failed` | Local encrypted storage write failure | Blocking error state | Retry write; show fallback instructions |
 
 ### Join/Auth Errors (`T2.4.1`, `T2.3.1`)
 

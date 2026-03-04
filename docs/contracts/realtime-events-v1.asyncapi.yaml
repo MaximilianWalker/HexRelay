@@ -32,12 +32,48 @@ channels:
     messages:
       callStateChangedV1:
         $ref: '#/components/messages/CallStateChangedV1'
+  callSignalOffer:
+    address: call.signal.offer
+    description: Offer signaling message for call/session establishment.
+    messages:
+      callSignalOfferV1:
+        $ref: '#/components/messages/CallSignalOfferV1'
+  callSignalAnswer:
+    address: call.signal.answer
+    description: Answer signaling message for call/session establishment.
+    messages:
+      callSignalAnswerV1:
+        $ref: '#/components/messages/CallSignalAnswerV1'
+  callSignalIceCandidate:
+    address: call.signal.ice_candidate
+    description: ICE candidate exchange event.
+    messages:
+      callSignalIceCandidateV1:
+        $ref: '#/components/messages/CallSignalIceCandidateV1'
+  screenshareStateChanged:
+    address: screenshare.state.changed
+    description: Screen-share lifecycle transition event.
+    messages:
+      screenshareStateChangedV1:
+        $ref: '#/components/messages/ScreenShareStateChangedV1'
   channelMessageCreated:
     address: channel.message.created
     description: Server-channel message creation event for guild/community channels.
     messages:
       channelMessageCreatedV1:
         $ref: '#/components/messages/ChannelMessageCreatedV1'
+  channelMessageUpdated:
+    address: channel.message.updated
+    description: Server-channel message edit event.
+    messages:
+      channelMessageUpdatedV1:
+        $ref: '#/components/messages/ChannelMessageUpdatedV1'
+  channelMessageDeleted:
+    address: channel.message.deleted
+    description: Server-channel message deletion event.
+    messages:
+      channelMessageDeletedV1:
+        $ref: '#/components/messages/ChannelMessageDeletedV1'
 operations:
   receivePresenceUpdated:
     action: receive
@@ -63,6 +99,60 @@ operations:
       $ref: '#/channels/channelMessageCreated'
     messages:
       - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+  receiveChannelMessageUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageUpdated'
+    messages:
+      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
+  receiveChannelMessageDeleted:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageDeleted'
+    messages:
+      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
+  receiveCallSignalOffer:
+    action: receive
+    channel:
+      $ref: '#/channels/callSignalOffer'
+    messages:
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+  receiveCallSignalAnswer:
+    action: receive
+    channel:
+      $ref: '#/channels/callSignalAnswer'
+    messages:
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+  receiveCallSignalIceCandidate:
+    action: receive
+    channel:
+      $ref: '#/channels/callSignalIceCandidate'
+    messages:
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+  receiveScreenShareStateChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/screenshareStateChanged'
+    messages:
+      - $ref: '#/channels/screenshareStateChanged/messages/screenshareStateChangedV1'
+  sendCallSignalOffer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalOffer'
+    messages:
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+  sendCallSignalAnswer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalAnswer'
+    messages:
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+  sendCallSignalIceCandidate:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalIceCandidate'
+    messages:
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
 components:
   messages:
     PresenceUpdatedV1:
@@ -129,6 +219,30 @@ components:
               state: active
               updated_at: 2026-03-04T14:52:05Z
               call_seq: 16
+    CallSignalOfferV1:
+      name: CallSignalOfferV1
+      title: Call Signal Offer
+      summary: SDP offer exchange event.
+      payload:
+        $ref: '#/components/schemas/CallSignalOfferEventV1'
+    CallSignalAnswerV1:
+      name: CallSignalAnswerV1
+      title: Call Signal Answer
+      summary: SDP answer exchange event.
+      payload:
+        $ref: '#/components/schemas/CallSignalAnswerEventV1'
+    CallSignalIceCandidateV1:
+      name: CallSignalIceCandidateV1
+      title: Call Signal ICE Candidate
+      summary: ICE candidate exchange event.
+      payload:
+        $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
+    ScreenShareStateChangedV1:
+      name: ScreenShareStateChangedV1
+      title: ScreenShare State Changed
+      summary: Published when screenshare state transitions.
+      payload:
+        $ref: '#/components/schemas/ScreenShareStateChangedEventV1'
     ChannelMessageCreatedV1:
       name: ChannelMessageCreatedV1
       title: Channel Message Created
@@ -151,6 +265,50 @@ components:
               sender_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               created_at: 2026-03-04T14:53:00Z
               channel_seq: 922
+    ChannelMessageUpdatedV1:
+      name: ChannelMessageUpdatedV1
+      title: Channel Message Updated
+      summary: Published when a server-channel message is edited.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
+      examples:
+        - name: guild_channel_edit
+          payload:
+            event_id: 93edaf67-a89e-4822-9685-69f8f8c50ea6
+            event_type: channel.message.updated
+            event_version: 1
+            occurred_at: 2026-03-04T14:54:00Z
+            correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              editor_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              edited_at: 2026-03-04T14:54:00Z
+              channel_seq: 923
+    ChannelMessageDeletedV1:
+      name: ChannelMessageDeletedV1
+      title: Channel Message Deleted
+      summary: Published when a server-channel message is deleted.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
+      examples:
+        - name: guild_channel_delete
+          payload:
+            event_id: 31dbed6a-1865-473f-a194-c23f8fe5b163
+            event_type: channel.message.deleted
+            event_version: 1
+            occurred_at: 2026-03-04T14:55:00Z
+            correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              deleted_by: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              deleted_at: 2026-03-04T14:55:00Z
+              channel_seq: 924
   schemas:
     EventEnvelopeV1:
       type: object
@@ -299,6 +457,90 @@ components:
               const: call.state.changed
             data:
               $ref: '#/components/schemas/CallStateChangedDataV1'
+    CallSignalOfferDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, sdp_offer]
+      properties:
+        call_id: { type: string, format: uuid }
+        from_user_id: { type: string, format: uuid }
+        to_user_id: { type: string, format: uuid }
+        sdp_offer: { type: string, minLength: 16 }
+    CallSignalOfferEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: call.signal.offer
+            data:
+              $ref: '#/components/schemas/CallSignalOfferDataV1'
+    CallSignalAnswerDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, sdp_answer]
+      properties:
+        call_id: { type: string, format: uuid }
+        from_user_id: { type: string, format: uuid }
+        to_user_id: { type: string, format: uuid }
+        sdp_answer: { type: string, minLength: 16 }
+    CallSignalAnswerEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: call.signal.answer
+            data:
+              $ref: '#/components/schemas/CallSignalAnswerDataV1'
+    CallSignalIceCandidateDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, candidate]
+      properties:
+        call_id: { type: string, format: uuid }
+        from_user_id: { type: string, format: uuid }
+        to_user_id: { type: string, format: uuid }
+        candidate: { type: string, minLength: 8 }
+        sdp_mid: { type: string, nullable: true }
+        sdp_mline_index: { type: integer, nullable: true }
+    CallSignalIceCandidateEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: call.signal.ice_candidate
+            data:
+              $ref: '#/components/schemas/CallSignalIceCandidateDataV1'
+    ScreenShareStateChangedDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, state, updated_at, screenshare_seq]
+      properties:
+        call_id: { type: string, format: uuid }
+        state:
+          type: string
+          enum: [started, paused, resumed, stopped, failed]
+        updated_at: { type: string, format: date-time }
+        screenshare_seq: { type: integer, minimum: 1 }
+    ScreenShareStateChangedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: screenshare.state.changed
+            data:
+              $ref: '#/components/schemas/ScreenShareStateChangedDataV1'
     ChannelMessageCreatedDataV1:
       type: object
       additionalProperties: false
@@ -339,3 +581,83 @@ components:
               const: channel.message.created
             data:
               $ref: '#/components/schemas/ChannelMessageCreatedDataV1'
+    ChannelMessageUpdatedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - guild_id
+        - channel_id
+        - editor_id
+        - edited_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        guild_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        editor_id:
+          type: string
+          format: uuid
+        edited_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageUpdatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.updated
+            data:
+              $ref: '#/components/schemas/ChannelMessageUpdatedDataV1'
+    ChannelMessageDeletedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - guild_id
+        - channel_id
+        - deleted_by
+        - deleted_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        guild_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        deleted_by:
+          type: string
+          format: uuid
+        deleted_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageDeletedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.deleted
+            data:
+              $ref: '#/components/schemas/ChannelMessageDeletedDataV1'

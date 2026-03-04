@@ -23,7 +23,9 @@
 - DM Workspace
 - Servers Hub and Server Workspace
 - Voice/Call overlay and screen share controls
+- Attachment transfer flow
 - Migration Export/Import flow
+- Observability and SLO review surface
 
 ## State Matrix
 
@@ -36,12 +38,15 @@
 | Servers Hub | loading, empty, search_no_results, permission_denied, error |
 | Server Workspace | loading, channel_empty, permission_denied, reconnecting, error |
 | Voice/Screen Share | connecting, connected, reconnecting, quality_degraded, ended, error |
+| Attachment Transfer | loading, upload_progress, success, retryable_failure, policy_denied |
 | Migration | export_running, import_running, conflict_review, reconcile_running, completed, failed |
+| Observability/SLO Review | loading, degraded, breached, recovered |
 
 ## Policy-Driven States
 
 - DM inbound policy denied (`friends_only`, `same_server`, `anyone`) must surface deterministic reason and settings shortcut.
 - Friend request mediation must not reveal raw identity bootstrap data before acceptance.
+- DM offline outbox retries must surface deterministic states (`queued`, `retrying`, `delivered`, `failed`).
 
 ## Related Documents
 
