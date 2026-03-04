@@ -1,5 +1,20 @@
 # ADR-0002: Runtime Deployment Modes
 
+## Document Metadata
+
+- Doc ID: adr-0002-runtime-deployment-modes
+- Owner: Architecture maintainers
+- Status: accepted
+- Scope: repository
+- last_updated: 2026-03-04
+- Source of truth: `docs/architecture/adr-0002-runtime-deployment-modes.md`
+
+## Quick Context
+
+- Primary decision authority for runtime packaging and deployment mode expectations.
+- Update this ADR when runtime mode assumptions, packaging boundaries, or deployment topology changes.
+- Latest meaningful change: 2026-03-04 documented desktop local-first runtime as primary and dedicated server as optional mode.
+
 ## Status
 
 Accepted

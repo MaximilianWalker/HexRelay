@@ -4,7 +4,10 @@ info:
   title: HexRelay Realtime Events Contract
   version: 0.2.0
   description: |
-    Realtime event contract baseline for Iteration 2 and Iteration 3.
+    Target-state realtime event contract baseline for Iteration 2 and Iteration 3.
+    This file may include events not yet implemented in current runtime routing.
+    Use `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` for current
+    realtime runtime behavior.
     DM events are direct user-to-user transport events and are not relayed
     by guild/community servers.
 defaultContentType: application/json

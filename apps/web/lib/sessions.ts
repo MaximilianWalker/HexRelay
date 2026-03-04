@@ -1,6 +1,7 @@
 import { secureGetItem, secureRemoveItem, secureSetItem } from "@/lib/secure-store";
 
 const SESSION_PREFIX = "hexrelay.session.v1";
+const SESSION_TOKEN_PREFIX = "hexrelay.session.token.v1";
 const PRIVATE_KEY_PREFIX = "hexrelay.identity.private.v1";
 const MASTER_KEY_STORAGE = "hexrelay.identity.master-key.v1";
 
@@ -111,10 +112,13 @@ export function setPersonaSession(
   window.localStorage.setItem(
     `${SESSION_PREFIX}.${personaId}`,
     JSON.stringify({
-      ...value,
+      sessionId: value.sessionId,
+      expiresAt: value.expiresAt,
       updatedAt: new Date().toISOString(),
     }),
   );
+
+  window.sessionStorage.setItem(`${SESSION_TOKEN_PREFIX}.${personaId}`, value.accessToken);
 }
 
 export function getPersonaSession(
@@ -134,14 +138,36 @@ export function getPersonaSession(
       sessionId?: string;
       accessToken?: string;
       expiresAt?: string;
+      updatedAt?: string;
     };
-    if (!parsed.sessionId || !parsed.expiresAt || !parsed.accessToken) {
+    if (!parsed.sessionId || !parsed.expiresAt) {
+      return null;
+    }
+
+    let accessToken = window.sessionStorage.getItem(`${SESSION_TOKEN_PREFIX}.${personaId}`);
+    if (parsed.accessToken) {
+      if (!accessToken) {
+        accessToken = parsed.accessToken;
+        window.sessionStorage.setItem(`${SESSION_TOKEN_PREFIX}.${personaId}`, accessToken);
+      }
+
+      window.localStorage.setItem(
+        `${SESSION_PREFIX}.${personaId}`,
+        JSON.stringify({
+          sessionId: parsed.sessionId,
+          expiresAt: parsed.expiresAt,
+          updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+        }),
+      );
+    }
+
+    if (!accessToken) {
       return null;
     }
 
     return {
       sessionId: parsed.sessionId,
-      accessToken: parsed.accessToken,
+      accessToken,
       expiresAt: parsed.expiresAt,
     };
   } catch {
@@ -184,6 +210,7 @@ export function clearPersonaSession(personaId: string): void {
   }
 
   window.localStorage.removeItem(`${SESSION_PREFIX}.${personaId}`);
+  window.sessionStorage.removeItem(`${SESSION_TOKEN_PREFIX}.${personaId}`);
 }
 
 export function clearPersonaPrivateKey(personaId: string): void {

@@ -9,6 +9,12 @@
 - last_updated: 2026-03-04
 - Source of truth: `docs/testing/crypto-conformance-checklist.md`
 
+## Quick Context
+
+- Verification authority for `docs/contracts/crypto-profile-v1.md` evidence requirements.
+- Update this checklist when crypto profile requirements or evidence standards change.
+- Latest meaningful change: 2026-03-04 mapped all CP-* requirements to explicit verification steps and evidence artifacts.
+
 ## Purpose
 
 - Define per-requirement verification steps for `docs/contracts/crypto-profile-v1.md`.

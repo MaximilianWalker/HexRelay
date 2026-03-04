@@ -8,13 +8,13 @@
 - Scope: repository
 - last_updated: 2026-03-04
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
-- Board status: planned
+- Board status: in_progress
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 confidence hardening added realtime event-envelope routing, websocket contract tests, and realtime upstream transport safety defaults.
+- Latest meaningful change: 2026-03-04 metadata status aligned to active execution state and confidence hardening blocker closure.
 
 ## Iteration Scope
 
@@ -89,7 +89,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 ## Entry Criteria
 
 - Iteration 1 exit checklist is complete and OpenAPI/auth baseline is stable.
-- Realtime event/signaling contract artifact `docs/contracts/realtime-events-v1.asyncapi.yaml` is the authority before `T4.3.2` starts (resolved by `C-012`).
+- Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events-v1.asyncapi.yaml` (resolved by `C-012`).
 - Navigation implementation uses `docs/product/07-ui-navigation-spec.md` as authority.
 
 ## Exit Evidence

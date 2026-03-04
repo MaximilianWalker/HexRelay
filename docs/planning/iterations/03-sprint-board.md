@@ -68,7 +68,7 @@ Scope: Iteration 3 (Weeks 7-9) from `docs/product/01-mvp-plan.md`.
 
 - Iteration 2 messaging/realtime baseline is complete and stable.
 - TURN/NAT test environment is available before running voice quality gates.
-- Signaling contracts are versioned in `docs/contracts/realtime-events-v1.asyncapi.yaml` and available to Web and Realtime owners.
+- Signaling execution uses runtime contract `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`; target-state planning uses `docs/contracts/realtime-events-v1.asyncapi.yaml`.
 
 ## Exit Evidence
 

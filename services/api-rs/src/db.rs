@@ -1,3 +1,4 @@
+use ring::digest::{digest, SHA256};
 use sqlx::{Executor, PgPool};
 
 type Migration = (&'static str, &'static str);
@@ -38,8 +39,51 @@ pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Err
 
     ensure_migration_table(&pool).await?;
     run_migrations(&pool).await?;
+    backfill_legacy_invite_tokens(&pool).await?;
 
     Ok(pool)
+}
+
+async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error> {
+    const RUNTIME_BACKFILL_MARKER: &str = "0007_invites_hash_backfill_runtime_v1";
+
+    let already_backfilled =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM schema_migrations WHERE version = $1")
+            .bind(RUNTIME_BACKFILL_MARKER)
+            .fetch_one(pool)
+            .await?;
+
+    if already_backfilled > 0 {
+        return Ok(());
+    }
+
+    let legacy_tokens = sqlx::query_scalar::<_, String>(
+        "SELECT token FROM invites WHERE token !~ '^[0-9a-f]{64}$'",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut tx = pool.begin().await?;
+
+    for token in legacy_tokens {
+        let hashed = hex::encode(digest(&SHA256, token.as_bytes()).as_ref());
+        sqlx::query("UPDATE invites SET token = $1 WHERE token = $2")
+            .bind(hashed)
+            .bind(token)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    sqlx::query(
+        "INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
+    )
+    .bind(RUNTIME_BACKFILL_MARKER)
+    .bind("runtime-backfill-v1")
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(())
 }
 
 async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -102,7 +146,11 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
         }
 
         let mut tx = pool.begin().await?;
-        tx.execute(*sql).await?;
+        // Migration 0007 is intentionally backfilled by runtime code to avoid
+        // requiring DB extension install privileges on startup.
+        if *version != "0007_invites_hash_backfill" {
+            tx.execute(*sql).await?;
+        }
         sqlx::query("INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)")
             .bind(*version)
             .bind(checksum)
@@ -120,15 +168,30 @@ mod tests {
 
     use ring::digest::{digest, SHA256};
 
-    use super::{connect_and_prepare, run_migrations};
+    use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations};
 
     async fn prepare_test_pool() -> Option<PgPool> {
         let url = match env::var("API_DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
-            _ => return None,
+            _ => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "API_DATABASE_URL must be set in CI"
+                );
+                return None;
+            }
         };
 
-        connect_and_prepare(&url).await.ok()
+        match connect_and_prepare(&url).await {
+            Ok(pool) => Some(pool),
+            Err(error) => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "failed to prepare DB in CI: {error}"
+                );
+                None
+            }
+        }
     }
 
     use sqlx::PgPool;
@@ -146,6 +209,10 @@ mod tests {
             .await;
 
         if update.is_err() {
+            assert!(
+                env::var("CI").is_err(),
+                "failed to prepare checksum mismatch setup in CI"
+            );
             return;
         }
 
@@ -180,6 +247,20 @@ mod tests {
         };
 
         let plaintext_token = "legacy-token-backfill-test";
+        sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
+            .bind("0007_invites_hash_backfill_runtime_v1")
+            .execute(&pool)
+            .await
+            .expect("clear runtime backfill marker");
+
+        let expected_hash = hex::encode(digest(&SHA256, plaintext_token.as_bytes()).as_ref());
+        sqlx::query("DELETE FROM invites WHERE token = $1 OR token = $2")
+            .bind(plaintext_token)
+            .bind(&expected_hash)
+            .execute(&pool)
+            .await
+            .expect("clear legacy and hashed invite test rows");
+
         let insert = sqlx::query(
             "
             INSERT INTO invites (token, mode, node_fingerprint, uses)
@@ -192,18 +273,16 @@ mod tests {
         .await;
 
         if insert.is_err() {
+            assert!(
+                env::var("CI").is_err(),
+                "failed to seed legacy invite token in CI"
+            );
             return;
         }
 
-        sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
-            .bind("0007_invites_hash_backfill")
-            .execute(&pool)
+        backfill_legacy_invite_tokens(&pool)
             .await
-            .expect("clear 0007 migration marker");
-
-        run_migrations(&pool)
-            .await
-            .expect("re-run invite hash backfill migration");
+            .expect("run invite hash backfill");
 
         let legacy_exists =
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
@@ -213,7 +292,6 @@ mod tests {
                 .expect("count plaintext invite token");
         assert_eq!(legacy_exists, 0);
 
-        let expected_hash = hex::encode(digest(&SHA256, plaintext_token.as_bytes()).as_ref());
         let hashed_exists =
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
                 .bind(expected_hash)

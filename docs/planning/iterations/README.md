@@ -71,7 +71,7 @@
 | Iteration | Required artifacts before execution | Evidence owner |
 |---|---|---|
 | Iteration 1 | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`, MVP Crypto Profile v1 alignment | API/Core |
-| Iteration 2 | `docs/contracts/mvp-rest-v1.openapi.yaml`, navigation spec trace matrix, E2EE group DM task set, `docs/contracts/realtime-events-v1.asyncapi.yaml` | Web/Core/Realtime/API |
+| Iteration 2 | Runtime contracts (`docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`, `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`), target-state model contracts (`docs/contracts/mvp-rest-v1.openapi.yaml`, `docs/contracts/realtime-events-v1.asyncapi.yaml`), navigation spec trace matrix, E2EE group DM task set | Web/Core/Realtime/API |
 | Iteration 3 | TURN/NAT test environment and voice quality test profile | Platform/Realtime |
 | Iteration 4 | Migration conflict policy, bundle schema/version compatibility rules, SLO alert test profile, `docs/testing/01-mvp-verification-matrix.md` | API/Core/Platform/QA |
 

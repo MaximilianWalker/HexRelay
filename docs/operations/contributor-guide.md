@@ -53,7 +53,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
-- Web gate runs `lint`, `test`, and `build` for `apps/web`.
+- Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
 - Missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
 
 ## Docs QA Checklist

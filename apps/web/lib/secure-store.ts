@@ -31,15 +31,33 @@ export async function secureGetItem(key: string): Promise<string | null> {
 
   const provider = resolveProvider();
   if (provider) {
+    const fallbackValue = window.localStorage.getItem(fallbackKey(key));
+
     try {
       const providerValue = await provider.getItem(key);
-      if (providerValue !== null) {
-        return providerValue;
+
+      if (fallbackValue !== null) {
+        let synced = providerValue === fallbackValue;
+
+        if (!synced) {
+          try {
+            await provider.setItem(key, fallbackValue);
+            synced = true;
+          } catch {
+            // keep fallback value as source of truth when provider update fails
+          }
+        }
+
+        if (synced) {
+          window.localStorage.removeItem(fallbackKey(key));
+        }
+
+        return fallbackValue;
       }
 
-      return window.localStorage.getItem(fallbackKey(key));
+      return providerValue;
     } catch {
-      return window.localStorage.getItem(fallbackKey(key));
+      return fallbackValue;
     }
   }
 
@@ -55,6 +73,7 @@ export async function secureSetItem(key: string, value: string): Promise<void> {
   if (provider) {
     try {
       await provider.setItem(key, value);
+      window.localStorage.removeItem(fallbackKey(key));
       return;
     } catch {
       window.localStorage.setItem(fallbackKey(key), value);

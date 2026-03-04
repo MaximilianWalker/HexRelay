@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added explicit desktop-local and dedicated-server runtime/deployment documentation routing.
+- Latest meaningful change: 2026-03-04 split current runtime contracts from target-state model contracts to reduce contract drift ambiguity.
 
 ## Purpose
 
@@ -26,10 +26,11 @@
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
-| Iteration 1 API contract baseline | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any identity/auth/invite schema or error contract change |
+| Current runtime REST contract baseline (filename legacy; scope tracks all currently implemented endpoints) | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
 | MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
-| MVP REST contract coverage baseline | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Any social/messaging/discovery/migration REST schema or behavior change |
-| Realtime event/signaling contract baseline | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Any websocket/signaling event schema change |
+| Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
+| Target-state MVP REST contract model | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
+| Target-state realtime event/signaling model | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Default values, ranges, or override policy changes |
@@ -80,6 +81,8 @@
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
 - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- `docs/contracts/README.md`
+- `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - `docs/contracts/crypto-profile-v1.md`
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`

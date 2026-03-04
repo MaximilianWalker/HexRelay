@@ -1,0 +1,117 @@
+asyncapi: 3.0.0
+id: urn:hexrelay:contracts:realtime-events-runtime:v1
+info:
+  title: HexRelay Realtime Runtime Contract
+  version: 1.0.0
+  description: |
+    Runtime realtime contract currently implemented by `services/realtime-rs`.
+    This contract only includes event types supported in live websocket routing.
+defaultContentType: application/json
+channels:
+  callSignalOffer:
+    address: call.signal.offer
+    messages:
+      callSignalOfferV1:
+        $ref: '#/components/messages/CallSignalOfferV1'
+  callSignalAnswer:
+    address: call.signal.answer
+    messages:
+      callSignalAnswerV1:
+        $ref: '#/components/messages/CallSignalAnswerV1'
+  callSignalIceCandidate:
+    address: call.signal.ice_candidate
+    messages:
+      callSignalIceCandidateV1:
+        $ref: '#/components/messages/CallSignalIceCandidateV1'
+operations:
+  sendCallSignalOffer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalOffer'
+    messages:
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+  sendCallSignalAnswer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalAnswer'
+    messages:
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+  sendCallSignalIceCandidate:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalIceCandidate'
+    messages:
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+components:
+  messages:
+    CallSignalOfferV1:
+      payload:
+        $ref: '#/components/schemas/CallSignalOfferEventV1'
+    CallSignalAnswerV1:
+      payload:
+        $ref: '#/components/schemas/CallSignalAnswerEventV1'
+    CallSignalIceCandidateV1:
+      payload:
+        $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
+  schemas:
+    EventEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      properties:
+        event_id: { type: string }
+        event_type: { type: string }
+        event_version: { type: integer, enum: [1] }
+        occurred_at: { type: string, format: date-time }
+        correlation_id: { type: string }
+        producer: { type: string, enum: [realtime-gateway] }
+    CallSignalOfferDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, sdp_offer]
+      properties:
+        call_id: { type: string }
+        from_user_id: { type: string }
+        to_user_id: { type: string }
+        sdp_offer: { type: string }
+    CallSignalAnswerDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, sdp_answer]
+      properties:
+        call_id: { type: string }
+        from_user_id: { type: string }
+        to_user_id: { type: string }
+        sdp_answer: { type: string }
+    CallSignalIceCandidateDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_user_id, to_user_id, candidate]
+      properties:
+        call_id: { type: string }
+        from_user_id: { type: string }
+        to_user_id: { type: string }
+        candidate: { type: string }
+        sdp_mid: { type: string, nullable: true }
+        sdp_mline_index: { type: integer, nullable: true }
+    CallSignalOfferEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.offer }
+            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
+    CallSignalAnswerEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.answer }
+            data: { $ref: '#/components/schemas/CallSignalAnswerDataV1' }
+    CallSignalIceCandidateEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.ice_candidate }
+            data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }

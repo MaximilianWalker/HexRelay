@@ -3,9 +3,11 @@ info:
   title: HexRelay MVP REST API
   version: 0.2.0
   description: |
-    MVP REST contract coverage for Iterations 2-4.
-    This contract defines canonical request/response shapes, error semantics,
-    auth requirements, and pagination/idempotency conventions.
+    Target-state MVP REST contract coverage for Iterations 2-4.
+    This file is a planning model contract and may include endpoints or schemas
+    not yet implemented in the current runtime.
+    Use `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` for
+    current runtime REST behavior.
 servers:
   - url: https://api.hexrelay.local
 security:

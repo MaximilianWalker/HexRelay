@@ -157,10 +157,25 @@ mod tests {
     async fn app_with_database() -> Option<axum::Router> {
         let database_url = match env::var("API_DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
-            _ => return None,
+            _ => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "API_DATABASE_URL must be set in CI"
+                );
+                return None;
+            }
         };
 
-        let pool = connect_and_prepare(&database_url).await.ok()?;
+        let pool = match connect_and_prepare(&database_url).await {
+            Ok(value) => value,
+            Err(error) => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "failed to prepare DB in CI: {error}"
+                );
+                return None;
+            }
+        };
         Some(build_app(AppState::default().with_db_pool(pool)))
     }
 

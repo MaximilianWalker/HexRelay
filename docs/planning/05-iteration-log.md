@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 confidence hardening expanded realtime contract routing, websocket schema/error tests, and realtime->api transport safety defaults.
+- Latest meaningful change: 2026-03-04 confidence hardening closed independent-audit blockers for contract authority split, session/key storage safety, and invite hash migration validation.
 
 ## Purpose
 
@@ -29,6 +29,41 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (confidence hardening: independent-audit blocker closure)
+
+- Area affected: Readiness blocker remediation
+- Change summary:
+  - Split current-runtime contracts and target-state model contracts by adding a contracts index and runtime realtime contract artifact.
+  - Updated docs index routing so runtime behavior references runtime contracts while roadmap contracts remain explicitly model-only.
+  - Added missing metadata/Quick Context blocks for runtime ADR and crypto contract/checklist docs, and linked the crypto checklist from testing index.
+  - Updated sprint board metadata statuses to match active execution state for Iteration 1 and 2.
+  - Reconciled stale Iteration 1 board notes that still described identity/session persistence as in-memory.
+  - Added dedicated-server restore evidence contract requirements in runbook.
+  - Added license artifact for documented AGPL baseline.
+  - Reduced session token exposure persistence by storing access tokens in `sessionStorage` while keeping session metadata in local storage.
+  - Enforced DB test confidence in CI by failing when `API_DATABASE_URL` is missing under CI context.
+- Rationale:
+  - Resolve independent hard-pass blockers that were not stylistic and materially affected confidence.
+- Linked docs updated:
+  - `docs/contracts/README.md`
+  - `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
+  - `docs/contracts/crypto-profile-v1.md`
+  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+  - `docs/README.md`
+  - `docs/operations/01-mvp-runbook.md`
+  - `docs/operations/contributor-guide.md`
+  - `docs/testing/README.md`
+  - `docs/testing/crypto-conformance-checklist.md`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `LICENSE`
+  - `apps/web/lib/sessions.ts`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/src/db.rs`
 
 ### 2026-03-04 (confidence hardening: realtime contract and transport safety)
 

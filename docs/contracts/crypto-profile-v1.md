@@ -9,6 +9,12 @@
 - last_updated: 2026-03-04
 - Source of truth: `docs/contracts/crypto-profile-v1.md`
 
+## Quick Context
+
+- Runtime crypto contract authority for MVP identity/auth and E2EE interoperability requirements.
+- Update this file when algorithm, nonce/replay, key-rotation, or crypto error-code requirements change.
+- Latest meaningful change: 2026-03-04 standardized executable MVP crypto requirements and deterministic invalid-code expectations.
+
 ## Purpose
 
 - Define executable crypto requirements for MVP auth and E2EE DM interoperability.

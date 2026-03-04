@@ -18,3 +18,4 @@
 ## Contents
 
 - MVP verification matrix: `docs/testing/01-mvp-verification-matrix.md`
+- Crypto conformance checklist: `docs/testing/crypto-conformance-checklist.md`

@@ -44,6 +44,44 @@
   3. Start realtime service and verify `GET /health` returns 200.
   4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
 
+### Dedicated Server Bring-Up (Command Baseline)
+
+1. Load environment values from `.env` (or export directly):
+
+```bash
+set -a; source .env; set +a
+```
+
+2. Start API service:
+
+```bash
+cargo run --manifest-path services/api-rs/Cargo.toml
+```
+
+3. In a second shell, verify API health:
+
+```bash
+curl -fsS "http://$API_BIND/health"
+```
+
+4. Start realtime service:
+
+```bash
+cargo run --manifest-path services/realtime-rs/Cargo.toml
+```
+
+5. In a third shell, verify realtime health:
+
+```bash
+curl -fsS "http://$REALTIME_BIND/health"
+```
+
+6. Run smoke validation against running services:
+
+```bash
+npm --prefix apps/web run e2e:smoke
+```
+
 ## TLS and Network Boundary Assumptions
 
 - External dedicated deployments terminate TLS at ingress/reverse proxy.
@@ -62,11 +100,28 @@
   - Session validate endpoint works with existing active token.
   - Realtime websocket auth handshake passes with valid bearer token.
 
+### Rollback Procedure (Single Node)
+
+1. Stop realtime service.
+2. Stop API service.
+3. Deploy previous known-good build artifacts.
+4. Start API then realtime using the bring-up command baseline.
+5. Re-run smoke validation and archive logs for incident evidence.
+
 ## Backup and Restore
 
 - Back up database snapshots and object storage indexes.
 - Verify restore quarterly in staging.
 - Migration restore validation must include signature verification and reconcile logs.
+
+### Restore Evidence Contract
+
+- Store restore drill artifacts under `evidence/operations/restore-drills/<YYYY-MM-DD>/`.
+- Minimum required files:
+  - `restore-commands.txt` (executed commands in order)
+  - `health-checks.txt` (`/health` and smoke outputs)
+  - `migration-state.txt` (`schema_migrations` checksum snapshot)
+  - `incident-notes.md` (what failed, what was fixed, final status)
 
 ## SLO Breach Response
 
