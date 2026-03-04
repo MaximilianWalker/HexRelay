@@ -14,11 +14,19 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-04 locked direct peer DM transport and best-effort offline retry semantics.
+- Latest meaningful change: 2026-03-04 locked primary runtime to downloadable desktop local-first mode with optional dedicated server deployments.
 
 ## Product Summary
 
 HexRelay is an open-source, self-hostable communication platform with a modern Discord-like experience and strong user ownership guarantees. The MVP focuses on portable identity, encrypted direct messaging, high-quality voice/screen share, and reliable migration across devices and servers without centralized account infrastructure.
+
+## Runtime and Deployment Model
+
+- Primary product target is a downloadable desktop app that can run off-grid.
+- Desktop distribution bundles UI with local API and realtime runtime components.
+- Local runtime allows UI launch either inside desktop shell or in a local browser session on localhost.
+- Dedicated server deployments are supported as an optional operator mode.
+- Browser-only hosted usage is a compatibility mode, not the core product assumption.
 
 ## Vision
 
@@ -199,7 +207,7 @@ Build a communication stack where users and communities control identity, data l
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, WebRTC + coturn.
-- Hosting: self-hosted local or VPS nodes; public/private listing choice per node.
+- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS.
 
 ## Success Metrics (MVP)
 
@@ -226,4 +234,5 @@ Build a communication stack where users and communities control identity, data l
 - `docs/README.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
+- `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/reference/glossary.md`

@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 development scaffold, infra stack, and CI bootstrap completed.
+- Latest meaningful change: 2026-03-04 locked runtime model to bundled desktop local-first mode with optional dedicated server deployment.
 
 ## Project Stage
 
@@ -26,6 +26,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Implement Iteration 1 foundations on top of the committed scaffolds.
 - Keep decentralization phased so core UX quality is not blocked.
 - Maintain portability/export-import guarantees across identity and data flows.
+
+## Runtime Model (Locked)
+
+- Primary product mode is a downloadable desktop app that runs off-grid without a central hosted control plane.
+- Desktop distribution bundles UI plus local API/realtime runtime components.
+- Local install supports two UI entry options: embedded desktop window and optional local-browser access to the same local runtime.
+- Users can run dedicated server deployments (headless API/realtime) as an optional advanced mode.
+- Architecture stays multi-component at runtime (UI, API service, realtime service) even when distributed as one installer.
 
 ## Start Here
 

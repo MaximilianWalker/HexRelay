@@ -13,7 +13,7 @@
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-03-04 execution-hardening pass added explicit defaults register.
+- Latest meaningful change: 2026-03-04 added runtime mode defaults for desktop local-first and dedicated server operation.
 
 ## Override Precedence
 
@@ -37,6 +37,8 @@
 | `retention.message_days` | `null` | integer >= 1 or `null` | server |
 | `ui.server_nav_mode` | `sidebar` | `sidebar`, `topbar` | device |
 | `ui.server_nav_visibility` | `expanded` | `expanded`, `collapsed`, `hidden` | device |
+| `runtime.mode` | `desktop_local` | `desktop_local`, `dedicated_server` | deployment |
+| `runtime.desktop.start_local_services` | `true` | `true`, `false` | device |
 
 ## Related Documents
 

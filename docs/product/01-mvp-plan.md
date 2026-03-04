@@ -16,14 +16,14 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-04 locked direct peer DM transport with best-effort offline retry policy.
+- Latest meaningful change: 2026-03-04 locked primary runtime to bundled desktop local-first mode with optional dedicated server deployment.
 
 ## 1) Product Intent and Constraints
 
 - Free core forever: friends, DMs, servers/channels, voice, file sharing.
 - Open source first: no lock-in to a central hosted platform.
 - Hybrid operation: each node can run locally or on a VPS; federation/discovery evolves in phases.
-- Fast, modern UX: responsive web client first, native wrappers later.
+- Fast, modern UX: desktop-first distribution with reusable web UI surfaces.
 - Rust-first backend: performance, safety, and long-term maintainability.
 
 ## 1.1) Locked Product Decisions (Founder Input)
@@ -63,13 +63,22 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked privacy-first social policy: mediated friend requests, no default key/profile scraping, and opt-in DM permissions.
 - 2026-03-04: Locked DM transport to direct user-to-user channels; guild servers do not relay/store DM payloads.
 - 2026-03-04: Locked MVP DM offline policy to best-effort online delivery with encrypted local outbox retries.
+- 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
+
+## 1.3) Runtime and Deployment Modes (Locked)
+
+- Primary mode is a downloadable desktop app where each user can run HexRelay off-grid.
+- Desktop packaging bundles UI plus local API/realtime runtime components.
+- Dedicated server mode is supported for operators who want headless hosting.
+- Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when distributed as one installer.
+- Browser-only usage is a compatibility path, not the primary runtime target.
 
 ## 2) Architecture Decision (Locked)
 
 ### Frontend
 
 - Web app: Next.js + TypeScript.
-- Why: fastest delivery for a polished UX and broad contributor adoption.
+- Why: reusable UI layer for desktop shell distribution and optional browser compatibility.
 
 ### Backend/Core
 
@@ -414,5 +423,6 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - `docs/product/02-prd-v1.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
+- `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/README.md`
 - `docs/reference/glossary.md`

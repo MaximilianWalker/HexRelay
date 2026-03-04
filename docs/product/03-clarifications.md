@@ -13,7 +13,7 @@
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-03-04 locked DM offline behavior to best-effort online with encrypted local outbox retries.
+- Latest meaningful change: 2026-03-04 locked runtime/deployment model to bundled desktop local-first with optional dedicated server mode.
 
 ## Purpose
 
@@ -56,6 +56,7 @@
 - C-018 (resolved 2026-03-04): Server-mediated friend requests are intent-based, raw key/profile-identifying data is not exposed by default, and DM inbound policy defaults to friends-only with user opt-in overrides.
 - C-019 (resolved 2026-03-04): DMs use direct user-to-user transport and are not relayed or stored by guild/community servers.
 - C-020 (resolved 2026-03-04): MVP DM offline behavior is best-effort online delivery with encrypted local outbox retries and no guaranteed offline queue.
+- C-021 (resolved 2026-03-04): Primary runtime is downloadable desktop local-first; dedicated server deployments remain a supported optional mode.
 
 ## Related Documents
 

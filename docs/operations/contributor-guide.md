@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-04 documentation standardization pass.
+- Latest meaningful change: 2026-03-04 clarified contributor expectations for desktop local-first plus dedicated server runtime modes.
 
 ## Purpose
 
@@ -22,9 +22,9 @@
 
 ## Repository State
 
-- Current state is documentation-first.
-- Implementation scaffold is planned in Iteration 1 and not fully committed yet.
-- Until scaffold lands, documentation changes are valid contributions.
+- Current state includes active implementation across web, API, and realtime services.
+- Primary product runtime target is bundled desktop local-first operation.
+- Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
 
 ## Branch and PR Workflow
 

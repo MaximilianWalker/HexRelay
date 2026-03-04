@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 documentation standardization pass.
+- Latest meaningful change: 2026-03-04 added runtime/deployment mode terms for desktop local-first and dedicated server operation.
 
 ## Terms
 
@@ -31,6 +31,9 @@
 - Mediated friend request: Server-routed contact request where identity bootstrap data is shared only after recipient acceptance.
 - DM inbound policy: Per-user rule controlling who can start DMs (default friends-only, optional same-server or anyone).
 - DM offline outbox: Encrypted local sender queue used for best-effort retries when recipient is offline.
+- Desktop local-first mode: Default runtime where the installed desktop app starts UI plus local API/realtime services for off-grid operation.
+- Dedicated server mode: Optional headless deployment where API/realtime services run as a standalone node and clients connect remotely.
+- Runtime components: Distinct executable boundaries (`apps/web`, `services/api-rs`, `services/realtime-rs`) that may ship in one installer but do not become one process.
 
 ## Related Documents
 

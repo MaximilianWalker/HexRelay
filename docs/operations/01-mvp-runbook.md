@@ -13,11 +13,15 @@
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-04 execution-hardening pass added MVP runbook baseline.
+- Latest meaningful change: 2026-03-04 added operating modes for desktop local-first runtime and dedicated server deployments.
 
 ## Core Procedures
 
 - Startup verification: `docker compose up -d` + health checks for Postgres/Redis/storage/coturn.
+- Mode selection:
+  - Desktop local-first: user runs bundled app with local API/realtime services.
+    - UI launch options: embedded desktop window or local browser against localhost.
+  - Dedicated server: operator runs headless API/realtime services for remote clients.
 - Incident triage:
   - auth failure spike
   - message delivery degradation

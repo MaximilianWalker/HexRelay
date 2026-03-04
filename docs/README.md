@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added MVP crypto profile contract and crypto conformance checklist routing.
+- Latest meaningful change: 2026-03-04 added explicit desktop-local and dedicated-server runtime/deployment documentation routing.
 
 ## Purpose
 
@@ -24,6 +24,7 @@
 | Topic | Canonical document | Owner | Update trigger |
 |---|---|---|---|
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
+| Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
 | Iteration 1 API contract baseline | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any identity/auth/invite schema or error contract change |
 | MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
@@ -83,6 +84,7 @@
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/testing/01-mvp-verification-matrix.md`

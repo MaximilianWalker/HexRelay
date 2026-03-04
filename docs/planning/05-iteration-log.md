@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 execution batch started T3.1.2/T3.1.3 UX refinement and added cross-service smoke CI for web->api->realtime flow.
+- Latest meaningful change: 2026-03-04 documentation alignment locked desktop local-first runtime and dedicated-server deployment model across product/architecture/operations docs.
 
 ## Purpose
 
@@ -29,6 +29,33 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (documentation alignment: runtime/deployment model)
+
+- Area affected: Product and architecture context clarity
+- Change summary:
+  - Locked and documented primary runtime as bundled desktop local-first mode.
+  - Added explicit local UI launch options: embedded desktop shell or local-browser access on localhost.
+  - Documented dedicated server mode as supported optional deployment path.
+  - Added ADR-0002 for runtime/deployment modes and aligned README, product, operations, and service docs.
+- Rationale:
+  - Remove ambiguity about browser-only hosted assumptions and keep implementation decisions aligned with off-grid desktop goals.
+- Linked docs updated:
+  - `README.md`
+  - `docs/README.md`
+  - `docs/architecture/README.md`
+  - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/09-configuration-defaults-register.md`
+  - `docs/reference/glossary.md`
+  - `docs/operations/01-mvp-runbook.md`
+  - `docs/operations/contributor-guide.md`
+  - `apps/web/README.md`
+  - `services/api-rs/README.md`
+  - `services/realtime-rs/README.md`
+  - `AGENTS.md`
 
 ### 2026-03-04 (execution batch: contacts optimism, invite UX, cross-service smoke gate)
 

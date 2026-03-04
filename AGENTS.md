@@ -7,7 +7,7 @@ Only project-specific constraints are defined here.
 
 - Primary goal: build an open-source, Discord-like communication platform with strong user data ownership.
 - MVP focus: reliable friends, DMs, guild channels, and voice before federation complexity.
-- Architecture baseline: Rust-first backend services with a web-first client.
+- Architecture baseline: Rust-first backend services with desktop local-first runtime packaging and reusable web UI layer.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
 
 ## 2) Editing Boundaries
