@@ -30,6 +30,29 @@
 
 ## Log Entries
 
+### 2026-03-04 (migration governance and transition-matrix hardening)
+
+- Area affected: Iteration 2 social graph hardening (`T3.1.1`)
+- Change summary:
+  - Added versioned migration runner with tracked `schema_migrations` table and explicit migration files for friend-request schema/indexes.
+  - Added centralized Axum `AuthSession` extractor and rewired friend-request handlers to use shared auth context instead of duplicated header parsing.
+  - Added strict transition matrix behavior for friend requests: pending-only mutations, requester-only cancel, target-only accept/decline.
+  - Added idempotent semantics for repeated same terminal action and `409 transition_invalid` for conflicting non-pending transitions.
+  - Extended tests for missing session auth, wrong actor rejection, cancel flow, and conflicting transition rejection.
+- Rationale:
+  - Enforce durable schema evolution and deterministic social-graph mutation rules before scaling social features.
+- Linked docs updated:
+  - `services/api-rs/src/auth.rs`
+  - `services/api-rs/src/db.rs`
+  - `services/api-rs/src/app.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/lib.rs`
+  - `services/api-rs/src/errors.rs`
+  - `services/api-rs/migrations/0001_friend_requests.sql`
+  - `services/api-rs/migrations/0002_friend_requests_transition_index.sql`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
 ### 2026-03-04 (friend request Postgres persistence hardening)
 
 - Area affected: Iteration 2 social graph persistence (`T3.1.1`)

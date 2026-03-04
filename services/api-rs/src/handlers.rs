@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthSession,
-    errors::{bad_request, unauthorized, ApiResult},
+    errors::{bad_request, conflict, unauthorized, ApiResult},
     models::{
         AuthChallengeRecord, AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest,
         AuthVerifyResponse, ContactListQuery, ContactListResponse, ContactSummary,
@@ -530,16 +530,21 @@ pub async fn accept_friend_request(
     let actor_identity = auth.identity_id;
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let updated =
-            update_friend_request_status_db(pool, &request_id, "accepted", &actor_identity)
-                .await
-                .map_err(map_friend_request_db_error)?
-                .ok_or_else(|| {
-                    bad_request(
-                        "identity_invalid",
-                        "friend request not found or not actionable by current session",
-                    )
-                })?;
+        let updated = update_friend_request_status_db(
+            pool,
+            &request_id,
+            "accepted",
+            &actor_identity,
+            ActorRole::Target,
+        )
+        .await
+        .map_err(map_friend_request_db_error)?
+        .ok_or_else(|| {
+            bad_request(
+                "identity_invalid",
+                "friend request not found or not actionable by current session",
+            )
+        })?;
         return Ok(Json(updated));
     }
 
@@ -552,21 +557,13 @@ pub async fn accept_friend_request(
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
 
-    if request.target_identity_id != actor_identity {
-        return Err(unauthorized(
-            "identity_invalid",
-            "friend request cannot be accepted by this session",
-        ));
-    }
+    apply_friend_request_transition_in_memory(
+        request,
+        "accepted",
+        &actor_identity,
+        ActorRole::Target,
+    )?;
 
-    if request.status != "pending" {
-        return Err(bad_request(
-            "identity_invalid",
-            "friend request is not pending",
-        ));
-    }
-
-    request.status = "accepted".to_string();
     Ok(Json(request.clone()))
 }
 
@@ -578,10 +575,15 @@ pub async fn decline_friend_request(
     let actor_identity = auth.identity_id;
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let updated =
-            update_friend_request_status_db(pool, &request_id, "declined", &actor_identity)
-                .await
-                .map_err(map_friend_request_db_error)?;
+        let updated = update_friend_request_status_db(
+            pool,
+            &request_id,
+            "declined",
+            &actor_identity,
+            ActorRole::Target,
+        )
+        .await
+        .map_err(map_friend_request_db_error)?;
 
         if updated.is_none() {
             return Err(bad_request(
@@ -602,21 +604,60 @@ pub async fn decline_friend_request(
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
 
-    if request.target_identity_id != actor_identity {
-        return Err(unauthorized(
-            "identity_invalid",
-            "friend request cannot be declined by this session",
-        ));
+    apply_friend_request_transition_in_memory(
+        request,
+        "declined",
+        &actor_identity,
+        ActorRole::Target,
+    )?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn cancel_friend_request(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::extract::Path(request_id): axum::extract::Path<String>,
+) -> ApiResult<StatusCode> {
+    let actor_identity = auth.identity_id;
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let updated = update_friend_request_status_db(
+            pool,
+            &request_id,
+            "cancelled",
+            &actor_identity,
+            ActorRole::Requester,
+        )
+        .await
+        .map_err(map_friend_request_db_error)?;
+
+        if updated.is_none() {
+            return Err(bad_request(
+                "identity_invalid",
+                "friend request not found or not actionable by current session",
+            ));
+        }
+
+        return Ok(StatusCode::NO_CONTENT);
     }
 
-    if request.status != "pending" {
-        return Err(bad_request(
-            "identity_invalid",
-            "friend request is not pending",
-        ));
-    }
+    let mut guard = state
+        .friend_requests
+        .write()
+        .expect("acquire friend request write lock");
 
-    request.status = "declined".to_string();
+    let request = guard
+        .get_mut(&request_id)
+        .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    apply_friend_request_transition_in_memory(
+        request,
+        "cancelled",
+        &actor_identity,
+        ActorRole::Requester,
+    )?;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -714,18 +755,54 @@ async fn update_friend_request_status_db(
     request_id: &str,
     next_status: &str,
     actor_identity_id: &str,
+    actor_role: ActorRole,
 ) -> Result<Option<FriendRequestRecord>, sqlx::Error> {
+    let maybe_existing = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE request_id = $1
+        ",
+    )
+    .bind(request_id)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(existing_row) = maybe_existing else {
+        return Ok(None);
+    };
+
+    let existing = FriendRequestRecord {
+        request_id: existing_row.try_get::<String, _>("request_id")?,
+        requester_identity_id: existing_row.try_get::<String, _>("requester_identity_id")?,
+        target_identity_id: existing_row.try_get::<String, _>("target_identity_id")?,
+        status: existing_row.try_get::<String, _>("status")?,
+        created_at: existing_row
+            .try_get::<chrono::DateTime<Utc>, _>("created_at")?
+            .to_rfc3339(),
+    };
+
+    assert_actor_can_transition(&existing, actor_identity_id, actor_role)
+        .map_err(|_| sqlx::Error::Protocol("actor_not_authorized".to_string()))?;
+
+    if existing.status == next_status {
+        return Ok(Some(existing));
+    }
+
+    if existing.status != "pending" {
+        return Err(sqlx::Error::Protocol("transition_invalid".to_string()));
+    }
+
     let maybe_row = sqlx::query(
         "
         UPDATE friend_requests
         SET status = $2
-        WHERE request_id = $1 AND target_identity_id = $3 AND status = 'pending'
+        WHERE request_id = $1 AND status = 'pending'
         RETURNING request_id, requester_identity_id, target_identity_id, status, created_at
         ",
     )
     .bind(request_id)
     .bind(next_status)
-    .bind(actor_identity_id)
     .fetch_optional(pool)
     .await?;
 
@@ -751,5 +828,70 @@ fn map_friend_request_db_error(error: sqlx::Error) -> (StatusCode, Json<crate::m
         }
     }
 
+    if let sqlx::Error::Protocol(message) = &error {
+        if message == "transition_invalid" {
+            return conflict(
+                "transition_invalid",
+                "friend request transition is not allowed from current state",
+            );
+        }
+
+        if message == "actor_not_authorized" {
+            return unauthorized(
+                "identity_invalid",
+                "friend request cannot be mutated by this session",
+            );
+        }
+    }
+
     bad_request("identity_invalid", "friend request storage failure")
+}
+
+#[derive(Clone, Copy)]
+enum ActorRole {
+    Requester,
+    Target,
+}
+
+fn apply_friend_request_transition_in_memory(
+    request: &mut FriendRequestRecord,
+    next_status: &str,
+    actor_identity: &str,
+    actor_role: ActorRole,
+) -> ApiResult<()> {
+    assert_actor_can_transition(request, actor_identity, actor_role)?;
+
+    if request.status == next_status {
+        return Ok(());
+    }
+
+    if request.status != "pending" {
+        return Err(conflict(
+            "transition_invalid",
+            "friend request transition is not allowed from current state",
+        ));
+    }
+
+    request.status = next_status.to_string();
+    Ok(())
+}
+
+fn assert_actor_can_transition(
+    request: &FriendRequestRecord,
+    actor_identity: &str,
+    actor_role: ActorRole,
+) -> ApiResult<()> {
+    let allowed = match actor_role {
+        ActorRole::Requester => request.requester_identity_id == actor_identity,
+        ActorRole::Target => request.target_identity_id == actor_identity,
+    };
+
+    if !allowed {
+        return Err(unauthorized(
+            "identity_invalid",
+            "friend request cannot be mutated by this session",
+        ));
+    }
+
+    Ok(())
 }

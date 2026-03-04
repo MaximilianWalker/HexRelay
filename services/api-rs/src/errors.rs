@@ -11,3 +11,7 @@ pub fn bad_request(code: &'static str, message: &'static str) -> (StatusCode, Js
 pub fn unauthorized(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
     (StatusCode::UNAUTHORIZED, Json(ApiError { code, message }))
 }
+
+pub fn conflict(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
+    (StatusCode::CONFLICT, Json(ApiError { code, message }))
+}
