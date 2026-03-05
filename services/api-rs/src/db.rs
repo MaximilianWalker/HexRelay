@@ -1,5 +1,5 @@
 use ring::digest::{digest, SHA256};
-use sqlx::{Executor, PgPool};
+use sqlx::{pool::PoolConnection, Acquire, Executor, PgPool, Postgres};
 
 type Migration = (&'static str, &'static str);
 
@@ -115,14 +115,16 @@ async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
 }
 
 async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let mut connection = pool.acquire().await?;
+
     sqlx::query("SELECT pg_advisory_lock(9176412301)")
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
 
-    let result = run_migrations_inner(pool).await;
+    let result = run_migrations_inner(&mut connection).await;
 
     let unlock_result = sqlx::query("SELECT pg_advisory_unlock(9176412301)")
-        .execute(pool)
+        .execute(&mut *connection)
         .await;
 
     match (result, unlock_result) {
@@ -132,15 +134,17 @@ async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     }
 }
 
-async fn run_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
+async fn run_migrations_inner(
+    connection: &mut PoolConnection<Postgres>,
+) -> Result<(), sqlx::Error> {
     for (version, sql) in MIGRATIONS {
         let checksum = format!("{:016x}", seahash::hash(sql.as_bytes()));
 
-        let existing_checksum = sqlx::query_scalar::<_, Option<String>>(
+        let existing_checksum = sqlx::query_scalar::<_, String>(
             "SELECT checksum FROM schema_migrations WHERE version = $1",
         )
         .bind(*version)
-        .fetch_one(pool)
+        .fetch_optional(&mut **connection)
         .await?;
 
         if let Some(existing_checksum) = existing_checksum {
@@ -153,7 +157,7 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
             continue;
         }
 
-        let mut tx = pool.begin().await?;
+        let mut tx = connection.begin().await?;
         // Migration 0007 is intentionally backfilled by runtime code to avoid
         // requiring DB extension install privileges on startup.
         if *version != "0007_invites_hash_backfill" {
