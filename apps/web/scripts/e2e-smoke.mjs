@@ -3,6 +3,7 @@ import WebSocket from "ws";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
 const realtimeWs = process.env.NEXT_PUBLIC_REALTIME_WS_URL ?? "ws://127.0.0.1:8081/ws";
+const webOrigin = process.env.SMOKE_WEB_ORIGIN ?? "http://127.0.0.1:3002";
 const realtimeHealth = `${realtimeWs.replace(/^ws/, "http").replace(/\/ws$/, "")}/health`;
 
 function toHex(bytes) {
@@ -45,6 +46,7 @@ async function connectWebSocket(cookieHeader) {
     const socket = new WebSocket(realtimeWs, {
       headers: {
         cookie: cookieHeader,
+        origin: webOrigin,
       },
     });
 

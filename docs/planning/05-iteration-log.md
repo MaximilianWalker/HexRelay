@@ -30,6 +30,27 @@
 
 ## Log Entries
 
+### 2026-03-05 (quality tightening pass: fail-closed controls and evidence completeness)
+
+- Area affected: Realtime ingress trust boundary, API limiter resilience semantics, contact directory correctness, and CI evidence completeness.
+- Change summary:
+  - Tightened realtime websocket policy to require allowed `Origin`; missing origin now rejected.
+  - Updated API distributed rate-limit behavior to fail closed when DB-backed limiter is unavailable in DB runtime mode.
+  - Removed silent DB/decode fallback in contacts directory path; DB errors now surface as explicit API errors.
+  - Raised Rust coverage CI threshold from 55% to 65% for stronger baseline regression confidence.
+  - Expanded CI evidence artifacts with machine-readable `summary.json`, SHA256 file hashes, and coverage summary capture; added evidence index doc.
+- Rationale:
+  - Ensure implemented hardening improves real runtime quality under incident and abuse conditions rather than masking failures.
+
+### 2026-03-05 (auth/key-management priority clarification)
+
+- Area affected: Product security hardening scope and MVP prioritization.
+- Change summary:
+  - Recorded that passphrase-gated local key unlock remains optional hardening and is not an MVP priority.
+  - Confirmed current MVP baseline remains cookie-first auth transport + CSRF + runtime abuse controls without mandatory passphrase UX.
+- Rationale:
+  - Preserve low-friction onboarding and avoid premature UX/security coupling while core functionality is still under active delivery.
+
 ### 2026-03-05 (readiness controls pass: security gates, evidence automation, distributed limiting, realtime guardrails)
 
 - Area affected: CI security posture, release evidence quality, API abuse control scalability, realtime resilience, and API handler maintainability.

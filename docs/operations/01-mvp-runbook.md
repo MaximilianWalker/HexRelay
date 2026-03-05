@@ -136,7 +136,14 @@ npm --prefix apps/web run e2e:smoke
   - `cargo audit --deny warnings`
   - `npm audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
+- Rust coverage gate:
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 65`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.
+
+## Realtime Upgrade Policy
+
+- WebSocket upgrades require an allowed `Origin` header (`REALTIME_ALLOWED_ORIGINS`).
+- Requests without `Origin` are rejected (`403`) in runtime mode.
 
 ## Related Documents
 

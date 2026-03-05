@@ -359,7 +359,7 @@ fn is_allowed_origin(state: &AppState, headers: &HeaderMap) -> bool {
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return true;
+        return false;
     };
 
     state
@@ -416,6 +416,18 @@ mod tests {
     use crate::{app::build_app, state::AppState};
 
     use super::{is_session_valid, route_inbound_event};
+
+    const TEST_ALLOWED_ORIGIN: &str = "http://localhost:3002";
+
+    fn test_allowed_origins() -> Vec<String> {
+        vec![TEST_ALLOWED_ORIGIN.to_string()]
+    }
+
+    fn set_allowed_origin(request: &mut tokio_tungstenite::tungstenite::http::Request<()>) {
+        request
+            .headers_mut()
+            .insert("origin", HeaderValue::from_static(TEST_ALLOWED_ORIGIN));
+    }
 
     #[derive(Serialize)]
     struct ValidatePayload {
@@ -482,7 +494,7 @@ mod tests {
     async fn rejects_missing_authorization_header() {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
-            vec!["http://localhost:3002".to_string()],
+            test_allowed_origins(),
             60,
             60,
             16384,
@@ -498,16 +510,7 @@ mod tests {
     #[tokio::test]
     async fn accepts_valid_authorization_with_successful_validation() {
         let api_base = start_validate_server(true).await;
-        let state = AppState::new(
-            api_base,
-            vec!["http://localhost:3002".to_string()],
-            60,
-            60,
-            16384,
-            120,
-            60,
-            3,
-        );
+        let state = AppState::new(api_base, test_allowed_origins(), 60, 60, 16384, 120, 60, 3);
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -520,16 +523,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_authorization_when_validation_endpoint_denies() {
         let api_base = start_validate_server(false).await;
-        let state = AppState::new(
-            api_base,
-            vec!["http://localhost:3002".to_string()],
-            60,
-            60,
-            16384,
-            120,
-            60,
-            3,
-        );
+        let state = AppState::new(api_base, test_allowed_origins(), 60, 60, 16384, 120, 60, 3);
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -553,7 +547,7 @@ mod tests {
     ) -> String {
         let app = build_app(AppState::new(
             api_base_url,
-            vec!["http://localhost:3002".to_string()],
+            test_allowed_origins(),
             ws_connect_rate_limit,
             60,
             ws_max_inbound_message_bytes,
@@ -582,7 +576,12 @@ mod tests {
         let api_base = start_validate_server(true).await;
         let ws_url = start_ws_server(api_base, 60).await;
 
-        let result = connect_async(ws_url).await;
+        let mut request = ws_url
+            .into_client_request()
+            .expect("build websocket client request");
+        set_allowed_origin(&mut request);
+
+        let result = connect_async(request).await;
 
         assert!(result.is_err());
         let message = result
@@ -618,6 +617,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn websocket_upgrade_rejects_missing_origin() {
+        let api_base = start_validate_server(true).await;
+        let ws_url = start_ws_server(api_base, 60).await;
+
+        let mut request = ws_url
+            .into_client_request()
+            .expect("build websocket client request");
+        request.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+
+        let result = connect_async(request).await;
+        assert!(result.is_err());
+        let message = result
+            .err()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        assert!(message.contains("403") || message.contains("Forbidden"));
+    }
+
+    #[tokio::test]
     async fn websocket_upgrade_accepts_valid_cookie() {
         let api_base = start_validate_server(true).await;
         let ws_url = start_ws_server(api_base, 60).await;
@@ -629,6 +650,7 @@ mod tests {
             "cookie",
             HeaderValue::from_static("hexrelay_session=test-token"),
         );
+        set_allowed_origin(&mut request);
 
         let connection = connect_async(request)
             .await
@@ -649,6 +671,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut request);
 
         let connection = connect_async(request)
             .await
@@ -669,6 +692,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut request);
 
         let (mut socket, _) = connect_async(request)
             .await
@@ -761,6 +785,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut request);
 
         let result = connect_async(request).await;
         assert!(result.is_err());
@@ -785,6 +810,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut first_request);
 
         let _ = connect_async(first_request)
             .await
@@ -797,6 +823,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut second_request);
 
         let result = connect_async(second_request).await;
         assert!(result.is_err());
@@ -821,6 +848,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut first_request);
         let (_first_socket, _) = connect_async(first_request)
             .await
             .expect("first websocket should connect");
@@ -832,6 +860,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut second_request);
 
         let result = connect_async(second_request).await;
         assert!(result.is_err());
@@ -854,6 +883,7 @@ mod tests {
             "authorization",
             HeaderValue::from_static("Bearer test-token"),
         );
+        set_allowed_origin(&mut request);
 
         let (mut socket, _) = connect_async(request)
             .await

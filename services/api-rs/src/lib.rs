@@ -15,6 +15,7 @@ pub mod validation;
 
 #[cfg(test)]
 mod tests {
+    const TEST_ALLOWED_ORIGIN: &str = "http://localhost:3002";
     const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
 
     use std::{
@@ -389,7 +390,7 @@ mod tests {
     async fn rate_limits_auth_challenge_requests() {
         let state = AppState::new(
             TEST_NODE_FINGERPRINT.to_string(),
-            vec!["http://localhost:3002".to_string()],
+            vec![TEST_ALLOWED_ORIGIN.to_string()],
             "v1".to_string(),
             BTreeMap::from([(
                 "v1".to_string(),
@@ -756,7 +757,7 @@ mod tests {
     async fn rate_limits_invite_redeem_requests() {
         let state = AppState::new(
             TEST_NODE_FINGERPRINT.to_string(),
-            vec!["http://localhost:3002".to_string()],
+            vec![TEST_ALLOWED_ORIGIN.to_string()],
             "v1".to_string(),
             BTreeMap::from([(
                 "v1".to_string(),

@@ -40,7 +40,7 @@ pub async fn create_invite(
         &auth.identity_id,
         state.rate_limits.invite_create_per_window,
     )
-    .await;
+    .await?;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -161,7 +161,7 @@ pub async fn redeem_invite(
         &format!("{}:{}", payload.node_fingerprint, token_hash),
         state.rate_limits.invite_redeem_per_window,
     )
-    .await;
+    .await?;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -287,19 +287,26 @@ fn hash_invite_token(token: &str) -> String {
     hex::encode(digest(&SHA256, token.as_bytes()).as_ref())
 }
 
-async fn allow_rate_limit(state: &AppState, scope: &str, key: &str, limit: usize) -> bool {
+async fn allow_rate_limit(
+    state: &AppState,
+    scope: &str,
+    key: &str,
+    limit: usize,
+) -> ApiResult<bool> {
     if let Some(pool) = state.db_pool.as_ref() {
-        return match allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
+        let allowed = allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
             .await
-        {
-            Ok(allowed) => allowed,
-            Err(_) => state
-                .rate_limiter
-                .allow(scope, key, limit, state.rate_limits.window_seconds),
-        };
+            .map_err(|_| {
+                crate::errors::internal_error(
+                    "rate_limiter_unavailable",
+                    "failed to enforce distributed rate limit",
+                )
+            })?;
+
+        return Ok(allowed);
     }
 
-    state
+    Ok(state
         .rate_limiter
-        .allow(scope, key, limit, state.rate_limits.window_seconds)
+        .allow(scope, key, limit, state.rate_limits.window_seconds))
 }

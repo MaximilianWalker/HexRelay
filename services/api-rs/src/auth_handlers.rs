@@ -124,7 +124,7 @@ pub async fn issue_auth_challenge(
         &rate_key,
         state.rate_limits.auth_challenge_per_window,
     )
-    .await;
+    .await?;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -246,7 +246,7 @@ pub async fn verify_auth_challenge(
         &rate_key,
         state.rate_limits.auth_verify_per_window,
     )
-    .await;
+    .await?;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -636,19 +636,26 @@ fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64])
     key.verify(message, signature).map_err(|_| ())
 }
 
-async fn allow_rate_limit(state: &AppState, scope: &str, key: &str, limit: usize) -> bool {
+async fn allow_rate_limit(
+    state: &AppState,
+    scope: &str,
+    key: &str,
+    limit: usize,
+) -> ApiResult<bool> {
     if let Some(pool) = state.db_pool.as_ref() {
-        return match allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
+        let allowed = allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
             .await
-        {
-            Ok(allowed) => allowed,
-            Err(_) => state
-                .rate_limiter
-                .allow(scope, key, limit, state.rate_limits.window_seconds),
-        };
+            .map_err(|_| {
+                crate::errors::internal_error(
+                    "rate_limiter_unavailable",
+                    "failed to enforce distributed rate limit",
+                )
+            })?;
+
+        return Ok(allowed);
     }
 
-    state
+    Ok(state
         .rate_limiter
-        .allow(scope, key, limit, state.rate_limits.window_seconds)
+        .allow(scope, key, limit, state.rate_limits.window_seconds))
 }

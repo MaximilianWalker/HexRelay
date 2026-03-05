@@ -8,6 +8,7 @@ use sqlx::Row;
 
 use crate::{
     auth::AuthSession,
+    errors::{internal_error, ApiResult},
     models::{
         ContactListQuery, ContactListResponse, ContactSummary, ServerListQuery, ServerListResponse,
         ServerSummary,
@@ -73,7 +74,7 @@ pub async fn list_contacts(
     State(state): State<AppState>,
     auth: AuthSession,
     Query(query): Query<ContactListQuery>,
-) -> Json<ContactListResponse> {
+) -> ApiResult<Json<ContactListResponse>> {
     if let Some(pool) = state.db_pool.as_ref() {
         let identity_id = auth.identity_id;
 
@@ -88,7 +89,12 @@ pub async fn list_contacts(
         .bind(&identity_id)
         .fetch_all(pool)
         .await
-        .unwrap_or_default();
+        .map_err(|_| {
+            internal_error(
+                "storage_unavailable",
+                "failed to list contact relationships",
+            )
+        })?;
 
         let mut contacts = BTreeSet::new();
         let mut inbound_pending = HashSet::new();
@@ -97,11 +103,17 @@ pub async fn list_contacts(
         for row in rows {
             let requester = row
                 .try_get::<String, _>("requester_identity_id")
-                .unwrap_or_default();
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to decode requester identity")
+                })?;
             let target = row
                 .try_get::<String, _>("target_identity_id")
-                .unwrap_or_default();
-            let status = row.try_get::<String, _>("status").unwrap_or_default();
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to decode target identity")
+                })?;
+            let status = row.try_get::<String, _>("status").map_err(|_| {
+                internal_error("storage_unavailable", "failed to decode request status")
+            })?;
 
             let requester_is_self = requester == identity_id;
             let peer = if requester_is_self {
@@ -139,7 +151,7 @@ pub async fn list_contacts(
             .collect::<Vec<_>>();
 
         apply_contact_filters(&mut items, &query);
-        return Json(ContactListResponse { items });
+        return Ok(Json(ContactListResponse { items }));
     }
 
     let mut items = vec![
@@ -182,7 +194,7 @@ pub async fn list_contacts(
     ];
 
     apply_contact_filters(&mut items, &query);
-    Json(ContactListResponse { items })
+    Ok(Json(ContactListResponse { items }))
 }
 
 fn apply_contact_filters(items: &mut Vec<ContactSummary>, query: &ContactListQuery) {

@@ -23,6 +23,7 @@ Rust realtime/signaling service scaffold for HexRelay.
 ## Security Defaults
 
 - WebSocket upgrade accepts only configured browser origins via `REALTIME_ALLOWED_ORIGINS`.
+- WebSocket upgrade rejects requests without `Origin` in runtime mode.
 - Realtime ingress limits are configurable via:
   - `REALTIME_WS_CONNECT_RATE_LIMIT`
   - `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`
