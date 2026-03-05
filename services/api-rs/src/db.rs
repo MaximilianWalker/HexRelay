@@ -45,7 +45,6 @@ const MIGRATIONS: &[Migration] = &[
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
     let pool = PgPool::connect(database_url).await?;
 
-    ensure_migration_table(&pool).await?;
     run_migrations(&pool).await?;
     backfill_legacy_invite_tokens(&pool).await?;
 
@@ -94,8 +93,8 @@ async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error>
     Ok(())
 }
 
-async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
-    pool.execute(
+async fn ensure_migration_table(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
+    tx.execute(
         "
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version TEXT PRIMARY KEY,
@@ -106,7 +105,7 @@ async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
     )
     .await?;
 
-    pool.execute(
+    tx.execute(
         "ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT NOT NULL DEFAULT ''",
     )
     .await?;
@@ -116,9 +115,11 @@ async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
 
 async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
-    sqlx::query("LOCK TABLE schema_migrations IN ACCESS EXCLUSIVE MODE")
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(0x4845_5852_454c_4159i64)
         .execute(&mut *tx)
         .await?;
+    ensure_migration_table(&mut tx).await?;
     run_migrations_inner(&mut tx).await?;
     tx.commit().await
 }

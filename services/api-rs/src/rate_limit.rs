@@ -94,7 +94,7 @@ pub async fn allow_distributed(
         DO UPDATE SET
           count = rate_limit_counters.count + 1,
           updated_at = NOW()
-        RETURNING count
+        RETURNING count::BIGINT
         ",
     )
     .bind(scope)
