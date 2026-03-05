@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-05
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-04 execution-hardening pass added MVP verification bindings.
+- Latest meaningful change: 2026-03-05 added explicit observability evidence template linkage.
 
 ## Requirement to Evidence Matrix
 
@@ -27,6 +27,8 @@
 | Voice/screen share | T5.1.1-T5.3.1 | KPI profile run report (join success, reconnect, jitter) |
 | Migration and reconciliation | T7.1.2, T7.5.1-T7.5.5 | Migration scenario evidence (LAN/file/cutover) |
 | Observability/SLO alerts | T8.1.1, T8.2.1 | Dashboard export + fault-injection alert report |
+
+Observability evidence format template: `docs/testing/observability-evidence-template.md`.
 
 ## Evidence Format
 

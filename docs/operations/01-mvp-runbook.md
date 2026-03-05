@@ -84,6 +84,19 @@ curl -fsS "http://$REALTIME_BIND/health"
 npm --prefix apps/web run e2e:smoke
 ```
 
+### Dedicated Server Env and Secret Checklist
+
+- Config source contract:
+  - non-secret settings come from environment variables declared in `.env`.
+  - secret values must come from a secret manager or host secret store (not committed files).
+- Required secret mappings:
+  - `API_DATABASE_URL`: secret source must be documented per environment.
+  - `API_SESSION_SIGNING_KEYS`: secret source must be documented per environment.
+- Required non-secret mappings:
+  - `API_ALLOWED_ORIGINS`, `REALTIME_ALLOWED_ORIGINS`, `API_BIND`, `REALTIME_BIND`.
+- Verification before rollout:
+  - checklist artifact saved under `evidence/operations/deploy-checks/<YYYY-MM-DD>/secrets-checklist.md`.
+
 ## TLS and Network Boundary Assumptions
 
 - External dedicated deployments terminate TLS at ingress/reverse proxy.
@@ -109,6 +122,19 @@ npm --prefix apps/web run e2e:smoke
 3. Deploy previous known-good build artifacts.
 4. Start API then realtime using the bring-up command baseline.
 5. Re-run smoke validation and archive logs for incident evidence.
+
+## Release Decision and Abort Thresholds
+
+- Release decision owner: current sprint technical owner (record name in deployment PR).
+- Abort conditions (no rollout/continue rollout):
+  - any required CI job failure on candidate commit,
+  - health check failure after startup retries,
+  - smoke e2e failure,
+  - migration checksum mismatch or migration apply failure.
+- Immediate rollback triggers (after rollout begins):
+  - sustained auth/session validation failures > 5 minutes,
+  - realtime websocket upgrade failure rate > 10% for 5-minute window,
+  - message send/redeem critical path failure on smoke replay.
 
 ## Backup and Restore
 
