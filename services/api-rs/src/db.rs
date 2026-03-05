@@ -1,5 +1,5 @@
 use ring::digest::{digest, SHA256};
-use sqlx::{pool::PoolConnection, Acquire, Executor, PgPool, Postgres};
+use sqlx::{Executor, PgPool, Postgres, Transaction};
 
 type Migration = (&'static str, &'static str);
 
@@ -115,28 +115,15 @@ async fn ensure_migration_table(pool: &PgPool) -> Result<(), sqlx::Error> {
 }
 
 async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
-    let mut connection = pool.acquire().await?;
-
-    sqlx::query("SELECT pg_advisory_lock(9176412301)")
-        .execute(&mut *connection)
+    let mut tx = pool.begin().await?;
+    sqlx::query("LOCK TABLE schema_migrations IN ACCESS EXCLUSIVE MODE")
+        .execute(&mut *tx)
         .await?;
-
-    let result = run_migrations_inner(&mut connection).await;
-
-    let unlock_result = sqlx::query("SELECT pg_advisory_unlock(9176412301)")
-        .execute(&mut *connection)
-        .await;
-
-    match (result, unlock_result) {
-        (Err(err), _) => Err(err),
-        (Ok(()), Ok(_)) => Ok(()),
-        (Ok(()), Err(err)) => Err(err),
-    }
+    run_migrations_inner(&mut tx).await?;
+    tx.commit().await
 }
 
-async fn run_migrations_inner(
-    connection: &mut PoolConnection<Postgres>,
-) -> Result<(), sqlx::Error> {
+async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
     for (version, sql) in MIGRATIONS {
         let checksum = format!("{:016x}", seahash::hash(sql.as_bytes()));
 
@@ -144,7 +131,7 @@ async fn run_migrations_inner(
             "SELECT checksum FROM schema_migrations WHERE version = $1",
         )
         .bind(*version)
-        .fetch_optional(&mut **connection)
+        .fetch_optional(&mut **tx)
         .await?;
 
         if let Some(existing_checksum) = existing_checksum {
@@ -157,7 +144,6 @@ async fn run_migrations_inner(
             continue;
         }
 
-        let mut tx = connection.begin().await?;
         // Migration 0007 is intentionally backfilled by runtime code to avoid
         // requiring DB extension install privileges on startup.
         if *version != "0007_invites_hash_backfill" {
@@ -166,9 +152,8 @@ async fn run_migrations_inner(
         sqlx::query("INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)")
             .bind(*version)
             .bind(checksum)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
-        tx.commit().await?;
     }
 
     Ok(())
