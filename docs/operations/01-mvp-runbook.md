@@ -14,6 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - Latest meaningful change: 2026-03-04 expanded dedicated-server procedures with concrete startup, health, restart, and TLS boundary assumptions.
+  - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
 
@@ -35,9 +36,10 @@
 
 - Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
+- Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
 - Minimum environment:
-  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`.
-  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`.
+  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
+  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
 - Startup sequence:
   1. Start database dependencies.
   2. Start API service and verify `GET /health` returns 200.
@@ -97,8 +99,8 @@ npm --prefix apps/web run e2e:smoke
   - Restart both services if cross-service auth validation fails repeatedly.
 - Post-restart validation:
   - API and realtime `/health` probes return 200.
-  - Session validate endpoint works with existing active token.
-  - Realtime websocket auth handshake passes with valid bearer token.
+  - Session validate endpoint works with existing active `hexrelay_session` cookie.
+  - Realtime websocket auth handshake passes with valid session cookie (`hexrelay_session`).
 
 ### Rollback Procedure (Single Node)
 
@@ -127,6 +129,14 @@ npm --prefix apps/web run e2e:smoke
 
 - Trigger: KPI/SLO thresholds violated in benchmark profile.
 - Action: open remediation task in active iteration board before sign-off.
+
+## CI Security and Evidence Baseline
+
+- Security gates run in CI:
+  - `cargo audit --deny warnings`
+  - `npm audit --omit=dev --audit-level=high`
+  - `semgrep scan --config p/security-audit --error`
+- Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.
 
 ## Related Documents
 

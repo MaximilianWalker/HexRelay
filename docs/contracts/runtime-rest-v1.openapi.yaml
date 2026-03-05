@@ -23,6 +23,8 @@ paths:
           description: Identity key registered
         '400':
           $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/auth/challenge:
     post:
       summary: Issue a nonce challenge
@@ -43,7 +45,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
   /v1/auth/verify:
     post:
-      summary: Verify challenge signature and issue session
+      summary: Verify challenge signature and issue session cookies
       requestBody:
         required: true
         content:
@@ -52,7 +54,14 @@ paths:
               $ref: '#/components/schemas/AuthVerifyRequest'
       responses:
         '200':
-          description: Session issued
+          description: Session issued via HttpOnly cookie
+          headers:
+            Set-Cookie:
+              description: |
+                Returns `hexrelay_session` (HttpOnly auth cookie) and
+                `hexrelay_csrf` (double-submit CSRF cookie).
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -61,11 +70,15 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/auth/sessions/revoke:
     post:
       summary: Revoke an active session
       security:
-        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
@@ -79,11 +92,13 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/auth/sessions/validate:
     get:
       summary: Validate active session
       security:
-        - BearerAuth: []
+        - CookieAuth: []
       responses:
         '200':
           description: Session is active and valid
@@ -93,11 +108,15 @@ paths:
                 $ref: '#/components/schemas/SessionValidateResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/invites:
     post:
       summary: Create an invite token
       security:
-        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
@@ -177,11 +196,9 @@ components:
           format: date-time
     AuthVerifyResponse:
       type: object
-      required: [session_id, access_token, expires_at]
+      required: [session_id, expires_at]
       properties:
         session_id:
-          type: string
-        access_token:
           type: string
         expires_at:
           type: string
@@ -266,8 +283,17 @@ components:
             - nonce_invalid
             - signature_invalid
             - session_invalid
+            - csrf_invalid
         message:
           type: string
+  parameters:
+    CsrfTokenHeader:
+      name: x-csrf-token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Must match the `hexrelay_csrf` cookie value.
   responses:
     BadRequest:
       description: Invalid request
@@ -281,8 +307,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    TooManyRequests:
+      description: Request rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: HEXTOKEN_V1
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: hexrelay_session

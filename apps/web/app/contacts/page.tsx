@@ -59,12 +59,12 @@ export default function ContactsPage() {
   }, []);
 
   const session = useMemo(() => getPersonaSession(identityId), [identityId]);
-  const accessToken = session?.accessToken ?? null;
+  const hasSession = session !== null;
 
   useEffect(() => {
     let active = true;
 
-    if (!accessToken) {
+    if (!hasSession) {
       return () => {
         active = false;
       };
@@ -73,8 +73,8 @@ export default function ContactsPage() {
     const run = async (): Promise<void> => {
       try {
         const [contactsResult, requestsResult] = await Promise.all([
-          fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly, accessToken }),
-          fetchFriendRequests({ identityId, accessToken }),
+          fetchContacts({ search, onlineOnly, unreadOnly, favoritesOnly }),
+          fetchFriendRequests({ identityId }),
         ]);
 
         if (!active) {
@@ -120,7 +120,7 @@ export default function ContactsPage() {
     return () => {
       active = false;
     };
-  }, [accessToken, favoritesOnly, identityId, onlineOnly, search, unreadOnly]);
+  }, [favoritesOnly, hasSession, identityId, onlineOnly, search, unreadOnly]);
 
   function setFilterState(update: () => void): void {
     setLoading(true);
@@ -129,11 +129,11 @@ export default function ContactsPage() {
   }
 
   async function refreshRequests(): Promise<void> {
-    if (!accessToken) {
+    if (!hasSession) {
       return;
     }
 
-    const result = await fetchFriendRequests({ identityId, accessToken });
+    const result = await fetchFriendRequests({ identityId });
     if (result.ok) {
       setFriendRequests(result.data.items);
       return;
@@ -143,7 +143,7 @@ export default function ContactsPage() {
   }
 
   async function handleCreateRequest(targetIdentityId: string): Promise<void> {
-    if (!accessToken) {
+    if (!hasSession) {
       return;
     }
 
@@ -176,7 +176,6 @@ export default function ContactsPage() {
     const result = await createFriendRequest({
       requesterIdentityId: identityId,
       targetIdentityId,
-      accessToken,
     });
 
     if (!result.ok) {
@@ -192,7 +191,7 @@ export default function ContactsPage() {
   }
 
   async function handleAcceptRequest(requestId: string): Promise<void> {
-    if (!accessToken) {
+    if (!hasSession) {
       return;
     }
 
@@ -201,7 +200,7 @@ export default function ContactsPage() {
     setActionMessage(null);
     setFriendRequests((items) => items.filter((item) => item.request_id !== requestId));
 
-    const result = await acceptFriendRequest({ requestId, accessToken });
+    const result = await acceptFriendRequest({ requestId });
     if (!result.ok) {
       setFriendRequests(previous);
       setActionMessage(`${result.code}: ${result.message}`);
@@ -215,7 +214,7 @@ export default function ContactsPage() {
   }
 
   async function handleDeclineRequest(requestId: string): Promise<void> {
-    if (!accessToken) {
+    if (!hasSession) {
       return;
     }
 
@@ -224,7 +223,7 @@ export default function ContactsPage() {
     setActionMessage(null);
     setFriendRequests((items) => items.filter((item) => item.request_id !== requestId));
 
-    const result = await declineFriendRequest({ requestId, accessToken });
+    const result = await declineFriendRequest({ requestId });
     if (!result.ok) {
       setFriendRequests(previous);
       setActionMessage(`${result.code}: ${result.message}`);
@@ -238,7 +237,7 @@ export default function ContactsPage() {
   }
 
   async function handleCreateInvite(): Promise<void> {
-    if (!accessToken) {
+    if (!hasSession) {
       return;
     }
 
@@ -248,7 +247,6 @@ export default function ContactsPage() {
     const result = await createInvite({
       mode: inviteMode,
       maxUses: inviteMode === "multi_use" && Number.isFinite(maxUses) ? maxUses : undefined,
-      accessToken,
     });
 
     if (!result.ok) {
@@ -288,9 +286,9 @@ export default function ContactsPage() {
     (item) => item.requester_identity_id === identityId && item.status === "pending",
   );
 
-  const visibleContacts = accessToken ? contacts : [];
+  const visibleContacts = hasSession ? contacts : [];
 
-  const state = !accessToken
+  const state = !hasSession
       ? "error"
     : loading
       ? "loading"

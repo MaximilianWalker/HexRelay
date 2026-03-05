@@ -27,16 +27,23 @@ pub struct AppState {
     pub node_fingerprint: String,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
+    pub session_cookie_domain: Option<String>,
+    pub session_cookie_same_site: String,
+    pub session_cookie_secure: bool,
     pub session_signing_keys: Arc<BTreeMap<String, String>>,
     pub sessions: Arc<RwLock<HashMap<String, SessionRecord>>>,
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         node_fingerprint: String,
         allowed_origins: Vec<String>,
         active_signing_key_id: String,
         session_signing_keys: BTreeMap<String, String>,
+        session_cookie_domain: Option<String>,
+        session_cookie_secure: bool,
+        session_cookie_same_site: String,
         rate_limits: ApiRateLimitConfig,
     ) -> Self {
         Self {
@@ -50,6 +57,9 @@ impl AppState {
             node_fingerprint,
             rate_limiter: RateLimiter::default(),
             rate_limits,
+            session_cookie_domain,
+            session_cookie_same_site,
+            session_cookie_secure,
             session_signing_keys: Arc::new(session_signing_keys),
             sessions: Arc::default(),
         }
@@ -71,6 +81,9 @@ impl Default for AppState {
                 "v1".to_string(),
                 "hexrelay-dev-signing-key-change-me".to_string(),
             )]),
+            None,
+            false,
+            "Lax".to_string(),
             ApiRateLimitConfig {
                 auth_challenge_per_window: 30,
                 auth_verify_per_window: 30,

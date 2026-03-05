@@ -22,6 +22,9 @@ async fn main() {
             config.allowed_origins.clone(),
             config.active_signing_key_id.clone(),
             config.session_signing_keys.clone().into_iter().collect(),
+            config.session_cookie_domain.clone(),
+            config.session_cookie_secure,
+            config.session_cookie_same_site.clone(),
             config.rate_limits,
         )
         .with_db_pool(db_pool),

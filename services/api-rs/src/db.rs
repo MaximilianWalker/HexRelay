@@ -32,6 +32,10 @@ const MIGRATIONS: &[Migration] = &[
         "0007_invites_hash_backfill",
         include_str!("../migrations/0007_invites_hash_backfill.sql"),
     ),
+    (
+        "0008_rate_limit_counters",
+        include_str!("../migrations/0008_rate_limit_counters.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

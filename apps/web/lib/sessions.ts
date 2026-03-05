@@ -1,7 +1,7 @@
 import { secureGetItem, secureRemoveItem, secureSetItem } from "@/lib/secure-store";
 
-const SESSION_PREFIX = "hexrelay.session.v1";
-const SESSION_TOKEN_PREFIX = "hexrelay.session.token.v1";
+const SESSION_PREFIX = "hexrelay.session.runtime.v1";
+const LEGACY_SESSION_PREFIX = "hexrelay.session.v1";
 const PRIVATE_KEY_PREFIX = "hexrelay.identity.private.v1";
 const MASTER_KEY_STORAGE = "hexrelay.identity.master-key.v1";
 
@@ -103,13 +103,13 @@ async function decryptText(personaId: string, cipherText: string): Promise<strin
 
 export function setPersonaSession(
   personaId: string,
-  value: { sessionId: string; accessToken: string; expiresAt: string },
+  value: { sessionId: string; expiresAt: string },
 ): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(
+  window.sessionStorage.setItem(
     `${SESSION_PREFIX}.${personaId}`,
     JSON.stringify({
       sessionId: value.sessionId,
@@ -117,26 +117,23 @@ export function setPersonaSession(
       updatedAt: new Date().toISOString(),
     }),
   );
-
-  window.sessionStorage.setItem(`${SESSION_TOKEN_PREFIX}.${personaId}`, value.accessToken);
 }
 
 export function getPersonaSession(
   personaId: string,
-): { sessionId: string; accessToken: string; expiresAt: string } | null {
+): { sessionId: string; expiresAt: string } | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const raw = window.localStorage.getItem(`${SESSION_PREFIX}.${personaId}`);
-  if (!raw) {
-    return null;
-  }
+  const sessionStorageRaw = window.sessionStorage.getItem(`${SESSION_PREFIX}.${personaId}`);
+  const legacyRaw = window.localStorage.getItem(`${LEGACY_SESSION_PREFIX}.${personaId}`);
+  const raw = sessionStorageRaw ?? legacyRaw;
+  if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as {
       sessionId?: string;
-      accessToken?: string;
       expiresAt?: string;
       updatedAt?: string;
     };
@@ -144,14 +141,8 @@ export function getPersonaSession(
       return null;
     }
 
-    let accessToken = window.sessionStorage.getItem(`${SESSION_TOKEN_PREFIX}.${personaId}`);
-    if (parsed.accessToken) {
-      if (!accessToken) {
-        accessToken = parsed.accessToken;
-        window.sessionStorage.setItem(`${SESSION_TOKEN_PREFIX}.${personaId}`, accessToken);
-      }
-
-      window.localStorage.setItem(
+    if (legacyRaw) {
+      window.sessionStorage.setItem(
         `${SESSION_PREFIX}.${personaId}`,
         JSON.stringify({
           sessionId: parsed.sessionId,
@@ -159,15 +150,11 @@ export function getPersonaSession(
           updatedAt: parsed.updatedAt ?? new Date().toISOString(),
         }),
       );
-    }
-
-    if (!accessToken) {
-      return null;
+      window.localStorage.removeItem(`${LEGACY_SESSION_PREFIX}.${personaId}`);
     }
 
     return {
       sessionId: parsed.sessionId,
-      accessToken,
       expiresAt: parsed.expiresAt,
     };
   } catch {
@@ -209,8 +196,8 @@ export function clearPersonaSession(personaId: string): void {
     return;
   }
 
-  window.localStorage.removeItem(`${SESSION_PREFIX}.${personaId}`);
-  window.sessionStorage.removeItem(`${SESSION_TOKEN_PREFIX}.${personaId}`);
+  window.sessionStorage.removeItem(`${SESSION_PREFIX}.${personaId}`);
+  window.localStorage.removeItem(`${LEGACY_SESSION_PREFIX}.${personaId}`);
 }
 
 export function clearPersonaPrivateKey(personaId: string): void {

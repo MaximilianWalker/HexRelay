@@ -16,6 +16,9 @@ pub struct ApiConfig {
     pub node_fingerprint: String,
     pub session_signing_keys: HashMap<String, String>,
     pub active_signing_key_id: String,
+    pub session_cookie_domain: Option<String>,
+    pub session_cookie_secure: bool,
+    pub session_cookie_same_site: String,
     pub rate_limits: ApiRateLimitConfig,
 }
 
@@ -37,6 +40,13 @@ impl ApiConfig {
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay".to_string()
         });
         let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys();
+        let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let session_cookie_secure = parse_bool_env("API_SESSION_COOKIE_SECURE", false);
+        let session_cookie_same_site =
+            env::var("API_SESSION_COOKIE_SAME_SITE").unwrap_or_else(|_| "Lax".to_string());
         let rate_limits = ApiRateLimitConfig {
             auth_challenge_per_window: parse_usize_env("API_AUTH_CHALLENGE_RATE_LIMIT", 30),
             auth_verify_per_window: parse_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30),
@@ -67,6 +77,17 @@ impl ApiConfig {
             panic!("Invalid API_RATE_LIMIT_WINDOW_SECONDS. Must be greater than zero");
         }
 
+        if session_cookie_same_site != "Strict"
+            && session_cookie_same_site != "Lax"
+            && session_cookie_same_site != "None"
+        {
+            panic!("Invalid API_SESSION_COOKIE_SAME_SITE. Expected Strict, Lax, or None");
+        }
+
+        if session_cookie_same_site == "None" && !session_cookie_secure {
+            panic!("Invalid cookie config. SameSite=None requires API_SESSION_COOKIE_SECURE=true");
+        }
+
         Self {
             bind_addr,
             allowed_origins,
@@ -74,6 +95,9 @@ impl ApiConfig {
             node_fingerprint,
             session_signing_keys,
             active_signing_key_id,
+            session_cookie_domain,
+            session_cookie_secure,
+            session_cookie_same_site,
             rate_limits,
         }
     }
@@ -154,6 +178,17 @@ fn parse_u64_env(key: &str, default: u64) -> u64 {
             .trim()
             .parse::<u64>()
             .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => default,
+    }
+}
+
+fn parse_bool_env(key: &str, default: bool) -> bool {
+    match env::var(key) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => panic!("Invalid {}='{}'. Expected boolean", key, value),
+        },
         Err(_) => default,
     }
 }

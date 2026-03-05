@@ -1,7 +1,9 @@
 pub mod app;
 pub mod auth;
+pub mod auth_handlers;
 pub mod config;
 pub mod db;
+pub mod directory_handlers;
 pub mod errors;
 pub mod handlers;
 pub mod invite_handlers;
@@ -22,7 +24,7 @@ mod tests {
 
     use axum::{
         body::{to_bytes, Body},
-        http::{Request, StatusCode},
+        http::{header::SET_COOKIE, Request, StatusCode},
     };
     use chrono::{Duration, Utc};
     use ring::{
@@ -51,7 +53,6 @@ mod tests {
     #[derive(Deserialize)]
     struct AuthVerifyResponse {
         session_id: String,
-        access_token: String,
     }
 
     #[derive(Deserialize)]
@@ -151,13 +152,36 @@ mod tests {
             .expect("verify response");
         assert_eq!(verify_response.status(), StatusCode::OK);
 
+        let session_cookie =
+            extract_cookie_from_set_cookie_headers(&verify_response, "hexrelay_session")
+                .expect("verify response includes session cookie");
+
         let verify_bytes = to_bytes(verify_response.into_body(), usize::MAX)
             .await
             .expect("read verify response body");
         let verify: AuthVerifyResponse =
             serde_json::from_slice(&verify_bytes).expect("decode verify response");
 
-        (verify.access_token, app)
+        assert!(!verify.session_id.is_empty());
+
+        (session_cookie, app)
+    }
+
+    fn extract_cookie_from_set_cookie_headers(
+        response: &axum::response::Response,
+        cookie_name: &str,
+    ) -> Option<String> {
+        for value in response.headers().get_all(SET_COOKIE) {
+            let raw = value.to_str().ok()?;
+            let first_part = raw.split(';').next()?;
+            if let Some((name, cookie_value)) = first_part.split_once('=') {
+                if name == cookie_name {
+                    return Some(cookie_value.to_string());
+                }
+            }
+        }
+
+        None
     }
 
     async fn app_with_database() -> Option<axum::Router> {
@@ -371,6 +395,9 @@ mod tests {
                 "v1".to_string(),
                 "hexrelay-dev-signing-key-change-me".to_string(),
             )]),
+            None,
+            false,
+            "Lax".to_string(),
             ApiRateLimitConfig {
                 auth_challenge_per_window: 1,
                 auth_verify_per_window: 30,
@@ -472,6 +499,10 @@ mod tests {
             .expect("verify response");
         assert_eq!(verify_response.status(), StatusCode::OK);
 
+        let session_cookie =
+            extract_cookie_from_set_cookie_headers(&verify_response, "hexrelay_session")
+                .expect("verify response includes session cookie");
+
         let verify_bytes = to_bytes(verify_response.into_body(), usize::MAX)
             .await
             .expect("read verify response body");
@@ -483,7 +514,11 @@ mod tests {
             .method("POST")
             .uri("/v1/auth/sessions/revoke")
             .header("content-type", "application/json")
-            .header("authorization", format!("Bearer {}", verify.access_token))
+            .header(
+                "cookie",
+                format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
+            )
+            .header("x-csrf-token", "test-csrf")
             .body(Body::from(format!(
                 r#"{{"session_id":"{}"}}"#,
                 verify.session_id
@@ -727,6 +762,9 @@ mod tests {
                 "v1".to_string(),
                 "hexrelay-dev-signing-key-change-me".to_string(),
             )]),
+            None,
+            false,
+            "Lax".to_string(),
             ApiRateLimitConfig {
                 auth_challenge_per_window: 30,
                 auth_verify_per_window: 30,
@@ -1202,6 +1240,10 @@ mod tests {
             .expect("verify response");
         assert_eq!(verify_response.status(), StatusCode::OK);
 
+        let session_cookie =
+            extract_cookie_from_set_cookie_headers(&verify_response, "hexrelay_session")
+                .expect("verify response includes session cookie");
+
         let verify_bytes = to_bytes(verify_response.into_body(), usize::MAX)
             .await
             .expect("read verify response body");
@@ -1211,7 +1253,7 @@ mod tests {
         let validate_request = Request::builder()
             .method("GET")
             .uri("/v1/auth/sessions/validate")
-            .header("authorization", format!("Bearer {}", verify.access_token))
+            .header("cookie", format!("hexrelay_session={session_cookie}"))
             .body(Body::empty())
             .expect("build validate request");
 
@@ -1226,7 +1268,11 @@ mod tests {
             .method("POST")
             .uri("/v1/auth/sessions/revoke")
             .header("content-type", "application/json")
-            .header("authorization", format!("Bearer {}", verify.access_token))
+            .header(
+                "cookie",
+                format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
+            )
+            .header("x-csrf-token", "test-csrf")
             .body(Body::from(format!(
                 r#"{{"session_id":"{}"}}"#,
                 verify.session_id
@@ -1243,7 +1289,7 @@ mod tests {
         let validate_after_revoke = Request::builder()
             .method("GET")
             .uri("/v1/auth/sessions/validate")
-            .header("authorization", format!("Bearer {}", verify.access_token))
+            .header("cookie", format!("hexrelay_session={session_cookie}"))
             .body(Body::empty())
             .expect("build post-revoke validate request");
 
@@ -1378,13 +1424,17 @@ mod tests {
             return;
         };
 
-        let (access_token, app) = authenticate_identity(app, "db-user-invite").await;
+        let (session_cookie, app) = authenticate_identity(app, "db-user-invite").await;
 
         let create_request = Request::builder()
             .method("POST")
             .uri("/v1/invites")
             .header("content-type", "application/json")
-            .header("authorization", format!("Bearer {access_token}"))
+            .header(
+                "cookie",
+                format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
+            )
+            .header("x-csrf-token", "test-csrf")
             .body(Body::from(r#"{"mode":"one_time"}"#))
             .expect("build create invite request");
 

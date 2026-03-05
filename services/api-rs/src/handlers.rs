@@ -3,40 +3,21 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use chrono::{Duration, Utc};
-use rand::RngCore;
-use ring::signature::{UnparsedPublicKey, ED25519};
+use chrono::Utc;
 use sqlx::PgPool;
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthSession,
-    errors::{bad_request, conflict, too_many_requests, unauthorized, ApiResult},
+    auth::{enforce_csrf_for_cookie_auth, AuthSession},
+    errors::{bad_request, conflict, unauthorized, ApiResult},
     models::{
-        AuthChallengeRecord, AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest,
-        AuthVerifyResponse, ContactListQuery, ContactListResponse, ContactSummary,
         FriendRequestCreate, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord,
-        HealthResponse, IdentityKeyRegistrationRequest, RegisteredIdentityKey, ServerListQuery,
-        ServerListResponse, ServerSummary, SessionRevokeRequest, SessionValidateResponse,
+        HealthResponse,
     },
-    session_token::issue_session_token,
     state::AppState,
-    validation::{
-        decode_32_bytes, decode_64_bytes, validate_auth_challenge_request,
-        validate_auth_verify_request, validate_friend_request_create,
-        validate_friend_request_list_query, validate_identity_registration,
-        validate_session_revoke_request,
-    },
+    validation::{validate_friend_request_create, validate_friend_request_list_query},
 };
-
-#[cfg(not(test))]
-use crate::errors::internal_error;
-
-#[cfg(test)]
-use crate::models::SessionRecord;
-
-const CHALLENGE_TTL_SECONDS: i64 = 60;
 
 pub use crate::invite_handlers::{create_invite, redeem_invite};
 
@@ -47,602 +28,13 @@ pub async fn health() -> Json<HealthResponse> {
     })
 }
 
-pub async fn register_identity_key(
-    State(state): State<AppState>,
-    Json(payload): Json<IdentityKeyRegistrationRequest>,
-) -> ApiResult<StatusCode> {
-    validate_identity_registration(&payload)?;
-
-    if let Some(pool) = state.db_pool.as_ref() {
-        let inserted = sqlx::query(
-            "
-            INSERT INTO identity_keys (identity_id, public_key, algorithm)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (identity_id) DO NOTHING
-            ",
-        )
-        .bind(&payload.identity_id)
-        .bind(&payload.public_key)
-        .bind(&payload.algorithm)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist identity key")
-        })?;
-
-        if inserted.rows_affected() == 0 {
-            return Err(conflict(
-                "identity_exists",
-                "identity_id already has a registered key",
-            ));
-        }
-
-        return Ok(StatusCode::CREATED);
-    }
-
-    #[cfg(not(test))]
-    {
-        Err(internal_error(
-            "storage_unavailable",
-            "identity registration requires configured database pool",
-        ))
-    }
-
-    #[cfg(test)]
-    {
-        let mut guard = state
-            .identity_keys
-            .write()
-            .expect("acquire identity key write lock");
-
-        if guard.contains_key(&payload.identity_id) {
-            return Err(conflict(
-                "identity_exists",
-                "identity_id already has a registered key",
-            ));
-        }
-
-        guard.insert(
-            payload.identity_id,
-            RegisteredIdentityKey {
-                public_key: payload.public_key,
-                algorithm: payload.algorithm,
-            },
-        );
-
-        Ok(StatusCode::CREATED)
-    }
-}
-
-pub async fn validate_session(auth: AuthSession) -> ApiResult<Json<SessionValidateResponse>> {
-    Ok(Json(SessionValidateResponse {
-        session_id: auth.session_id,
-        identity_id: auth.identity_id,
-        expires_at: auth.expires_at,
-    }))
-}
-
-pub async fn issue_auth_challenge(
-    State(state): State<AppState>,
-    _headers: HeaderMap,
-    Json(payload): Json<AuthChallengeRequest>,
-) -> ApiResult<Json<AuthChallengeResponse>> {
-    validate_auth_challenge_request(&payload)?;
-
-    let rate_key = rate_limit_key_from_headers(&payload.identity_id);
-    let allowed = state.rate_limiter.allow(
-        "auth_challenge",
-        &rate_key,
-        state.rate_limits.auth_challenge_per_window,
-        state.rate_limits.window_seconds,
-    );
-    if !allowed {
-        return Err(too_many_requests(
-            "rate_limited",
-            "too many auth challenge requests",
-        ));
-    }
-
-    let identity_exists = if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query_scalar::<_, i64>(
-            "
-            SELECT COUNT(*)
-            FROM identity_keys
-            WHERE identity_id = $1
-            ",
-        )
-        .bind(&payload.identity_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read identity keys")
-        })? > 0
-    } else {
-        #[cfg(not(test))]
-        {
-            return Err(internal_error(
-                "storage_unavailable",
-                "auth challenge issuance requires configured database pool",
-            ));
-        }
-
-        #[cfg(test)]
-        {
-            state
-                .identity_keys
-                .read()
-                .expect("acquire identity key read lock")
-                .contains_key(&payload.identity_id)
-        }
-    };
-
-    if !identity_exists {
-        return Err(bad_request(
-            "identity_invalid",
-            "identity_id is not registered",
-        ));
-    }
-
-    let challenge_id = Uuid::new_v4().to_string();
-    let nonce = random_hex(32);
-    let challenge_expires_at = Utc::now() + Duration::seconds(CHALLENGE_TTL_SECONDS);
-    let expires_at = challenge_expires_at.to_rfc3339();
-
-    if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query(
-            "
-            INSERT INTO auth_challenges (challenge_id, identity_id, nonce, expires_at)
-            VALUES ($1, $2, $3, $4)
-            ",
-        )
-        .bind(&challenge_id)
-        .bind(&payload.identity_id)
-        .bind(&nonce)
-        .bind(challenge_expires_at)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist challenge")
-        })?;
-
-        return Ok(Json(AuthChallengeResponse {
-            challenge_id,
-            nonce,
-            expires_at,
-        }));
-    }
-
-    #[cfg(not(test))]
-    {
-        Err(internal_error(
-            "storage_unavailable",
-            "auth challenge issuance requires configured database pool",
-        ))
-    }
-
-    #[cfg(test)]
-    {
-        state
-            .auth_challenges
-            .write()
-            .expect("acquire challenge write lock")
-            .insert(
-                challenge_id.clone(),
-                AuthChallengeRecord {
-                    identity_id: payload.identity_id,
-                    nonce: nonce.clone(),
-                    expires_at: challenge_expires_at,
-                },
-            );
-
-        Ok(Json(AuthChallengeResponse {
-            challenge_id,
-            nonce,
-            expires_at,
-        }))
-    }
-}
-
-pub async fn verify_auth_challenge(
-    State(state): State<AppState>,
-    _headers: HeaderMap,
-    Json(payload): Json<AuthVerifyRequest>,
-) -> ApiResult<Json<AuthVerifyResponse>> {
-    validate_auth_verify_request(&payload)?;
-
-    let rate_key = rate_limit_key_from_headers(&payload.identity_id);
-    let allowed = state.rate_limiter.allow(
-        "auth_verify",
-        &rate_key,
-        state.rate_limits.auth_verify_per_window,
-        state.rate_limits.window_seconds,
-    );
-    if !allowed {
-        return Err(too_many_requests(
-            "rate_limited",
-            "too many auth verify requests",
-        ));
-    }
-
-    let challenge_record = if let Some(pool) = state.db_pool.as_ref() {
-        let row = sqlx::query(
-            "
-            DELETE FROM auth_challenges
-            WHERE challenge_id = $1
-            RETURNING identity_id, nonce, expires_at
-            ",
-        )
-        .bind(&payload.challenge_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read challenge")
-        })?
-        .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?;
-
-        AuthChallengeRecord {
-            identity_id: row.try_get::<String, _>("identity_id").map_err(|_| {
-                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
-            })?,
-            nonce: row.try_get::<String, _>("nonce").map_err(|_| {
-                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
-            })?,
-            expires_at: row
-                .try_get::<chrono::DateTime<Utc>, _>("expires_at")
-                .map_err(|_| {
-                    crate::errors::internal_error(
-                        "storage_unavailable",
-                        "failed to decode challenge",
-                    )
-                })?,
-        }
-    } else {
-        #[cfg(not(test))]
-        {
-            return Err(internal_error(
-                "storage_unavailable",
-                "auth verification requires configured database pool",
-            ));
-        }
-
-        #[cfg(test)]
-        {
-            state
-                .auth_challenges
-                .write()
-                .expect("acquire challenge write lock")
-                .remove(&payload.challenge_id)
-                .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
-        }
-    };
-
-    if challenge_record.identity_id != payload.identity_id {
-        return Err(unauthorized(
-            "nonce_invalid",
-            "challenge does not match identity",
-        ));
-    }
-
-    if Utc::now() > challenge_record.expires_at {
-        return Err(unauthorized("nonce_invalid", "challenge has expired"));
-    }
-
-    let key_record = if let Some(pool) = state.db_pool.as_ref() {
-        let row = sqlx::query(
-            "
-            SELECT public_key, algorithm
-            FROM identity_keys
-            WHERE identity_id = $1
-            ",
-        )
-        .bind(&payload.identity_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read identity key")
-        })?
-        .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?;
-
-        let public_key = row.try_get::<String, _>("public_key").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
-        })?;
-        let algorithm = row.try_get::<String, _>("algorithm").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
-        })?;
-
-        RegisteredIdentityKey {
-            public_key,
-            algorithm,
-        }
-    } else {
-        #[cfg(not(test))]
-        {
-            return Err(internal_error(
-                "storage_unavailable",
-                "auth verification requires configured database pool",
-            ));
-        }
-
-        #[cfg(test)]
-        {
-            state
-                .identity_keys
-                .read()
-                .expect("acquire identity key read lock")
-                .get(&payload.identity_id)
-                .cloned()
-                .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
-        }
-    };
-
-    if key_record.algorithm != "ed25519" {
-        return Err(bad_request(
-            "algorithm_invalid",
-            "registered algorithm must be ed25519",
-        ));
-    }
-
-    let public_key = decode_32_bytes(&key_record.public_key)
-        .ok_or_else(|| bad_request("public_key_invalid", "registered public key is invalid"))?;
-    let signature_bytes = decode_64_bytes(&payload.signature).ok_or_else(|| {
-        bad_request(
-            "signature_invalid",
-            "signature must be 64-byte hex or base64",
-        )
-    })?;
-
-    verify_signature(
-        &public_key,
-        challenge_record.nonce.as_bytes(),
-        &signature_bytes,
-    )
-    .map_err(|_| unauthorized("signature_invalid", "signature verification failed"))?;
-
-    let identity_id = payload.identity_id.clone();
-
-    let session_id = Uuid::new_v4().to_string();
-    let expires_at = Utc::now() + Duration::hours(12);
-
-    if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query(
-            "
-            INSERT INTO sessions (session_id, identity_id, expires_at)
-            VALUES ($1, $2, $3)
-            ",
-        )
-        .bind(&session_id)
-        .bind(&identity_id)
-        .bind(expires_at)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist session")
-        })?;
-    } else {
-        #[cfg(not(test))]
-        {
-            return Err(internal_error(
-                "storage_unavailable",
-                "session issuance requires configured database pool",
-            ));
-        }
-
-        #[cfg(test)]
-        {
-            state
-                .sessions
-                .write()
-                .expect("acquire session write lock")
-                .insert(
-                    session_id.clone(),
-                    SessionRecord {
-                        identity_id: identity_id.clone(),
-                        expires_at,
-                    },
-                );
-        }
-    }
-
-    let signing_key = state
-        .session_signing_keys
-        .get(&state.active_signing_key_id)
-        .expect("active signing key exists in keyring");
-    let access_token = issue_session_token(
-        &session_id,
-        &identity_id,
-        expires_at.timestamp(),
-        &state.active_signing_key_id,
-        signing_key,
-    );
-
-    Ok(Json(AuthVerifyResponse {
-        session_id,
-        access_token,
-        expires_at: expires_at.to_rfc3339(),
-    }))
-}
-
-pub async fn revoke_session(
-    auth: AuthSession,
-    State(state): State<AppState>,
-    Json(payload): Json<SessionRevokeRequest>,
-) -> ApiResult<StatusCode> {
-    validate_session_revoke_request(&payload)?;
-
-    if payload.session_id != auth.session_id {
-        return Err(unauthorized(
-            "session_invalid",
-            "session_id does not match authenticated session",
-        ));
-    }
-
-    if let Some(pool) = state.db_pool.as_ref() {
-        let updated = sqlx::query(
-            "
-            UPDATE sessions
-            SET revoked_at = NOW()
-            WHERE session_id = $1 AND revoked_at IS NULL
-            ",
-        )
-        .bind(&payload.session_id)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to revoke session")
-        })?;
-
-        if updated.rows_affected() == 0 {
-            return Err(bad_request("session_invalid", "session_id is invalid"));
-        }
-
-        return Ok(StatusCode::NO_CONTENT);
-    }
-
-    #[cfg(not(test))]
-    {
-        Err(internal_error(
-            "storage_unavailable",
-            "session revoke requires configured database pool",
-        ))
-    }
-
-    #[cfg(test)]
-    {
-        let removed = state
-            .sessions
-            .write()
-            .expect("acquire session write lock")
-            .remove(&payload.session_id);
-
-        if removed.is_none() {
-            return Err(bad_request("session_invalid", "session_id is invalid"));
-        }
-
-        Ok(StatusCode::NO_CONTENT)
-    }
-}
-
-pub async fn list_servers(
-    _auth: AuthSession,
-    Query(query): Query<ServerListQuery>,
-) -> Json<ServerListResponse> {
-    let mut items = vec![
-        ServerSummary {
-            id: "srv-atlas-core".to_string(),
-            name: "Atlas Core".to_string(),
-            unread: 2,
-            favorite: true,
-            muted: false,
-        },
-        ServerSummary {
-            id: "srv-relay-lab".to_string(),
-            name: "Relay Lab".to_string(),
-            unread: 0,
-            favorite: false,
-            muted: true,
-        },
-        ServerSummary {
-            id: "srv-dev-signals".to_string(),
-            name: "Dev Signals".to_string(),
-            unread: 5,
-            favorite: true,
-            muted: false,
-        },
-        ServerSummary {
-            id: "srv-ops-watch".to_string(),
-            name: "Ops Watch".to_string(),
-            unread: 0,
-            favorite: false,
-            muted: false,
-        },
-    ];
-
-    if query.favorites_only.unwrap_or(false) {
-        items.retain(|item| item.favorite);
-    }
-    if query.unread_only.unwrap_or(false) {
-        items.retain(|item| item.unread > 0);
-    }
-    if query.muted_only.unwrap_or(false) {
-        items.retain(|item| item.muted);
-    }
-    if let Some(search) = query.search.as_ref() {
-        if !search.trim().is_empty() {
-            let needle = search.to_lowercase();
-            items.retain(|item| item.name.to_lowercase().contains(&needle));
-        }
-    }
-
-    Json(ServerListResponse { items })
-}
-
-pub async fn list_contacts(
-    _auth: AuthSession,
-    Query(query): Query<ContactListQuery>,
-) -> Json<ContactListResponse> {
-    let mut items = vec![
-        ContactSummary {
-            id: "usr-nora-k".to_string(),
-            name: "Nora K".to_string(),
-            status: "online".to_string(),
-            unread: 1,
-            favorite: true,
-            inbound_request: false,
-            pending_request: false,
-        },
-        ContactSummary {
-            id: "usr-alex-r".to_string(),
-            name: "Alex R".to_string(),
-            status: "offline".to_string(),
-            unread: 0,
-            favorite: false,
-            inbound_request: false,
-            pending_request: true,
-        },
-        ContactSummary {
-            id: "usr-mina-s".to_string(),
-            name: "Mina S".to_string(),
-            status: "online".to_string(),
-            unread: 3,
-            favorite: true,
-            inbound_request: false,
-            pending_request: false,
-        },
-        ContactSummary {
-            id: "usr-jules-p".to_string(),
-            name: "Jules P".to_string(),
-            status: "away".to_string(),
-            unread: 0,
-            favorite: false,
-            inbound_request: true,
-            pending_request: false,
-        },
-    ];
-
-    if query.online_only.unwrap_or(false) {
-        items.retain(|item| item.status == "online");
-    }
-    if query.unread_only.unwrap_or(false) {
-        items.retain(|item| item.unread > 0);
-    }
-    if query.favorites_only.unwrap_or(false) {
-        items.retain(|item| item.favorite);
-    }
-    if let Some(search) = query.search.as_ref() {
-        if !search.trim().is_empty() {
-            let needle = search.to_lowercase();
-            items.retain(|item| item.name.to_lowercase().contains(&needle));
-        }
-    }
-
-    Json(ContactListResponse { items })
-}
-
 pub async fn create_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     Json(payload): Json<FriendRequestCreate>,
 ) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_friend_request_create(&payload)?;
     let actor_identity = auth.identity_id;
 
@@ -777,8 +169,10 @@ fn list_friend_requests_in_memory(
 pub async fn accept_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     axum::extract::Path(request_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<FriendRequestRecord>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
 
     let Some(pool) = state.db_pool.as_ref() else {
@@ -842,8 +236,10 @@ fn accept_friend_request_in_memory(
 pub async fn decline_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     axum::extract::Path(request_id): axum::extract::Path<String>,
 ) -> ApiResult<StatusCode> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
 
     let Some(pool) = state.db_pool.as_ref() else {
@@ -909,8 +305,10 @@ fn decline_friend_request_in_memory(
 pub async fn cancel_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     axum::extract::Path(request_id): axum::extract::Path<String>,
 ) -> ApiResult<StatusCode> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
 
     let Some(pool) = state.db_pool.as_ref() else {
@@ -971,21 +369,6 @@ fn cancel_friend_request_in_memory(
     )?;
 
     Ok(StatusCode::NO_CONTENT)
-}
-
-fn random_hex(byte_len: usize) -> String {
-    let mut bytes = vec![0_u8; byte_len];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    hex::encode(bytes)
-}
-
-fn rate_limit_key_from_headers(identity_hint: &str) -> String {
-    identity_hint.to_string()
-}
-
-fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
-    let key = UnparsedPublicKey::new(&ED25519, public_key);
-    key.verify(message, signature).map_err(|_| ())
 }
 
 async fn create_friend_request_db(

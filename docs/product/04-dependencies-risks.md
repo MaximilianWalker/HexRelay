@@ -26,7 +26,7 @@
 |---|---|---|---|---|---|---|
 | D-001 | Monorepo scaffold (`apps/web`, Rust services, infra) | Internal | ready | Blocks all code implementation and local bootstrap | Core | Iteration 1 baseline completed with `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` |
 | D-002 | Local infra compose stack (Postgres, Redis, object storage, coturn) | Internal | ready | Blocks auth, messaging, and voice integration tests | Core | `infra/docker-compose.yml` and `infra/README.md` present |
-| D-003 | CI matrix for Rust + web lint/test/build | Internal | ready | Increases regression and integration risk | Platform | Implemented in `.github/workflows/ci.yml` with scaffold-aware bootstrap behavior |
+| D-003 | CI matrix for Rust + web lint/test/build + security audit gates | Internal | ready | Increases regression, dependency, and secure-coding drift risk | Platform | Implemented in `.github/workflows/ci.yml` including cargo/npm audits, semgrep scan, and integration evidence artifact upload |
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |

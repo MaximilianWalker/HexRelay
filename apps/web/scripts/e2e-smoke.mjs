@@ -28,11 +28,23 @@ async function waitForHealth(url, timeoutMs = 15000) {
   throw new Error(`Timeout waiting for ${url}`);
 }
 
-async function connectWebSocket(accessToken) {
+function parseSetCookieHeaders(response) {
+  const raw = response.headers.get("set-cookie");
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(/,\s*(?=[^;]+=[^;]+)/)
+    .map((value) => value.split(";")[0])
+    .filter(Boolean);
+}
+
+async function connectWebSocket(cookieHeader) {
   await new Promise((resolve, reject) => {
     const socket = new WebSocket(realtimeWs, {
       headers: {
-        authorization: `Bearer ${accessToken}`,
+        cookie: cookieHeader,
       },
     });
 
@@ -102,12 +114,17 @@ async function run() {
     throw new Error(`verify failed (${verifyResponse.status})`);
   }
 
-  const verified = await verifyResponse.json();
-  if (!verified.access_token) {
-    throw new Error("verify response missing access_token");
+  const cookieHeader = parseSetCookieHeaders(verifyResponse).join("; ");
+  if (!cookieHeader.includes("hexrelay_session=")) {
+    throw new Error("verify response missing session cookie");
   }
 
-  await connectWebSocket(verified.access_token);
+  const verified = await verifyResponse.json();
+  if (!verified.session_id) {
+    throw new Error("verify response missing session_id");
+  }
+
+  await connectWebSocket(cookieHeader);
 
   process.stdout.write("Smoke e2e passed\n");
 }

@@ -119,7 +119,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | T3.1.1 | Implement friend request state machine and DB constraints | In progress | Added `POST/GET /v1/friends/requests` plus accept/decline/cancel endpoints in `api-rs` with Postgres-backed persistence, migration checksums + advisory lock, centralized auth extractor, pending-only transition guards, idempotent terminal-action semantics, auth-required revoke/session validation, atomic challenge consume-on-verify, DB-backed identity/challenge/invite durability, and DB integration tests for session/migration/restart-persistence paths |
-| T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub calls live friend-request endpoints with send/accept/decline actions, optimistic transition/rollback behavior, busy-state guards, and explicit screen states; bearer-token transport is enforced across contacts/session lifecycle paths |
+| T3.1.2 | Build friends list UI and request actions | In progress | Contacts hub calls live friend-request endpoints with send/accept/decline actions, optimistic transition/rollback behavior, busy-state guards, and explicit screen states; HttpOnly cookie auth + CSRF header transport is enforced across contacts/session lifecycle paths |
 | T3.1.3 | Implement user contact invite token create/redeem APIs | In progress | Invite APIs now run on DB-backed invite persistence path and are exposed in Contacts hub create/redeem controls; cross-service smoke validation covers auth and realtime handshake continuity |
 
 ## Done

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   acceptFriendRequest,
@@ -16,11 +16,21 @@ import {
 } from "./api";
 
 describe("api auth transport", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        cookie: "hexrelay_csrf=csrf-123",
+      },
+    });
   });
 
-  it("sends bearer token for contacts requests", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete (globalThis as { document?: unknown }).document;
+  });
+
+  it("uses cookie credentials for contacts requests", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
@@ -31,35 +41,27 @@ describe("api auth transport", () => {
       );
 
     const result = await fetchContacts({
-      accessToken: "token-123",
       search: "nora",
       unreadOnly: true,
     });
 
     expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
     const [, init] = fetchMock.mock.calls[0] ?? [];
-    const headers = (init?.headers ?? {}) as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer token-123");
+    expect(init?.credentials).toBe("include");
   });
 
-  it("sends bearer token for session revoke", async () => {
+  it("sends csrf header for session revoke", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 204 }));
 
-    const result = await revokeSession({
-      sessionId: "sess-1",
-      accessToken: "token-xyz",
-    });
+    const result = await revokeSession({ sessionId: "sess-1" });
 
     expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
     const [, init] = fetchMock.mock.calls[0] ?? [];
-    const headers = (init?.headers ?? {}) as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer token-xyz");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(headers.get("authorization")).toBeNull();
     expect(init?.body).toBe('{"session_id":"sess-1"}');
   });
 
@@ -74,7 +76,6 @@ describe("api auth transport", () => {
       );
 
     await fetchServers({
-      accessToken: "token-abc",
       search: "atlas",
       favoritesOnly: true,
       unreadOnly: true,
@@ -88,7 +89,7 @@ describe("api auth transport", () => {
     expect(String(url)).toContain("muted_only=true");
   });
 
-  it("sends content-type and auth for friend request creation", async () => {
+  it("sends content-type and csrf for friend request creation", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
@@ -101,14 +102,13 @@ describe("api auth transport", () => {
     const result = await createFriendRequest({
       requesterIdentityId: "usr-a",
       targetIdentityId: "usr-b",
-      accessToken: "token-create",
     });
 
     expect(result.ok).toBe(true);
     const [, init] = fetchMock.mock.calls[0] ?? [];
-    const headers = (init?.headers ?? {}) as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer token-create");
-    expect(headers["content-type"]).toBe("application/json");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(headers.get("content-type")).toBe("application/json");
   });
 
   it("returns fallback error payload for non-json error response", async () => {
@@ -119,7 +119,7 @@ describe("api auth transport", () => {
       }),
     );
 
-    const result = await fetchContacts({ accessToken: "token-fail" });
+    const result = await fetchContacts({});
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -160,7 +160,6 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             session_id: "sess-1",
-            access_token: "token-1",
             expires_at: "2030-01-01T00:00:00Z",
           }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -184,7 +183,7 @@ describe("api auth transport", () => {
       challengeId: "challenge-1",
       signature: "b".repeat(128),
     });
-    const invite = await createInvite({ mode: "one_time", accessToken: "token-1" });
+    const invite = await createInvite({ mode: "one_time" });
     const redeem = await redeemInvite({ token: "inv-1", nodeFingerprint: "node-1" });
 
     expect(verify.ok).toBe(true);
@@ -211,10 +210,9 @@ describe("api auth transport", () => {
     const list = await fetchFriendRequests({
       identityId: "usr-a",
       direction: "inbound",
-      accessToken: "token-fr",
     });
-    const accept = await acceptFriendRequest({ requestId: "fr-1", accessToken: "token-fr" });
-    const decline = await declineFriendRequest({ requestId: "fr-2", accessToken: "token-fr" });
+    const accept = await acceptFriendRequest({ requestId: "fr-1" });
+    const decline = await declineFriendRequest({ requestId: "fr-2" });
 
     expect(list.ok).toBe(true);
     expect(accept.ok).toBe(true);

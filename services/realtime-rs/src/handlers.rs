@@ -8,6 +8,7 @@ use chrono::Utc;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -37,23 +38,66 @@ pub async fn ws_handler(
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
-    ws.on_upgrade(move |socket| handle_socket(socket, session.identity_id))
+    if !try_acquire_connection_slot(&state, &session.identity_id).await {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
+
+    ws.on_upgrade(move |socket| handle_socket(state, socket, session.identity_id))
 }
 
-async fn handle_socket(mut socket: WebSocket, session_identity_id: String) {
+async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_id: String) {
     let _ = socket.send(Message::Text(connection_ready_banner())).await;
 
     while let Some(message) = socket.next().await {
         match message {
             Ok(Message::Text(text)) => {
+                if text.len() > state.ws_max_inbound_message_bytes {
+                    let _ = socket
+                        .send(Message::Text(build_error_event(
+                            "event_too_large",
+                            "inbound message exceeds max size",
+                        )))
+                        .await;
+                    break;
+                }
+
+                let allowed = state.rate_limiter.allow(
+                    "ws_message",
+                    &session_identity_id,
+                    state.ws_message_rate_limit,
+                    state.ws_message_rate_window_seconds,
+                );
+                if !allowed {
+                    let _ = socket
+                        .send(Message::Text(build_error_event(
+                            "event_rate_limited",
+                            "too many websocket messages",
+                        )))
+                        .await;
+                    break;
+                }
+
                 let response = route_inbound_event(&text, &session_identity_id);
                 let _ = socket.send(Message::Text(response)).await;
+            }
+            Ok(Message::Binary(bytes)) => {
+                if bytes.len() > state.ws_max_inbound_message_bytes {
+                    let _ = socket
+                        .send(Message::Text(build_error_event(
+                            "event_too_large",
+                            "inbound message exceeds max size",
+                        )))
+                        .await;
+                    break;
+                }
             }
             Ok(Message::Close(_)) => break,
             Ok(_) => {}
             Err(_) => break,
         }
     }
+
+    release_connection_slot(&state, &session_identity_id).await;
 }
 
 #[derive(Deserialize)]
@@ -239,17 +283,26 @@ async fn is_session_valid(state: &AppState, headers: &HeaderMap) -> bool {
 }
 
 async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<ValidatedSession> {
+    let cookie_header = headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| !value.trim().is_empty());
     let authorization_header = headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
         .filter(|value| !value.trim().is_empty());
-    let authorization_header = authorization_header?;
+    if cookie_header.is_none() && authorization_header.is_none() {
+        return None;
+    }
 
     let url = format!("{}/v1/auth/sessions/validate", state.api_base_url);
-    let request = state
-        .http_client
-        .get(url)
-        .header("authorization", authorization_header);
+    let mut request = state.http_client.get(url);
+    if let Some(cookie_header) = cookie_header {
+        request = request.header("cookie", cookie_header);
+    }
+    if let Some(authorization_header) = authorization_header {
+        request = request.header("authorization", authorization_header);
+    }
 
     let response = match request.send().await {
         Ok(value) => value,
@@ -271,6 +324,16 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
 }
 
 fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
+    let cookie = headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    if let Some(cookie) = cookie {
+        return format!("cookie:{:016x}", stable_hash(&cookie));
+    }
+
     let auth = headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
@@ -279,9 +342,37 @@ fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
         .map(|value| value.to_string());
 
     if let Some(auth) = auth {
-        format!("auth:{auth}")
+        format!("auth:{:016x}", stable_hash(&auth))
     } else {
         "auth-missing".to_string()
+    }
+}
+
+fn stable_hash(value: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+async fn try_acquire_connection_slot(state: &AppState, identity_id: &str) -> bool {
+    let mut guard = state.active_connections.lock().await;
+    let current = guard.get(identity_id).copied().unwrap_or(0);
+    if current >= state.ws_max_connections_per_identity {
+        return false;
+    }
+
+    guard.insert(identity_id.to_string(), current + 1);
+    true
+}
+
+async fn release_connection_slot(state: &AppState, identity_id: &str) {
+    let mut guard = state.active_connections.lock().await;
+    if let Some(current) = guard.get_mut(identity_id) {
+        if *current <= 1 {
+            guard.remove(identity_id);
+        } else {
+            *current -= 1;
+        }
     }
 }
 
@@ -322,7 +413,12 @@ mod tests {
                 .get("authorization")
                 .and_then(|value| value.to_str().ok())
                 .map(|value| value == "Bearer test-token")
-                .unwrap_or(false);
+                .unwrap_or(false)
+                || headers
+                    .get("cookie")
+                    .and_then(|value| value.to_str().ok())
+                    .map(|value| value.contains("hexrelay_session=test-token"))
+                    .unwrap_or(false);
 
             if !authorized {
                 return (
@@ -364,7 +460,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_missing_authorization_header() {
-        let state = AppState::new("http://127.0.0.1:1".to_string(), 60, 60);
+        let state = AppState::new("http://127.0.0.1:1".to_string(), 60, 60, 16384, 120, 60, 3);
         let headers = HeaderMap::new();
 
         assert!(!is_session_valid(&state, &headers).await);
@@ -373,7 +469,7 @@ mod tests {
     #[tokio::test]
     async fn accepts_valid_authorization_with_successful_validation() {
         let api_base = start_validate_server(true).await;
-        let state = AppState::new(api_base, 60, 60);
+        let state = AppState::new(api_base, 60, 60, 16384, 120, 60, 3);
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -386,7 +482,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_authorization_when_validation_endpoint_denies() {
         let api_base = start_validate_server(false).await;
-        let state = AppState::new(api_base, 60, 60);
+        let state = AppState::new(api_base, 60, 60, 16384, 120, 60, 3);
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -397,7 +493,26 @@ mod tests {
     }
 
     async fn start_ws_server(api_base_url: String, ws_connect_rate_limit: usize) -> String {
-        let app = build_app(AppState::new(api_base_url, ws_connect_rate_limit, 60));
+        start_ws_server_with_limits(api_base_url, ws_connect_rate_limit, 16384, 120, 60, 3).await
+    }
+
+    async fn start_ws_server_with_limits(
+        api_base_url: String,
+        ws_connect_rate_limit: usize,
+        ws_max_inbound_message_bytes: usize,
+        ws_message_rate_limit: usize,
+        ws_message_rate_window_seconds: u64,
+        ws_max_connections_per_identity: usize,
+    ) -> String {
+        let app = build_app(AppState::new(
+            api_base_url,
+            ws_connect_rate_limit,
+            60,
+            ws_max_inbound_message_bytes,
+            ws_message_rate_limit,
+            ws_message_rate_window_seconds,
+            ws_max_connections_per_identity,
+        ));
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind websocket listener");
@@ -427,6 +542,26 @@ mod tests {
             .map(|value| value.to_string())
             .unwrap_or_default();
         assert!(message.contains("401") || message.contains("Unauthorized"));
+    }
+
+    #[tokio::test]
+    async fn websocket_upgrade_accepts_valid_cookie() {
+        let api_base = start_validate_server(true).await;
+        let ws_url = start_ws_server(api_base, 60).await;
+
+        let mut request = ws_url
+            .into_client_request()
+            .expect("build websocket client request");
+        request.headers_mut().insert(
+            "cookie",
+            HeaderValue::from_static("hexrelay_session=test-token"),
+        );
+
+        let connection = connect_async(request)
+            .await
+            .expect("websocket connect response");
+
+        assert_eq!(connection.1.status(), StatusCode::SWITCHING_PROTOCOLS);
     }
 
     #[tokio::test]
@@ -598,5 +733,77 @@ mod tests {
             .map(|value| value.to_string())
             .unwrap_or_default();
         assert!(message.contains("429") || message.contains("Too Many Requests"));
+    }
+
+    #[tokio::test]
+    async fn websocket_upgrade_rejects_when_identity_connection_cap_exceeded() {
+        let api_base = start_validate_server(true).await;
+        let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 120, 60, 1).await;
+
+        let mut first_request = ws_url
+            .clone()
+            .into_client_request()
+            .expect("build first websocket request");
+        first_request.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+        let (_first_socket, _) = connect_async(first_request)
+            .await
+            .expect("first websocket should connect");
+
+        let mut second_request = ws_url
+            .into_client_request()
+            .expect("build second websocket request");
+        second_request.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+
+        let result = connect_async(second_request).await;
+        assert!(result.is_err());
+        let message = result
+            .err()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        assert!(message.contains("429") || message.contains("Too Many Requests"));
+    }
+
+    #[tokio::test]
+    async fn websocket_rejects_text_payload_above_limit() {
+        let api_base = start_validate_server(true).await;
+        let ws_url = start_ws_server_with_limits(api_base, 60, 64, 120, 60, 3).await;
+
+        let mut request = ws_url
+            .into_client_request()
+            .expect("build websocket client request");
+        request.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+
+        let (mut socket, _) = connect_async(request)
+            .await
+            .expect("websocket connect response");
+
+        let _ = socket.next().await;
+
+        socket
+            .send(WsMessage::Text("x".repeat(1024)))
+            .await
+            .expect("send oversized payload");
+
+        let message = socket
+            .next()
+            .await
+            .expect("socket message")
+            .expect("ws frame");
+
+        let text = match message {
+            WsMessage::Text(value) => value,
+            _ => panic!("expected text frame"),
+        };
+        let payload: Value = serde_json::from_str(&text).expect("decode error envelope");
+        assert_eq!(payload["data"]["code"], "event_too_large");
     }
 }

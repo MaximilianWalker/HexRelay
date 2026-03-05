@@ -4,9 +4,17 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+const MAX_BUCKETS: usize = 10_000;
+
+#[derive(Default)]
+struct Bucket {
+    last_seen: u64,
+    timestamps: Vec<u64>,
+}
+
 #[derive(Clone, Default)]
 pub struct RateLimiter {
-    entries: Arc<RwLock<HashMap<String, Vec<u64>>>>,
+    entries: Arc<RwLock<HashMap<String, Bucket>>>,
 }
 
 impl RateLimiter {
@@ -23,14 +31,31 @@ impl RateLimiter {
             .entries
             .write()
             .expect("acquire rate limiter write lock");
-        let bucket = guard.entry(bucket_key).or_default();
-        bucket.retain(|timestamp| *timestamp >= oldest);
 
-        if bucket.len() >= limit {
+        guard.retain(|_, bucket| {
+            bucket.timestamps.retain(|timestamp| *timestamp >= oldest);
+            !bucket.timestamps.is_empty()
+        });
+
+        if guard.len() >= MAX_BUCKETS && !guard.contains_key(&bucket_key) {
+            if let Some(candidate) = guard
+                .iter()
+                .min_by_key(|(_, bucket)| bucket.last_seen)
+                .map(|(existing_key, _)| existing_key.clone())
+            {
+                guard.remove(&candidate);
+            }
+        }
+
+        let bucket = guard.entry(bucket_key).or_default();
+        bucket.timestamps.retain(|timestamp| *timestamp >= oldest);
+        bucket.last_seen = now;
+
+        if bucket.timestamps.len() >= limit {
             return false;
         }
 
-        bucket.push(now);
+        bucket.timestamps.push(now);
         true
     }
 }

@@ -37,12 +37,12 @@ export default function ServersPage() {
     return readPersonas()[0]?.id ?? "usr-nora-k";
   }, []);
 
-  const accessToken = useMemo(() => getPersonaSession(identityId)?.accessToken ?? null, [identityId]);
+  const hasSession = useMemo(() => Boolean(getPersonaSession(identityId)), [identityId]);
 
   useEffect(() => {
     let active = true;
 
-    if (!accessToken) {
+    if (!hasSession) {
       return () => {
         active = false;
       };
@@ -55,7 +55,6 @@ export default function ServersPage() {
           favoritesOnly,
           unreadOnly,
           mutedOnly,
-          accessToken,
         });
 
         if (!active) {
@@ -87,7 +86,7 @@ export default function ServersPage() {
     return () => {
       active = false;
     };
-  }, [accessToken, favoritesOnly, mutedOnly, search, unreadOnly]);
+  }, [favoritesOnly, hasSession, mutedOnly, search, unreadOnly]);
 
   function setFilterState(update: () => void): void {
     setLoading(true);
@@ -99,9 +98,9 @@ export default function ServersPage() {
     return servers;
   }, [servers]);
 
-  const visibleServers = accessToken ? filtered : [];
+  const visibleServers = hasSession ? filtered : [];
 
-  const state = !accessToken
+  const state = !hasSession
     ? "error"
     : loading
       ? "loading"

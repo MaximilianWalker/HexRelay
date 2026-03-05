@@ -8,6 +8,10 @@ pub struct RealtimeConfig {
     pub bind_addr: SocketAddr,
     pub ws_connect_rate_limit: usize,
     pub rate_limit_window_seconds: u64,
+    pub ws_max_inbound_message_bytes: usize,
+    pub ws_message_rate_limit: usize,
+    pub ws_message_rate_window_seconds: u64,
+    pub ws_max_connections_per_identity: usize,
 }
 
 impl RealtimeConfig {
@@ -24,6 +28,13 @@ impl RealtimeConfig {
             .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60);
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60);
+        let ws_max_inbound_message_bytes =
+            parse_usize_env("REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES", 16384);
+        let ws_message_rate_limit = parse_usize_env("REALTIME_WS_MESSAGE_RATE_LIMIT", 120);
+        let ws_message_rate_window_seconds =
+            parse_u64_env("REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS", 60);
+        let ws_max_connections_per_identity =
+            parse_usize_env("REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY", 3);
 
         if api_base_url.trim().is_empty() {
             panic!("Invalid REALTIME_API_BASE_URL. Value must not be empty");
@@ -56,6 +67,10 @@ impl RealtimeConfig {
             bind_addr,
             ws_connect_rate_limit,
             rate_limit_window_seconds,
+            ws_max_inbound_message_bytes,
+            ws_message_rate_limit,
+            ws_message_rate_window_seconds,
+            ws_max_connections_per_identity,
         }
     }
 }

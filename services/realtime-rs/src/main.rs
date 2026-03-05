@@ -16,6 +16,10 @@ async fn main() {
         config.api_base_url.clone(),
         config.ws_connect_rate_limit,
         config.rate_limit_window_seconds,
+        config.ws_max_inbound_message_bytes,
+        config.ws_message_rate_limit,
+        config.ws_message_rate_window_seconds,
+        config.ws_max_connections_per_identity,
     ));
 
     let addr = config.bind_addr;

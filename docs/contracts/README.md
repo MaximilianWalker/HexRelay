@@ -23,6 +23,7 @@
 
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
 - REST compatibility alias (legacy path): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- Runtime auth transport: HttpOnly `hexrelay_session` cookie + `x-csrf-token` double-submit enforcement for authenticated mutation endpoints.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
 

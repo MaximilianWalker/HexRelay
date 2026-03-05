@@ -12,6 +12,14 @@ declare global {
 
 const FALLBACK_PREFIX = "hexrelay.secure.fallback.v1";
 
+function fallbackStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.sessionStorage;
+}
+
 function resolveProvider(): SecureStoreProvider | null {
   if (typeof window === "undefined") {
     return null;
@@ -25,13 +33,14 @@ function fallbackKey(key: string): string {
 }
 
 export async function secureGetItem(key: string): Promise<string | null> {
-  if (typeof window === "undefined") {
+  const storage = fallbackStorage();
+  if (!storage) {
     return null;
   }
 
   const provider = resolveProvider();
   if (provider) {
-    const fallbackValue = window.localStorage.getItem(fallbackKey(key));
+    const fallbackValue = storage.getItem(fallbackKey(key));
 
     try {
       const providerValue = await provider.getItem(key);
@@ -49,7 +58,7 @@ export async function secureGetItem(key: string): Promise<string | null> {
         }
 
         if (synced) {
-          window.localStorage.removeItem(fallbackKey(key));
+          storage.removeItem(fallbackKey(key));
         }
 
         return fallbackValue;
@@ -61,11 +70,12 @@ export async function secureGetItem(key: string): Promise<string | null> {
     }
   }
 
-  return window.localStorage.getItem(fallbackKey(key));
+  return storage.getItem(fallbackKey(key));
 }
 
 export async function secureSetItem(key: string, value: string): Promise<void> {
-  if (typeof window === "undefined") {
+  const storage = fallbackStorage();
+  if (!storage) {
     return;
   }
 
@@ -73,19 +83,20 @@ export async function secureSetItem(key: string, value: string): Promise<void> {
   if (provider) {
     try {
       await provider.setItem(key, value);
-      window.localStorage.removeItem(fallbackKey(key));
+      storage.removeItem(fallbackKey(key));
       return;
     } catch {
-      window.localStorage.setItem(fallbackKey(key), value);
+      storage.setItem(fallbackKey(key), value);
       return;
     }
   }
 
-  window.localStorage.setItem(fallbackKey(key), value);
+  storage.setItem(fallbackKey(key), value);
 }
 
 export async function secureRemoveItem(key: string): Promise<void> {
-  if (typeof window === "undefined") {
+  const storage = fallbackStorage();
+  if (!storage) {
     return;
   }
 
@@ -98,5 +109,5 @@ export async function secureRemoveItem(key: string): Promise<void> {
     }
   }
 
-  window.localStorage.removeItem(fallbackKey(key));
+  storage.removeItem(fallbackKey(key));
 }

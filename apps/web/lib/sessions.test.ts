@@ -47,13 +47,11 @@ describe("sessions", () => {
     );
 
     const session = getPersonaSession("persona-1");
-    expect(session?.accessToken).toBe("legacy-token");
-    expect(windowRef.sessionStorage.getItem("hexrelay.session.token.v1.persona-1")).toBe(
-      "legacy-token",
-    );
+    expect(session?.sessionId).toBe("sess-1");
 
-    const persisted = windowRef.localStorage.getItem("hexrelay.session.v1.persona-1");
-    expect(persisted).not.toContain("accessToken");
+    expect(windowRef.localStorage.getItem("hexrelay.session.v1.persona-1")).toBeNull();
+    const migrated = windowRef.sessionStorage.getItem("hexrelay.session.runtime.v1.persona-1");
+    expect(migrated).toContain("sess-1");
   });
 
   it("scrubs legacy localStorage token even when sessionStorage already has token", () => {
@@ -71,12 +69,11 @@ describe("sessions", () => {
         updatedAt: "2030-01-01T00:00:00Z",
       }),
     );
-    windowRef.sessionStorage.setItem("hexrelay.session.token.v1.persona-2", "active-token-2");
-
     const session = getPersonaSession("persona-2");
-    expect(session?.accessToken).toBe("active-token-2");
+    expect(session?.sessionId).toBe("sess-2");
 
-    const persisted = windowRef.localStorage.getItem("hexrelay.session.v1.persona-2");
-    expect(persisted).not.toContain("accessToken");
+    expect(windowRef.localStorage.getItem("hexrelay.session.v1.persona-2")).toBeNull();
+    const migrated = windowRef.sessionStorage.getItem("hexrelay.session.runtime.v1.persona-2");
+    expect(migrated).toContain("sess-2");
   });
 });

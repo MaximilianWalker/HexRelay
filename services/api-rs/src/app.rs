@@ -1,16 +1,19 @@
 use axum::{
-    http::{header, HeaderValue, Method},
+    http::{header, HeaderName, HeaderValue, Method},
     routing::{get, post},
     Router,
 };
 use tower_http::cors::CorsLayer;
 
 use crate::{
+    auth_handlers::{
+        issue_auth_challenge, register_identity_key, revoke_session, validate_session,
+        verify_auth_challenge,
+    },
+    directory_handlers::{list_contacts, list_servers},
     handlers::{
         accept_friend_request, cancel_friend_request, create_friend_request, create_invite,
-        decline_friend_request, health, issue_auth_challenge, list_contacts, list_friend_requests,
-        list_servers, redeem_invite, register_identity_key, revoke_session, validate_session,
-        verify_auth_challenge,
+        decline_friend_request, health, list_friend_requests, redeem_invite,
     },
     state::AppState,
 };
@@ -25,7 +28,12 @@ pub fn build_app(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(allowed_origins)
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static("x-csrf-token"),
+        ])
+        .allow_credentials(true);
 
     Router::new()
         .route("/health", get(health))

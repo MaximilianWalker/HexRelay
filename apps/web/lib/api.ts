@@ -9,14 +9,40 @@ type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };
 
-function authHeaders(accessToken?: string): HeadersInit {
-  if (!accessToken) {
-    return {};
+const CSRF_COOKIE = "hexrelay_csrf";
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") {
+    return null;
   }
 
-  return {
-    authorization: `Bearer ${accessToken}`,
-  };
+  const pairs = document.cookie.split(";");
+  for (const pair of pairs) {
+    const [cookieName, ...rest] = pair.trim().split("=");
+    if (cookieName === name) {
+      return rest.join("=") || null;
+    }
+  }
+
+  return null;
+}
+
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers = new Headers(init?.headers ?? {});
+
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = readCookie(CSRF_COOKIE);
+    if (csrf) {
+      headers.set("x-csrf-token", csrf);
+    }
+  }
+
+  return fetch(url, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
 }
 
 async function parseResponse<T>(response: Response): Promise<ApiResult<T>> {
@@ -41,7 +67,7 @@ export async function registerIdentityKey(input: {
   identityId: string;
   publicKey: string;
 }): Promise<ApiResult<undefined>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/identity/keys/register`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/identity/keys/register`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -59,7 +85,7 @@ export async function registerIdentityKey(input: {
 export async function issueAuthChallenge(input: {
   identityId: string;
 }): Promise<ApiResult<{ challenge_id: string; nonce: string; expires_at: string }>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/challenge`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/challenge`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -76,8 +102,8 @@ export async function verifyAuthChallenge(input: {
   identityId: string;
   challengeId: string;
   signature: string;
-}): Promise<ApiResult<{ session_id: string; access_token: string; expires_at: string }>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/verify`, {
+}): Promise<ApiResult<{ session_id: string; expires_at: string }>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/verify`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -89,20 +115,18 @@ export async function verifyAuthChallenge(input: {
     }),
   });
 
-  return parseResponse<{ session_id: string; access_token: string; expires_at: string }>(
+  return parseResponse<{ session_id: string; expires_at: string }>(
     response,
   );
 }
 
 export async function revokeSession(input: {
   sessionId: string;
-  accessToken: string;
 }): Promise<ApiResult<undefined>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/sessions/revoke`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/sessions/revoke`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       session_id: input.sessionId,
@@ -116,13 +140,11 @@ export async function createInvite(input: {
   mode: "one_time" | "multi_use";
   maxUses?: number;
   expiresAt?: string;
-  accessToken: string;
 }): Promise<ApiResult<{ token: string; mode: string; max_uses?: number; expires_at?: string }>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       mode: input.mode,
@@ -141,7 +163,6 @@ export async function fetchServers(input: {
   favoritesOnly?: boolean;
   unreadOnly?: boolean;
   mutedOnly?: boolean;
-  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -167,12 +188,9 @@ export async function fetchServers(input: {
     params.set("muted_only", "true");
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/servers?${params.toString()}`,
-    {
-      method: "GET",
-      headers: authHeaders(input.accessToken),
-    },
+    { method: "GET" },
   );
 
   return parseResponse(response);
@@ -183,7 +201,6 @@ export async function fetchContacts(input: {
   onlineOnly?: boolean;
   unreadOnly?: boolean;
   favoritesOnly?: boolean;
-  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -211,12 +228,9 @@ export async function fetchContacts(input: {
     params.set("favorites_only", "true");
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/contacts?${params.toString()}`,
-    {
-      method: "GET",
-      headers: authHeaders(input.accessToken),
-    },
+    { method: "GET" },
   );
 
   return parseResponse(response);
@@ -225,13 +239,11 @@ export async function fetchContacts(input: {
 export async function createFriendRequest(input: {
   requesterIdentityId: string;
   targetIdentityId: string;
-  accessToken: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...authHeaders(input.accessToken),
     },
     body: JSON.stringify({
       requester_identity_id: input.requesterIdentityId,
@@ -245,7 +257,6 @@ export async function createFriendRequest(input: {
 export async function fetchFriendRequests(input: {
   identityId: string;
   direction?: "inbound" | "outbound";
-  accessToken: string;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -263,12 +274,9 @@ export async function fetchFriendRequests(input: {
     params.set("direction", input.direction);
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests?${params.toString()}`,
-    {
-      method: "GET",
-      headers: authHeaders(input.accessToken),
-    },
+    { method: "GET" },
   );
 
   return parseResponse(response);
@@ -276,14 +284,10 @@ export async function fetchFriendRequests(input: {
 
 export async function acceptFriendRequest(input: {
   requestId: string;
-  accessToken: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/accept`,
-    {
-      method: "POST",
-      headers: authHeaders(input.accessToken),
-    },
+    { method: "POST" },
   );
 
   return parseResponse(response);
@@ -291,14 +295,10 @@ export async function acceptFriendRequest(input: {
 
 export async function declineFriendRequest(input: {
   requestId: string;
-  accessToken: string;
 }): Promise<ApiResult<undefined>> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
-    {
-      method: "POST",
-      headers: authHeaders(input.accessToken),
-    },
+    { method: "POST" },
   );
 
   return parseResponse(response);
@@ -308,7 +308,7 @@ export async function redeemInvite(input: {
   token: string;
   nodeFingerprint: string;
 }): Promise<ApiResult<{ accepted: boolean }>> {
-  const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites/redeem`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites/redeem`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

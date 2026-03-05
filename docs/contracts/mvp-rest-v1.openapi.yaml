@@ -11,7 +11,7 @@ info:
 servers:
   - url: https://api.hexrelay.local
 security:
-  - bearerAuth: []
+  - cookieAuth: []
 paths:
   /v1/friends/requests:
     post:
@@ -441,10 +441,10 @@ paths:
                   $ref: '#/components/schemas/RegistryEntry'
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: HEXTOKEN_V1
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: hexrelay_session
   parameters:
     RequestIdParam:
       name: request_id

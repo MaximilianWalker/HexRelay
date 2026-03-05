@@ -30,6 +30,31 @@
 
 ## Log Entries
 
+### 2026-03-05 (readiness controls pass: security gates, evidence automation, distributed limiting, realtime guardrails)
+
+- Area affected: CI security posture, release evidence quality, API abuse control scalability, realtime resilience, and API handler maintainability.
+- Change summary:
+  - Added CI security automation gates for Rust dependencies (`cargo audit`), web dependencies (`npm audit --omit=dev --audit-level=high`), and static analysis (`semgrep`).
+  - Added deterministic CI evidence collection script and integration-smoke artifact upload under `evidence/ci/<run_id>/`.
+  - Added DB-backed distributed API rate limiting counters (`rate_limit_counters`) to preserve abuse-control behavior across multi-instance API deployments sharing Postgres.
+  - Added realtime websocket guardrails: per-identity connection cap, inbound message-size cap, and per-identity message-rate cap.
+  - Continued handler decomposition by extracting directory/list endpoints into dedicated `directory_handlers` module.
+- Rationale:
+  - Improve confidence on substantive remaining quality risks while preserving local-first desktop defaults and enabling stronger dedicated-server safety under active development.
+
+### 2026-03-05 (auth transport migration to HttpOnly cookie + CSRF)
+
+- Area affected: Runtime auth transport across API, web client, realtime validation path, and runtime contracts.
+- Change summary:
+  - Switched runtime web auth transport from JS-managed bearer token usage to HttpOnly session cookie (`hexrelay_session`).
+  - Added double-submit CSRF enforcement (`hexrelay_csrf` cookie + `x-csrf-token` header) for authenticated mutation routes.
+  - Updated web API calls to `credentials: include` and removed auth token plumbing from page-level calls.
+  - Updated realtime session validation forwarding to support cookie-authenticated websocket handshakes.
+  - Updated runtime OpenAPI contracts and runbook auth language to reflect cookie-first transport.
+  - Supersedes prior runtime bearer-token transport notes in historical entries below.
+- Rationale:
+  - Reduce token exfiltration risk from browser script-accessible storage while keeping runtime auth/session behavior explicit and testable.
+
 ### 2026-03-04 (security and hygiene hardening: token rotation, rate limiting, and runtime contract cleanup)
 
 - Area affected: Auth/session security, abuse controls, runtime contract governance, and dead/legacy runtime path cleanup.

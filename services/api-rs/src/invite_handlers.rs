@@ -1,15 +1,20 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use chrono::Utc;
 use ring::digest::{digest, SHA256};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthSession,
+    auth::{enforce_csrf_for_cookie_auth, AuthSession},
     errors::{bad_request, too_many_requests, ApiResult},
     models::{
         InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
+    rate_limit::allow_distributed,
     state::AppState,
     validation::{validate_invite_create_request, validate_invite_redeem_request},
 };
@@ -22,17 +27,20 @@ use crate::errors::internal_error;
 
 pub async fn create_invite(
     auth: AuthSession,
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<InviteCreateRequest>,
 ) -> ApiResult<(StatusCode, Json<InviteCreateResponse>)> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_invite_create_request(&payload)?;
 
-    let allowed = state.rate_limiter.allow(
+    let allowed = allow_rate_limit(
+        &state,
         "invite_create",
         &auth.identity_id,
         state.rate_limits.invite_create_per_window,
-        state.rate_limits.window_seconds,
-    );
+    )
+    .await;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -147,12 +155,13 @@ pub async fn redeem_invite(
 ) -> ApiResult<Json<InviteRedeemResponse>> {
     validate_invite_redeem_request(&payload)?;
     let token_hash = hash_invite_token(&payload.token);
-    let allowed = state.rate_limiter.allow(
+    let allowed = allow_rate_limit(
+        &state,
         "invite_redeem",
         &format!("{}:{}", payload.node_fingerprint, token_hash),
         state.rate_limits.invite_redeem_per_window,
-        state.rate_limits.window_seconds,
-    );
+    )
+    .await;
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -276,4 +285,21 @@ pub async fn redeem_invite(
 
 fn hash_invite_token(token: &str) -> String {
     hex::encode(digest(&SHA256, token.as_bytes()).as_ref())
+}
+
+async fn allow_rate_limit(state: &AppState, scope: &str, key: &str, limit: usize) -> bool {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return match allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
+            .await
+        {
+            Ok(allowed) => allowed,
+            Err(_) => state
+                .rate_limiter
+                .allow(scope, key, limit, state.rate_limits.window_seconds),
+        };
+    }
+
+    state
+        .rate_limiter
+        .allow(scope, key, limit, state.rate_limits.window_seconds)
 }

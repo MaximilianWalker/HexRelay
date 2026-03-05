@@ -271,7 +271,8 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Realtime gateway: WebSocket over axum/hyper.
 - Database access: `sqlx`.
 - Serialization: `serde`.
-- Auth/session tokens: challenge-response with signed nonce + HMAC-signed bearer session tokens.
+- Auth/session transport: challenge-response with signed nonce, HttpOnly session cookie auth, and double-submit CSRF header for authenticated mutation routes.
+- Realtime ingress abuse controls: websocket connect rate limiting, per-identity connection cap, inbound message-size cap, and message-rate cap.
 - Background jobs/events: `tokio` tasks + Redis streams/pubsub.
 - Observability: `tracing`, OpenTelemetry exporter.
 
@@ -286,7 +287,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 - Docker Compose for local single-node deployment.
 - Kubernetes manifests later (post-MVP hardening).
-- CI: lint/test/build for Rust + web.
+- CI: lint/test/build for Rust + web, plus dependency/SAST security gates and artifacted integration evidence.
 
 ### Data Model Additions
 
