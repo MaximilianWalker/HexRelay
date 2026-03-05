@@ -224,7 +224,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - `signature_invalid`
   - `session_invalid`
 - Contract freeze rule: once Week 2 starts, schema changes require explicit changelog entry in `docs/planning/05-iteration-log.md`.
-- Canonical artifact path: `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`.
+- Canonical artifact path: `docs/contracts/runtime-rest-v1.openapi.yaml`.
 - Artifact gate: `T2.*` tasks are `blocked` until this contract is committed and referenced in the sprint board.
 
 ### Discovery Abuse-Control Baseline (MVP)

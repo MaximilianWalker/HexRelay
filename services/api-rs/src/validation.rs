@@ -17,10 +17,10 @@ pub fn validate_identity_registration(payload: &IdentityKeyRegistrationRequest) 
         ));
     }
 
-    if payload.identity_id.trim().is_empty() {
+    if !is_valid_identity_id(&payload.identity_id) {
         return Err(bad_request(
             "identity_invalid",
-            "identity_id must not be empty",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
 
@@ -35,10 +35,10 @@ pub fn validate_identity_registration(payload: &IdentityKeyRegistrationRequest) 
 }
 
 pub fn validate_auth_challenge_request(payload: &AuthChallengeRequest) -> ApiResult<()> {
-    if payload.identity_id.trim().is_empty() {
+    if !is_valid_identity_id(&payload.identity_id) {
         return Err(bad_request(
             "identity_invalid",
-            "identity_id must not be empty",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
 
@@ -46,10 +46,10 @@ pub fn validate_auth_challenge_request(payload: &AuthChallengeRequest) -> ApiRes
 }
 
 pub fn validate_auth_verify_request(payload: &AuthVerifyRequest) -> ApiResult<()> {
-    if payload.identity_id.trim().is_empty() {
+    if !is_valid_identity_id(&payload.identity_id) {
         return Err(bad_request(
             "identity_invalid",
-            "identity_id must not be empty",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
 
@@ -114,12 +114,12 @@ pub fn validate_invite_redeem_request(payload: &InviteRedeemRequest) -> ApiResul
 }
 
 pub fn validate_friend_request_create(payload: &FriendRequestCreate) -> ApiResult<()> {
-    if payload.requester_identity_id.trim().is_empty()
-        || payload.target_identity_id.trim().is_empty()
+    if !is_valid_identity_id(&payload.requester_identity_id)
+        || !is_valid_identity_id(&payload.target_identity_id)
     {
         return Err(bad_request(
             "identity_invalid",
-            "requester_identity_id and target_identity_id are required",
+            "requester_identity_id and target_identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
 
@@ -134,8 +134,11 @@ pub fn validate_friend_request_create(payload: &FriendRequestCreate) -> ApiResul
 }
 
 pub fn validate_friend_request_list_query(query: &FriendRequestListQuery) -> ApiResult<()> {
-    if query.identity_id.trim().is_empty() {
-        return Err(bad_request("identity_invalid", "identity_id is required"));
+    if !is_valid_identity_id(&query.identity_id) {
+        return Err(bad_request(
+            "identity_invalid",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
     }
 
     if let Some(direction) = query.direction.as_ref() {
@@ -173,4 +176,20 @@ fn decode_fixed_len(value: &str, len: usize) -> Option<Vec<u8>> {
         .decode(trimmed)
         .ok()
         .filter(|decoded| decoded.len() == len)
+}
+
+fn is_valid_identity_id(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed != value {
+        return false;
+    }
+
+    let len = trimmed.len();
+    if !(3..=64).contains(&len) {
+        return false;
+    }
+
+    trimmed
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
 }

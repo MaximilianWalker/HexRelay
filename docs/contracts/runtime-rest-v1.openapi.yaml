@@ -1,12 +1,11 @@
 openapi: 3.1.0
 info:
-  title: HexRelay Iteration 1 Identity/Auth/Invites API
+  title: HexRelay Runtime REST API
   version: 0.1.0
   description: |
-    Compatibility alias for the runtime REST contract.
-    Canonical runtime REST authority moved to:
-    docs/contracts/runtime-rest-v1.openapi.yaml
-    Keep this file path for backward compatibility until legacy references are retired.
+    Current runtime REST contract authority.
+    This artifact defines currently implemented REST behavior and must be
+    updated when runtime endpoint payloads, auth semantics, or error codes change.
 servers:
   - url: https://api.hexrelay.local
 paths:

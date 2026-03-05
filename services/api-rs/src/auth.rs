@@ -34,7 +34,7 @@ where
             .and_then(parse_bearer_token);
 
         let auth_input = if let Some(token) = bearer_token {
-            let claims = validate_session_token(token, &app_state.session_signing_key).ok_or({
+            let claims = validate_session_token(token, &app_state.session_signing_keys).ok_or({
                 (
                     StatusCode::UNAUTHORIZED,
                     Json(ApiError {
@@ -62,7 +62,18 @@ where
         let session = if let Some(pool) = app_state.db_pool.as_ref() {
             resolve_db_session(pool, &auth_input).await?
         } else {
-            resolve_memory_session(&app_state, &auth_input)?
+            #[cfg(test)]
+            {
+                resolve_memory_session(&app_state, &auth_input)?
+            }
+
+            #[cfg(not(test))]
+            {
+                return Err(crate::errors::internal_error(
+                    "storage_unavailable",
+                    "session validation requires configured database pool",
+                ));
+            }
         };
 
         Ok(Self {
@@ -202,6 +213,7 @@ async fn resolve_db_session(
     })
 }
 
+#[cfg(test)]
 fn resolve_memory_session(
     app_state: &AppState,
     input: &AuthInput,

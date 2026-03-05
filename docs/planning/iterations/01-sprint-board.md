@@ -48,7 +48,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T1.1.2 | Add Docker Compose for Postgres, Redis, object storage emulator, coturn | E1 / S1.1 | L | Core | T1.1.1 | `docker compose up` starts all infra and health checks pass |
 | T1.1.3 | Add setup/run/test scripts | E1 / S1.1 | M | Core | T1.1.1, T1.1.2 | One-command local startup works from clean checkout |
 | T1.2.1 | Configure CI matrix (Rust + web lint/test/build) | E1 / S1.2 | L | Platform | T1.1.1 | PR checks fail on lint/test/build errors and block merges |
-| T1.2.2 | Publish Iteration 1 OpenAPI contract artifact | E1 / S1.2 | S | API | T1.1.1 | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` is committed and referenced by T2 tasks |
+| T1.2.2 | Publish runtime REST OpenAPI contract artifact | E1 / S1.2 | S | API | T1.1.1 | `docs/contracts/runtime-rest-v1.openapi.yaml` is committed and referenced by T2 tasks |
 | T1.3.1 | Add env schema validation and config templates | E1 / S1.3 | M | Platform | T1.1.1 | Invalid env values fail fast at startup with actionable errors |
 | T2.1.1 | Implement key identity schema + key registration endpoints | E2 / S2.1 | XL | API | T1.1.1, T1.1.2, T1.2.2 | Identity keys can be registered and validated with tests; schema follows MVP Crypto Profile v1 in `docs/product/01-mvp-plan.md` |
 | T2.1.2 | Build client key generation/import + secure local key storage | E2 / S2.1 | L | Web | T2.1.1 | User can create or import identity and keep key material encrypted locally |
@@ -66,7 +66,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T1.1.2 | `infra/docker-compose.yml` | `docker compose up -d` and service health checks return healthy for Postgres, Redis, object storage, coturn |
 | T1.1.3 | `scripts/`, `Makefile` or equivalent task runner | `setup`, `run`, and `test` commands execute from clean checkout |
 | T1.2.1 | `.github/workflows/` | CI run fails on intentional lint/test failure and passes on clean branch |
-| T1.2.2 | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | OpenAPI file exists, includes all six Iteration 1 endpoints, and is linked from board/plan |
+| T1.2.2 | `docs/contracts/runtime-rest-v1.openapi.yaml` | OpenAPI file exists, includes all six runtime identity/auth/invite endpoints, and is linked from board/plan |
 | T1.3.1 | `.env.example`, runtime config module(s) | Invalid env value causes startup failure with actionable error message |
 | T2.1.1 | API identity schema, migrations, identity handler/module | Register endpoint persists key and rejects invalid algorithm/key format |
 | T2.1.2 | Web identity onboarding flow + local key storage utility | Create/import succeeds; invalid key path surfaces `identity_key_invalid` state |
@@ -80,7 +80,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 
 - `T1.1.1` branch plan and directory ownership are agreed by Core.
 - Development environment has Docker and required runtimes installed.
-- `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` exists before starting `T2.*` tasks.
+- `docs/contracts/runtime-rest-v1.openapi.yaml` exists before starting `T2.*` tasks.
 
 ## Exit Evidence
 
@@ -182,5 +182,5 @@ Week 3:
 - `docs/product/01-mvp-plan.md`
 - `docs/product/02-prd-v1.md`
 - `docs/product/07-ui-navigation-spec.md`
-- `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- `docs/contracts/runtime-rest-v1.openapi.yaml`
 - `docs/reference/glossary.md`

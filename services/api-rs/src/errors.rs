@@ -16,6 +16,16 @@ pub fn conflict(code: &'static str, message: &'static str) -> (StatusCode, Json<
     (StatusCode::CONFLICT, Json(ApiError { code, message }))
 }
 
+pub fn too_many_requests(
+    code: &'static str,
+    message: &'static str,
+) -> (StatusCode, Json<ApiError>) {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(ApiError { code, message }),
+    )
+}
+
 pub fn internal_error(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,

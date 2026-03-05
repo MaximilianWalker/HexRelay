@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 confidence hardening closed independent-audit blockers for contract authority split, session/key storage safety, and invite hash migration validation.
+- Latest meaningful change: 2026-03-04 hardening batch added token key-rotation support, auth/invite/ws abuse controls, DB-only runtime storage paths, and runtime REST contract authority cleanup.
 
 ## Purpose
 
@@ -29,6 +29,39 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-04 (security and hygiene hardening: token rotation, rate limiting, and runtime contract cleanup)
+
+- Area affected: Auth/session security, abuse controls, runtime contract governance, and dead/legacy runtime path cleanup.
+- Change summary:
+  - Added versioned bearer token format (`HEXTOKEN_V1`) with signing key ID support and keyring-based token validation.
+  - Added API rate limits for auth challenge/verify and invite create/redeem paths.
+  - Added realtime websocket connect rate limiting.
+  - Removed non-test runtime fallback behavior for identity/auth/invite/session critical storage paths; runtime now requires DB-backed authority for these flows.
+  - Promoted runtime REST contract authority to `docs/contracts/runtime-rest-v1.openapi.yaml` and retained legacy Iteration-1 contract path as compatibility alias.
+  - Added confidence-hardening evidence artifact baseline under `evidence/iteration-01/confidence-hardening/`.
+- Rationale:
+  - Reduce attack surface and runtime drift before additional feature expansion, while cleaning legacy authority naming and dead fallback runtime branches.
+- Linked docs updated:
+  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/README.md`
+  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/README.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/iterations/01-sprint-board.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/05-iteration-log.md`
+  - `evidence/iteration-01/confidence-hardening/2026-03-04-quality-validation.md`
+  - `services/api-rs/src/session_token.rs`
+  - `services/api-rs/src/config.rs`
+  - `services/api-rs/src/handlers.rs`
+  - `services/api-rs/src/invite_handlers.rs`
+  - `services/api-rs/src/auth.rs`
+  - `services/realtime-rs/src/handlers.rs`
+  - `services/realtime-rs/src/config.rs`
+  - `services/realtime-rs/src/state.rs`
 
 ### 2026-03-04 (confidence hardening: independent-audit blocker closure)
 

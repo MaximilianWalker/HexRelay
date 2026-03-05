@@ -6,7 +6,7 @@ info:
     Target-state MVP REST contract coverage for Iterations 2-4.
     This file is a planning model contract and may include endpoints or schemas
     not yet implemented in the current runtime.
-    Use `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` for
+    Use `docs/contracts/runtime-rest-v1.openapi.yaml` for
     current runtime REST behavior.
 servers:
   - url: https://api.hexrelay.local
@@ -444,7 +444,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: HEXTOKEN
+      bearerFormat: HEXTOKEN_V1
   parameters:
     RequestIdParam:
       name: request_id

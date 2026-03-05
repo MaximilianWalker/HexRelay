@@ -6,21 +6,39 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthSession,
-    errors::{bad_request, ApiResult},
+    errors::{bad_request, too_many_requests, ApiResult},
     models::{
-        InviteCreateRequest, InviteCreateResponse, InviteRecord, InviteRedeemRequest,
-        InviteRedeemResponse,
+        InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
     state::AppState,
     validation::{validate_invite_create_request, validate_invite_redeem_request},
 };
 
+#[cfg(test)]
+use crate::models::InviteRecord;
+
+#[cfg(not(test))]
+use crate::errors::internal_error;
+
 pub async fn create_invite(
-    _auth: AuthSession,
+    auth: AuthSession,
     State(state): State<AppState>,
     Json(payload): Json<InviteCreateRequest>,
 ) -> ApiResult<(StatusCode, Json<InviteCreateResponse>)> {
     validate_invite_create_request(&payload)?;
+
+    let allowed = state.rate_limiter.allow(
+        "invite_create",
+        &auth.identity_id,
+        state.rate_limits.invite_create_per_window,
+        state.rate_limits.window_seconds,
+    );
+    if !allowed {
+        return Err(too_many_requests(
+            "rate_limited",
+            "too many invite create requests",
+        ));
+    }
 
     let expires_at = if let Some(raw_expires_at) = payload.expires_at.as_ref() {
         let parsed = chrono::DateTime::parse_from_rfc3339(raw_expires_at)
@@ -86,30 +104,41 @@ pub async fn create_invite(
         ));
     }
 
-    state
-        .invites
-        .write()
-        .expect("acquire invite write lock")
-        .insert(
-            token_hash,
-            InviteRecord {
-                mode: payload.mode.clone(),
-                node_fingerprint: state.node_fingerprint.clone(),
-                expires_at,
-                max_uses,
-                uses: 0,
-            },
-        );
+    #[cfg(not(test))]
+    {
+        Err(internal_error(
+            "storage_unavailable",
+            "invite creation requires configured database pool",
+        ))
+    }
 
-    Ok((
-        StatusCode::CREATED,
-        Json(InviteCreateResponse {
-            token,
-            mode: payload.mode,
-            expires_at: expires_at.map(|value| value.to_rfc3339()),
-            max_uses,
-        }),
-    ))
+    #[cfg(test)]
+    {
+        state
+            .invites
+            .write()
+            .expect("acquire invite write lock")
+            .insert(
+                token_hash,
+                InviteRecord {
+                    mode: payload.mode.clone(),
+                    node_fingerprint: state.node_fingerprint.clone(),
+                    expires_at,
+                    max_uses,
+                    uses: 0,
+                },
+            );
+
+        Ok((
+            StatusCode::CREATED,
+            Json(InviteCreateResponse {
+                token,
+                mode: payload.mode,
+                expires_at: expires_at.map(|value| value.to_rfc3339()),
+                max_uses,
+            }),
+        ))
+    }
 }
 
 pub async fn redeem_invite(
@@ -118,6 +147,18 @@ pub async fn redeem_invite(
 ) -> ApiResult<Json<InviteRedeemResponse>> {
     validate_invite_redeem_request(&payload)?;
     let token_hash = hash_invite_token(&payload.token);
+    let allowed = state.rate_limiter.allow(
+        "invite_redeem",
+        &format!("{}:{}", payload.node_fingerprint, token_hash),
+        state.rate_limits.invite_redeem_per_window,
+        state.rate_limits.window_seconds,
+    );
+    if !allowed {
+        return Err(too_many_requests(
+            "rate_limited",
+            "too many invite redeem requests",
+        ));
+    }
 
     if let Some(pool) = state.db_pool.as_ref() {
         let mut tx = pool.begin().await.map_err(|_| {
@@ -193,33 +234,44 @@ pub async fn redeem_invite(
         return Ok(Json(InviteRedeemResponse { accepted: true }));
     }
 
-    let mut guard = state.invites.write().expect("acquire invite write lock");
-    let invite = guard
-        .get_mut(&token_hash)
-        .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
-
-    if invite.node_fingerprint != payload.node_fingerprint {
-        return Err(bad_request(
-            "fingerprint_mismatch",
-            "invite node fingerprint mismatch",
-        ));
+    #[cfg(not(test))]
+    {
+        Err(internal_error(
+            "storage_unavailable",
+            "invite redemption requires configured database pool",
+        ))
     }
 
-    if let Some(expires_at) = invite.expires_at {
-        if Utc::now() > expires_at {
-            return Err(bad_request("invite_expired", "invite token is expired"));
+    #[cfg(test)]
+    {
+        let mut guard = state.invites.write().expect("acquire invite write lock");
+        let invite = guard
+            .get_mut(&token_hash)
+            .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
+
+        if invite.node_fingerprint != payload.node_fingerprint {
+            return Err(bad_request(
+                "fingerprint_mismatch",
+                "invite node fingerprint mismatch",
+            ));
         }
-    }
 
-    if let Some(max_uses) = invite.max_uses {
-        if invite.uses >= max_uses {
-            return Err(bad_request("invite_exhausted", "invite token is exhausted"));
+        if let Some(expires_at) = invite.expires_at {
+            if Utc::now() > expires_at {
+                return Err(bad_request("invite_expired", "invite token is expired"));
+            }
         }
+
+        if let Some(max_uses) = invite.max_uses {
+            if invite.uses >= max_uses {
+                return Err(bad_request("invite_exhausted", "invite token is exhausted"));
+            }
+        }
+
+        invite.uses += 1;
+
+        Ok(Json(InviteRedeemResponse { accepted: true }))
     }
-
-    invite.uses += 1;
-
-    Ok(Json(InviteRedeemResponse { accepted: true }))
 }
 
 fn hash_invite_token(token: &str) -> String {

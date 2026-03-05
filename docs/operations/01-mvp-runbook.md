@@ -36,7 +36,7 @@
 - Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
 - Minimum environment:
-  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEY`, `API_ALLOWED_ORIGINS`.
+  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`.
   - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`.
 - Startup sequence:
   1. Start database dependencies.

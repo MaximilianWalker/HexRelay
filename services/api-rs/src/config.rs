@@ -1,11 +1,22 @@
-use std::{env, net::SocketAddr};
+use std::{collections::HashMap, env, net::SocketAddr};
+
+#[derive(Clone)]
+pub struct ApiRateLimitConfig {
+    pub auth_challenge_per_window: usize,
+    pub auth_verify_per_window: usize,
+    pub invite_create_per_window: usize,
+    pub invite_redeem_per_window: usize,
+    pub window_seconds: u64,
+}
 
 pub struct ApiConfig {
     pub bind_addr: SocketAddr,
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
-    pub session_signing_key: String,
+    pub session_signing_keys: HashMap<String, String>,
+    pub active_signing_key_id: String,
+    pub rate_limits: ApiRateLimitConfig,
 }
 
 impl ApiConfig {
@@ -25,8 +36,14 @@ impl ApiConfig {
         let database_url = env::var("API_DATABASE_URL").unwrap_or_else(|_| {
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay".to_string()
         });
-        let session_signing_key = env::var("API_SESSION_SIGNING_KEY")
-            .unwrap_or_else(|_| panic!("Missing API_SESSION_SIGNING_KEY environment variable"));
+        let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys();
+        let rate_limits = ApiRateLimitConfig {
+            auth_challenge_per_window: parse_usize_env("API_AUTH_CHALLENGE_RATE_LIMIT", 30),
+            auth_verify_per_window: parse_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30),
+            invite_create_per_window: parse_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20),
+            invite_redeem_per_window: parse_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40),
+            window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60),
+        };
 
         let allowed_origins = allowed_origins_raw
             .split(',')
@@ -46,8 +63,8 @@ impl ApiConfig {
             panic!("Invalid API_ALLOWED_ORIGINS. Must contain at least one origin");
         }
 
-        if session_signing_key.trim().len() < 16 {
-            panic!("Invalid API_SESSION_SIGNING_KEY. Must be at least 16 chars");
+        if rate_limits.window_seconds == 0 {
+            panic!("Invalid API_RATE_LIMIT_WINDOW_SECONDS. Must be greater than zero");
         }
 
         Self {
@@ -55,7 +72,88 @@ impl ApiConfig {
             allowed_origins,
             database_url,
             node_fingerprint,
-            session_signing_key,
+            session_signing_keys,
+            active_signing_key_id,
+            rate_limits,
         }
+    }
+}
+
+fn parse_session_signing_keys() -> (String, HashMap<String, String>) {
+    let active_key_id = env::var("API_SESSION_SIGNING_KEY_ID").unwrap_or_else(|_| "v1".to_string());
+    let keyring_raw = env::var("API_SESSION_SIGNING_KEYS").ok();
+
+    let mut keys = HashMap::new();
+
+    if let Some(raw) = keyring_raw {
+        for segment in raw
+            .split(',')
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            let mut pair = segment.splitn(2, ':');
+            let Some(key_id) = pair.next() else {
+                continue;
+            };
+            let Some(secret) = pair.next() else {
+                panic!(
+                    "Invalid API_SESSION_SIGNING_KEYS entry '{}'. Expected key_id:secret",
+                    segment
+                );
+            };
+
+            if key_id.trim().is_empty() {
+                panic!("Invalid API_SESSION_SIGNING_KEYS entry with empty key_id");
+            }
+
+            if secret.trim().len() < 16 {
+                panic!("Invalid API_SESSION_SIGNING_KEYS secret for key_id '{}'. Must be at least 16 chars", key_id);
+            }
+
+            keys.insert(key_id.trim().to_string(), secret.trim().to_string());
+        }
+    }
+
+    if keys.is_empty() {
+        let legacy_key = env::var("API_SESSION_SIGNING_KEY").unwrap_or_else(|_| {
+            panic!(
+                "Missing API_SESSION_SIGNING_KEY or API_SESSION_SIGNING_KEYS environment variable"
+            )
+        });
+
+        if legacy_key.trim().len() < 16 {
+            panic!("Invalid API_SESSION_SIGNING_KEY. Must be at least 16 chars");
+        }
+
+        keys.insert(active_key_id.clone(), legacy_key);
+    }
+
+    if !keys.contains_key(&active_key_id) {
+        panic!(
+            "Invalid API_SESSION_SIGNING_KEY_ID='{}'. No matching key in API_SESSION_SIGNING_KEYS",
+            active_key_id
+        );
+    }
+
+    (active_key_id, keys)
+}
+
+fn parse_usize_env(key: &str, default: usize) -> usize {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<usize>()
+            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => default,
+    }
+}
+
+fn parse_u64_env(key: &str, default: u64) -> u64 {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<u64>()
+            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => default,
     }
 }

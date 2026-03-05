@@ -1,16 +1,23 @@
 use std::{
+    collections::BTreeMap,
     collections::HashMap,
     sync::{Arc, RwLock},
 };
 
 use sqlx::PgPool;
 
-use crate::models::{
-    AuthChallengeRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
+use crate::{
+    config::ApiRateLimitConfig,
+    models::{
+        AuthChallengeRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey,
+        SessionRecord,
+    },
+    rate_limit::RateLimiter,
 };
 
 #[derive(Clone)]
 pub struct AppState {
+    pub active_signing_key_id: String,
     pub allowed_origins: Vec<String>,
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub db_pool: Option<PgPool>,
@@ -18,7 +25,9 @@ pub struct AppState {
     pub identity_keys: Arc<RwLock<HashMap<String, RegisteredIdentityKey>>>,
     pub invites: Arc<RwLock<HashMap<String, InviteRecord>>>,
     pub node_fingerprint: String,
-    pub session_signing_key: String,
+    pub rate_limiter: RateLimiter,
+    pub rate_limits: ApiRateLimitConfig,
+    pub session_signing_keys: Arc<BTreeMap<String, String>>,
     pub sessions: Arc<RwLock<HashMap<String, SessionRecord>>>,
 }
 
@@ -26,9 +35,12 @@ impl AppState {
     pub fn new(
         node_fingerprint: String,
         allowed_origins: Vec<String>,
-        session_signing_key: String,
+        active_signing_key_id: String,
+        session_signing_keys: BTreeMap<String, String>,
+        rate_limits: ApiRateLimitConfig,
     ) -> Self {
         Self {
+            active_signing_key_id,
             allowed_origins,
             auth_challenges: Arc::default(),
             db_pool: None,
@@ -36,7 +48,9 @@ impl AppState {
             identity_keys: Arc::default(),
             invites: Arc::default(),
             node_fingerprint,
-            session_signing_key,
+            rate_limiter: RateLimiter::default(),
+            rate_limits,
+            session_signing_keys: Arc::new(session_signing_keys),
             sessions: Arc::default(),
         }
     }
@@ -52,7 +66,18 @@ impl Default for AppState {
         Self::new(
             "hexrelay-local-fingerprint".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-signing-key-change-me".to_string(),
+            "v1".to_string(),
+            BTreeMap::from([(
+                "v1".to_string(),
+                "hexrelay-dev-signing-key-change-me".to_string(),
+            )]),
+            ApiRateLimitConfig {
+                auth_challenge_per_window: 30,
+                auth_verify_per_window: 30,
+                invite_create_per_window: 20,
+                invite_redeem_per_window: 40,
+                window_seconds: 60,
+            },
         )
     }
 }

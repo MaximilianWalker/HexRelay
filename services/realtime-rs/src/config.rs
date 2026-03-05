@@ -6,6 +6,8 @@ use reqwest::Url;
 pub struct RealtimeConfig {
     pub api_base_url: String,
     pub bind_addr: SocketAddr,
+    pub ws_connect_rate_limit: usize,
+    pub rate_limit_window_seconds: u64,
 }
 
 impl RealtimeConfig {
@@ -20,6 +22,8 @@ impl RealtimeConfig {
 
         let api_base_url = env::var("REALTIME_API_BASE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+        let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60);
+        let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60);
 
         if api_base_url.trim().is_empty() {
             panic!("Invalid REALTIME_API_BASE_URL. Value must not be empty");
@@ -50,7 +54,29 @@ impl RealtimeConfig {
         Self {
             api_base_url,
             bind_addr,
+            ws_connect_rate_limit,
+            rate_limit_window_seconds,
         }
+    }
+}
+
+fn parse_usize_env(key: &str, default: usize) -> usize {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<usize>()
+            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => default,
+    }
+}
+
+fn parse_u64_env(key: &str, default: u64) -> u64 {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<u64>()
+            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => default,
     }
 }
 

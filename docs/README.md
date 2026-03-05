@@ -26,7 +26,8 @@
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
-| Current runtime REST contract baseline (filename legacy; scope tracks all currently implemented endpoints) | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
+| Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
+| Runtime REST compatibility alias (legacy filename) | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Keep for backward compatibility references until deprecation removal |
 | MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
 | Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
 | Target-state MVP REST contract model | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
@@ -80,6 +81,7 @@
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
+- `docs/contracts/runtime-rest-v1.openapi.yaml`
 - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
 - `docs/contracts/README.md`
 - `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`

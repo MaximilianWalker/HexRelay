@@ -20,7 +20,9 @@ async fn main() {
         AppState::new(
             config.node_fingerprint.clone(),
             config.allowed_origins.clone(),
-            config.session_signing_key.clone(),
+            config.active_signing_key_id.clone(),
+            config.session_signing_keys.clone().into_iter().collect(),
+            config.rate_limits,
         )
         .with_db_pool(db_pool),
     );

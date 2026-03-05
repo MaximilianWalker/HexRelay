@@ -12,7 +12,11 @@ async fn main() {
         )
         .init();
 
-    let app = build_app(AppState::new(config.api_base_url.clone()));
+    let app = build_app(AppState::new(
+        config.api_base_url.clone(),
+        config.ws_connect_rate_limit,
+        config.rate_limit_window_seconds,
+    ));
 
     let addr = config.bind_addr;
     info!(%addr, "starting realtime service");

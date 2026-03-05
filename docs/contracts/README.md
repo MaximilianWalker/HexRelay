@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-04 split runtime contract authority from target-state model contracts.
+- Latest meaningful change: 2026-03-04 promoted runtime REST authority to `runtime-rest-v1` and kept legacy iteration contract path as compatibility alias.
 
 ## Purpose
 
@@ -21,8 +21,8 @@
 
 ## Current Runtime Contracts
 
-- REST runtime baseline: `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
-  - Note: filename is legacy from Iteration 1; this artifact remains the runtime authority for all currently implemented REST endpoints until replaced by a dedicated runtime-rest contract file.
+- REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
+- REST compatibility alias (legacy path): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
 

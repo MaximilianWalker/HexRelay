@@ -6,6 +6,7 @@ pub mod errors;
 pub mod handlers;
 pub mod invite_handlers;
 pub mod models;
+pub mod rate_limit;
 pub mod session_token;
 pub mod state;
 pub mod validation;
@@ -14,7 +15,10 @@ pub mod validation;
 mod tests {
     const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
 
-    use std::{collections::HashMap, env};
+    use std::{
+        collections::{BTreeMap, HashMap},
+        env,
+    };
 
     use axum::{
         body::{to_bytes, Body},
@@ -22,6 +26,7 @@ mod tests {
     };
     use chrono::{Duration, Utc};
     use ring::{
+        digest::{digest, SHA256},
         rand::SystemRandom,
         signature::{Ed25519KeyPair, KeyPair},
     };
@@ -30,6 +35,7 @@ mod tests {
 
     use crate::{
         app::build_app,
+        config::ApiRateLimitConfig,
         db::connect_and_prepare,
         models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord},
         session_token::issue_session_token,
@@ -207,7 +213,11 @@ mod tests {
                         &session_id,
                         identity_id,
                         expires_at.timestamp(),
-                        &state.session_signing_key,
+                        &state.active_signing_key_id,
+                        state
+                            .session_signing_keys
+                            .get(&state.active_signing_key_id)
+                            .expect("active signing key for tests"),
                     ),
                 );
             }
@@ -294,6 +304,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_identity_id_with_surrounding_whitespace() {
+        let app = build_app(AppState::default());
+        let request = Request::builder()
+            .method("POST")
+            .uri("/v1/identity/keys/register")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"identity_id":" user-1 ","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
+            ))
+            .expect("build request");
+
+        let response = app.oneshot(request).await.expect("get response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
     async fn issues_auth_challenge_for_registered_identity() {
         let app = build_app(AppState::default());
         let (register_status, app) = register_identity(
@@ -333,6 +359,66 @@ mod tests {
             .await
             .expect("challenge response");
         assert_eq!(challenge_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn rate_limits_auth_challenge_requests() {
+        let state = AppState::new(
+            TEST_NODE_FINGERPRINT.to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "v1".to_string(),
+            BTreeMap::from([(
+                "v1".to_string(),
+                "hexrelay-dev-signing-key-change-me".to_string(),
+            )]),
+            ApiRateLimitConfig {
+                auth_challenge_per_window: 1,
+                auth_verify_per_window: 30,
+                invite_create_per_window: 20,
+                invite_redeem_per_window: 40,
+                window_seconds: 60,
+            },
+        );
+
+        state
+            .identity_keys
+            .write()
+            .expect("acquire identity key write lock")
+            .insert(
+                "user-rate-limit".to_string(),
+                RegisteredIdentityKey {
+                    public_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                        .to_string(),
+                    algorithm: "ed25519".to_string(),
+                },
+            );
+
+        let app = build_app(state);
+
+        let first_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-rate-limit"}"#))
+            .expect("build first challenge request");
+        let first_response = app
+            .clone()
+            .oneshot(first_request)
+            .await
+            .expect("first challenge response");
+        assert_eq!(first_response.status(), StatusCode::OK);
+
+        let second_request = Request::builder()
+            .method("POST")
+            .uri("/v1/auth/challenge")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"identity_id":"user-rate-limit"}"#))
+            .expect("build second challenge request");
+        let second_response = app
+            .oneshot(second_request)
+            .await
+            .expect("second challenge response");
+        assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 
     #[tokio::test]
@@ -629,6 +715,76 @@ mod tests {
 
         let redeem_response = app.oneshot(redeem_request).await.expect("redeem response");
         assert_eq!(redeem_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn rate_limits_invite_redeem_requests() {
+        let state = AppState::new(
+            TEST_NODE_FINGERPRINT.to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "v1".to_string(),
+            BTreeMap::from([(
+                "v1".to_string(),
+                "hexrelay-dev-signing-key-change-me".to_string(),
+            )]),
+            ApiRateLimitConfig {
+                auth_challenge_per_window: 30,
+                auth_verify_per_window: 30,
+                invite_create_per_window: 20,
+                invite_redeem_per_window: 1,
+                window_seconds: 60,
+            },
+        );
+
+        let token = "invite-rate-limit-token";
+        let token_hash = hex::encode(digest(&SHA256, token.as_bytes()).as_ref());
+        state
+            .invites
+            .write()
+            .expect("acquire invite write lock")
+            .insert(
+                token_hash,
+                crate::models::InviteRecord {
+                    mode: "multi_use".to_string(),
+                    node_fingerprint: TEST_NODE_FINGERPRINT.to_string(),
+                    expires_at: None,
+                    max_uses: None,
+                    uses: 0,
+                },
+            );
+
+        let app = build_app(state);
+
+        let first_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build first redeem request");
+        let first_response = app
+            .clone()
+            .oneshot(first_request)
+            .await
+            .expect("first redeem response");
+        assert_eq!(first_response.status(), StatusCode::OK);
+
+        let second_request = Request::builder()
+            .method("POST")
+            .uri("/v1/invites/redeem")
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
+                token, TEST_NODE_FINGERPRINT
+            )))
+            .expect("build second redeem request");
+        let second_response = app
+            .oneshot(second_request)
+            .await
+            .expect("second redeem response");
+        assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 
     #[tokio::test]
