@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-05
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
@@ -37,7 +37,10 @@
   - Added CI security automation gates for Rust dependencies (`cargo audit`), web dependencies (`npm audit --omit=dev --audit-level=high`), and static analysis (`semgrep`).
   - Added deterministic CI evidence collection script and integration-smoke artifact upload under `evidence/ci/<run_id>/`.
   - Added DB-backed distributed API rate limiting counters (`rate_limit_counters`) to preserve abuse-control behavior across multi-instance API deployments sharing Postgres.
+  - Added relational FK constraints for `sessions`, `auth_challenges`, and `friend_requests` against `identity_keys` to tighten persistence integrity.
   - Added realtime websocket guardrails: per-identity connection cap, inbound message-size cap, and per-identity message-rate cap.
+  - Added realtime websocket `Origin` allowlist enforcement for browser-originated upgrades.
+  - Added Rust coverage threshold gate in CI to provide quantitative backend test-confidence enforcement.
   - Continued handler decomposition by extracting directory/list endpoints into dedicated `directory_handlers` module.
 - Rationale:
   - Improve confidence on substantive remaining quality risks while preserving local-first desktop defaults and enabling stronger dedicated-server safety under active development.

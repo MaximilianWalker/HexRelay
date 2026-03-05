@@ -18,3 +18,8 @@ Rust HTTP API service scaffold for HexRelay.
 - Run: `cargo run -p api-rs`
 - Health: `http://127.0.0.1:8080/health`
 - Test: `cargo test -p api-rs`
+
+## Security Defaults
+
+- Runtime auth transport: HttpOnly `hexrelay_session` cookie + CSRF double-submit checks on authenticated mutation routes.
+- API abuse controls use DB-backed fixed-window counters (`rate_limit_counters`) when Postgres is available.

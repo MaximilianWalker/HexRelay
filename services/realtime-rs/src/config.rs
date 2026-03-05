@@ -5,6 +5,7 @@ use reqwest::Url;
 
 pub struct RealtimeConfig {
     pub api_base_url: String,
+    pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
     pub ws_connect_rate_limit: usize,
     pub rate_limit_window_seconds: u64,
@@ -26,6 +27,13 @@ impl RealtimeConfig {
 
         let api_base_url = env::var("REALTIME_API_BASE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+        let allowed_origins_raw = env::var("REALTIME_ALLOWED_ORIGINS")
+            .unwrap_or_else(|_| "http://localhost:3002,http://127.0.0.1:3002".to_string());
+        let allowed_origins = allowed_origins_raw
+            .split(',')
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60);
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60);
         let ws_max_inbound_message_bytes =
@@ -38,6 +46,10 @@ impl RealtimeConfig {
 
         if api_base_url.trim().is_empty() {
             panic!("Invalid REALTIME_API_BASE_URL. Value must not be empty");
+        }
+
+        if allowed_origins.is_empty() {
+            panic!("Invalid REALTIME_ALLOWED_ORIGINS. Must contain at least one origin");
         }
 
         let parsed_api_url = Url::parse(&api_base_url).unwrap_or_else(|_| {
@@ -64,6 +76,7 @@ impl RealtimeConfig {
 
         Self {
             api_base_url,
+            allowed_origins,
             bind_addr,
             ws_connect_rate_limit,
             rate_limit_window_seconds,

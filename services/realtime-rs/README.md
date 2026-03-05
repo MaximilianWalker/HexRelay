@@ -19,3 +19,12 @@ Rust realtime/signaling service scaffold for HexRelay.
 - Health: `http://127.0.0.1:8081/health`
 - WebSocket: `ws://127.0.0.1:8081/ws`
 - Test: `cargo test -p realtime-rs`
+
+## Security Defaults
+
+- WebSocket upgrade accepts only configured browser origins via `REALTIME_ALLOWED_ORIGINS`.
+- Realtime ingress limits are configurable via:
+  - `REALTIME_WS_CONNECT_RATE_LIMIT`
+  - `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`
+  - `REALTIME_WS_MESSAGE_RATE_LIMIT`
+  - `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`

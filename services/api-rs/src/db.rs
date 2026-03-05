@@ -36,6 +36,10 @@ const MIGRATIONS: &[Migration] = &[
         "0008_rate_limit_counters",
         include_str!("../migrations/0008_rate_limit_counters.sql"),
     ),
+    (
+        "0009_relational_constraints",
+        include_str!("../migrations/0009_relational_constraints.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

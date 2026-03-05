@@ -7,6 +7,7 @@ use crate::rate_limit::RateLimiter;
 #[derive(Clone)]
 pub struct AppState {
     pub api_base_url: String,
+    pub allowed_origins: Vec<String>,
     pub http_client: reqwest::Client,
     pub rate_limiter: RateLimiter,
     pub ws_connect_rate_limit: usize,
@@ -19,8 +20,10 @@ pub struct AppState {
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         api_base_url: String,
+        allowed_origins: Vec<String>,
         ws_connect_rate_limit: usize,
         ws_rate_limit_window_seconds: u64,
         ws_max_inbound_message_bytes: usize,
@@ -36,6 +39,7 @@ impl AppState {
 
         Self {
             api_base_url,
+            allowed_origins,
             http_client,
             rate_limiter: RateLimiter::default(),
             ws_connect_rate_limit,

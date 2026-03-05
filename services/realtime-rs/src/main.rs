@@ -14,6 +14,7 @@ async fn main() {
 
     let app = build_app(AppState::new(
         config.api_base_url.clone(),
+        config.allowed_origins.clone(),
         config.ws_connect_rate_limit,
         config.rate_limit_window_seconds,
         config.ws_max_inbound_message_bytes,

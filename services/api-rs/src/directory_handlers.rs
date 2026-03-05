@@ -1,4 +1,10 @@
-use axum::{extract::Query, Json};
+use std::collections::{BTreeSet, HashSet};
+
+use axum::{
+    extract::{Query, State},
+    Json,
+};
+use sqlx::Row;
 
 use crate::{
     auth::AuthSession,
@@ -6,6 +12,7 @@ use crate::{
         ContactListQuery, ContactListResponse, ContactSummary, ServerListQuery, ServerListResponse,
         ServerSummary,
     },
+    state::AppState,
 };
 
 pub async fn list_servers(
@@ -63,9 +70,78 @@ pub async fn list_servers(
 }
 
 pub async fn list_contacts(
-    _auth: AuthSession,
+    State(state): State<AppState>,
+    auth: AuthSession,
     Query(query): Query<ContactListQuery>,
 ) -> Json<ContactListResponse> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        let identity_id = auth.identity_id;
+
+        let rows = sqlx::query(
+            "
+            SELECT requester_identity_id, target_identity_id, status
+            FROM friend_requests
+            WHERE requester_identity_id = $1 OR target_identity_id = $1
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(&identity_id)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        let mut contacts = BTreeSet::new();
+        let mut inbound_pending = HashSet::new();
+        let mut outbound_pending = HashSet::new();
+
+        for row in rows {
+            let requester = row
+                .try_get::<String, _>("requester_identity_id")
+                .unwrap_or_default();
+            let target = row
+                .try_get::<String, _>("target_identity_id")
+                .unwrap_or_default();
+            let status = row.try_get::<String, _>("status").unwrap_or_default();
+
+            let requester_is_self = requester == identity_id;
+            let peer = if requester_is_self {
+                target
+            } else {
+                requester.clone()
+            };
+            if peer.is_empty() {
+                continue;
+            }
+
+            if status == "accepted" {
+                contacts.insert(peer.clone());
+            } else if status == "pending" {
+                contacts.insert(peer.clone());
+                if requester_is_self {
+                    outbound_pending.insert(peer);
+                } else {
+                    inbound_pending.insert(peer);
+                }
+            }
+        }
+
+        let mut items = contacts
+            .into_iter()
+            .map(|id| ContactSummary {
+                id: id.clone(),
+                name: id.clone(),
+                status: "offline".to_string(),
+                unread: 0,
+                favorite: false,
+                inbound_request: inbound_pending.contains(&id),
+                pending_request: outbound_pending.contains(&id),
+            })
+            .collect::<Vec<_>>();
+
+        apply_contact_filters(&mut items, &query);
+        return Json(ContactListResponse { items });
+    }
+
     let mut items = vec![
         ContactSummary {
             id: "usr-nora-k".to_string(),
@@ -105,6 +181,11 @@ pub async fn list_contacts(
         },
     ];
 
+    apply_contact_filters(&mut items, &query);
+    Json(ContactListResponse { items })
+}
+
+fn apply_contact_filters(items: &mut Vec<ContactSummary>, query: &ContactListQuery) {
     if query.online_only.unwrap_or(false) {
         items.retain(|item| item.status == "online");
     }
@@ -120,6 +201,4 @@ pub async fn list_contacts(
             items.retain(|item| item.name.to_lowercase().contains(&needle));
         }
     }
-
-    Json(ContactListResponse { items })
 }

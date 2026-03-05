@@ -22,6 +22,10 @@ pub async fn ws_handler(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
+    if !is_allowed_origin(&state, &headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
     let rate_key = websocket_rate_limit_key(&headers);
     let allowed = state.rate_limiter.allow(
         "ws_connect",
@@ -348,6 +352,22 @@ fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
     }
 }
 
+fn is_allowed_origin(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(origin) = headers
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return true;
+    };
+
+    state
+        .allowed_origins
+        .iter()
+        .any(|allowed| allowed == origin)
+}
+
 fn stable_hash(value: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
@@ -460,7 +480,16 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_missing_authorization_header() {
-        let state = AppState::new("http://127.0.0.1:1".to_string(), 60, 60, 16384, 120, 60, 3);
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            60,
+            60,
+            16384,
+            120,
+            60,
+            3,
+        );
         let headers = HeaderMap::new();
 
         assert!(!is_session_valid(&state, &headers).await);
@@ -469,7 +498,16 @@ mod tests {
     #[tokio::test]
     async fn accepts_valid_authorization_with_successful_validation() {
         let api_base = start_validate_server(true).await;
-        let state = AppState::new(api_base, 60, 60, 16384, 120, 60, 3);
+        let state = AppState::new(
+            api_base,
+            vec!["http://localhost:3002".to_string()],
+            60,
+            60,
+            16384,
+            120,
+            60,
+            3,
+        );
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -482,7 +520,16 @@ mod tests {
     #[tokio::test]
     async fn rejects_authorization_when_validation_endpoint_denies() {
         let api_base = start_validate_server(false).await;
-        let state = AppState::new(api_base, 60, 60, 16384, 120, 60, 3);
+        let state = AppState::new(
+            api_base,
+            vec!["http://localhost:3002".to_string()],
+            60,
+            60,
+            16384,
+            120,
+            60,
+            3,
+        );
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
@@ -506,6 +553,7 @@ mod tests {
     ) -> String {
         let app = build_app(AppState::new(
             api_base_url,
+            vec!["http://localhost:3002".to_string()],
             ws_connect_rate_limit,
             60,
             ws_max_inbound_message_bytes,
@@ -542,6 +590,31 @@ mod tests {
             .map(|value| value.to_string())
             .unwrap_or_default();
         assert!(message.contains("401") || message.contains("Unauthorized"));
+    }
+
+    #[tokio::test]
+    async fn websocket_upgrade_rejects_disallowed_origin() {
+        let api_base = start_validate_server(true).await;
+        let ws_url = start_ws_server(api_base, 60).await;
+
+        let mut request = ws_url
+            .into_client_request()
+            .expect("build websocket client request");
+        request.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+        request
+            .headers_mut()
+            .insert("origin", HeaderValue::from_static("https://evil.example"));
+
+        let result = connect_async(request).await;
+        assert!(result.is_err());
+        let message = result
+            .err()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        assert!(message.contains("403") || message.contains("Forbidden"));
     }
 
     #[tokio::test]
