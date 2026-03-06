@@ -5,7 +5,7 @@ base_sha="${1:-}"
 head_sha="${2:-HEAD}"
 
 if [ -z "${base_sha}" ] || [ "${base_sha}" = "0000000000000000000000000000000000000000" ]; then
-  base_sha="$(git merge-base HEAD origin/master 2>/dev/null || git rev-parse HEAD~1)"
+  base_sha="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || git rev-parse HEAD~1)"
 fi
 
 migration_files="$(git diff --name-only "${base_sha}" "${head_sha}" -- 'services/api-rs/migrations/*.sql')"
@@ -21,7 +21,7 @@ while IFS= read -r migration_file; do
   migration_name="$(basename "${migration_file}" .sql)"
   evidence_file="evidence/migrations/${migration_name}.md"
 
-  if ! git diff --name-only "${base_sha}" "${head_sha}" -- "${evidence_file}" | grep -q "${evidence_file}"; then
+  if ! git diff --name-only "${base_sha}" "${head_sha}" -- "${evidence_file}" | grep -qxF "${evidence_file}"; then
     echo "::error::Migration ${migration_file} changed but missing evidence artifact update at ${evidence_file}."
     missing=1
   fi
