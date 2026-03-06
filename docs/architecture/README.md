@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-06
 - Source of truth: `docs/architecture/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added runtime/deployment-mode ADR for bundled desktop local-first and dedicated server operation.
+- Latest meaningful change: 2026-03-06 added Rust service module architecture contract ADR for `api-rs` and `realtime-rs` migration consistency.
 
 ## Purpose
 
@@ -25,6 +25,7 @@
 
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode baseline (accepted).
+- `docs/architecture/adr-0003-rust-service-module-architecture.md`: Rust service module architecture contract baseline (accepted).
 
 ## Architecture Specs
 

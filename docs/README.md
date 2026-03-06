@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-06
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 split current runtime contracts from target-state model contracts to reduce contract drift ambiguity.
+- Latest meaningful change: 2026-03-06 added Rust service module architecture ADR for consistent `api-rs` and `realtime-rs` migration boundaries.
 
 ## Purpose
 
@@ -90,6 +90,7 @@
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+- `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/testing/01-mvp-verification-matrix.md`
