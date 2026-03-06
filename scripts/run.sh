@@ -9,6 +9,33 @@ fi
 echo "[run] Starting local infrastructure"
 docker compose --env-file "infra/.env" -f "infra/docker-compose.yml" up -d
 
+set -a
+source "infra/.env"
+set +a
+
+wait_for() {
+  local label="$1"
+  local command="$2"
+  local attempts="${3:-60}"
+  local sleep_seconds="${4:-1}"
+
+  for ((i = 1; i <= attempts; i++)); do
+    if eval "$command"; then
+      echo "[run] ${label} is ready"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  echo "[run] ERROR: ${label} did not become ready after ${attempts} attempts"
+  return 1
+}
+
+echo "[run] Waiting for infrastructure health"
+wait_for "postgres" "docker compose --env-file infra/.env -f infra/docker-compose.yml exec -T postgres pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" >/dev/null 2>&1"
+wait_for "redis" "docker compose --env-file infra/.env -f infra/docker-compose.yml exec -T redis redis-cli ping | grep -q PONG"
+wait_for "minio" "curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1"
+
 echo "[run] Starting API, Realtime, and Web dev servers"
 cargo run -p api-rs &
 API_PID=$!
