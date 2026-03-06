@@ -1,7 +1,9 @@
 use axum::{routing::get, Router};
 
-use crate::handlers::{health, ws_handler};
-use crate::state::AppState;
+use crate::{
+    app::state::AppState,
+    transport::ws::handlers::{health, ws_handler},
+};
 
 pub fn build_app(state: AppState) -> Router {
     Router::new()

@@ -4,7 +4,7 @@
 
 - Doc ID: rust-service-migration-baseline
 - Owner: Architecture maintainers
-- Status: ready
+- Status: in_progress
 - Scope: repository
 - last_updated: 2026-03-06
 - Source of truth: `docs/architecture/03-rust-service-migration-baseline.md`
@@ -33,11 +33,32 @@
 
 ### Coverage Baseline (workspace)
 
-- Command: `cargo llvm-cov --workspace --all-features --fail-under-lines 65`
+- Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 65`
 - Threshold: `65` lines (gate)
 - Result: `pass`
-- Total line coverage snapshot: `69.47%`
-- Total region coverage snapshot: `70.98%`
+- Total line coverage snapshot: `74.34%`
+- Total region coverage snapshot: `73.52%`
+
+## Migration Progress Snapshot
+
+- Completed in working tree (not yet merged):
+  - `api-rs` skeleton/app-domain-transport-infra-shared layout
+  - `api-rs` handler extraction to `transport/http/handlers/*`
+  - `api-rs` domain validation + friend transition service extraction
+  - `api-rs` SQL extraction to `infra/db/repos/*`
+  - `api-rs` middleware/crypto/error cross-cutting extraction
+  - `api-rs` tests reorganized under `tests/integration/*`
+  - `realtime-rs` skeleton + `transport/ws` layout
+  - `realtime-rs` websocket handlers moved to `transport/ws/handlers/gateway.rs`
+  - `realtime-rs` rate limit moved to `transport/ws/middleware/rate_limit.rs`
+  - `realtime-rs` event routing moved to `domain/events/service.rs`
+  - `realtime-rs` tests moved from inline handler module to `src/tests/ws_transport_tests.rs`
+- Current verification snapshot after migration work:
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 65`: pass
+  - total line coverage: `74.34%`
+  - total region coverage: `73.52%`
+  - `npm run test`: pass
+  - `npm run security`: pass
 
 ## Current -> Target Mapping Matrix
 

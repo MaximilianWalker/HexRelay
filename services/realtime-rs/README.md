@@ -29,3 +29,11 @@ Rust realtime/signaling service scaffold for HexRelay.
   - `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`
   - `REALTIME_WS_MESSAGE_RATE_LIMIT`
   - `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`
+
+## Current Module Layout
+
+- `src/app/`: router/state/config composition entrypoints
+- `src/transport/ws/handlers/`: websocket entry handlers (`gateway`)
+- `src/transport/ws/middleware/`: websocket rate-limit middleware helpers
+- `src/domain/events/`: realtime event envelope routing/serialization logic
+- `src/tests/`: websocket transport-focused unit tests

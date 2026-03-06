@@ -23,3 +23,14 @@ Rust HTTP API service scaffold for HexRelay.
 
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie + CSRF double-submit checks on authenticated mutation routes.
 - API abuse controls use DB-backed fixed-window counters (`rate_limit_counters`) when Postgres is available.
+
+## Current Module Layout
+
+- `src/app/`: router/state/config composition entrypoints
+- `src/transport/http/handlers/`: HTTP route handlers by feature
+- `src/transport/http/middleware/`: auth and rate-limit middleware helpers
+- `src/domain/`: feature validation/business transition logic
+- `src/infra/db/repos/`: SQL and persistence adapters
+- `src/infra/crypto/`: session token signing/validation
+- `src/shared/`: shared error primitives
+- `src/tests/integration/`: API integration-focused unit tests

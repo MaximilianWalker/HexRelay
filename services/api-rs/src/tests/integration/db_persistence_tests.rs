@@ -226,3 +226,85 @@ async fn verifies_db_challenge_after_app_restart() {
         .expect("verify response");
     assert_eq!(verify_response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn persists_friend_flow_and_lists_contacts_from_db() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let (requester_cookie, app) = authenticate_identity(app, "db-user-friends-a").await;
+    let (target_cookie, app) = authenticate_identity(app, "db-user-friends-b").await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={requester_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(
+            r#"{"requester_identity_id":"db-user-friends-a","target_identity_id":"db-user-friends-b"}"#,
+        ))
+        .expect("build create friend request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create friend request response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create friend request body");
+    let created: FriendRequestRecord =
+        serde_json::from_slice(&create_body).expect("decode create friend request body");
+
+    let accept_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/friends/requests/{}/accept",
+            created.request_id
+        ))
+        .header(
+            "cookie",
+            format!("hexrelay_session={target_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::empty())
+        .expect("build accept friend request");
+
+    let accept_response = app
+        .clone()
+        .oneshot(accept_request)
+        .await
+        .expect("accept friend request response");
+    assert_eq!(accept_response.status(), StatusCode::OK);
+
+    let contacts_request = Request::builder()
+        .method("GET")
+        .uri("/v1/contacts?search=db-user-friends-b")
+        .header("cookie", format!("hexrelay_session={requester_cookie}"))
+        .body(Body::empty())
+        .expect("build contacts request");
+
+    let contacts_response = app
+        .oneshot(contacts_request)
+        .await
+        .expect("contacts response");
+    assert_eq!(contacts_response.status(), StatusCode::OK);
+
+    let contacts_body = to_bytes(contacts_response.into_body(), usize::MAX)
+        .await
+        .expect("read contacts response body");
+    let payload: ContactListResponse =
+        serde_json::from_slice(&contacts_body).expect("decode contacts response body");
+
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0]["id"], "db-user-friends-b");
+    assert_eq!(payload.items[0]["inbound_request"], false);
+    assert_eq!(payload.items[0]["pending_request"], false);
+}

@@ -23,8 +23,8 @@ pub(super) use crate::{
     app::build_app,
     config::ApiRateLimitConfig,
     db::connect_and_prepare,
+    infra::crypto::session_token::issue_session_token,
     models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord},
-    session_token::issue_session_token,
     state::AppState,
 };
 
@@ -233,8 +233,4 @@ fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, St
 
     (build_app(state), bearer_tokens)
 }
-mod auth_tests;
-mod db_persistence_tests;
-mod directory_tests;
-mod friends_tests;
-mod invites_tests;
+mod integration;

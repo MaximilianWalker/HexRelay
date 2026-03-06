@@ -8,7 +8,8 @@ use chrono::Utc;
 use sqlx::Row;
 
 use crate::{
-    errors::unauthorized, models::ApiError, session_token::validate_session_token, state::AppState,
+    infra::crypto::session_token::validate_session_token, models::ApiError,
+    shared::errors::unauthorized, state::AppState,
 };
 
 const SESSION_COOKIE_NAME: &str = "hexrelay_session";
@@ -87,7 +88,7 @@ where
 
             #[cfg(not(test))]
             {
-                return Err(crate::errors::internal_error(
+                return Err(crate::shared::errors::internal_error(
                     "storage_unavailable",
                     "session validation requires configured database pool",
                 ));
