@@ -16,3 +16,9 @@ This directory stores machine-generated and manually curated validation artifact
   - `web-coverage-summary.json`
 
 If a file is absent for a run, `manifest.txt` must explicitly mark it as `missing`.
+
+## Migration Evidence Contract
+
+- Pull requests that change `services/api-rs/migrations/*.sql` must include matching evidence files at:
+  - `evidence/migrations/<migration-name>.md`
+- Use `docs/operations/migration-validation-template.md` as the required template baseline.
