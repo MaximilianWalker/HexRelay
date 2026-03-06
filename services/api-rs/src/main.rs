@@ -1,4 +1,7 @@
-use api_rs::{app::build_app, config::ApiConfig, db::connect_and_prepare, state::AppState};
+use api_rs::{
+    app::{build_app, ApiConfig, AppState},
+    db::connect_and_prepare,
+};
 use std::env;
 use tracing::info;
 

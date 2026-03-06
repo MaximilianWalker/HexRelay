@@ -6,6 +6,7 @@ use axum::{
 use tower_http::cors::CorsLayer;
 
 use crate::{
+    app::state::AppState,
     auth_handlers::{
         issue_auth_challenge, register_identity_key, revoke_session, validate_session,
         verify_auth_challenge,
@@ -15,7 +16,6 @@ use crate::{
         accept_friend_request, cancel_friend_request, create_friend_request, create_invite,
         decline_friend_request, health, list_friend_requests, redeem_invite,
     },
-    state::AppState,
 };
 
 pub fn build_app(state: AppState) -> Router {
