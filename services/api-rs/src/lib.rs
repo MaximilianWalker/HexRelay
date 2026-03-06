@@ -5,6 +5,7 @@ pub mod config;
 pub mod db;
 pub mod directory_handlers;
 pub mod errors;
+mod friend_request_handlers;
 pub mod handlers;
 pub mod invite_handlers;
 pub mod models;
