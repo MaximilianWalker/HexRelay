@@ -5,6 +5,7 @@
   "scripts": {
     "setup": "bash scripts/setup.sh",
     "run": "bash scripts/run.sh",
-    "test": "bash scripts/test.sh"
+    "test": "bash scripts/test.sh",
+    "security": "bash scripts/ensure-cargo-audit.sh && cargo audit --deny warnings --ignore RUSTSEC-2023-0071"
   }
 }

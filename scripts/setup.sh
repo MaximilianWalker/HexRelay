@@ -13,4 +13,7 @@ echo "[setup] Fetching Rust dependencies"
 cargo fetch --manifest-path "services/api-rs/Cargo.toml"
 cargo fetch --manifest-path "services/realtime-rs/Cargo.toml"
 
+echo "[setup] Installing pinned security tooling"
+bash "scripts/ensure-cargo-audit.sh"
+
 echo "[setup] Complete"

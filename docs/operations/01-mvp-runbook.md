@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-05
+- last_updated: 2026-03-06
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -125,7 +125,7 @@ npm --prefix apps/web run e2e:smoke
 
 ## Release Decision and Abort Thresholds
 
-- Release decision owner: current sprint technical owner (record name in deployment PR).
+- Release decision owner: current sprint technical owner (record explicit primary and backup names in deployment PR).
 - Abort conditions (no rollout/continue rollout):
   - any required CI job failure on candidate commit,
   - health check failure after startup retries,

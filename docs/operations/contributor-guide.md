@@ -6,7 +6,7 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-06
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
@@ -47,7 +47,13 @@
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
 - For code changes:
   - Run lint, tests, and build for touched projects.
+  - Run `npm run security` before opening a PR.
   - Keep security-sensitive data out of logs and fixtures.
+
+## Security Tooling Baseline
+
+- `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
+- If `npm run setup` fails installing `cargo-audit` because Rust is too old, run `rustup update stable` and retry setup.
 
 ## CI Expectations
 
@@ -71,6 +77,7 @@
 - Related docs are updated in the same PR.
 - Any architecture-impacting change includes an ADR in `docs/architecture/`.
 - New terms are added to `docs/reference/glossary.md` when needed.
+- Any `services/api-rs/migrations/*.sql` change includes an updated evidence artifact at `evidence/migrations/<migration>.md`.
 
 ## Release Hygiene (MVP)
 
