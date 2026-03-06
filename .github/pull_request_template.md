@@ -23,3 +23,4 @@
 - [ ] No lock-in/paywalled core assumption was introduced.
 - [ ] If this PR changes `services/api-rs/migrations/*.sql`, I updated `evidence/migrations/<migration>.md` using `docs/operations/migration-validation-template.md`.
 - [ ] I ran `npm run security` locally.
+- [ ] For deployment-impacting changes, I named release decision owner + backup and linked evidence artifacts.
