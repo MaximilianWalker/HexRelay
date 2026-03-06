@@ -114,9 +114,11 @@ async fn ensure_migration_table(tx: &mut Transaction<'_, Postgres>) -> Result<()
 }
 
 async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
+    const MIGRATION_LOCK_KEY: i64 = 0x4845_5852_454c_4159;
+
     let mut tx = pool.begin().await?;
     sqlx::query("SELECT pg_advisory_xact_lock($1)")
-        .bind(0x4845_5852_454c_4159i64)
+        .bind(MIGRATION_LOCK_KEY)
         .execute(&mut *tx)
         .await?;
     ensure_migration_table(&mut tx).await?;
@@ -162,7 +164,10 @@ async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), 
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::{
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     use ring::digest::{digest, SHA256};
 
@@ -192,7 +197,35 @@ mod tests {
         }
     }
 
-    use sqlx::PgPool;
+    use sqlx::{Connection, Executor, PgConnection, PgPool};
+
+    fn split_database_url(url: &str) -> Option<(&str, &str)> {
+        url.rsplit_once('/')
+    }
+
+    fn temporary_db_name() -> String {
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_millis())
+            .unwrap_or(0);
+        format!("hexrelay_ci_bootstrap_{}_{}", std::process::id(), millis)
+    }
+
+    async fn create_temp_database(admin_url: &str, name: &str) -> Result<(), sqlx::Error> {
+        let mut connection = PgConnection::connect(admin_url).await?;
+        connection
+            .execute(format!("CREATE DATABASE \"{name}\";").as_str())
+            .await?;
+        connection.close().await
+    }
+
+    async fn drop_temp_database(admin_url: &str, name: &str) -> Result<(), sqlx::Error> {
+        let mut connection = PgConnection::connect(admin_url).await?;
+        connection
+            .execute(format!("DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE);").as_str())
+            .await?;
+        connection.close().await
+    }
 
     #[tokio::test]
     async fn migration_checksum_mismatch_is_detected_and_lock_is_released() {
@@ -297,5 +330,55 @@ mod tests {
                 .await
                 .expect("count hashed invite token");
         assert_eq!(hashed_exists, 1);
+    }
+
+    #[tokio::test]
+    async fn concurrent_prepare_on_fresh_database_is_serialized() {
+        let url = match env::var("API_DATABASE_URL") {
+            Ok(value) if !value.trim().is_empty() => value,
+            _ => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "API_DATABASE_URL must be set in CI"
+                );
+                return;
+            }
+        };
+
+        let Some((url_prefix, _)) = split_database_url(&url) else {
+            assert!(env::var("CI").is_err(), "invalid API_DATABASE_URL in CI");
+            return;
+        };
+
+        let admin_url = format!("{url_prefix}/postgres");
+        let db_name = temporary_db_name();
+        let test_url = format!("{url_prefix}/{db_name}");
+
+        if let Err(error) = create_temp_database(&admin_url, &db_name).await {
+            assert!(
+                env::var("CI").is_err(),
+                "failed to create temporary database in CI: {error}"
+            );
+            return;
+        }
+
+        let (first, second) = tokio::join!(
+            connect_and_prepare(&test_url),
+            connect_and_prepare(&test_url)
+        );
+
+        if let Ok(pool) = first.as_ref() {
+            pool.close().await;
+        }
+        if let Ok(pool) = second.as_ref() {
+            pool.close().await;
+        }
+
+        drop_temp_database(&admin_url, &db_name)
+            .await
+            .expect("drop temporary database");
+
+        assert!(first.is_ok(), "first prepare failed: {first:?}");
+        assert!(second.is_ok(), "second prepare failed: {second:?}");
     }
 }
