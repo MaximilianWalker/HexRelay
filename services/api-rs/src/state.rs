@@ -12,7 +12,7 @@ use crate::{
         AuthChallengeRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey,
         SessionRecord,
     },
-    rate_limit::RateLimiter,
+    transport::http::middleware::rate_limit::RateLimiter,
 };
 
 #[derive(Clone)]

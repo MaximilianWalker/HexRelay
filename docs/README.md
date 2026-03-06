@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-06
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 split current runtime contracts from target-state model contracts to reduce contract drift ambiguity.
+- Latest meaningful change: 2026-03-06 added Rust service module architecture ADR for consistent `api-rs` and `realtime-rs` migration boundaries.
 
 ## Purpose
 
@@ -41,6 +41,7 @@
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
+| Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | MVP requirement-to-evidence verification | `docs/testing/01-mvp-verification-matrix.md` | Delivery/QA maintainers | Verification mapping, evidence format, or validator rules change |
 | Crypto profile conformance verification | `docs/testing/crypto-conformance-checklist.md` | QA/core maintainers | Crypto profile requirement, verification steps, or evidence expectations change |
@@ -89,7 +90,9 @@
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/architecture/03-rust-service-migration-baseline.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+- `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/testing/01-mvp-verification-matrix.md`

@@ -1,5 +1,8 @@
 pub mod app;
 pub mod config;
-pub mod handlers;
-pub mod rate_limit;
+pub mod domain;
 pub mod state;
+pub mod transport;
+
+#[cfg(test)]
+mod tests;

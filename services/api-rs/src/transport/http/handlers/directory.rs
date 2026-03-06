@@ -4,16 +4,16 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use sqlx::Row;
 
 use crate::{
-    auth::AuthSession,
-    errors::{internal_error, ApiResult},
+    infra::db::repos::directory_repo,
     models::{
         ContactListQuery, ContactListResponse, ContactSummary, ServerListQuery, ServerListResponse,
         ServerSummary,
     },
+    shared::errors::{internal_error, ApiResult},
     state::AppState,
+    transport::http::middleware::auth::AuthSession,
 };
 
 pub async fn list_servers(
@@ -78,42 +78,23 @@ pub async fn list_contacts(
     if let Some(pool) = state.db_pool.as_ref() {
         let identity_id = auth.identity_id;
 
-        let rows = sqlx::query(
-            "
-            SELECT requester_identity_id, target_identity_id, status
-            FROM friend_requests
-            WHERE requester_identity_id = $1 OR target_identity_id = $1
-            ORDER BY created_at DESC
-            ",
-        )
-        .bind(&identity_id)
-        .fetch_all(pool)
-        .await
-        .map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to list contact relationships",
-            )
-        })?;
+        let rows = directory_repo::list_contact_relationships(pool, &identity_id)
+            .await
+            .map_err(|_| {
+                internal_error(
+                    "storage_unavailable",
+                    "failed to list contact relationships",
+                )
+            })?;
 
         let mut contacts = BTreeSet::new();
         let mut inbound_pending = HashSet::new();
         let mut outbound_pending = HashSet::new();
 
         for row in rows {
-            let requester = row
-                .try_get::<String, _>("requester_identity_id")
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to decode requester identity")
-                })?;
-            let target = row
-                .try_get::<String, _>("target_identity_id")
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to decode target identity")
-                })?;
-            let status = row.try_get::<String, _>("status").map_err(|_| {
-                internal_error("storage_unavailable", "failed to decode request status")
-            })?;
+            let requester = row.requester_identity_id;
+            let target = row.target_identity_id;
+            let status = row.status;
 
             let requester_is_self = requester == identity_id;
             let peer = if requester_is_self {

@@ -1,4 +1,4 @@
-use realtime_rs::{app::build_app, config::RealtimeConfig, state::AppState};
+use realtime_rs::app::{build_app, AppState, RealtimeConfig};
 use std::env;
 use tracing::info;
 

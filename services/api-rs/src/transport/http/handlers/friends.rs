@@ -1,32 +1,31 @@
+use crate::{
+    domain::friends::{
+        service::ActorRole,
+        validation::{validate_friend_request_create, validate_friend_request_list_query},
+    },
+    infra::db::repos::friends_repo::{self, FriendRequestRepoError},
+    models::{FriendRequestCreate, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord},
+    shared::errors::{bad_request, conflict, unauthorized, ApiResult},
+    state::AppState,
+    transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
+};
+
+#[cfg(not(test))]
+use crate::shared::errors::internal_error;
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
+
+#[cfg(test)]
+use crate::domain::friends::service::apply_friend_request_transition;
+
+#[cfg(test)]
 use chrono::Utc;
-use sqlx::PgPool;
-use sqlx::Row;
+
+#[cfg(test)]
 use uuid::Uuid;
-
-use crate::{
-    auth::{enforce_csrf_for_cookie_auth, AuthSession},
-    errors::{bad_request, conflict, unauthorized, ApiResult},
-    models::{
-        FriendRequestCreate, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord,
-        HealthResponse,
-    },
-    state::AppState,
-    validation::{validate_friend_request_create, validate_friend_request_list_query},
-};
-
-pub use crate::invite_handlers::{create_invite, redeem_invite};
-
-pub async fn health() -> Json<HealthResponse> {
-    Json(HealthResponse {
-        service: "api-rs",
-        status: "ok",
-    })
-}
 
 pub async fn create_friend_request(
     State(state): State<AppState>,
@@ -48,7 +47,7 @@ pub async fn create_friend_request(
     let Some(pool) = state.db_pool.as_ref() else {
         #[cfg(not(test))]
         {
-            return Err(crate::errors::internal_error(
+            return Err(internal_error(
                 "storage_unavailable",
                 "friend request storage requires configured database pool",
             ));
@@ -60,7 +59,7 @@ pub async fn create_friend_request(
         }
     };
 
-    let record = create_friend_request_db(pool, payload)
+    let record = friends_repo::create_friend_request(pool, payload)
         .await
         .map_err(map_friend_request_db_error)?;
     Ok((StatusCode::CREATED, Json(record)))
@@ -120,7 +119,7 @@ pub async fn list_friend_requests(
     let Some(pool) = state.db_pool.as_ref() else {
         #[cfg(not(test))]
         {
-            return Err(crate::errors::internal_error(
+            return Err(internal_error(
                 "storage_unavailable",
                 "friend request storage requires configured database pool",
             ));
@@ -132,7 +131,7 @@ pub async fn list_friend_requests(
         }
     };
 
-    let items = list_friend_requests_db(pool, &query)
+    let items = friends_repo::list_friend_requests(pool, &query)
         .await
         .map_err(map_friend_request_db_error)?;
     Ok(Json(FriendRequestPage { items }))
@@ -178,7 +177,7 @@ pub async fn accept_friend_request(
     let Some(pool) = state.db_pool.as_ref() else {
         #[cfg(not(test))]
         {
-            return Err(crate::errors::internal_error(
+            return Err(internal_error(
                 "storage_unavailable",
                 "friend request storage requires configured database pool",
             ));
@@ -190,7 +189,7 @@ pub async fn accept_friend_request(
         }
     };
 
-    let updated = update_friend_request_status_db(
+    let updated = friends_repo::update_friend_request_status(
         pool,
         &request_id,
         "accepted",
@@ -223,12 +222,7 @@ fn accept_friend_request_in_memory(
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
 
-    apply_friend_request_transition_in_memory(
-        request,
-        "accepted",
-        &actor_identity,
-        ActorRole::Target,
-    )?;
+    apply_friend_request_transition(request, "accepted", &actor_identity, ActorRole::Target)?;
 
     Ok(Json(request.clone()))
 }
@@ -245,7 +239,7 @@ pub async fn decline_friend_request(
     let Some(pool) = state.db_pool.as_ref() else {
         #[cfg(not(test))]
         {
-            return Err(crate::errors::internal_error(
+            return Err(internal_error(
                 "storage_unavailable",
                 "friend request storage requires configured database pool",
             ));
@@ -257,7 +251,7 @@ pub async fn decline_friend_request(
         }
     };
 
-    let updated = update_friend_request_status_db(
+    let updated = friends_repo::update_friend_request_status(
         pool,
         &request_id,
         "declined",
@@ -292,12 +286,7 @@ fn decline_friend_request_in_memory(
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
 
-    apply_friend_request_transition_in_memory(
-        request,
-        "declined",
-        &actor_identity,
-        ActorRole::Target,
-    )?;
+    apply_friend_request_transition(request, "declined", &actor_identity, ActorRole::Target)?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -314,7 +303,7 @@ pub async fn cancel_friend_request(
     let Some(pool) = state.db_pool.as_ref() else {
         #[cfg(not(test))]
         {
-            return Err(crate::errors::internal_error(
+            return Err(internal_error(
                 "storage_unavailable",
                 "friend request storage requires configured database pool",
             ));
@@ -326,7 +315,7 @@ pub async fn cancel_friend_request(
         }
     };
 
-    let updated = update_friend_request_status_db(
+    let updated = friends_repo::update_friend_request_status(
         pool,
         &request_id,
         "cancelled",
@@ -361,237 +350,33 @@ fn cancel_friend_request_in_memory(
         .get_mut(&request_id)
         .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
 
-    apply_friend_request_transition_in_memory(
-        request,
-        "cancelled",
-        &actor_identity,
-        ActorRole::Requester,
-    )?;
+    apply_friend_request_transition(request, "cancelled", &actor_identity, ActorRole::Requester)?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn create_friend_request_db(
-    pool: &PgPool,
-    payload: FriendRequestCreate,
-) -> Result<FriendRequestRecord, sqlx::Error> {
-    let request_id = Uuid::new_v4().to_string();
-
-    sqlx::query(
-        "
-        INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
-        VALUES ($1, $2, $3, 'pending')
-        ",
-    )
-    .bind(&request_id)
-    .bind(&payload.requester_identity_id)
-    .bind(&payload.target_identity_id)
-    .execute(pool)
-    .await?;
-
-    let row = sqlx::query(
-        "
-        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
-        FROM friend_requests
-        WHERE request_id = $1
-        ",
-    )
-    .bind(&request_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(FriendRequestRecord {
-        request_id: row.try_get::<String, _>("request_id")?,
-        requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
-        target_identity_id: row.try_get::<String, _>("target_identity_id")?,
-        status: row.try_get::<String, _>("status")?,
-        created_at: row
-            .try_get::<chrono::DateTime<Utc>, _>("created_at")?
-            .to_rfc3339(),
-    })
-}
-
-async fn list_friend_requests_db(
-    pool: &PgPool,
-    query: &FriendRequestListQuery,
-) -> Result<Vec<FriendRequestRecord>, sqlx::Error> {
-    let rows = sqlx::query(
-        "
-        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
-        FROM friend_requests
-        WHERE (
-            $2::TEXT = 'inbound' AND target_identity_id = $1
-        ) OR (
-            $2::TEXT = 'outbound' AND requester_identity_id = $1
-        ) OR (
-            $2::TEXT IS NULL AND (requester_identity_id = $1 OR target_identity_id = $1)
-        )
-        ORDER BY created_at DESC
-        ",
-    )
-    .bind(&query.identity_id)
-    .bind(query.direction.as_deref())
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter()
-        .map(|row| {
-            Ok(FriendRequestRecord {
-                request_id: row.try_get::<String, _>("request_id")?,
-                requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
-                target_identity_id: row.try_get::<String, _>("target_identity_id")?,
-                status: row.try_get::<String, _>("status")?,
-                created_at: row
-                    .try_get::<chrono::DateTime<Utc>, _>("created_at")?
-                    .to_rfc3339(),
-            })
-        })
-        .collect()
-}
-
-async fn update_friend_request_status_db(
-    pool: &PgPool,
-    request_id: &str,
-    next_status: &str,
-    actor_identity_id: &str,
-    actor_role: ActorRole,
-) -> Result<Option<FriendRequestRecord>, sqlx::Error> {
-    let maybe_existing = sqlx::query(
-        "
-        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
-        FROM friend_requests
-        WHERE request_id = $1
-        ",
-    )
-    .bind(request_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let Some(existing_row) = maybe_existing else {
-        return Ok(None);
-    };
-
-    let existing = FriendRequestRecord {
-        request_id: existing_row.try_get::<String, _>("request_id")?,
-        requester_identity_id: existing_row.try_get::<String, _>("requester_identity_id")?,
-        target_identity_id: existing_row.try_get::<String, _>("target_identity_id")?,
-        status: existing_row.try_get::<String, _>("status")?,
-        created_at: existing_row
-            .try_get::<chrono::DateTime<Utc>, _>("created_at")?
-            .to_rfc3339(),
-    };
-
-    assert_actor_can_transition(&existing, actor_identity_id, actor_role)
-        .map_err(|_| sqlx::Error::Protocol("actor_not_authorized".to_string()))?;
-
-    if existing.status == next_status {
-        return Ok(Some(existing));
-    }
-
-    if existing.status != "pending" {
-        return Err(sqlx::Error::Protocol("transition_invalid".to_string()));
-    }
-
-    let maybe_row = sqlx::query(
-        "
-        UPDATE friend_requests
-        SET status = $2
-        WHERE request_id = $1 AND status = 'pending'
-        RETURNING request_id, requester_identity_id, target_identity_id, status, created_at
-        ",
-    )
-    .bind(request_id)
-    .bind(next_status)
-    .fetch_optional(pool)
-    .await?;
-
-    maybe_row
-        .map(|row| {
-            Ok(FriendRequestRecord {
-                request_id: row.try_get::<String, _>("request_id")?,
-                requester_identity_id: row.try_get::<String, _>("requester_identity_id")?,
-                target_identity_id: row.try_get::<String, _>("target_identity_id")?,
-                status: row.try_get::<String, _>("status")?,
-                created_at: row
-                    .try_get::<chrono::DateTime<Utc>, _>("created_at")?
-                    .to_rfc3339(),
-            })
-        })
-        .transpose()
-}
-
-fn map_friend_request_db_error(error: sqlx::Error) -> (StatusCode, Json<crate::models::ApiError>) {
-    if let sqlx::Error::Database(db_error) = &error {
+fn map_friend_request_db_error(
+    error: FriendRequestRepoError,
+) -> (StatusCode, Json<crate::models::ApiError>) {
+    if let FriendRequestRepoError::Sql(sqlx::Error::Database(db_error)) = &error {
         if db_error.code().as_deref() == Some("23505") {
             return bad_request("identity_invalid", "pending friend request already exists");
         }
     }
 
-    if let sqlx::Error::Protocol(message) = &error {
-        if message == "transition_invalid" {
-            return conflict(
-                "transition_invalid",
-                "friend request transition is not allowed from current state",
-            );
-        }
+    if let FriendRequestRepoError::TransitionInvalid = error {
+        return conflict(
+            "transition_invalid",
+            "friend request transition is not allowed from current state",
+        );
+    }
 
-        if message == "actor_not_authorized" {
-            return unauthorized(
-                "identity_invalid",
-                "friend request cannot be mutated by this session",
-            );
-        }
+    if let FriendRequestRepoError::ActorNotAuthorized = error {
+        return unauthorized(
+            "identity_invalid",
+            "friend request cannot be mutated by this session",
+        );
     }
 
     bad_request("identity_invalid", "friend request storage failure")
-}
-
-#[derive(Clone, Copy)]
-enum ActorRole {
-    Requester,
-    Target,
-}
-
-#[cfg(test)]
-fn apply_friend_request_transition_in_memory(
-    request: &mut FriendRequestRecord,
-    next_status: &str,
-    actor_identity: &str,
-    actor_role: ActorRole,
-) -> ApiResult<()> {
-    assert_actor_can_transition(request, actor_identity, actor_role)?;
-
-    if request.status == next_status {
-        return Ok(());
-    }
-
-    if request.status != "pending" {
-        return Err(conflict(
-            "transition_invalid",
-            "friend request transition is not allowed from current state",
-        ));
-    }
-
-    request.status = next_status.to_string();
-    Ok(())
-}
-
-fn assert_actor_can_transition(
-    request: &FriendRequestRecord,
-    actor_identity: &str,
-    actor_role: ActorRole,
-) -> ApiResult<()> {
-    let allowed = match actor_role {
-        ActorRole::Requester => request.requester_identity_id == actor_identity,
-        ActorRole::Target => request.target_identity_id == actor_identity,
-    };
-
-    if !allowed {
-        return Err(unauthorized(
-            "identity_invalid",
-            "friend request cannot be mutated by this session",
-        ));
-    }
-
-    Ok(())
 }

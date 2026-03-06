@@ -5,25 +5,24 @@ use axum::{
 };
 use chrono::Utc;
 use ring::digest::{digest, SHA256};
-use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{enforce_csrf_for_cookie_auth, AuthSession},
-    errors::{bad_request, too_many_requests, ApiResult},
+    domain::invites::validation::{validate_invite_create_request, validate_invite_redeem_request},
+    infra::db::repos::invites_repo,
     models::{
         InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
-    rate_limit::allow_distributed,
+    shared::errors::{bad_request, internal_error, too_many_requests, ApiResult},
     state::AppState,
-    validation::{validate_invite_create_request, validate_invite_redeem_request},
+    transport::http::middleware::{
+        auth::{enforce_csrf_for_cookie_auth, AuthSession},
+        rate_limit::allow_distributed,
+    },
 };
 
 #[cfg(test)]
 use crate::models::InviteRecord;
-
-#[cfg(not(test))]
-use crate::errors::internal_error;
 
 pub async fn create_invite(
     auth: AuthSession,
@@ -84,22 +83,16 @@ pub async fn create_invite(
     let token_hash = hash_invite_token(&token);
 
     if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query(
-            "
-            INSERT INTO invites (token, mode, node_fingerprint, expires_at, max_uses, uses)
-            VALUES ($1, $2, $3, $4, $5, 0)
-            ",
+        invites_repo::insert_invite(
+            pool,
+            &token_hash,
+            &payload.mode,
+            &state.node_fingerprint,
+            expires_at,
+            max_uses.map(|value| value as i32),
         )
-        .bind(&token_hash)
-        .bind(&payload.mode)
-        .bind(&state.node_fingerprint)
-        .bind(expires_at)
-        .bind(max_uses.map(|value| value as i32))
-        .execute(pool)
         .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist invite")
-        })?;
+        .map_err(|_| internal_error("storage_unavailable", "failed to persist invite"))?;
 
         return Ok((
             StatusCode::CREATED,
@@ -170,75 +163,42 @@ pub async fn redeem_invite(
     }
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let mut tx = pool.begin().await.map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to start invite tx")
-        })?;
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to start invite tx"))?;
 
-        let row = sqlx::query(
-            "
-            SELECT node_fingerprint, expires_at, max_uses, uses
-            FROM invites
-            WHERE token = $1
-            FOR UPDATE
-            ",
-        )
-        .bind(&token_hash)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| crate::errors::internal_error("storage_unavailable", "failed to read invite"))?
-        .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
+        let row = invites_repo::load_invite_for_update(&mut *tx, &token_hash)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to read invite"))?
+            .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
-        let node_fingerprint = row.try_get::<String, _>("node_fingerprint").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
-        })?;
-        let expires_at = row
-            .try_get::<Option<chrono::DateTime<Utc>>, _>("expires_at")
-            .map_err(|_| {
-                crate::errors::internal_error("storage_unavailable", "failed to decode invite")
-            })?;
-        let max_uses = row.try_get::<Option<i32>, _>("max_uses").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
-        })?;
-        let uses = row.try_get::<i32, _>("uses").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode invite")
-        })?;
-
-        if node_fingerprint != payload.node_fingerprint {
+        if row.node_fingerprint != payload.node_fingerprint {
             return Err(bad_request(
                 "fingerprint_mismatch",
                 "invite node fingerprint mismatch",
             ));
         }
 
-        if let Some(expires_at) = expires_at {
+        if let Some(expires_at) = row.expires_at {
             if Utc::now() > expires_at {
                 return Err(bad_request("invite_expired", "invite token is expired"));
             }
         }
 
-        if let Some(max_uses) = max_uses {
-            if uses >= max_uses {
+        if let Some(max_uses) = row.max_uses {
+            if row.uses >= max_uses {
                 return Err(bad_request("invite_exhausted", "invite token is exhausted"));
             }
         }
 
-        sqlx::query(
-            "
-            UPDATE invites
-            SET uses = uses + 1
-            WHERE token = $1
-            ",
-        )
-        .bind(&token_hash)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to update invite")
-        })?;
+        invites_repo::increment_invite_use(&mut *tx, &token_hash)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
 
-        tx.commit().await.map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to commit invite")
-        })?;
+        tx.commit()
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to commit invite"))?;
 
         return Ok(Json(InviteRedeemResponse { accepted: true }));
     }
@@ -297,7 +257,7 @@ async fn allow_rate_limit(
         let allowed = allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
             .await
             .map_err(|_| {
-                crate::errors::internal_error(
+                internal_error(
                     "rate_limiter_unavailable",
                     "failed to enforce distributed rate limit",
                 )

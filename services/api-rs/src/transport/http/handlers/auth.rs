@@ -6,32 +6,31 @@ use axum::{
 use chrono::{Duration, Utc};
 use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
-use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{csrf_cookie_name, enforce_csrf_for_cookie_auth, session_cookie_name, AuthSession},
-    errors::{bad_request, conflict, too_many_requests, unauthorized, ApiResult},
-    models::{
-        AuthChallengeRecord, AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest,
-        AuthVerifyResponse, IdentityKeyRegistrationRequest, RegisteredIdentityKey,
-        SessionRevokeRequest, SessionValidateResponse,
-    },
-    rate_limit::allow_distributed,
-    session_token::issue_session_token,
-    state::AppState,
-    validation::{
+    domain::auth::validation::{
         decode_32_bytes, decode_64_bytes, validate_auth_challenge_request,
         validate_auth_verify_request, validate_identity_registration,
         validate_session_revoke_request,
     },
+    infra::{crypto::session_token::issue_session_token, db::repos::auth_repo},
+    models::{
+        AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest, AuthVerifyResponse,
+        IdentityKeyRegistrationRequest, SessionRevokeRequest, SessionValidateResponse,
+    },
+    shared::errors::{
+        bad_request, conflict, internal_error, too_many_requests, unauthorized, ApiResult,
+    },
+    state::AppState,
+    transport::http::middleware::{
+        auth::{csrf_cookie_name, enforce_csrf_for_cookie_auth, session_cookie_name, AuthSession},
+        rate_limit::allow_distributed,
+    },
 };
 
-#[cfg(not(test))]
-use crate::errors::internal_error;
-
 #[cfg(test)]
-use crate::models::SessionRecord;
+use crate::models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord};
 
 const CHALLENGE_TTL_SECONDS: i64 = 60;
 
@@ -42,23 +41,16 @@ pub async fn register_identity_key(
     validate_identity_registration(&payload)?;
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let inserted = sqlx::query(
-            "
-            INSERT INTO identity_keys (identity_id, public_key, algorithm)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (identity_id) DO NOTHING
-            ",
+        let inserted = auth_repo::insert_identity_key(
+            pool,
+            &payload.identity_id,
+            &payload.public_key,
+            &payload.algorithm,
         )
-        .bind(&payload.identity_id)
-        .bind(&payload.public_key)
-        .bind(&payload.algorithm)
-        .execute(pool)
         .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist identity key")
-        })?;
+        .map_err(|_| internal_error("storage_unavailable", "failed to persist identity key"))?;
 
-        if inserted.rows_affected() == 0 {
+        if !inserted {
             return Err(conflict(
                 "identity_exists",
                 "identity_id already has a registered key",
@@ -133,19 +125,9 @@ pub async fn issue_auth_challenge(
     }
 
     let identity_exists = if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query_scalar::<_, i64>(
-            "
-            SELECT COUNT(*)
-            FROM identity_keys
-            WHERE identity_id = $1
-            ",
-        )
-        .bind(&payload.identity_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read identity keys")
-        })? > 0
+        auth_repo::identity_exists(pool, &payload.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to read identity keys"))?
     } else {
         #[cfg(not(test))]
         {
@@ -178,21 +160,15 @@ pub async fn issue_auth_challenge(
     let expires_at = challenge_expires_at.to_rfc3339();
 
     if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query(
-            "
-            INSERT INTO auth_challenges (challenge_id, identity_id, nonce, expires_at)
-            VALUES ($1, $2, $3, $4)
-            ",
+        auth_repo::insert_auth_challenge(
+            pool,
+            &challenge_id,
+            &payload.identity_id,
+            &nonce,
+            challenge_expires_at,
         )
-        .bind(&challenge_id)
-        .bind(&payload.identity_id)
-        .bind(&nonce)
-        .bind(challenge_expires_at)
-        .execute(pool)
         .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist challenge")
-        })?;
+        .map_err(|_| internal_error("storage_unavailable", "failed to persist challenge"))?;
 
         return Ok(Json(AuthChallengeResponse {
             challenge_id,
@@ -255,37 +231,10 @@ pub async fn verify_auth_challenge(
     }
 
     let challenge_record = if let Some(pool) = state.db_pool.as_ref() {
-        let row = sqlx::query(
-            "
-            DELETE FROM auth_challenges
-            WHERE challenge_id = $1
-            RETURNING identity_id, nonce, expires_at
-            ",
-        )
-        .bind(&payload.challenge_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read challenge")
-        })?
-        .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?;
-
-        AuthChallengeRecord {
-            identity_id: row.try_get::<String, _>("identity_id").map_err(|_| {
-                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
-            })?,
-            nonce: row.try_get::<String, _>("nonce").map_err(|_| {
-                crate::errors::internal_error("storage_unavailable", "failed to decode challenge")
-            })?,
-            expires_at: row
-                .try_get::<chrono::DateTime<Utc>, _>("expires_at")
-                .map_err(|_| {
-                    crate::errors::internal_error(
-                        "storage_unavailable",
-                        "failed to decode challenge",
-                    )
-                })?,
-        }
+        auth_repo::consume_auth_challenge(pool, &payload.challenge_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to read challenge"))?
+            .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
     } else {
         #[cfg(not(test))]
         {
@@ -318,32 +267,10 @@ pub async fn verify_auth_challenge(
     }
 
     let key_record = if let Some(pool) = state.db_pool.as_ref() {
-        let row = sqlx::query(
-            "
-            SELECT public_key, algorithm
-            FROM identity_keys
-            WHERE identity_id = $1
-            ",
-        )
-        .bind(&payload.identity_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to read identity key")
-        })?
-        .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?;
-
-        let public_key = row.try_get::<String, _>("public_key").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
-        })?;
-        let algorithm = row.try_get::<String, _>("algorithm").map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to decode identity key")
-        })?;
-
-        RegisteredIdentityKey {
-            public_key,
-            algorithm,
-        }
+        auth_repo::get_identity_key(pool, &payload.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to read identity key"))?
+            .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
     } else {
         #[cfg(not(test))]
         {
@@ -394,20 +321,9 @@ pub async fn verify_auth_challenge(
     let expires_at = Utc::now() + Duration::hours(12);
 
     if let Some(pool) = state.db_pool.as_ref() {
-        sqlx::query(
-            "
-            INSERT INTO sessions (session_id, identity_id, expires_at)
-            VALUES ($1, $2, $3)
-            ",
-        )
-        .bind(&session_id)
-        .bind(&identity_id)
-        .bind(expires_at)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to persist session")
-        })?;
+        auth_repo::insert_session(pool, &session_id, &identity_id, expires_at)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to persist session"))?;
     } else {
         #[cfg(not(test))]
         {
@@ -496,21 +412,11 @@ pub async fn revoke_session(
     }
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let updated = sqlx::query(
-            "
-            UPDATE sessions
-            SET revoked_at = NOW()
-            WHERE session_id = $1 AND revoked_at IS NULL
-            ",
-        )
-        .bind(&payload.session_id)
-        .execute(pool)
-        .await
-        .map_err(|_| {
-            crate::errors::internal_error("storage_unavailable", "failed to revoke session")
-        })?;
+        let updated = auth_repo::revoke_session(pool, &payload.session_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to revoke session"))?;
 
-        if updated.rows_affected() == 0 {
+        if !updated {
             return Err(bad_request("session_invalid", "session_id is invalid"));
         }
 
@@ -573,9 +479,8 @@ fn append_cookie(
     headers: &mut HeaderMap,
     cookie_value: &str,
 ) -> Result<(), (StatusCode, Json<crate::models::ApiError>)> {
-    let header_value = HeaderValue::from_str(cookie_value).map_err(|_| {
-        crate::errors::internal_error("cookie_invalid", "failed to encode cookie header")
-    })?;
+    let header_value = HeaderValue::from_str(cookie_value)
+        .map_err(|_| internal_error("cookie_invalid", "failed to encode cookie header"))?;
     headers.append(SET_COOKIE, header_value);
     Ok(())
 }
@@ -646,7 +551,7 @@ async fn allow_rate_limit(
         let allowed = allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
             .await
             .map_err(|_| {
-                crate::errors::internal_error(
+                internal_error(
                     "rate_limiter_unavailable",
                     "failed to enforce distributed rate limit",
                 )

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use tokio::sync::Mutex;
 
-use crate::rate_limit::RateLimiter;
+use crate::transport::ws::middleware::rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct AppState {
