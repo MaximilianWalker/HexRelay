@@ -6,14 +6,14 @@
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-09
 - Source of truth: `docs/product/04-dependencies-risks.md`
 
 ## Quick Context
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-04 marked D-001 through D-007 ready with scaffold, infra, CI, crypto, and TURN/NAT artifacts.
+- Latest meaningful change: 2026-03-09 reconciled review cadence guidance with iteration-log update cadence and refreshed register review date.
 
 ## Purpose
 
@@ -52,6 +52,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
+- Last reviewed: 2026-03-09 (no dependency/risk severity changes required in this pass).
 
 ## Risk to Task Mitigation Matrix
 
