@@ -222,7 +222,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Rust coverage threshold
-        run: cargo llvm-cov --workspace --all-features --fail-under-lines 65
+        run: cargo llvm-cov --workspace --all-features --fail-under-lines 70
 
   integration-smoke:
     name: integration-smoke (web->api->realtime)

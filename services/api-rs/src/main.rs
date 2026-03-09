@@ -7,7 +7,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let config = ApiConfig::from_env();
+    let config = ApiConfig::from_env().expect("load API configuration from environment");
 
     tracing_subscriber::fmt()
         .with_env_filter(

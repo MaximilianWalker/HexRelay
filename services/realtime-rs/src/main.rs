@@ -4,7 +4,8 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let config = RealtimeConfig::from_env();
+    let config =
+        RealtimeConfig::from_env().expect("load realtime configuration from environment");
 
     tracing_subscriber::fmt()
         .with_env_filter(
