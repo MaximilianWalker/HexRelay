@@ -280,7 +280,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 - Next.js + TypeScript + Tailwind.
 - API schema contracts: OpenAPI and generated TS client.
-- Monorepo: `pnpm` workspaces + Rust workspace.
+- Monorepo: npm workspace scripts + Rust workspace.
 - Key management: WebCrypto for keypair operations and local encrypted key storage.
 - Passphrase-gated local key unlock: optional future hardening, not required for MVP baseline.
 

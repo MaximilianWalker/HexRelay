@@ -18,7 +18,7 @@
 
 ## Core Procedures
 
-- Startup verification: `docker compose up -d` + health checks for Postgres/Redis/storage/coturn.
+- Startup verification: `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d` + health checks for Postgres/Redis/storage/coturn.
 - Mode selection:
   - Desktop local-first: user runs bundled app with local API/realtime services.
     - UI launch options: embedded desktop window or local browser against localhost.
@@ -39,7 +39,7 @@
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
 - Minimum environment:
   - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
-  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
+  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
 - Startup sequence:
   1. Start database dependencies.
   2. Start API service and verify `GET /health` returns 200.

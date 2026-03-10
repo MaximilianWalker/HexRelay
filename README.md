@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-06 added pinned Rust toolchain and explicit local development prerequisites for reproducible setup.
+- Latest meaningful change: 2026-03-10 aligned quickstart to canonical setup/test docs and standardized Rust policy to latest stable.
 
 ## Project Stage
 
@@ -53,8 +53,8 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
   - One-command bootstrap via `npm run setup`
-  - One-command local startup via `npm run run` (requires `API_SESSION_SIGNING_KEY` or `API_SESSION_SIGNING_KEYS` in your shell env)
-  - Workspace checks via `npm run test`
+  - One-command local startup via `npm run run` (canonical env contract: `docs/operations/dev-prerequisites.md`)
+  - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`

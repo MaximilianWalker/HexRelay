@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-06 added explicit local development prerequisite baseline and pinned Rust toolchain guidance.
+- Latest meaningful change: 2026-03-10 clarified local-vs-CI validation expectations and deterministic pre-PR parity path.
 
 ## Purpose
 
@@ -29,7 +29,7 @@
 ## Local Development Prerequisites
 
 - Before first setup, verify required local tooling versions in `docs/operations/dev-prerequisites.md`.
-- Rust toolchain is pinned via `rust-toolchain.toml`; run `rustup toolchain install 1.94.0` if local toolchain is missing.
+- Rust toolchain follows latest stable via `rust-toolchain.toml`; run `rustup toolchain install stable` if local toolchain is missing.
 
 ## Branch and PR Workflow
 
@@ -73,6 +73,7 @@ Run from repository root:
 
 ```bash
 npm run security
+npm run test
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -p api-rs --all-features
@@ -83,7 +84,16 @@ npm --prefix apps/web run test:coverage
 npm --prefix apps/web run build
 ```
 
+- `npm run test` is the fast local baseline; the explicit commands above mirror CI gates.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
+
+## Local Happy Path and Triage
+
+1. `npm run setup`
+2. `npm run run`
+3. Verify `curl -fsS "http://127.0.0.1:8080/health"` and `curl -fsS "http://127.0.0.1:8081/health"`
+4. `npm --prefix apps/web run e2e:smoke`
+5. If startup or smoke fails, follow `docs/operations/01-mvp-runbook.md` recovery and rollback sections.
 
 ## Docs QA Checklist
 

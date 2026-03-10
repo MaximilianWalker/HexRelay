@@ -201,28 +201,7 @@ fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
         return format!("src:{:016x}", stable_hash(&source));
     }
 
-    let cookie = headers
-        .get("cookie")
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string());
-    if let Some(cookie) = cookie {
-        return format!("cookie:{:016x}", stable_hash(&cookie));
-    }
-
-    let auth = headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string());
-
-    if let Some(auth) = auth {
-        format!("auth:{:016x}", stable_hash(&auth))
-    } else {
-        "auth-missing".to_string()
-    }
+    "src:unknown".to_string()
 }
 
 fn request_source_fingerprint(headers: &HeaderMap) -> Option<String> {

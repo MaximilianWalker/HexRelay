@@ -5,6 +5,7 @@ use reqwest::Url;
 
 pub struct RealtimeConfig {
     pub api_base_url: String,
+    pub require_api_health_on_start: bool,
     pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
     pub ws_connect_rate_limit: usize,
@@ -34,6 +35,8 @@ impl RealtimeConfig {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
             .collect::<Vec<_>>();
+        let require_api_health_on_start =
+            parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
         let ws_max_inbound_message_bytes =
@@ -78,6 +81,7 @@ impl RealtimeConfig {
 
         Ok(Self {
             api_base_url,
+            require_api_health_on_start,
             allowed_origins,
             bind_addr,
             ws_connect_rate_limit,
@@ -87,6 +91,17 @@ impl RealtimeConfig {
             ws_message_rate_window_seconds,
             ws_max_connections_per_identity,
         })
+    }
+}
+
+fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
+    match env::var(key) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Ok(true),
+            "0" | "false" | "no" | "off" => Ok(false),
+            _ => Err(format!("Invalid {}='{}'. Expected boolean", key, value)),
+        },
+        Err(_) => Ok(default),
     }
 }
 

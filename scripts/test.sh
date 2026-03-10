@@ -8,7 +8,7 @@ cargo test --all-features
 
 echo "[test] Web lint/test/build"
 npm run lint --prefix "apps/web"
-npm run test --prefix "apps/web"
+npm run test:coverage --prefix "apps/web"
 npm run build --prefix "apps/web"
 
 echo "[test] Complete"

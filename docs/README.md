@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-06
+- last_updated: 2026-03-10
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-06 added canonical development prerequisites documentation and pinned Rust toolchain guidance.
+- Latest meaningful change: 2026-03-10 standardized repository Rust toolchain policy to latest stable across local and CI docs.
 
 ## Purpose
 

@@ -3,7 +3,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     app::state::AppState,
@@ -67,5 +67,6 @@ pub fn build_app(state: AppState) -> Router {
             post(cancel_friend_request),
         )
         .layer(cors)
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
