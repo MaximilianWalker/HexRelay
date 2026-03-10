@@ -1,12 +1,15 @@
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::ConnectInfo,
     extract::State,
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
+    Json,
 };
 use futures::stream::StreamExt;
 use serde::Deserialize;
 use std::hash::{Hash, Hasher};
+use std::net::SocketAddr;
 use tracing::warn;
 
 use crate::state::AppState;
@@ -17,15 +20,20 @@ pub async fn health() -> &'static str {
 
 pub async fn ws_handler(
     State(state): State<AppState>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     if !is_allowed_origin(&state, &headers) {
         warn!("rejected websocket upgrade due to disallowed origin");
-        return StatusCode::FORBIDDEN.into_response();
+        return ws_rejection(
+            StatusCode::FORBIDDEN,
+            "origin_disallowed",
+            "websocket origin is not allowed",
+        );
     }
 
-    let rate_key = websocket_rate_limit_key(&state, &headers);
+    let rate_key = websocket_rate_limit_key(&state, &headers, Some(peer_addr));
     let allowed = state.rate_limiter.allow(
         "ws_connect",
         &rate_key,
@@ -34,14 +42,22 @@ pub async fn ws_handler(
     );
     if !allowed {
         warn!(rate_key = %rate_key, "rejected websocket upgrade due to connect rate limit");
-        return StatusCode::TOO_MANY_REQUESTS.into_response();
+        return ws_rejection(
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate_limited",
+            "too many websocket upgrade attempts",
+        );
     }
 
     let session = match validate_session(&state, &headers).await {
         Some(value) => value,
         None => {
             warn!("rejected websocket upgrade due to failed session validation");
-            return StatusCode::UNAUTHORIZED.into_response();
+            return ws_rejection(
+                StatusCode::UNAUTHORIZED,
+                "session_invalid",
+                "session validation failed",
+            );
         }
     };
 
@@ -50,7 +66,11 @@ pub async fn ws_handler(
             identity_id = %session.identity_id,
             "rejected websocket upgrade due to identity connection cap"
         );
-        return StatusCode::TOO_MANY_REQUESTS.into_response();
+        return ws_rejection(
+            StatusCode::TOO_MANY_REQUESTS,
+            "connection_cap_reached",
+            "too many active websocket sessions for identity",
+        );
     }
 
     ws.on_upgrade(move |socket| handle_socket(state, socket, session.identity_id))
@@ -100,6 +120,26 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                 let _ = socket.send(Message::Text(response)).await;
             }
             Ok(Message::Binary(bytes)) => {
+                let allowed = state.rate_limiter.allow(
+                    "ws_message",
+                    &session_identity_id,
+                    state.ws_message_rate_limit,
+                    state.ws_message_rate_window_seconds,
+                );
+                if !allowed {
+                    warn!(
+                        identity_id = %session_identity_id,
+                        "closed websocket due to message rate limit"
+                    );
+                    let _ = socket
+                        .send(Message::Text(build_error_event(
+                            "event_rate_limited",
+                            "too many websocket messages",
+                        )))
+                        .await;
+                    break;
+                }
+
                 if bytes.len() > state.ws_max_inbound_message_bytes {
                     warn!(
                         identity_id = %session_identity_id,
@@ -196,9 +236,28 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
     })
 }
 
-fn websocket_rate_limit_key(state: &AppState, headers: &HeaderMap) -> String {
+fn ws_rejection(status: StatusCode, code: &'static str, message: &'static str) -> Response {
+    (
+        status,
+        Json(serde_json::json!({
+            "code": code,
+            "message": message,
+        })),
+    )
+        .into_response()
+}
+
+fn websocket_rate_limit_key(
+    state: &AppState,
+    headers: &HeaderMap,
+    peer_addr: Option<SocketAddr>,
+) -> String {
     if let Some(source) = request_source_fingerprint(state, headers) {
         return format!("src:{:016x}", stable_hash(&source));
+    }
+
+    if let Some(peer_addr) = peer_addr {
+        return format!("peer:{:016x}", stable_hash(&peer_addr.ip().to_string()));
     }
 
     "src:unknown".to_string()

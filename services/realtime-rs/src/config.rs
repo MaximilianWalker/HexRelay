@@ -59,6 +59,48 @@ impl RealtimeConfig {
             );
         }
 
+        if ws_connect_rate_limit == 0 {
+            return Err(
+                "Invalid REALTIME_WS_CONNECT_RATE_LIMIT. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
+        if rate_limit_window_seconds == 0 {
+            return Err(
+                "Invalid REALTIME_RATE_LIMIT_WINDOW_SECONDS. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
+        if ws_message_rate_limit == 0 {
+            return Err(
+                "Invalid REALTIME_WS_MESSAGE_RATE_LIMIT. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
+        if ws_message_rate_window_seconds == 0 {
+            return Err(
+                "Invalid REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
+        if ws_max_connections_per_identity == 0 {
+            return Err(
+                "Invalid REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
+        if ws_max_inbound_message_bytes < 256 {
+            return Err(
+                "Invalid REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES. Expected integer >= 256"
+                    .to_string(),
+            );
+        }
+
         let parsed_api_url = Url::parse(&api_base_url).map_err(|_| {
             format!(
                 "Invalid REALTIME_API_BASE_URL='{}'. Expected absolute URL like http://127.0.0.1:8080",
@@ -216,6 +258,39 @@ mod tests {
                 let config = RealtimeConfig::from_env().expect("config should parse");
                 assert!(config.trust_proxy_headers);
                 assert!(!config.require_api_health_on_start);
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_zero_or_too_small_limits() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_WS_MESSAGE_RATE_LIMIT", Some("0")),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("zero message rate must fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_WS_MESSAGE_RATE_LIMIT"));
+            },
+        );
+
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES", Some("128")),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("small message payload limit must fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES"));
             },
         );
     }

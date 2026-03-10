@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-09 expanded matrix rows with deterministic validator commands and evidence path patterns.
+- Latest meaningful change: 2026-03-10 added mandatory evidence provenance fields for commit/PR/run traceability.
 
 ## Requirement to Evidence Matrix
 
@@ -36,6 +36,8 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
 - `validator`: command or deterministic manual check
 - `result`: pass/fail
 - `timestamp`: UTC datetime
+- `commit_sha`: commit used to generate evidence
+- `pr_number` or `run_id`: source execution context
 
 ## Minimum Artifact Set Per Matrix Row
 
@@ -43,6 +45,10 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
   - `summary.md` (requirement IDs, scope, outcome, owner)
   - `validators.txt` (exact command/manual checklist run)
   - `outputs/` (raw logs, screenshots, or exports referenced by `summary.md`)
+  - `provenance.json` with:
+    - `commit_sha`
+    - `pr_number` (or `run_id` for CI-only evidence)
+    - `generated_at_utc`
 - If a required output is unavailable, record it explicitly in `summary.md` with `missing` status and rationale.
 
 ## Related Documents

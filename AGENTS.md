@@ -22,3 +22,10 @@ Only project-specific constraints are defined here.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
 - Keep DM transport direct user-to-user; do not reintroduce guild/server relay for DM payloads.
+
+## 4) Readiness Feedback Loop (Required)
+
+- When a readiness finding is fixed, record it in `docs/operations/readiness-corrections-log.md` in the same change.
+- For repeated findings, add or tighten a durable rule in `AGENTS.md` or the canonical owning document in the same change.
+- Before opening a new readiness audit cycle, check `docs/operations/readiness-corrections-log.md` and treat open findings as first-pass candidates.
+- Do not re-open previously closed findings unless new code/docs changes invalidate the prior fix; if invalidated, record the regression explicitly in the log.

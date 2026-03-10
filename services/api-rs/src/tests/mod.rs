@@ -176,6 +176,9 @@ async fn app_with_database() -> Option<axum::Router> {
                 env::var("CI").is_err(),
                 "API_DATABASE_URL must be set in CI"
             );
+            eprintln!(
+                "[api-rs test] skipping DB-backed tests because API_DATABASE_URL is not configured"
+            );
             return None;
         }
     };
@@ -186,6 +189,9 @@ async fn app_with_database() -> Option<axum::Router> {
             assert!(
                 env::var("CI").is_err(),
                 "failed to prepare DB in CI: {error}"
+            );
+            eprintln!(
+                "[api-rs test] skipping DB-backed tests because database is unavailable at {database_url}: {error}"
             );
             return None;
         }

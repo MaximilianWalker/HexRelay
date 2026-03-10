@@ -13,7 +13,7 @@
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-03-10 refreshed operations index for active implementation and startup prerequisite coverage.
+- Latest meaningful change: 2026-03-10 added readiness corrections log to prevent repeated audit loops.
 
 ## Purpose
 
@@ -28,4 +28,5 @@
 - Contributor workflow: `docs/operations/contributor-guide.md`
 - MVP runbook: `docs/operations/01-mvp-runbook.md`
 - Development prerequisites: `docs/operations/dev-prerequisites.md`
+- Readiness corrections log: `docs/operations/readiness-corrections-log.md`
 - Migration validation template: `docs/operations/migration-validation-template.md`
