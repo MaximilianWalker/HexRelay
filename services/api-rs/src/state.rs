@@ -32,6 +32,7 @@ pub struct AppState {
     pub session_cookie_secure: bool,
     pub session_signing_keys: Arc<BTreeMap<String, String>>,
     pub sessions: Arc<RwLock<HashMap<String, SessionRecord>>>,
+    pub trust_proxy_headers: bool,
 }
 
 impl AppState {
@@ -45,6 +46,7 @@ impl AppState {
         session_cookie_secure: bool,
         session_cookie_same_site: String,
         rate_limits: ApiRateLimitConfig,
+        trust_proxy_headers: bool,
     ) -> Self {
         Self {
             active_signing_key_id,
@@ -62,6 +64,7 @@ impl AppState {
             session_cookie_secure,
             session_signing_keys: Arc::new(session_signing_keys),
             sessions: Arc::default(),
+            trust_proxy_headers,
         }
     }
 
@@ -91,6 +94,7 @@ impl Default for AppState {
                 invite_redeem_per_window: 40,
                 window_seconds: 60,
             },
+            false,
         )
     }
 }

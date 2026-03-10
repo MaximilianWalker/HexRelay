@@ -8,6 +8,7 @@ use crate::transport::ws::middleware::rate_limit::RateLimiter;
 pub struct AppState {
     pub api_base_url: String,
     pub allowed_origins: Vec<String>,
+    pub trust_proxy_headers: bool,
     pub http_client: reqwest::Client,
     pub rate_limiter: RateLimiter,
     pub ws_connect_rate_limit: usize,
@@ -24,6 +25,7 @@ impl AppState {
     pub fn new(
         api_base_url: String,
         allowed_origins: Vec<String>,
+        trust_proxy_headers: bool,
         ws_connect_rate_limit: usize,
         ws_rate_limit_window_seconds: u64,
         ws_max_inbound_message_bytes: usize,
@@ -40,6 +42,7 @@ impl AppState {
         Self {
             api_base_url,
             allowed_origins,
+            trust_proxy_headers,
             http_client,
             rate_limiter: RateLimiter::default(),
             ws_connect_rate_limit,

@@ -6,6 +6,7 @@ use reqwest::Url;
 pub struct RealtimeConfig {
     pub api_base_url: String,
     pub require_api_health_on_start: bool,
+    pub trust_proxy_headers: bool,
     pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
     pub ws_connect_rate_limit: usize,
@@ -37,6 +38,7 @@ impl RealtimeConfig {
             .collect::<Vec<_>>();
         let require_api_health_on_start =
             parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
+        let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
         let ws_max_inbound_message_bytes =
@@ -82,6 +84,7 @@ impl RealtimeConfig {
         Ok(Self {
             api_base_url,
             require_api_health_on_start,
+            trust_proxy_headers,
             allowed_origins,
             bind_addr,
             ws_connect_rate_limit,

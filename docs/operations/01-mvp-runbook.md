@@ -38,8 +38,8 @@
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
 - Minimum environment:
-  - API: `API_BIND`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
-  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
+  - API: `API_BIND`, `API_ENVIRONMENT`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_TRUST_PROXY_HEADERS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
+  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_TRUST_PROXY_HEADERS`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
 - Startup sequence:
   1. Start database dependencies.
   2. Start API service and verify `GET /health` returns 200.
@@ -48,10 +48,10 @@
 
 ### Dedicated Server Bring-Up (Command Baseline)
 
-1. Load environment values from `.env` (or export directly):
+1. Load environment values from service env files (or export directly):
 
 ```bash
-set -a; source .env; set +a
+set -a; source services/api-rs/.env; source services/realtime-rs/.env; set +a
 ```
 
 2. Start API service:

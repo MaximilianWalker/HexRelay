@@ -37,6 +37,14 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
 - `result`: pass/fail
 - `timestamp`: UTC datetime
 
+## Minimum Artifact Set Per Matrix Row
+
+- Every matrix evidence folder must include:
+  - `summary.md` (requirement IDs, scope, outcome, owner)
+  - `validators.txt` (exact command/manual checklist run)
+  - `outputs/` (raw logs, screenshots, or exports referenced by `summary.md`)
+- If a required output is unavailable, record it explicitly in `summary.md` with `missing` status and rationale.
+
 ## Related Documents
 
 - `docs/planning/iterations/README.md`

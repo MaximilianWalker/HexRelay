@@ -3,11 +3,17 @@ use api_rs::{
     db::connect_and_prepare,
 };
 use std::env;
-use tracing::info;
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() {
-    let config = ApiConfig::from_env().expect("load API configuration from environment");
+    let config = match ApiConfig::from_env() {
+        Ok(value) => value,
+        Err(err) => {
+            error!(error = %err, "api startup aborted due to invalid configuration");
+            std::process::exit(1);
+        }
+    };
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -15,9 +21,13 @@ async fn main() {
         )
         .init();
 
-    let db_pool = connect_and_prepare(&config.database_url)
-        .await
-        .expect("connect and prepare API database");
+    let db_pool = match connect_and_prepare(&config.database_url).await {
+        Ok(value) => value,
+        Err(err) => {
+            error!(error = %err, "api startup aborted due to database initialization failure");
+            std::process::exit(1);
+        }
+    };
 
     let app = build_app(
         AppState::new(
@@ -29,16 +39,23 @@ async fn main() {
             config.session_cookie_secure,
             config.session_cookie_same_site.clone(),
             config.rate_limits,
+            config.trust_proxy_headers,
         )
         .with_db_pool(db_pool),
     );
     let addr = config.bind_addr;
     info!(%addr, "starting api service");
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("bind api listener");
-    axum::serve(listener, app)
-        .await
-        .expect("serve api application");
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(value) => value,
+        Err(err) => {
+            error!(error = %err, "api startup aborted due to bind failure");
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(err) = axum::serve(listener, app).await {
+        error!(error = %err, "api runtime exited with server error");
+        std::process::exit(1);
+    }
 }

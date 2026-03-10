@@ -95,6 +95,7 @@ async fn rejects_missing_authorization_header() {
     let state = AppState::new(
         "http://127.0.0.1:1".to_string(),
         test_allowed_origins(),
+        false,
         60,
         60,
         16384,
@@ -110,7 +111,17 @@ async fn rejects_missing_authorization_header() {
 #[tokio::test]
 async fn accepts_valid_authorization_with_successful_validation() {
     let api_base = start_validate_server(true).await;
-    let state = AppState::new(api_base, test_allowed_origins(), 60, 60, 16384, 120, 60, 3);
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+    );
     let mut headers = HeaderMap::new();
     headers.insert(
         "authorization",
@@ -123,7 +134,17 @@ async fn accepts_valid_authorization_with_successful_validation() {
 #[tokio::test]
 async fn rejects_authorization_when_validation_endpoint_denies() {
     let api_base = start_validate_server(false).await;
-    let state = AppState::new(api_base, test_allowed_origins(), 60, 60, 16384, 120, 60, 3);
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+    );
     let mut headers = HeaderMap::new();
     headers.insert(
         "authorization",
@@ -148,6 +169,7 @@ async fn start_ws_server_with_limits(
     let app = build_app(AppState::new(
         api_base_url,
         test_allowed_origins(),
+        false,
         ws_connect_rate_limit,
         60,
         ws_max_inbound_message_bytes,

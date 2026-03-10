@@ -81,10 +81,12 @@ pub async fn allow_distributed(
     let window_start = now / window_seconds;
     let cleanup_before = window_start.saturating_sub(2);
 
-    sqlx::query("DELETE FROM rate_limit_counters WHERE window_start < $1")
-        .bind(cleanup_before as i64)
-        .execute(pool)
-        .await?;
+    if window_start % 16 == 0 {
+        sqlx::query("DELETE FROM rate_limit_counters WHERE window_start < $1")
+            .bind(cleanup_before as i64)
+            .execute(pool)
+            .await?;
+    }
 
     let count = sqlx::query_scalar::<_, i64>(
         "

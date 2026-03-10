@@ -111,7 +111,7 @@ pub async fn issue_auth_challenge(
 ) -> ApiResult<Json<AuthChallengeResponse>> {
     validate_auth_challenge_request(&payload)?;
 
-    let rate_key = rate_limit_key(&payload.identity_id, &headers);
+    let rate_key = rate_limit_key(&state, &payload.identity_id, &headers);
     let allowed = allow_rate_limit(
         &state,
         "auth_challenge",
@@ -221,7 +221,7 @@ pub async fn verify_auth_challenge(
 ) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
     validate_auth_verify_request(&payload)?;
 
-    let rate_key = rate_limit_key(&payload.identity_id, &headers);
+    let rate_key = rate_limit_key(&state, &payload.identity_id, &headers);
     let allowed = allow_rate_limit(
         &state,
         "auth_verify",
@@ -542,15 +542,19 @@ fn random_hex(byte_len: usize) -> String {
     hex::encode(bytes)
 }
 
-fn rate_limit_key(identity_hint: &str, headers: &HeaderMap) -> String {
+fn rate_limit_key(state: &AppState, identity_hint: &str, headers: &HeaderMap) -> String {
     format!(
         "identity:{}:source:{}",
         identity_hint,
-        request_source_fingerprint(headers)
+        request_source_fingerprint(state, headers)
     )
 }
 
-fn request_source_fingerprint(headers: &HeaderMap) -> String {
+fn request_source_fingerprint(state: &AppState, headers: &HeaderMap) -> String {
+    if !state.trust_proxy_headers {
+        return "unknown".to_string();
+    }
+
     if let Some(value) = headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())

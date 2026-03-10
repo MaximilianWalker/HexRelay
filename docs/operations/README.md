@@ -6,18 +6,18 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-05
+- last_updated: 2026-03-10
 - Source of truth: `docs/operations/README.md`
 
 ## Quick Context
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-03-05 added migration validation template and release decision thresholds.
+- Latest meaningful change: 2026-03-10 refreshed operations index for active implementation and startup prerequisite coverage.
 
 ## Purpose
 
-- Use this directory for contributor/process operations docs as implementation begins.
+- Use this directory for contributor/process operations docs for active implementation and release hygiene.
 - Keep process lightweight and MVP-velocity oriented.
 - Avoid introducing centralized lock-in assumptions in operational guidance.
 
@@ -27,4 +27,5 @@
 - Pull request template: `.github/pull_request_template.md`
 - Contributor workflow: `docs/operations/contributor-guide.md`
 - MVP runbook: `docs/operations/01-mvp-runbook.md`
+- Development prerequisites: `docs/operations/dev-prerequisites.md`
 - Migration validation template: `docs/operations/migration-validation-template.md`

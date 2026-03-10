@@ -155,6 +155,7 @@ async fn rate_limits_auth_challenge_requests() {
             invite_redeem_per_window: 40,
             window_seconds: 60,
         },
+        false,
     );
 
     state

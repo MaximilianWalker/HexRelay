@@ -19,7 +19,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 ## Project Stage
 
-- MVP planning complete and development bootstrap in progress
+- MVP planning complete and Iteration 1 implementation active
 
 ## Current Focus
 
@@ -44,7 +44,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 ## Getting Started
 
-- Current repository state: scaffolds and baseline infra/CI are initialized for development start.
+- Current repository state: active API/realtime/web implementation with baseline infra/CI gates running.
 - If you want project direction and delivery scope first, read:
   - `docs/product/01-mvp-plan.md`
   - `docs/product/02-prd-v1.md`
