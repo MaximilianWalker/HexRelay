@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-10 added a deterministic pre-dev gate checklist and tightened local startup prerequisites.
+- Latest meaningful change: 2026-03-10 clarified terminal-by-terminal pre-dev execution flow and first-run success criteria.
 
 ## Project Stage
 
@@ -58,13 +58,13 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 ### Pre-Dev Gate (Deterministic)
 
-1. `npm run setup`
-2. `npm run run`
-3. `curl -fsS "http://127.0.0.1:8080/health"`
-4. `curl -fsS "http://127.0.0.1:8081/health"`
-5. `npm run test`
+1. **Terminal A**: run `npm run setup` once.
+2. **Terminal A**: run `npm run run` (keep it running; this starts local API/realtime/web processes).
+3. **Terminal B**: verify API health with `curl -fsS "http://127.0.0.1:8080/health"`.
+4. **Terminal B**: verify realtime health with `curl -fsS "http://127.0.0.1:8081/health"`.
+5. **Terminal C**: run `npm run test`.
 
-Expected result: all commands succeed before starting feature implementation.
+Expected result: health checks return success and tests pass before starting feature implementation.
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`

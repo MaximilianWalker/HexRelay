@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-09
+- last_updated: 2026-03-10
 - Source of truth: `docs/operations/migration-validation-template.md`
 
 ## Quick Context
 
 - Purpose: deterministic validation template for every schema migration pull request.
 - Primary edit location: update when migration evidence requirements change.
-- Latest meaningful change: 2026-03-09 added canonical metadata block for template governance consistency.
+- Latest meaningful change: 2026-03-10 aligned migration evidence template with mandatory provenance fields.
 
 Use this template for every schema migration PR before merge.
 
@@ -23,6 +23,9 @@ Use this template for every schema migration PR before merge.
 - Owner:
 - Date (UTC):
 - Environment tested:
+- Commit SHA:
+- PR number (or CI run ID):
+- Generated at (UTC):
 
 ## Forward Validation
 
