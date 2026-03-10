@@ -13,7 +13,7 @@
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-04 expanded dedicated-server procedures with concrete startup, health, restart, and TLS boundary assumptions.
+- Latest meaningful change: 2026-03-10 expanded desktop local-first operational procedures and parity checks with dedicated-server guidance.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -37,6 +37,7 @@
 - Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
+- Realtime limiter scope: websocket connect/message limits are process-local; multi-instance deployments must apply sticky routing or edge/global limiting to preserve equivalent abuse controls.
 - Minimum environment:
   - API: `API_BIND`, `API_ENVIRONMENT`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_TRUST_PROXY_HEADERS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
   - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_TRUST_PROXY_HEADERS`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
@@ -45,6 +46,20 @@
   2. Start API service and verify `GET /health` returns 200.
   3. Start realtime service and verify `GET /health` returns 200.
   4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
+
+## Desktop Local-First Baseline
+
+- Scope: default user runtime with local API/realtime services started through repository scripts.
+- Startup sequence:
+  1. `npm run setup`
+  2. `npm run run`
+  3. Verify `curl -fsS "http://127.0.0.1:8080/health"`
+  4. Verify `curl -fsS "http://127.0.0.1:8081/health"`
+  5. Run `npm --prefix apps/web run e2e:smoke`
+- Triage baseline:
+  - If API health fails, inspect local API service output first.
+  - If realtime health fails, inspect local realtime output and API `/v1/auth/sessions/validate` path.
+  - If smoke fails, capture command output and compare with CI artifacts under `evidence/ci/<run_id>/`.
 
 ### Dedicated Server Bring-Up (Command Baseline)
 

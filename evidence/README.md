@@ -9,11 +9,17 @@ This directory stores machine-generated and manually curated validation artifact
 - Minimum expected files:
   - `manifest.txt`
   - `summary.json`
+  - `provenance.json`
   - `api.log`
   - `realtime.log`
   - `smoke-e2e.log`
   - `health-checks.log`
   - `web-coverage-summary.json`
+
+- `provenance.json` minimum fields:
+  - `commit_sha`
+  - `run_id`
+  - `generated_at_utc`
 
 If a file is absent for a run, `manifest.txt` must explicitly mark it as `missing`.
 
@@ -28,5 +34,10 @@ If a file is absent for a run, `manifest.txt` must explicitly mark it as `missin
 - For evidence folders under `evidence/iteration-*/` and `evidence/operations/`, include at minimum:
   - `summary.md`
   - `validators.txt`
+  - `provenance.json`
   - `outputs/` directory with referenced raw artifacts
+- `provenance.json` minimum fields:
+  - `commit_sha`
+  - `pr_number` (or `run_id`)
+  - `generated_at_utc`
 - If an expected artifact is missing, record `missing` and rationale in `summary.md`.

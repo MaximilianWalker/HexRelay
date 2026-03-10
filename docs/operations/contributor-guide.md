@@ -64,10 +64,15 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `rust-coverage-gate`, and `integration-smoke`.
+- Current enforced backend coverage threshold is 70%; raise-to-80 remains a tracked quality objective and should be increased only with accompanying test additions.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
 - Integration smoke always uploads CI evidence artifacts at `evidence/ci/<run_id>/`.
 - Missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
+
+Non-localizable CI checks:
+- `migration-evidence-check` requires PR base/head SHAs from CI context.
+- `integration-smoke` artifact upload path is CI-owned (`evidence/ci/<run_id>/`).
 
 ## Local CI Parity (Pre-PR)
 
@@ -76,6 +81,12 @@ Run from repository root:
 ```bash
 npm run security
 npm run test
+BASE_SHA=$(git merge-base origin/master HEAD)
+HEAD_SHA=$(git rev-parse HEAD)
+./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
+python -m pip install semgrep
+semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
+npm --prefix apps/web audit --omit=dev --audit-level=high
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -p api-rs --all-features
@@ -86,7 +97,7 @@ npm --prefix apps/web run test:coverage
 npm --prefix apps/web run build
 ```
 
-- `npm run test` is the fast local baseline; the explicit commands above mirror CI gates.
+- `npm run test` is the fast local baseline; the explicit commands above mirror CI gates as closely as possible outside GitHub Actions context.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
 
 ## Local Happy Path and Triage
@@ -104,6 +115,7 @@ npm --prefix apps/web run build
 - New links point to canonical indexes where possible (for example, iteration index over repeated board lists).
 - Related documents section is updated when new canonical docs are introduced.
 - Runtime/deployment wording matches `docs/architecture/adr-0002-runtime-deployment-modes.md` and does not introduce conflicting authority text.
+- Recurring readiness findings are recorded and closed in `docs/operations/readiness-corrections-log.md`.
 
 ## PR Checklist
 

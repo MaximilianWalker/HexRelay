@@ -4,6 +4,12 @@ use tracing::{error, info};
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            env::var("RUST_LOG").unwrap_or_else(|_| "realtime_rs=info,tower_http=info".to_string()),
+        )
+        .init();
+
     let config = match RealtimeConfig::from_env() {
         Ok(value) => value,
         Err(err) => {
@@ -11,12 +17,6 @@ async fn main() {
             std::process::exit(1);
         }
     };
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            env::var("RUST_LOG").unwrap_or_else(|_| "realtime_rs=info,tower_http=info".to_string()),
-        )
-        .init();
 
     if config.require_api_health_on_start {
         if let Err(err) = wait_for_api_health(&config.api_base_url).await {
@@ -48,7 +48,12 @@ async fn main() {
         }
     };
 
-    if let Err(err) = axum::serve(listener, app).await {
+    if let Err(err) = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    {
         error!(error = %err, "realtime runtime exited with server error");
         std::process::exit(1);
     }

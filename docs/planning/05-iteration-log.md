@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-05
+- last_updated: 2026-03-10
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-04 hardening batch added token key-rotation support, auth/invite/ws abuse controls, DB-only runtime storage paths, and runtime REST contract authority cleanup.
+- Latest meaningful change: 2026-03-10 readiness revalidation pass added runtime safeguard hardening and correction-log governance to prevent repeated audit loops.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-10 (readiness revalidation pass: recurrence prevention and runtime safeguard hardening)
+
+- Area affected: Readiness governance, runtime startup resilience, websocket abuse controls, and evidence traceability.
+- Change summary:
+  - Added readiness correction governance policy in `AGENTS.md` and introduced `docs/operations/readiness-corrections-log.md` as the recurring-finding authority.
+  - Hardened realtime websocket ingress: binary frames now share message-rate limits, handshake rejections return machine-readable error envelopes, and connect limit keying falls back to peer address when proxy headers are not trusted.
+  - Added realtime numeric config guardrails for zero/degenerate values and minimum inbound payload thresholds.
+  - Moved API and realtime tracing initialization before config parse to ensure startup failures are observable in logs.
+  - Improved DB-backed API test behavior to use deterministic local default DB URL with explicit skip reason outside CI.
+  - Expanded runtime REST contract to include implemented servers/contacts/friends endpoints and health probe.
+  - Strengthened evidence provenance requirements (`commit_sha`, `pr_number`/`run_id`, `generated_at_utc`) across testing/evidence docs.
+- Rationale:
+  - Eliminate repeated readiness-audit rediscovery loops while increasing operational confidence and traceability for future feature work.
 
 ### 2026-03-05 (quality tightening pass: fail-closed controls and evidence completeness)
 

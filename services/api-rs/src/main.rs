@@ -7,6 +7,12 @@ use tracing::{error, info};
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            env::var("RUST_LOG").unwrap_or_else(|_| "api_rs=info,tower_http=info".to_string()),
+        )
+        .init();
+
     let config = match ApiConfig::from_env() {
         Ok(value) => value,
         Err(err) => {
@@ -14,12 +20,6 @@ async fn main() {
             std::process::exit(1);
         }
     };
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            env::var("RUST_LOG").unwrap_or_else(|_| "api_rs=info,tower_http=info".to_string()),
-        )
-        .init();
 
     let db_pool = match connect_and_prepare(&config.database_url).await {
         Ok(value) => value,

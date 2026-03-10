@@ -9,6 +9,16 @@ info:
 servers:
   - url: https://api.hexrelay.local
 paths:
+  /health:
+    get:
+      summary: Service health probe
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
   /v1/identity/keys/register:
     post:
       summary: Register a public identity key
@@ -168,8 +178,288 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/servers:
+    get:
+      summary: List servers for authenticated identity
+      security:
+        - CookieAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: favorites_only
+          schema:
+            type: boolean
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+        - in: query
+          name: muted_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Server list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/contacts:
+    get:
+      summary: List contacts for authenticated identity
+      security:
+        - CookieAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: online_only
+          schema:
+            type: boolean
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+        - in: query
+          name: favorites_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Contact list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/friends/requests:
+    get:
+      summary: List inbound/outbound friend requests
+      security:
+        - CookieAuth: []
+      parameters:
+        - in: query
+          name: identity_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum: [incoming, outgoing]
+      responses:
+        '200':
+          description: Friend request list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a friend request
+      security:
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestCreateRequest'
+      responses:
+        '201':
+          description: Friend request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/friends/requests/{request_id}/accept:
+    post:
+      summary: Accept pending friend request
+      security:
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Friend request updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/friends/requests/{request_id}/decline:
+    post:
+      summary: Decline pending friend request
+      security:
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Friend request updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/friends/requests/{request_id}/cancel:
+    post:
+      summary: Cancel pending friend request
+      security:
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Friend request updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   schemas:
+    HealthResponse:
+      type: object
+      required: [service, status]
+      properties:
+        service:
+          type: string
+        status:
+          type: string
+    ServerSummary:
+      type: object
+      required: [id, name, unread, favorite, muted]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        unread:
+          type: integer
+          minimum: 0
+        favorite:
+          type: boolean
+        muted:
+          type: boolean
+    ServerListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerSummary'
+    ContactSummary:
+      type: object
+      required: [id, name, status, unread, favorite, inbound_request, pending_request]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        unread:
+          type: integer
+          minimum: 0
+        favorite:
+          type: boolean
+        inbound_request:
+          type: boolean
+        pending_request:
+          type: boolean
+    ContactListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactSummary'
+    FriendRequestRecord:
+      type: object
+      required: [request_id, requester_identity_id, target_identity_id, status, created_at]
+      properties:
+        request_id:
+          type: string
+        requester_identity_id:
+          type: string
+        target_identity_id:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    FriendRequestPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FriendRequestRecord'
+    FriendRequestCreateRequest:
+      type: object
+      required: [requester_identity_id, target_identity_id]
+      properties:
+        requester_identity_id:
+          type: string
+        target_identity_id:
+          type: string
     IdentityKeyRegistrationRequest:
       type: object
       required: [identity_id, public_key, algorithm]

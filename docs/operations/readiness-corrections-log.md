@@ -1,0 +1,38 @@
+# Readiness Corrections Log
+
+## Document Metadata
+
+- Doc ID: readiness-corrections-log
+- Owner: Maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-03-10
+- Source of truth: `docs/operations/readiness-corrections-log.md`
+
+## Purpose
+
+- Track recurring readiness findings, the concrete correction applied, and the rule/doc that now prevents recurrence.
+
+## Entry Format
+
+- Date (UTC)
+- Area (`docs` | `api-rs` | `realtime-rs` | `ci` | `workflow`)
+- Finding summary
+- Correction applied (path references)
+- Preventive rule/document update
+- Status (`closed` | `watch`)
+
+## Entries
+
+- 2026-03-10 | `ci` | Rust toolchain policy drift between pinned version and stable preference | switched toolchain policy to `stable` in `rust-toolchain.toml` and `.github/workflows/ci.yml` | documented stable-first standard in `docs/operations/dev-prerequisites.md` and `docs/operations/contributor-guide.md` | `closed`
+- 2026-03-10 | `workflow` | Integration smoke repeatedly failed with low-signal timeout output | added fail-fast health wait with process-liveness/log-tail behavior in `.github/workflows/ci.yml` and timeout control in `apps/web/scripts/e2e-smoke.mjs` | CI troubleshooting now tied to explicit logs and deterministic startup checks in workflow | `closed`
+- 2026-03-10 | `api-rs` | Invite backfill test flake under parallel execution | removed marker short-circuit race in `services/api-rs/src/db.rs` and stabilized env-based config tests in `services/api-rs/src/config.rs` | added this log policy and AGENTS rule to prevent recurring rediscovery loops | `closed`
+- 2026-03-10 | `docs` | Repeated findings around reproducibility and CI parity wording | aligned startup env contract and parity wording in `README.md`, `docs/operations/dev-prerequisites.md`, and `docs/operations/contributor-guide.md` | maintainers must update this log whenever readiness corrections land | `watch`
+- 2026-03-10 | `docs` | Local CI parity wording omitted some required CI jobs | updated `docs/operations/contributor-guide.md` local parity section with migration evidence validation, Semgrep, and npm audit commands plus CI-only caveats | contributor guide now distinguishes local parity from CI-owned checks | `closed`
+- 2026-03-10 | `docs` | Iteration log and evidence provenance requirements repeatedly drifted | updated `docs/planning/05-iteration-log.md`, `docs/testing/01-mvp-verification-matrix.md`, `docs/testing/observability-evidence-template.md`, and `evidence/README.md` with explicit provenance fields (`commit_sha`, `pr_number/run_id`, `generated_at_utc`) | provenance is now a required evidence contract fieldset | `closed`
+- 2026-03-10 | `realtime-rs` | WS ingress allowed binary-frame message-rate bypass and opaque handshake failures | applied binary-frame rate limiting and machine-readable handshake rejection JSON in `services/realtime-rs/src/transport/ws/handlers/gateway.rs`; added connect peer fallback keying | realtime ingress policy now enforces consistent abuse signaling and avoids `src:unknown` collapse for direct clients | `closed`
+- 2026-03-10 | `api-rs` | Startup/config and DB-test readiness findings were rediscovered | moved tracing init before config parse in `services/api-rs/src/main.rs`; improved DB test setup behavior in `services/api-rs/src/tests/mod.rs` | startup failures are logged deterministically and local DB test skips include explicit reason | `closed`
+- 2026-03-10 | `realtime-rs` | Realtime config accepted zero/degenerate limits | added strict numeric guardrails and tests in `services/realtime-rs/src/config.rs` | runtime now fails fast on unsafe realtime limiter configuration | `closed`
+- 2026-03-10 | `docs` | Runtime REST contract scope drifted from implemented endpoints | expanded `docs/contracts/runtime-rest-v1.openapi.yaml` to include `/health`, `/v1/servers`, `/v1/contacts`, and friends routes | runtime contract now reflects implemented router surface | `closed`
+- 2026-03-10 | `workflow` | Realtime abuse controls across multi-instance deployments remain easy to misinterpret | added explicit process-local limiter scope note in `docs/operations/01-mvp-runbook.md` | deployment docs now require sticky routing or edge/global limiting for equivalent behavior | `watch`
+- 2026-03-10 | `ci` | Coverage target repeatedly raised in audits without implementation context | documented current enforced threshold and increase policy in `docs/operations/contributor-guide.md` | threshold changes must ship with accompanying tests to avoid noisy regressions | `watch`
