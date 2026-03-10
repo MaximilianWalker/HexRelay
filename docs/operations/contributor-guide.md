@@ -29,7 +29,7 @@
 ## Local Development Prerequisites
 
 - Before first setup, verify required local tooling versions in `docs/operations/dev-prerequisites.md`.
-- Rust toolchain is pinned via `rust-toolchain.toml`; use `rustup update stable` if local toolchain is out of date.
+- Rust toolchain is pinned via `rust-toolchain.toml`; run `rustup toolchain install 1.94.0` if local toolchain is missing.
 
 ## Branch and PR Workflow
 
