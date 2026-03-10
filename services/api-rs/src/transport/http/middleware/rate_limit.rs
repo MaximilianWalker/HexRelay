@@ -81,10 +81,12 @@ pub async fn allow_distributed(
     let window_start = now / window_seconds;
     let cleanup_before = window_start.saturating_sub(2);
 
-    sqlx::query("DELETE FROM rate_limit_counters WHERE window_start < $1")
-        .bind(cleanup_before as i64)
-        .execute(pool)
-        .await?;
+    if window_start.is_multiple_of(16) {
+        sqlx::query("DELETE FROM rate_limit_counters WHERE window_start < $1")
+            .bind(cleanup_before as i64)
+            .execute(pool)
+            .await?;
+    }
 
     let count = sqlx::query_scalar::<_, i64>(
         "
@@ -111,4 +113,25 @@ fn now_unix_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("system clock before unix epoch")
         .as_secs()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RateLimiter;
+
+    #[test]
+    fn in_memory_limiter_rejects_after_limit_within_window() {
+        let limiter = RateLimiter::default();
+
+        assert!(limiter.allow("auth", "user-a", 1, 60));
+        assert!(!limiter.allow("auth", "user-a", 1, 60));
+    }
+
+    #[test]
+    fn in_memory_limiter_allows_unlimited_when_limit_zero() {
+        let limiter = RateLimiter::default();
+
+        assert!(limiter.allow("auth", "user-b", 0, 60));
+        assert!(limiter.allow("auth", "user-b", 0, 60));
+    }
 }

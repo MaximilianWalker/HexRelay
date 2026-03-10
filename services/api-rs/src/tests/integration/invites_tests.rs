@@ -196,6 +196,7 @@ async fn rate_limits_invite_redeem_requests() {
             invite_redeem_per_window: 1,
             window_seconds: 60,
         },
+        false,
     );
 
     let token = "invite-rate-limit-token";

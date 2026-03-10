@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-10
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-04 promoted runtime REST authority to `runtime-rest-v1` and kept legacy iteration contract path as compatibility alias.
+- Latest meaningful change: 2026-03-10 refreshed contracts index metadata and aligned runtime contract references with active API/realtime behavior.
 
 ## Purpose
 

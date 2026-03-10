@@ -63,8 +63,10 @@
 ## CI Expectations
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
+- Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `rust-coverage-gate`, and `integration-smoke`.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
+- Integration smoke always uploads CI evidence artifacts at `evidence/ci/<run_id>/`.
 - Missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
 
 ## Local CI Parity (Pre-PR)

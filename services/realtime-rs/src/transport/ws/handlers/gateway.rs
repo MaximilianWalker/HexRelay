@@ -25,7 +25,7 @@ pub async fn ws_handler(
         return StatusCode::FORBIDDEN.into_response();
     }
 
-    let rate_key = websocket_rate_limit_key(&headers);
+    let rate_key = websocket_rate_limit_key(&state, &headers);
     let allowed = state.rate_limiter.allow(
         "ws_connect",
         &rate_key,
@@ -196,15 +196,19 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
     })
 }
 
-fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
-    if let Some(source) = request_source_fingerprint(headers) {
+fn websocket_rate_limit_key(state: &AppState, headers: &HeaderMap) -> String {
+    if let Some(source) = request_source_fingerprint(state, headers) {
         return format!("src:{:016x}", stable_hash(&source));
     }
 
     "src:unknown".to_string()
 }
 
-fn request_source_fingerprint(headers: &HeaderMap) -> Option<String> {
+fn request_source_fingerprint(state: &AppState, headers: &HeaderMap) -> Option<String> {
+    if !state.trust_proxy_headers {
+        return None;
+    }
+
     if let Some(value) = headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())

@@ -19,11 +19,16 @@ pub struct ApiConfig {
     pub session_cookie_domain: Option<String>,
     pub session_cookie_secure: bool,
     pub session_cookie_same_site: String,
+    pub trust_proxy_headers: bool,
     pub rate_limits: ApiRateLimitConfig,
 }
 
 impl ApiConfig {
     pub fn from_env() -> Result<Self, String> {
+        const DEFAULT_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+        const DEFAULT_DATABASE_URL: &str =
+            "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay";
+
         let bind_raw = env::var("API_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
             format!(
@@ -32,19 +37,29 @@ impl ApiConfig {
             )
         })?;
 
+        let environment = env::var("API_ENVIRONMENT")
+            .unwrap_or_else(|_| "development".to_string())
+            .trim()
+            .to_ascii_lowercase();
+        if environment != "development" && environment != "production" {
+            return Err(
+                "Invalid API_ENVIRONMENT. Expected 'development' or 'production'".to_string(),
+            );
+        }
+
         let node_fingerprint = env::var("API_NODE_FINGERPRINT")
-            .unwrap_or_else(|_| "hexrelay-local-fingerprint".to_string());
+            .unwrap_or_else(|_| DEFAULT_NODE_FINGERPRINT.to_string());
         let allowed_origins_raw = env::var("API_ALLOWED_ORIGINS")
             .unwrap_or_else(|_| "http://localhost:3002,http://127.0.0.1:3002".to_string());
-        let database_url = env::var("API_DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay".to_string()
-        });
+        let database_url =
+            env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys()?;
         let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
         let session_cookie_secure = parse_bool_env("API_SESSION_COOKIE_SECURE", false)?;
+        let trust_proxy_headers = parse_bool_env("API_TRUST_PROXY_HEADERS", false)?;
         let session_cookie_same_site =
             env::var("API_SESSION_COOKIE_SAME_SITE").unwrap_or_else(|_| "Lax".to_string());
         let rate_limits = ApiRateLimitConfig {
@@ -104,6 +119,40 @@ impl ApiConfig {
             );
         }
 
+        if environment == "production" {
+            if database_url == DEFAULT_DATABASE_URL {
+                return Err(
+                    "Invalid API_DATABASE_URL for production. Configure a non-default database URL"
+                        .to_string(),
+                );
+            }
+
+            if node_fingerprint == DEFAULT_NODE_FINGERPRINT {
+                return Err(
+                    "Invalid API_NODE_FINGERPRINT for production. Configure a deployment-specific value"
+                        .to_string(),
+                );
+            }
+
+            if !session_cookie_secure {
+                return Err(
+                    "Invalid cookie config for production. Set API_SESSION_COOKIE_SECURE=true"
+                        .to_string(),
+                );
+            }
+
+            let has_keyring = env::var("API_SESSION_SIGNING_KEYS")
+                .ok()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+            if !has_keyring {
+                return Err(
+                    "Invalid signing key config for production. Set API_SESSION_SIGNING_KEYS and API_SESSION_SIGNING_KEY_ID"
+                        .to_string(),
+                );
+            }
+        }
+
         Ok(Self {
             bind_addr,
             allowed_origins,
@@ -114,6 +163,7 @@ impl ApiConfig {
             session_cookie_domain,
             session_cookie_secure,
             session_cookie_same_site,
+            trust_proxy_headers,
             rate_limits,
         })
     }
@@ -208,5 +258,114 @@ fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
             _ => Err(format!("Invalid {}='{}'. Expected boolean", key, value)),
         },
         Err(_) => Ok(default),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ApiConfig;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_api_env<F>(pairs: &[(&str, Option<&str>)], f: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = env_lock().lock().expect("acquire env test lock");
+        let previous = pairs
+            .iter()
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+
+        for (key, value) in pairs {
+            match value {
+                Some(value) => unsafe {
+                    std::env::set_var(key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
+        }
+
+        f();
+
+        for (key, value) in previous {
+            if let Some(value) = value {
+                unsafe {
+                    std::env::set_var(key, value);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_environment_value() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("staging")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("invalid env should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("Invalid API_ENVIRONMENT"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_requires_secure_cookie_and_non_default_db() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("production")),
+                (
+                    "API_SESSION_SIGNING_KEYS",
+                    Some("v1:production-secret-key-1234567890"),
+                ),
+                ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
+                ("API_SESSION_COOKIE_SECURE", Some("false")),
+                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("insecure production config should fail"),
+                    Err(err) => err,
+                };
+                assert!(
+                    err.contains("API_DATABASE_URL") || err.contains("API_SESSION_COOKIE_SECURE")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn parses_proxy_header_trust_flag() {
+        with_api_env(
+            &[
+                ("API_TRUST_PROXY_HEADERS", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert!(config.trust_proxy_headers);
+            },
+        );
     }
 }

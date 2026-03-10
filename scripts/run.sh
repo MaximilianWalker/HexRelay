@@ -6,12 +6,29 @@ if [ ! -f "infra/.env" ]; then
   cp "infra/.env.example" "infra/.env"
 fi
 
+ensure_and_source_env() {
+  local env_path="$1"
+  local example_path="$2"
+  local label="$3"
+
+  if [ ! -f "$env_path" ]; then
+    echo "[run] $env_path missing; creating from $example_path"
+    cp "$example_path" "$env_path"
+  fi
+
+  set -a
+  source "$env_path"
+  set +a
+
+  echo "[run] Loaded ${label} env from $env_path"
+}
+
 echo "[run] Starting local infrastructure"
 docker compose --env-file "infra/.env" -f "infra/docker-compose.yml" up -d
 
-set -a
-source "infra/.env"
-set +a
+ensure_and_source_env "infra/.env" "infra/.env.example" "infra"
+ensure_and_source_env "services/api-rs/.env" "services/api-rs/.env.example" "api"
+ensure_and_source_env "services/realtime-rs/.env" "services/realtime-rs/.env.example" "realtime"
 
 wait_for() {
   local label="$1"

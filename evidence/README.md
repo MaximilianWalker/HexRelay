@@ -22,3 +22,11 @@ If a file is absent for a run, `manifest.txt` must explicitly mark it as `missin
 - Pull requests that change `services/api-rs/migrations/*.sql` must include matching evidence files at:
   - `evidence/migrations/<migration-name>.md`
 - Use `docs/operations/migration-validation-template.md` as the required template baseline.
+
+## Iteration Evidence Contract
+
+- For evidence folders under `evidence/iteration-*/` and `evidence/operations/`, include at minimum:
+  - `summary.md`
+  - `validators.txt`
+  - `outputs/` directory with referenced raw artifacts
+- If an expected artifact is missing, record `missing` and rationale in `summary.md`.

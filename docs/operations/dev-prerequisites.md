@@ -13,7 +13,7 @@
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-03-10 standardized Rust toolchain policy to latest stable and kept curl as required startup tooling.
+- Latest meaningful change: 2026-03-10 standardized Rust policy and made local startup env loading deterministic via service `.env` files.
 
 ## Purpose
 
@@ -28,6 +28,11 @@
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
 - Bash: required for repository scripts in `scripts/*.sh`.
 - curl: required for local health checks used by `scripts/run.sh`.
+
+### Platform Notes
+
+- Windows: use Git Bash or WSL for `scripts/*.sh` commands.
+- macOS/Linux: default system shell is sufficient.
 
 ## Quick Verification
 
@@ -49,21 +54,18 @@ Expected: commands resolve without errors and versions satisfy the required tool
 ## Recommended Setup Flow
 
 1. Install required tooling.
-2. Export API session signing env before local startup:
-
-```bash
-export API_SESSION_SIGNING_KEYS="v1:hexrelay-dev-signing-key-change-me"
-export API_SESSION_SIGNING_KEY_ID="v1"
-```
-
-3. Run `npm run setup`.
-4. Run `npm run run` and confirm service startup succeeds.
-5. Run `npm run test` before opening a PR.
+2. Run `npm run setup`.
+3. Confirm `services/api-rs/.env` and `services/realtime-rs/.env` exist (created automatically from `*.env.example` on first `npm run run`).
+4. Set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
+5. Run `npm run run` and confirm service startup succeeds.
+6. Run `npm run test` before opening a PR.
 
 ## Canonical Local Runtime Env Contract
 
-- `API_SESSION_SIGNING_KEYS` (required): keyring in `key_id:secret` format.
+- `API_SESSION_SIGNING_KEYS` (required): keyring in `key_id:secret` format (set in `services/api-rs/.env`).
 - `API_SESSION_SIGNING_KEY_ID` (required when keyring is used): active key ID present in `API_SESSION_SIGNING_KEYS`.
+- `API_ENVIRONMENT` defaults to `development`; set `production` for dedicated deployments to enforce stricter config checks.
+- `API_TRUST_PROXY_HEADERS` and `REALTIME_TRUST_PROXY_HEADERS` default to `false`; set to `true` only behind a trusted reverse proxy that sanitizes forwarded headers.
 - Legacy fallback `API_SESSION_SIGNING_KEY` is supported for local compatibility only; prefer keyring form.
 
 ## Related Documents

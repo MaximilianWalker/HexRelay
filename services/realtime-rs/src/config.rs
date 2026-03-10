@@ -6,6 +6,7 @@ use reqwest::Url;
 pub struct RealtimeConfig {
     pub api_base_url: String,
     pub require_api_health_on_start: bool,
+    pub trust_proxy_headers: bool,
     pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
     pub ws_connect_rate_limit: usize,
@@ -37,6 +38,7 @@ impl RealtimeConfig {
             .collect::<Vec<_>>();
         let require_api_health_on_start =
             parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
+        let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
         let ws_max_inbound_message_bytes =
@@ -82,6 +84,7 @@ impl RealtimeConfig {
         Ok(Self {
             api_base_url,
             require_api_health_on_start,
+            trust_proxy_headers,
             allowed_origins,
             bind_addr,
             ws_connect_rate_limit,
@@ -142,7 +145,49 @@ fn is_loopback_host(host: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_loopback_host;
+    use super::{is_loopback_host, RealtimeConfig};
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_realtime_env<F>(pairs: &[(&str, Option<&str>)], f: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = env_lock().lock().expect("acquire env test lock");
+        let previous = pairs
+            .iter()
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+
+        for (key, value) in pairs {
+            match value {
+                Some(value) => unsafe {
+                    std::env::set_var(key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
+        }
+
+        f();
+
+        for (key, value) in previous {
+            if let Some(value) = value {
+                unsafe {
+                    std::env::set_var(key, value);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn detects_loopback_hosts() {
@@ -156,5 +201,22 @@ mod tests {
         assert!(!is_loopback_host(Some("example.com")));
         assert!(!is_loopback_host(Some("10.0.0.5")));
         assert!(!is_loopback_host(None));
+    }
+
+    #[test]
+    fn parses_proxy_header_trust_flag() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_TRUST_PROXY_HEADERS", Some("true")),
+                ("REALTIME_REQUIRE_API_HEALTH_ON_START", Some("false")),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert!(config.trust_proxy_headers);
+                assert!(!config.require_api_health_on_start);
+            },
+        );
     }
 }
