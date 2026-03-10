@@ -23,6 +23,16 @@ channels:
     messages:
       callSignalIceCandidateV1:
         $ref: '#/components/messages/CallSignalIceCandidateV1'
+  realtimeConnected:
+    address: realtime.connected
+    messages:
+      realtimeConnectedV1:
+        $ref: '#/components/messages/RealtimeConnectedV1'
+  error:
+    address: error
+    messages:
+      errorV1:
+        $ref: '#/components/messages/ErrorV1'
 operations:
   sendCallSignalOffer:
     action: send
@@ -42,6 +52,18 @@ operations:
       $ref: '#/channels/callSignalIceCandidate'
     messages:
       - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+  receiveRealtimeConnected:
+    action: receive
+    channel:
+      $ref: '#/channels/realtimeConnected'
+    messages:
+      - $ref: '#/channels/realtimeConnected/messages/realtimeConnectedV1'
+  receiveError:
+    action: receive
+    channel:
+      $ref: '#/channels/error'
+    messages:
+      - $ref: '#/channels/error/messages/errorV1'
 components:
   messages:
     CallSignalOfferV1:
@@ -53,6 +75,12 @@ components:
     CallSignalIceCandidateV1:
       payload:
         $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
+    RealtimeConnectedV1:
+      payload:
+        $ref: '#/components/schemas/RealtimeConnectedEventV1'
+    ErrorV1:
+      payload:
+        $ref: '#/components/schemas/ErrorEventV1'
   schemas:
     EventEnvelopeV1:
       type: object
@@ -115,3 +143,30 @@ components:
           properties:
             event_type: { const: call.signal.ice_candidate }
             data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }
+    RealtimeConnectedDataV1:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok] }
+    ErrorDataV1:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    RealtimeConnectedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: realtime.connected }
+            data: { $ref: '#/components/schemas/RealtimeConnectedDataV1' }
+    ErrorEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: error }
+            data: { $ref: '#/components/schemas/ErrorDataV1' }

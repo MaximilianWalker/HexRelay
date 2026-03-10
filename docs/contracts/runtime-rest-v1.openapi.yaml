@@ -23,8 +23,10 @@ paths:
           description: Identity key registered
         '400':
           $ref: '#/components/responses/BadRequest'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/auth/challenge:
     post:
       summary: Issue a nonce challenge
@@ -43,6 +45,10 @@ paths:
                 $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/auth/verify:
     post:
       summary: Verify challenge signature and issue session cookies
@@ -72,6 +78,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/revoke:
     post:
       summary: Revoke an active session
@@ -94,6 +102,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/validate:
     get:
       summary: Validate active session
@@ -108,8 +118,6 @@ paths:
                 $ref: '#/components/schemas/SessionValidateResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
   /v1/invites:
     post:
       summary: Create an invite token
@@ -134,6 +142,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/invites/redeem:
     post:
       summary: Redeem an invite token
@@ -152,8 +164,10 @@ paths:
                 $ref: '#/components/schemas/InviteRedeemResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   schemas:
     IdentityKeyRegistrationRequest:
@@ -284,6 +298,14 @@ components:
             - signature_invalid
             - session_invalid
             - csrf_invalid
+            - rate_limited
+            - storage_unavailable
+            - rate_limiter_unavailable
+            - identity_exists
+            - friend_request_exists
+            - transition_invalid
+            - storage_failure
+            - cookie_invalid
         message:
           type: string
   parameters:
@@ -309,6 +331,18 @@ components:
             $ref: '#/components/schemas/ApiError'
     TooManyRequests:
       description: Request rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Request conflicts with existing resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    InternalServerError:
+      description: Internal storage or runtime dependency failure
       content:
         application/json:
           schema:

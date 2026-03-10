@@ -436,6 +436,43 @@ async fn websocket_upgrade_rejects_when_rate_limited() {
 }
 
 #[tokio::test]
+async fn websocket_upgrade_rate_limit_cannot_be_bypassed_by_rotating_auth_header() {
+    let api_base = start_validate_server(true).await;
+    let ws_url = start_ws_server(api_base, 1).await;
+
+    let mut first_request = ws_url
+        .clone()
+        .into_client_request()
+        .expect("build first websocket request");
+    first_request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut first_request);
+
+    let _ = connect_async(first_request)
+        .await
+        .expect("first websocket should connect");
+
+    let mut second_request = ws_url
+        .into_client_request()
+        .expect("build second websocket request");
+    second_request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer totally-different-token"),
+    );
+    set_allowed_origin(&mut second_request);
+
+    let result = connect_async(second_request).await;
+    assert!(result.is_err());
+    let message = result
+        .err()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    assert!(message.contains("429") || message.contains("Too Many Requests"));
+}
+
+#[tokio::test]
 async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() {
     let api_base = start_validate_server(true).await;
     let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 1, 60, 3).await;

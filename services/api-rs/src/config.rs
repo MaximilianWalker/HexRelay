@@ -97,6 +97,13 @@ impl ApiConfig {
             );
         }
 
+        if session_cookie_domain.is_some() && !session_cookie_secure {
+            return Err(
+                "Invalid cookie config. API_SESSION_COOKIE_DOMAIN requires API_SESSION_COOKIE_SECURE=true"
+                    .to_string(),
+            );
+        }
+
         Ok(Self {
             bind_addr,
             allowed_origins,
