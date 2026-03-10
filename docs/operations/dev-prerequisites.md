@@ -13,7 +13,7 @@
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-03-10 added Python/pip parity prerequisites and clarified deterministic startup tooling expectations.
+- Latest meaningful change: 2026-03-10 added Python/pip parity prerequisites and a single copy-paste first-run env bootstrap block.
 
 ## Purpose
 
@@ -63,6 +63,40 @@ Expected: commands resolve without errors and versions satisfy the required tool
 4. Set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
 5. Run `npm run run` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
+
+## First-Run Env Bootstrap (Copy/Paste)
+
+```bash
+cat > services/api-rs/.env <<'EOF'
+API_BIND=127.0.0.1:8080
+API_ENVIRONMENT=development
+API_NODE_FINGERPRINT=hexrelay-local-fingerprint
+API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay
+API_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
+API_TRUST_PROXY_HEADERS=false
+API_SESSION_SIGNING_KEYS=v1:hexrelay-dev-signing-key-change-me
+API_SESSION_SIGNING_KEY_ID=v1
+API_SESSION_COOKIE_SECURE=false
+API_SESSION_COOKIE_SAME_SITE=Lax
+EOF
+
+cat > services/realtime-rs/.env <<'EOF'
+REALTIME_BIND=127.0.0.1:8081
+REALTIME_API_BASE_URL=http://127.0.0.1:8080
+REALTIME_REQUIRE_API_HEALTH_ON_START=true
+REALTIME_TRUST_PROXY_HEADERS=false
+REALTIME_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
+REALTIME_WS_CONNECT_RATE_LIMIT=60
+REALTIME_RATE_LIMIT_WINDOW_SECONDS=60
+REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES=16384
+REALTIME_WS_MESSAGE_RATE_LIMIT=120
+REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS=60
+REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY=3
+EOF
+```
+
+- This bootstrap is for local development only.
+- For dedicated/server deployments, use managed secrets and production-safe values.
 
 ## Canonical Local Runtime Env Contract
 

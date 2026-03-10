@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-10 split local-required vs CI-owned parity expectations and kept branch-agnostic parity commands.
+- Latest meaningful change: 2026-03-10 added no-remote parity fallback while preserving branch-agnostic local parity commands.
 
 ## Purpose
 
@@ -94,7 +94,7 @@ Run from repository root:
 npm run security
 npm run test
 DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
-BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD)
+BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD 2>/dev/null || git rev-parse HEAD~1)
 HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
@@ -112,6 +112,7 @@ npm --prefix apps/web run build
 ```
 
 - The `DEFAULT_BRANCH` fallback keeps local parity compatible with both `master` and `main` default-branch repositories.
+- If no `origin` remote is available (fork/offline workflows), set `BASE_SHA=$(git rev-parse HEAD~1)` before running evidence validation scripts.
 
 - `npm run test` is the fast local baseline; the explicit commands above mirror CI gates as closely as possible outside GitHub Actions context.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
