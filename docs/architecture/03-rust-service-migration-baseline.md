@@ -6,7 +6,7 @@
 - Owner: Architecture maintainers
 - Status: in_progress
 - Scope: repository
-- last_updated: 2026-03-06
+- last_updated: 2026-03-10
 - Source of truth: `docs/architecture/03-rust-service-migration-baseline.md`
 
 ## Purpose
@@ -33,8 +33,8 @@
 
 ### Coverage Baseline (workspace)
 
-- Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 65`
-- Threshold: `65` lines (gate)
+- Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 70`
+- Threshold: `70` lines (gate)
 - Result: `pass`
 - Total line coverage snapshot: `74.34%`
 - Total region coverage snapshot: `73.52%`
@@ -105,7 +105,7 @@
   - `cargo fmt --all -- --check`
   - `cargo clippy --all-targets --all-features -- -D warnings`
   - `cargo test --all-features`
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 65`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 70`
   - `npm run security`
   - `npm run test`
 

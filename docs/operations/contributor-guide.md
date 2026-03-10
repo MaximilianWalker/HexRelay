@@ -6,7 +6,7 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-06
+- last_updated: 2026-03-10
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
@@ -66,6 +66,24 @@
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
 - Missing required lockfiles or missing `lint`/`test`/`build` scripts fail CI with actionable errors.
+
+## Local CI Parity (Pre-PR)
+
+Run from repository root:
+
+```bash
+npm run security
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test -p api-rs --all-features
+cargo test -p realtime-rs --all-features
+API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 70
+npm --prefix apps/web run lint
+npm --prefix apps/web run test:coverage
+npm --prefix apps/web run build
+```
+
+- If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
 
 ## Docs QA Checklist
 

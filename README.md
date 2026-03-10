@@ -8,7 +8,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-06
+- last_updated: 2026-03-10
 - Source of truth: `README.md`
 
 ## Quick Context
@@ -51,9 +51,9 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - `docs/planning/iterations/README.md`
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
-  - Local infra via `docker compose --env-file infra/.env up -d`
+  - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
   - One-command bootstrap via `npm run setup`
-  - One-command local startup via `npm run run`
+  - One-command local startup via `npm run run` (requires `API_SESSION_SIGNING_KEY` or `API_SESSION_SIGNING_KEYS` in your shell env)
   - Workspace checks via `npm run test`
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`

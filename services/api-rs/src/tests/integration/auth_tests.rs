@@ -280,6 +280,51 @@ async fn verifies_auth_challenge_and_revokes_session() {
 }
 
 #[tokio::test]
+async fn rejects_session_revoke_with_missing_csrf_header() {
+    let (app, tokens) = app_with_sessions(&["usr-csrf-missing"]);
+
+    let revoke_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/sessions/revoke")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-csrf-missing"]
+            ),
+        )
+        .body(Body::from(r#"{"session_id":"sess-usr-csrf-missing"}"#))
+        .expect("build revoke request");
+
+    let revoke_response = app.oneshot(revoke_request).await.expect("revoke response");
+    assert_eq!(revoke_response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn rejects_session_revoke_with_mismatched_csrf_header() {
+    let (app, tokens) = app_with_sessions(&["usr-csrf-mismatch"]);
+
+    let revoke_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/sessions/revoke")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-csrf-mismatch"]
+            ),
+        )
+        .header("x-csrf-token", "wrong-csrf")
+        .body(Body::from(r#"{"session_id":"sess-usr-csrf-mismatch"}"#))
+        .expect("build revoke request");
+
+    let revoke_response = app.oneshot(revoke_request).await.expect("revoke response");
+    assert_eq!(revoke_response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn rejects_invalid_signature_on_verify() {
     let app = build_app(AppState::default());
     let rng = SystemRandom::new();

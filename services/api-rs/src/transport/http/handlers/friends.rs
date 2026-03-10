@@ -81,8 +81,8 @@ fn create_friend_request_in_memory(
     });
 
     if existing.is_some() {
-        return Err(bad_request(
-            "identity_invalid",
+        return Err(conflict(
+            "friend_request_exists",
             "pending friend request already exists",
         ));
     }
@@ -359,7 +359,10 @@ fn map_friend_request_db_error(
 ) -> (StatusCode, Json<crate::models::ApiError>) {
     if let FriendRequestRepoError::Sql(sqlx::Error::Database(db_error)) = &error {
         if db_error.code().as_deref() == Some("23505") {
-            return bad_request("identity_invalid", "pending friend request already exists");
+            return conflict(
+                "friend_request_exists",
+                "pending friend request already exists",
+            );
         }
     }
 

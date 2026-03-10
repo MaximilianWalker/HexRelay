@@ -7,6 +7,7 @@ use axum::{
 use futures::stream::StreamExt;
 use serde::Deserialize;
 use std::hash::{Hash, Hasher};
+use tracing::warn;
 
 use crate::state::AppState;
 
@@ -20,6 +21,7 @@ pub async fn ws_handler(
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     if !is_allowed_origin(&state, &headers) {
+        warn!("rejected websocket upgrade due to disallowed origin");
         return StatusCode::FORBIDDEN.into_response();
     }
 
@@ -31,15 +33,23 @@ pub async fn ws_handler(
         state.ws_rate_limit_window_seconds,
     );
     if !allowed {
+        warn!(rate_key = %rate_key, "rejected websocket upgrade due to connect rate limit");
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     }
 
     let session = match validate_session(&state, &headers).await {
         Some(value) => value,
-        None => return StatusCode::UNAUTHORIZED.into_response(),
+        None => {
+            warn!("rejected websocket upgrade due to failed session validation");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
     };
 
     if !try_acquire_connection_slot(&state, &session.identity_id).await {
+        warn!(
+            identity_id = %session.identity_id,
+            "rejected websocket upgrade due to identity connection cap"
+        );
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     }
 
@@ -53,6 +63,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
         match message {
             Ok(Message::Text(text)) => {
                 if text.len() > state.ws_max_inbound_message_bytes {
+                    warn!(
+                        identity_id = %session_identity_id,
+                        "closed websocket due to oversized text payload"
+                    );
                     let _ = socket
                         .send(Message::Text(build_error_event(
                             "event_too_large",
@@ -69,6 +83,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                     state.ws_message_rate_window_seconds,
                 );
                 if !allowed {
+                    warn!(
+                        identity_id = %session_identity_id,
+                        "closed websocket due to message rate limit"
+                    );
                     let _ = socket
                         .send(Message::Text(build_error_event(
                             "event_rate_limited",
@@ -83,6 +101,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
             }
             Ok(Message::Binary(bytes)) => {
                 if bytes.len() > state.ws_max_inbound_message_bytes {
+                    warn!(
+                        identity_id = %session_identity_id,
+                        "closed websocket due to oversized binary payload"
+                    );
                     let _ = socket
                         .send(Message::Text(build_error_event(
                             "event_too_large",
@@ -175,6 +197,10 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
 }
 
 fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
+    if let Some(source) = request_source_fingerprint(headers) {
+        return format!("src:{:016x}", stable_hash(&source));
+    }
+
     let cookie = headers
         .get("cookie")
         .and_then(|value| value.to_str().ok())
@@ -197,6 +223,29 @@ fn websocket_rate_limit_key(headers: &HeaderMap) -> String {
     } else {
         "auth-missing".to_string()
     }
+}
+
+fn request_source_fingerprint(headers: &HeaderMap) -> Option<String> {
+    if let Some(value) = headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(format!("xff:{}", value));
+    }
+
+    if let Some(value) = headers
+        .get("x-real-ip")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(format!("xri:{}", value));
+    }
+
+    None
 }
 
 fn is_allowed_origin(state: &AppState, headers: &HeaderMap) -> bool {

@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-06
+- last_updated: 2026-03-10
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -163,7 +163,7 @@ npm --prefix apps/web run e2e:smoke
   - `npm audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Rust coverage gate:
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 65`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 70`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.
 
 ## Realtime Upgrade Policy
