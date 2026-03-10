@@ -54,16 +54,6 @@ pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Err
 async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error> {
     const RUNTIME_BACKFILL_MARKER: &str = "0007_invites_hash_backfill_runtime_v1";
 
-    let already_backfilled =
-        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM schema_migrations WHERE version = $1")
-            .bind(RUNTIME_BACKFILL_MARKER)
-            .fetch_one(pool)
-            .await?;
-
-    if already_backfilled > 0 {
-        return Ok(());
-    }
-
     let legacy_tokens = sqlx::query_scalar::<_, String>(
         "SELECT token FROM invites WHERE token !~ '^[0-9a-f]{64}$'",
     )
