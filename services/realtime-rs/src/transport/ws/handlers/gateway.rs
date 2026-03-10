@@ -219,16 +219,26 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
 
     let response = match request.send().await {
         Ok(value) => value,
-        Err(_) => return None,
+        Err(error) => {
+            warn!(error = %error, "session validation upstream request failed");
+            return None;
+        }
     };
 
     if !response.status().is_success() {
+        warn!(
+            status = %response.status(),
+            "session validation upstream returned non-success status"
+        );
         return None;
     }
 
     let payload = match response.json::<SessionValidateResponse>().await {
         Ok(value) => value,
-        Err(_) => return None,
+        Err(error) => {
+            warn!(error = %error, "session validation upstream payload decode failed");
+            return None;
+        }
     };
 
     Some(ValidatedSession {

@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-10
 - Source of truth: `docs/product/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added MVP screen-state and configuration-default authorities.
+- Latest meaningful change: 2026-03-10 refreshed product index metadata following readiness-governed runtime hardening updates.
 
 ## Contents
 

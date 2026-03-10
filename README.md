@@ -53,7 +53,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
   - One-command bootstrap via `npm run setup`
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
-  - One-command local startup via `npm run run` (canonical env contract: `docs/operations/dev-prerequisites.md`)
+  - One-command local startup via `npm run run` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/operations/dev-prerequisites.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`

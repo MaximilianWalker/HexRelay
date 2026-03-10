@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-10 clarified local-vs-CI validation expectations and deterministic pre-PR parity path.
+- Latest meaningful change: 2026-03-10 made local parity branch-agnostic and added provenance validation alignment with CI.
 
 ## Purpose
 
@@ -63,7 +63,7 @@
 ## CI Expectations
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
-- Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `rust-coverage-gate`, and `integration-smoke`.
+- Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `rust-coverage-gate`, and `integration-smoke`.
 - Current enforced backend coverage threshold is 70%; raise-to-80 remains a tracked quality objective and should be increased only with accompanying test additions.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
@@ -81,9 +81,11 @@ Run from repository root:
 ```bash
 npm run security
 npm run test
-BASE_SHA=$(git merge-base origin/master HEAD)
+DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD)
 HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
+./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
 python -m pip install semgrep
 semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
 npm --prefix apps/web audit --omit=dev --audit-level=high
@@ -96,6 +98,8 @@ npm --prefix apps/web run lint
 npm --prefix apps/web run test:coverage
 npm --prefix apps/web run build
 ```
+
+- The `DEFAULT_BRANCH` fallback keeps local parity compatible with both `master` and `main` default-branch repositories.
 
 - `npm run test` is the fast local baseline; the explicit commands above mirror CI gates as closely as possible outside GitHub Actions context.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
