@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-10 aligned quickstart to canonical setup/test docs and standardized Rust policy to latest stable.
+- Latest meaningful change: 2026-03-10 added a deterministic pre-dev gate checklist and tightened local startup prerequisites.
 
 ## Project Stage
 
@@ -55,6 +55,16 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
   - One-command local startup via `npm run run` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/operations/dev-prerequisites.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
+
+### Pre-Dev Gate (Deterministic)
+
+1. `npm run setup`
+2. `npm run run`
+3. `curl -fsS "http://127.0.0.1:8080/health"`
+4. `curl -fsS "http://127.0.0.1:8081/health"`
+5. `npm run test`
+
+Expected result: all commands succeed before starting feature implementation.
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`

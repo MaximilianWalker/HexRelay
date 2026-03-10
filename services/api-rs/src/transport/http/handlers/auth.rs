@@ -1,4 +1,5 @@
 use axum::{
+    extract::ConnectInfo,
     extract::State,
     http::{header::SET_COOKIE, HeaderMap, HeaderValue, StatusCode},
     Json,
@@ -7,6 +8,7 @@ use chrono::{Duration, Utc};
 use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
 use std::hash::{Hash, Hasher};
+use std::net::SocketAddr;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -107,11 +109,17 @@ pub async fn validate_session(auth: AuthSession) -> ApiResult<Json<SessionValida
 pub async fn issue_auth_challenge(
     State(state): State<AppState>,
     headers: HeaderMap,
+    peer_addr: Option<ConnectInfo<SocketAddr>>,
     Json(payload): Json<AuthChallengeRequest>,
 ) -> ApiResult<Json<AuthChallengeResponse>> {
     validate_auth_challenge_request(&payload)?;
 
-    let rate_key = rate_limit_key(&state, &payload.identity_id, &headers);
+    let rate_key = rate_limit_key(
+        &state,
+        &payload.identity_id,
+        &headers,
+        peer_addr.as_ref().map(|value| value.0),
+    );
     let allowed = allow_rate_limit(
         &state,
         "auth_challenge",
@@ -212,11 +220,17 @@ pub async fn issue_auth_challenge(
 pub async fn verify_auth_challenge(
     State(state): State<AppState>,
     headers: HeaderMap,
+    peer_addr: Option<ConnectInfo<SocketAddr>>,
     Json(payload): Json<AuthVerifyRequest>,
 ) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
     validate_auth_verify_request(&payload)?;
 
-    let rate_key = rate_limit_key(&state, &payload.identity_id, &headers);
+    let rate_key = rate_limit_key(
+        &state,
+        &payload.identity_id,
+        &headers,
+        peer_addr.as_ref().map(|value| value.0),
+    );
     let allowed = allow_rate_limit(
         &state,
         "auth_verify",
@@ -537,17 +551,28 @@ fn random_hex(byte_len: usize) -> String {
     hex::encode(bytes)
 }
 
-fn rate_limit_key(state: &AppState, identity_hint: &str, headers: &HeaderMap) -> String {
+fn rate_limit_key(
+    state: &AppState,
+    identity_hint: &str,
+    headers: &HeaderMap,
+    peer_addr: Option<SocketAddr>,
+) -> String {
     format!(
         "identity:{}:source:{}",
         identity_hint,
-        request_source_fingerprint(state, headers)
+        request_source_fingerprint(state, headers, peer_addr)
     )
 }
 
-fn request_source_fingerprint(state: &AppState, headers: &HeaderMap) -> String {
+fn request_source_fingerprint(
+    state: &AppState,
+    headers: &HeaderMap,
+    peer_addr: Option<SocketAddr>,
+) -> String {
     if !state.trust_proxy_headers {
-        return "unknown".to_string();
+        return peer_addr
+            .map(|value| format!("peer:{:016x}", stable_hash(&value.ip().to_string())))
+            .unwrap_or_else(|| "unknown".to_string());
     }
 
     if let Some(value) = headers
@@ -569,7 +594,9 @@ fn request_source_fingerprint(state: &AppState, headers: &HeaderMap) -> String {
         return format!("xri:{:016x}", stable_hash(value));
     }
 
-    "unknown".to_string()
+    peer_addr
+        .map(|value| format!("peer:{:016x}", stable_hash(&value.ip().to_string())))
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 fn stable_hash(value: &str) -> u64 {
@@ -592,7 +619,13 @@ async fn allow_rate_limit(
     if let Some(pool) = state.db_pool.as_ref() {
         let allowed = allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
             .await
-            .map_err(|_| {
+            .map_err(|error| {
+                warn!(
+                    scope = scope,
+                    key = key,
+                    error = %error,
+                    "distributed rate-limit enforcement failed"
+                );
                 internal_error(
                     "rate_limiter_unavailable",
                     "failed to enforce distributed rate limit",

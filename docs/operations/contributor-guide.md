@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-10 made local parity branch-agnostic and added provenance validation alignment with CI.
+- Latest meaningful change: 2026-03-10 split local-required vs CI-owned parity expectations and kept branch-agnostic parity commands.
 
 ## Purpose
 
@@ -75,6 +75,18 @@ Non-localizable CI checks:
 - `integration-smoke` artifact upload path is CI-owned (`evidence/ci/<run_id>/`).
 
 ## Local CI Parity (Pre-PR)
+
+Required local checks (run before opening PR):
+- `npm run security`
+- `npm run test`
+- `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
+- `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
+- Rust `fmt`/`clippy`/tests and coverage gate command
+- Web `lint`/`test:coverage`/`build`
+
+CI-owned checks (informational for local parity):
+- CI artifact upload and retention under `evidence/ci/<run_id>/`
+- PR-context dependent SHA resolution in workflow jobs
 
 Run from repository root:
 

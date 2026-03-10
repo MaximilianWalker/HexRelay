@@ -1,4 +1,9 @@
 use super::*;
+use uuid::Uuid;
+
+fn unique_identity(prefix: &str) -> String {
+    format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
 
 #[tokio::test]
 async fn validates_and_revokes_db_backed_session() {
@@ -11,14 +16,18 @@ async fn validates_and_revokes_db_backed_session() {
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, "db-user-verify", &public_key).await;
+    let identity_id = unique_identity("db-user-verify");
+    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
     assert_eq!(register_status, StatusCode::CREATED);
 
     let challenge_request = Request::builder()
         .method("POST")
         .uri("/v1/auth/challenge")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"identity_id":"db-user-verify"}"#))
+        .body(Body::from(format!(
+            r#"{{"identity_id":"{}"}}"#,
+            identity_id
+        )))
         .expect("build challenge request");
 
     let challenge_response = app
@@ -42,8 +51,8 @@ async fn validates_and_revokes_db_backed_session() {
         .uri("/v1/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"identity_id":"db-user-verify","challenge_id":"{}","signature":"{}"}}"#,
-            challenge.challenge_id, signature_hex
+            r#"{{"identity_id":"{}","challenge_id":"{}","signature":"{}"}}"#,
+            identity_id, challenge.challenge_id, signature_hex
         )))
         .expect("build verify request");
 
@@ -123,7 +132,8 @@ async fn redeems_db_invite_after_app_restart() {
         return;
     };
 
-    let (session_cookie, app) = authenticate_identity(app, "db-user-invite").await;
+    let identity_id = unique_identity("db-user-invite");
+    let (session_cookie, app) = authenticate_identity(app, &identity_id).await;
 
     let create_request = Request::builder()
         .method("POST")
@@ -181,14 +191,18 @@ async fn verifies_db_challenge_after_app_restart() {
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, "db-user-restart", &public_key).await;
+    let identity_id = unique_identity("db-user-restart");
+    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
     assert_eq!(register_status, StatusCode::CREATED);
 
     let challenge_request = Request::builder()
         .method("POST")
         .uri("/v1/auth/challenge")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"identity_id":"db-user-restart"}"#))
+        .body(Body::from(format!(
+            r#"{{"identity_id":"{}"}}"#,
+            identity_id
+        )))
         .expect("build challenge request");
 
     let challenge_response = app
@@ -215,8 +229,8 @@ async fn verifies_db_challenge_after_app_restart() {
         .uri("/v1/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"identity_id":"db-user-restart","challenge_id":"{}","signature":"{}"}}"#,
-            challenge.challenge_id, signature_hex
+            r#"{{"identity_id":"{}","challenge_id":"{}","signature":"{}"}}"#,
+            identity_id, challenge.challenge_id, signature_hex
         )))
         .expect("build verify request");
 
@@ -233,8 +247,10 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
         return;
     };
 
-    let (requester_cookie, app) = authenticate_identity(app, "db-user-friends-a").await;
-    let (target_cookie, app) = authenticate_identity(app, "db-user-friends-b").await;
+    let requester_identity = unique_identity("db-user-friends-a");
+    let target_identity = unique_identity("db-user-friends-b");
+    let (requester_cookie, app) = authenticate_identity(app, &requester_identity).await;
+    let (target_cookie, app) = authenticate_identity(app, &target_identity).await;
 
     let create_request = Request::builder()
         .method("POST")
@@ -245,9 +261,10 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
             format!("hexrelay_session={requester_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(
-            r#"{"requester_identity_id":"db-user-friends-a","target_identity_id":"db-user-friends-b"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"requester_identity_id":"{}","target_identity_id":"{}"}}"#,
+            requester_identity, target_identity
+        )))
         .expect("build create friend request");
 
     let create_response = app
@@ -286,7 +303,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 
     let contacts_request = Request::builder()
         .method("GET")
-        .uri("/v1/contacts?search=db-user-friends-b")
+        .uri(format!("/v1/contacts?search={}", target_identity))
         .header("cookie", format!("hexrelay_session={requester_cookie}"))
         .body(Body::empty())
         .expect("build contacts request");
@@ -304,7 +321,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
         serde_json::from_slice(&contacts_body).expect("decode contacts response body");
 
     assert_eq!(payload.items.len(), 1);
-    assert_eq!(payload.items[0]["id"], "db-user-friends-b");
+    assert_eq!(payload.items[0]["id"], target_identity);
     assert_eq!(payload.items[0]["inbound_request"], false);
     assert_eq!(payload.items[0]["pending_request"], false);
 }

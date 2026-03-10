@@ -18,7 +18,7 @@
 
 ## Core Procedures
 
-- Startup verification: `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d` + health checks for Postgres/Redis/storage/coturn.
+- Startup verification: `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d` + health checks for Postgres/Redis/storage.
 - Mode selection:
   - Desktop local-first: user runs bundled app with local API/realtime services.
     - UI launch options: embedded desktop window or local browser against localhost.
@@ -46,6 +46,7 @@
   2. Start API service and verify `GET /health` returns 200.
   3. Start realtime service and verify `GET /health` returns 200.
   4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
+  5. If voice/TURN scenarios are in scope, validate coturn reachability with the constrained-network profile (`docs/planning/turn-nat-test-profile.md`).
 
 ## Desktop Local-First Baseline
 
