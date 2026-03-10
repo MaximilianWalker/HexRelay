@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-06
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 locked runtime model to bundled desktop local-first mode with optional dedicated server deployment.
+- Latest meaningful change: 2026-03-06 added pinned Rust toolchain and explicit local development prerequisites for reproducible setup.
 
 ## Project Stage
 
@@ -56,6 +56,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - One-command local startup via `npm run run`
   - Workspace checks via `npm run test`
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
+- Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`
 
 ## Contribution Context

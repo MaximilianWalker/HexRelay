@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-04 added runtime consistency checks against ADR-0002 and removed scaffold-era validation wording.
+- Latest meaningful change: 2026-03-06 added explicit local development prerequisite baseline and pinned Rust toolchain guidance.
 
 ## Purpose
 
@@ -26,9 +26,14 @@
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
 
+## Local Development Prerequisites
+
+- Before first setup, verify required local tooling versions in `docs/operations/dev-prerequisites.md`.
+- Rust toolchain is pinned via `rust-toolchain.toml`; run `rustup toolchain install 1.94.0` if local toolchain is missing.
+
 ## Branch and PR Workflow
 
-- Use short-lived branches from `main`.
+- Use short-lived branches from `master`.
 - Suggested branch naming: `feat/<scope>`, `fix/<scope>`, `docs/<scope>`, `chore/<scope>`.
 - Keep each PR scoped to one main task or one coherent doc update.
 - Reference the task ID as defined in the active sprint board in PR title/body when applicable.

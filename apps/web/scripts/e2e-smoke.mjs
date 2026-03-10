@@ -5,12 +5,13 @@ const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
 const realtimeWs = process.env.NEXT_PUBLIC_REALTIME_WS_URL ?? "ws://127.0.0.1:8081/ws";
 const webOrigin = process.env.SMOKE_WEB_ORIGIN ?? "http://127.0.0.1:3002";
 const realtimeHealth = `${realtimeWs.replace(/^ws/, "http").replace(/\/ws$/, "")}/health`;
+const smokeHealthTimeoutMs = Number(process.env.SMOKE_HEALTH_TIMEOUT_MS ?? "15000");
 
 function toHex(bytes) {
   return Buffer.from(bytes).toString("hex");
 }
 
-async function waitForHealth(url, timeoutMs = 15000) {
+async function waitForHealth(url, timeoutMs = smokeHealthTimeoutMs) {
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {

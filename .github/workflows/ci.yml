@@ -222,7 +222,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Rust coverage threshold
-        run: cargo llvm-cov --workspace --all-features --fail-under-lines 65
+        run: cargo llvm-cov --workspace --all-features --fail-under-lines 70
 
   integration-smoke:
     name: integration-smoke (web->api->realtime)
@@ -276,9 +276,12 @@ jobs:
           export NEXT_PUBLIC_API_BASE_URL="http://${API_HOST}:${API_PORT}"
           export NEXT_PUBLIC_REALTIME_WS_URL="ws://${API_HOST}:${REALTIME_PORT}/ws"
 
-          cargo run --manifest-path services/api-rs/Cargo.toml > api.log 2>&1 &
+          cargo build --locked --manifest-path services/api-rs/Cargo.toml
+          cargo build --locked --manifest-path services/realtime-rs/Cargo.toml
+
+          ./target/debug/api-rs > api.log 2>&1 &
           API_PID=$!
-          cargo run --manifest-path services/realtime-rs/Cargo.toml > realtime.log 2>&1 &
+          ./target/debug/realtime-rs > realtime.log 2>&1 &
           REALTIME_PID=$!
 
           cleanup() {
@@ -286,22 +289,33 @@ jobs:
           }
           trap cleanup EXIT
 
-          for i in {1..60}; do
-            if curl -fsS "http://${API_HOST}:${API_PORT}/health" > /dev/null; then
-              echo "api health ok on attempt ${i}" >> health-checks.log
-              break
-            fi
-            sleep 1
-          done
+          wait_for_http() {
+            local name="$1" url="$2" pid="$3" log_file="$4" attempts="${5:-180}"
 
-          for i in {1..60}; do
-            if curl -fsS "http://${API_HOST}:${REALTIME_PORT}/health" > /dev/null; then
-              echo "realtime health ok on attempt ${i}" >> health-checks.log
-              break
-            fi
-            sleep 1
-          done
+            for i in $(seq 1 "$attempts"); do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                echo "${name} process exited before health check passed"
+                [ -f "$log_file" ] && tail -n 200 "$log_file" || true
+                return 1
+              fi
 
+              if curl -fsS "$url" > /dev/null; then
+                echo "${name} health ok on attempt ${i}" >> health-checks.log
+                return 0
+              fi
+
+              sleep 1
+            done
+
+            echo "${name} health timeout after ${attempts}s: ${url}"
+            [ -f "$log_file" ] && tail -n 200 "$log_file" || true
+            return 1
+          }
+
+          wait_for_http "api" "http://${API_HOST}:${API_PORT}/health" "$API_PID" "api.log" 180
+          wait_for_http "realtime" "http://${API_HOST}:${REALTIME_PORT}/health" "$REALTIME_PID" "realtime.log" 180
+
+          export SMOKE_HEALTH_TIMEOUT_MS=60000
           npm --prefix apps/web run e2e:smoke | tee smoke-e2e.log
 
       - name: Collect CI evidence

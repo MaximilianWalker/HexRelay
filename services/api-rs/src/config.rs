@@ -23,14 +23,14 @@ pub struct ApiConfig {
 }
 
 impl ApiConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> Result<Self, String> {
         let bind_raw = env::var("API_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
-        let bind_addr = bind_raw.parse::<SocketAddr>().unwrap_or_else(|_| {
-            panic!(
+        let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
+            format!(
                 "Invalid API_BIND='{}'. Expected host:port like 127.0.0.1:8080",
                 bind_raw
             )
-        });
+        })?;
 
         let node_fingerprint = env::var("API_NODE_FINGERPRINT")
             .unwrap_or_else(|_| "hexrelay-local-fingerprint".to_string());
@@ -39,20 +39,20 @@ impl ApiConfig {
         let database_url = env::var("API_DATABASE_URL").unwrap_or_else(|_| {
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay".to_string()
         });
-        let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys();
+        let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys()?;
         let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
-        let session_cookie_secure = parse_bool_env("API_SESSION_COOKIE_SECURE", false);
+        let session_cookie_secure = parse_bool_env("API_SESSION_COOKIE_SECURE", false)?;
         let session_cookie_same_site =
             env::var("API_SESSION_COOKIE_SAME_SITE").unwrap_or_else(|_| "Lax".to_string());
         let rate_limits = ApiRateLimitConfig {
-            auth_challenge_per_window: parse_usize_env("API_AUTH_CHALLENGE_RATE_LIMIT", 30),
-            auth_verify_per_window: parse_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30),
-            invite_create_per_window: parse_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20),
-            invite_redeem_per_window: parse_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40),
-            window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60),
+            auth_challenge_per_window: parse_usize_env("API_AUTH_CHALLENGE_RATE_LIMIT", 30)?,
+            auth_verify_per_window: parse_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30)?,
+            invite_create_per_window: parse_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
+            invite_redeem_per_window: parse_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
+            window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60)?,
         };
 
         let allowed_origins = allowed_origins_raw
@@ -62,33 +62,42 @@ impl ApiConfig {
             .collect::<Vec<_>>();
 
         if node_fingerprint.trim().is_empty() {
-            panic!("Invalid API_NODE_FINGERPRINT. Value must not be empty");
+            return Err("Invalid API_NODE_FINGERPRINT. Value must not be empty".to_string());
         }
 
         if database_url.trim().is_empty() {
-            panic!("Invalid API_DATABASE_URL. Value must not be empty");
+            return Err("Invalid API_DATABASE_URL. Value must not be empty".to_string());
         }
 
         if allowed_origins.is_empty() {
-            panic!("Invalid API_ALLOWED_ORIGINS. Must contain at least one origin");
+            return Err(
+                "Invalid API_ALLOWED_ORIGINS. Must contain at least one origin".to_string(),
+            );
         }
 
         if rate_limits.window_seconds == 0 {
-            panic!("Invalid API_RATE_LIMIT_WINDOW_SECONDS. Must be greater than zero");
+            return Err(
+                "Invalid API_RATE_LIMIT_WINDOW_SECONDS. Must be greater than zero".to_string(),
+            );
         }
 
         if session_cookie_same_site != "Strict"
             && session_cookie_same_site != "Lax"
             && session_cookie_same_site != "None"
         {
-            panic!("Invalid API_SESSION_COOKIE_SAME_SITE. Expected Strict, Lax, or None");
+            return Err(
+                "Invalid API_SESSION_COOKIE_SAME_SITE. Expected Strict, Lax, or None".to_string(),
+            );
         }
 
         if session_cookie_same_site == "None" && !session_cookie_secure {
-            panic!("Invalid cookie config. SameSite=None requires API_SESSION_COOKIE_SECURE=true");
+            return Err(
+                "Invalid cookie config. SameSite=None requires API_SESSION_COOKIE_SECURE=true"
+                    .to_string(),
+            );
         }
 
-        Self {
+        Ok(Self {
             bind_addr,
             allowed_origins,
             database_url,
@@ -99,11 +108,11 @@ impl ApiConfig {
             session_cookie_secure,
             session_cookie_same_site,
             rate_limits,
-        }
+        })
     }
 }
 
-fn parse_session_signing_keys() -> (String, HashMap<String, String>) {
+fn parse_session_signing_keys() -> Result<(String, HashMap<String, String>), String> {
     let active_key_id = env::var("API_SESSION_SIGNING_KEY_ID").unwrap_or_else(|_| "v1".to_string());
     let keyring_raw = env::var("API_SESSION_SIGNING_KEYS").ok();
 
@@ -120,18 +129,21 @@ fn parse_session_signing_keys() -> (String, HashMap<String, String>) {
                 continue;
             };
             let Some(secret) = pair.next() else {
-                panic!(
+                return Err(format!(
                     "Invalid API_SESSION_SIGNING_KEYS entry '{}'. Expected key_id:secret",
                     segment
-                );
+                ));
             };
 
             if key_id.trim().is_empty() {
-                panic!("Invalid API_SESSION_SIGNING_KEYS entry with empty key_id");
+                return Err("Invalid API_SESSION_SIGNING_KEYS entry with empty key_id".to_string());
             }
 
             if secret.trim().len() < 16 {
-                panic!("Invalid API_SESSION_SIGNING_KEYS secret for key_id '{}'. Must be at least 16 chars", key_id);
+                return Err(format!(
+                    "Invalid API_SESSION_SIGNING_KEYS secret for key_id '{}'. Must be at least 16 chars",
+                    key_id
+                ));
             }
 
             keys.insert(key_id.trim().to_string(), secret.trim().to_string());
@@ -139,56 +151,55 @@ fn parse_session_signing_keys() -> (String, HashMap<String, String>) {
     }
 
     if keys.is_empty() {
-        let legacy_key = env::var("API_SESSION_SIGNING_KEY").unwrap_or_else(|_| {
-            panic!(
-                "Missing API_SESSION_SIGNING_KEY or API_SESSION_SIGNING_KEYS environment variable"
-            )
-        });
+        let legacy_key = env::var("API_SESSION_SIGNING_KEY").map_err(|_| {
+            "Missing API_SESSION_SIGNING_KEY or API_SESSION_SIGNING_KEYS environment variable"
+                .to_string()
+        })?;
 
         if legacy_key.trim().len() < 16 {
-            panic!("Invalid API_SESSION_SIGNING_KEY. Must be at least 16 chars");
+            return Err("Invalid API_SESSION_SIGNING_KEY. Must be at least 16 chars".to_string());
         }
 
         keys.insert(active_key_id.clone(), legacy_key);
     }
 
     if !keys.contains_key(&active_key_id) {
-        panic!(
+        return Err(format!(
             "Invalid API_SESSION_SIGNING_KEY_ID='{}'. No matching key in API_SESSION_SIGNING_KEYS",
             active_key_id
-        );
+        ));
     }
 
-    (active_key_id, keys)
+    Ok((active_key_id, keys))
 }
 
-fn parse_usize_env(key: &str, default: usize) -> usize {
+fn parse_usize_env(key: &str, default: usize) -> Result<usize, String> {
     match env::var(key) {
         Ok(value) => value
             .trim()
             .parse::<usize>()
-            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
-        Err(_) => default,
+            .map_err(|_| format!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => Ok(default),
     }
 }
 
-fn parse_u64_env(key: &str, default: u64) -> u64 {
+fn parse_u64_env(key: &str, default: u64) -> Result<u64, String> {
     match env::var(key) {
         Ok(value) => value
             .trim()
             .parse::<u64>()
-            .unwrap_or_else(|_| panic!("Invalid {}='{}'. Expected positive integer", key, value)),
-        Err(_) => default,
+            .map_err(|_| format!("Invalid {}='{}'. Expected positive integer", key, value)),
+        Err(_) => Ok(default),
     }
 }
 
-fn parse_bool_env(key: &str, default: bool) -> bool {
+fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
     match env::var(key) {
         Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
-            "1" | "true" | "yes" | "on" => true,
-            "0" | "false" | "no" | "off" => false,
-            _ => panic!("Invalid {}='{}'. Expected boolean", key, value),
+            "1" | "true" | "yes" | "on" => Ok(true),
+            "0" | "false" | "no" | "off" => Ok(false),
+            _ => Err(format!("Invalid {}='{}'. Expected boolean", key, value)),
         },
-        Err(_) => default,
+        Err(_) => Ok(default),
     }
 }

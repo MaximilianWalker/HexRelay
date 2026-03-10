@@ -10,7 +10,6 @@ use crate::{
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 
-#[cfg(not(test))]
 use crate::shared::errors::internal_error;
 use axum::{
     extract::{Query, State},
@@ -378,5 +377,5 @@ fn map_friend_request_db_error(
         );
     }
 
-    bad_request("identity_invalid", "friend request storage failure")
+    internal_error("storage_failure", "friend request storage failure")
 }
