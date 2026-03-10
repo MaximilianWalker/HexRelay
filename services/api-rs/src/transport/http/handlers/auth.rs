@@ -6,6 +6,8 @@ use axum::{
 use chrono::{Duration, Utc};
 use rand::RngCore;
 use ring::signature::{UnparsedPublicKey, ED25519};
+use std::hash::{Hash, Hasher};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -104,12 +106,12 @@ pub async fn validate_session(auth: AuthSession) -> ApiResult<Json<SessionValida
 
 pub async fn issue_auth_challenge(
     State(state): State<AppState>,
-    _headers: HeaderMap,
+    headers: HeaderMap,
     Json(payload): Json<AuthChallengeRequest>,
 ) -> ApiResult<Json<AuthChallengeResponse>> {
     validate_auth_challenge_request(&payload)?;
 
-    let rate_key = rate_limit_key(&payload.identity_id);
+    let rate_key = rate_limit_key(&payload.identity_id, &headers);
     let allowed = allow_rate_limit(
         &state,
         "auth_challenge",
@@ -118,6 +120,10 @@ pub async fn issue_auth_challenge(
     )
     .await?;
     if !allowed {
+        warn!(
+            identity_id = %payload.identity_id,
+            "auth challenge rate limit exceeded"
+        );
         return Err(too_many_requests(
             "rate_limited",
             "too many auth challenge requests",
@@ -210,12 +216,12 @@ pub async fn issue_auth_challenge(
 
 pub async fn verify_auth_challenge(
     State(state): State<AppState>,
-    _headers: HeaderMap,
+    headers: HeaderMap,
     Json(payload): Json<AuthVerifyRequest>,
 ) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
     validate_auth_verify_request(&payload)?;
 
-    let rate_key = rate_limit_key(&payload.identity_id);
+    let rate_key = rate_limit_key(&payload.identity_id, &headers);
     let allowed = allow_rate_limit(
         &state,
         "auth_verify",
@@ -224,6 +230,10 @@ pub async fn verify_auth_challenge(
     )
     .await?;
     if !allowed {
+        warn!(
+            identity_id = %payload.identity_id,
+            "auth verify rate limit exceeded"
+        );
         return Err(too_many_requests(
             "rate_limited",
             "too many auth verify requests",
@@ -532,8 +542,41 @@ fn random_hex(byte_len: usize) -> String {
     hex::encode(bytes)
 }
 
-fn rate_limit_key(identity_hint: &str) -> String {
-    identity_hint.to_string()
+fn rate_limit_key(identity_hint: &str, headers: &HeaderMap) -> String {
+    format!(
+        "identity:{}:source:{}",
+        identity_hint,
+        request_source_fingerprint(headers)
+    )
+}
+
+fn request_source_fingerprint(headers: &HeaderMap) -> String {
+    if let Some(value) = headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return format!("xff:{:016x}", stable_hash(value));
+    }
+
+    if let Some(value) = headers
+        .get("x-real-ip")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return format!("xri:{:016x}", stable_hash(value));
+    }
+
+    "unknown".to_string()
+}
+
+fn stable_hash(value: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {

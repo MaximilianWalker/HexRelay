@@ -6,7 +6,7 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-09
+- last_updated: 2026-03-10
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
@@ -19,7 +19,7 @@
 
 | Requirement area | Task IDs | Evidence artifact | Validator | Evidence path pattern |
 |---|---|---|---|---|
-| Identity/auth/invites | T2.1.1, T2.2.1, T2.3.1, T2.4.1 | OpenAPI conformance + auth/invite integration report | `npm --prefix apps/web run e2e:smoke` and API integration tests pass | `evidence/iteration-01/identity-auth-invites/<YYYY-MM-DD>/` |
+| Identity/auth/invites | T2.1.1, T2.2.1, T2.3.1, T2.4.1 | OpenAPI conformance + auth/invite integration report | `npm --prefix apps/web run e2e:smoke` and `cargo test -p api-rs --all-features` | `evidence/iteration-01/identity-auth-invites/<YYYY-MM-DD>/` |
 | Friend request privacy mediation | T3.1.1, T3.1.2, T3.1.5 | Privacy policy test report (no pre-accept identity exposure) | Friend-request integration tests assert redaction before acceptance | `evidence/iteration-02/friend-privacy/<YYYY-MM-DD>/` |
 | DM inbound policy defaults/overrides | T4.1.2 | DM policy matrix test output | Integration tests cover default + override policy matrix outcomes | `evidence/iteration-03/dm-policy/<YYYY-MM-DD>/` |
 | E2EE DM (1:1 + group) | T4.5.1-T4.5.4 | Direct user-to-user transport assertion + decrypt success + offline outbox retry report | Crypto conformance checklist and E2EE integration suite pass | `evidence/iteration-03/e2ee-dm/<YYYY-MM-DD>/` |

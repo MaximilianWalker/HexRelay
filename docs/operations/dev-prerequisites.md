@@ -49,9 +49,15 @@ Expected: commands resolve without errors and versions satisfy the required tool
 ## Recommended Setup Flow
 
 1. Install required tooling.
-2. Run `npm run setup`.
-3. Run `npm run run` and confirm service startup succeeds.
-4. Run `npm run test` before opening a PR.
+2. Export API session signing key env before local startup:
+
+```bash
+export API_SESSION_SIGNING_KEY="hexrelay-dev-signing-key-change-me"
+```
+
+3. Run `npm run setup`.
+4. Run `npm run run` and confirm service startup succeeds.
+5. Run `npm run test` before opening a PR.
 
 ## Related Documents
 

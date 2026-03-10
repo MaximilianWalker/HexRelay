@@ -436,6 +436,57 @@ async fn websocket_upgrade_rejects_when_rate_limited() {
 }
 
 #[tokio::test]
+async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() {
+    let api_base = start_validate_server(true).await;
+    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 1, 60, 3).await;
+
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let (mut socket, _) = connect_async(request)
+        .await
+        .expect("websocket connect response");
+
+    let _ = socket.next().await;
+
+    socket
+        .send(WsMessage::Text(
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+                .to_string(),
+        ))
+        .await
+        .expect("send first message");
+    let _ = socket.next().await;
+
+    socket
+        .send(WsMessage::Text(
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-2","data":{"call_id":"call-2","from_user_id":"usr-1","to_user_id":"usr-c","sdp_offer":"v=0\r\n"}}"#
+                .to_string(),
+        ))
+        .await
+        .expect("send second message");
+
+    let message = socket
+        .next()
+        .await
+        .expect("socket message")
+        .expect("ws frame");
+    let text = match message {
+        WsMessage::Text(value) => value,
+        _ => panic!("expected text frame"),
+    };
+
+    let payload: Value = serde_json::from_str(&text).expect("decode error envelope");
+    assert_eq!(payload["data"]["code"], "event_rate_limited");
+}
+
+#[tokio::test]
 async fn websocket_upgrade_rejects_when_identity_connection_cap_exceeded() {
     let api_base = start_validate_server(true).await;
     let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 120, 60, 1).await;
