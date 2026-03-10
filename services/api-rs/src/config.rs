@@ -276,31 +276,10 @@ mod tests {
         F: FnOnce(),
     {
         let _guard = env_lock().lock().expect("acquire env test lock");
-        let keys = [
-            "API_ENVIRONMENT",
-            "API_BIND",
-            "API_NODE_FINGERPRINT",
-            "API_DATABASE_URL",
-            "API_ALLOWED_ORIGINS",
-            "API_SESSION_SIGNING_KEYS",
-            "API_SESSION_SIGNING_KEY_ID",
-            "API_SESSION_SIGNING_KEY",
-            "API_SESSION_COOKIE_SECURE",
-            "API_TRUST_PROXY_HEADERS",
-            "API_SESSION_COOKIE_SAME_SITE",
-            "API_SESSION_COOKIE_DOMAIN",
-        ];
-
-        let previous = keys
+        let previous = pairs
             .iter()
-            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
             .collect::<Vec<_>>();
-
-        for key in keys {
-            unsafe {
-                std::env::remove_var(key);
-            }
-        }
 
         for (key, value) in pairs {
             match value {
@@ -359,10 +338,6 @@ mod tests {
                 ),
                 ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
                 ("API_SESSION_COOKIE_SECURE", Some("false")),
-                (
-                    "API_DATABASE_URL",
-                    Some("postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay"),
-                ),
                 ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
             ],
             || {

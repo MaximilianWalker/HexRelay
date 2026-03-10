@@ -158,24 +158,10 @@ mod tests {
         F: FnOnce(),
     {
         let _guard = env_lock().lock().expect("acquire env test lock");
-        let keys = [
-            "REALTIME_BIND",
-            "REALTIME_API_BASE_URL",
-            "REALTIME_ALLOWED_ORIGINS",
-            "REALTIME_REQUIRE_API_HEALTH_ON_START",
-            "REALTIME_TRUST_PROXY_HEADERS",
-        ];
-
-        let previous = keys
+        let previous = pairs
             .iter()
-            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
             .collect::<Vec<_>>();
-
-        for key in keys {
-            unsafe {
-                std::env::remove_var(key);
-            }
-        }
 
         for (key, value) in pairs {
             match value {
