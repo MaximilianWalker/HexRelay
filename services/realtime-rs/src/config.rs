@@ -145,7 +145,63 @@ fn is_loopback_host(host: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_loopback_host;
+    use super::{is_loopback_host, RealtimeConfig};
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_realtime_env<F>(pairs: &[(&str, Option<&str>)], f: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = env_lock().lock().expect("acquire env test lock");
+        let keys = [
+            "REALTIME_BIND",
+            "REALTIME_API_BASE_URL",
+            "REALTIME_ALLOWED_ORIGINS",
+            "REALTIME_REQUIRE_API_HEALTH_ON_START",
+            "REALTIME_TRUST_PROXY_HEADERS",
+        ];
+
+        let previous = keys
+            .iter()
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+
+        for key in keys {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
+
+        for (key, value) in pairs {
+            match value {
+                Some(value) => unsafe {
+                    std::env::set_var(key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
+        }
+
+        f();
+
+        for (key, value) in previous {
+            if let Some(value) = value {
+                unsafe {
+                    std::env::set_var(key, value);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn detects_loopback_hosts() {
@@ -159,5 +215,22 @@ mod tests {
         assert!(!is_loopback_host(Some("example.com")));
         assert!(!is_loopback_host(Some("10.0.0.5")));
         assert!(!is_loopback_host(None));
+    }
+
+    #[test]
+    fn parses_proxy_header_trust_flag() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_TRUST_PROXY_HEADERS", Some("true")),
+                ("REALTIME_REQUIRE_API_HEALTH_ON_START", Some("false")),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert!(config.trust_proxy_headers);
+                assert!(!config.require_api_health_on_start);
+            },
+        );
     }
 }

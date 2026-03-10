@@ -114,3 +114,24 @@ fn now_unix_seconds() -> u64 {
         .expect("system clock before unix epoch")
         .as_secs()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RateLimiter;
+
+    #[test]
+    fn in_memory_limiter_rejects_after_limit_within_window() {
+        let limiter = RateLimiter::default();
+
+        assert!(limiter.allow("auth", "user-a", 1, 60));
+        assert!(!limiter.allow("auth", "user-a", 1, 60));
+    }
+
+    #[test]
+    fn in_memory_limiter_allows_unlimited_when_limit_zero() {
+        let limiter = RateLimiter::default();
+
+        assert!(limiter.allow("auth", "user-b", 0, 60));
+        assert!(limiter.allow("auth", "user-b", 0, 60));
+    }
+}

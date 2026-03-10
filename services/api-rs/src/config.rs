@@ -260,3 +260,137 @@ fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
         Err(_) => Ok(default),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ApiConfig;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_api_env<F>(pairs: &[(&str, Option<&str>)], f: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = env_lock().lock().expect("acquire env test lock");
+        let keys = [
+            "API_ENVIRONMENT",
+            "API_BIND",
+            "API_NODE_FINGERPRINT",
+            "API_DATABASE_URL",
+            "API_ALLOWED_ORIGINS",
+            "API_SESSION_SIGNING_KEYS",
+            "API_SESSION_SIGNING_KEY_ID",
+            "API_SESSION_SIGNING_KEY",
+            "API_SESSION_COOKIE_SECURE",
+            "API_TRUST_PROXY_HEADERS",
+            "API_SESSION_COOKIE_SAME_SITE",
+            "API_SESSION_COOKIE_DOMAIN",
+        ];
+
+        let previous = keys
+            .iter()
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+
+        for key in keys {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
+
+        for (key, value) in pairs {
+            match value {
+                Some(value) => unsafe {
+                    std::env::set_var(key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
+        }
+
+        f();
+
+        for (key, value) in previous {
+            if let Some(value) = value {
+                unsafe {
+                    std::env::set_var(key, value);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_environment_value() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("staging")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("invalid env should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("Invalid API_ENVIRONMENT"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_requires_secure_cookie_and_non_default_db() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("production")),
+                (
+                    "API_SESSION_SIGNING_KEYS",
+                    Some("v1:production-secret-key-1234567890"),
+                ),
+                ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
+                ("API_SESSION_COOKIE_SECURE", Some("false")),
+                (
+                    "API_DATABASE_URL",
+                    Some("postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay"),
+                ),
+                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("insecure production config should fail"),
+                    Err(err) => err,
+                };
+                assert!(
+                    err.contains("API_DATABASE_URL") || err.contains("API_SESSION_COOKIE_SECURE")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn parses_proxy_header_trust_flag() {
+        with_api_env(
+            &[
+                ("API_TRUST_PROXY_HEADERS", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert!(config.trust_proxy_headers);
+            },
+        );
+    }
+}
