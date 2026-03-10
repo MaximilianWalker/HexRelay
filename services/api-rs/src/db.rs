@@ -277,7 +277,11 @@ mod tests {
             return;
         };
 
-        let plaintext_token = "legacy-token-backfill-test";
+        let token_suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let plaintext_token = format!("legacy-token-backfill-test-{token_suffix}");
         sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
             .bind("0007_invites_hash_backfill_runtime_v1")
             .execute(&pool)
@@ -286,7 +290,7 @@ mod tests {
 
         let expected_hash = hex::encode(digest(&SHA256, plaintext_token.as_bytes()).as_ref());
         sqlx::query("DELETE FROM invites WHERE token = $1 OR token = $2")
-            .bind(plaintext_token)
+            .bind(&plaintext_token)
             .bind(&expected_hash)
             .execute(&pool)
             .await
@@ -299,7 +303,7 @@ mod tests {
             ON CONFLICT (token) DO NOTHING
             ",
         )
-        .bind(plaintext_token)
+        .bind(&plaintext_token)
         .execute(&pool)
         .await;
 
