@@ -276,9 +276,12 @@ jobs:
           export NEXT_PUBLIC_API_BASE_URL="http://${API_HOST}:${API_PORT}"
           export NEXT_PUBLIC_REALTIME_WS_URL="ws://${API_HOST}:${REALTIME_PORT}/ws"
 
-          cargo run --manifest-path services/api-rs/Cargo.toml > api.log 2>&1 &
+          cargo build --locked --manifest-path services/api-rs/Cargo.toml
+          cargo build --locked --manifest-path services/realtime-rs/Cargo.toml
+
+          ./target/debug/api-rs > api.log 2>&1 &
           API_PID=$!
-          cargo run --manifest-path services/realtime-rs/Cargo.toml > realtime.log 2>&1 &
+          ./target/debug/realtime-rs > realtime.log 2>&1 &
           REALTIME_PID=$!
 
           cleanup() {
