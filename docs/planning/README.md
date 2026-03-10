@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-10
 - Source of truth: `docs/planning/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-04 added TURN/NAT constrained-network test profile index link.
+- Latest meaningful change: 2026-03-10 refreshed planning index metadata and linked readiness-governed verification sources.
 
 ## Contents
 

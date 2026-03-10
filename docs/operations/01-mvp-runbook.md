@@ -13,7 +13,7 @@
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-10 expanded desktop local-first operational procedures and parity checks with dedicated-server guidance.
+- Latest meaningful change: 2026-03-10 added explicit incident ownership/escalation thresholds and local-first triage clarity.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -150,6 +150,17 @@ npm --prefix apps/web run e2e:smoke
   - sustained auth/session validation failures > 5 minutes,
   - realtime websocket upgrade failure rate > 10% for 5-minute window,
   - message send/redeem critical path failure on smoke replay.
+
+## Incident Ownership and Escalation
+
+- Required ownership fields (record in deployment PR and incident evidence):
+  - Primary responder (on-call engineer)
+  - Secondary responder (backup engineer)
+  - Incident decision owner (rollback/go-no-go authority)
+- Escalation thresholds:
+  - If no mitigation path is identified within 15 minutes, escalate from primary to secondary responder.
+  - If outage-impacting symptoms persist beyond 30 minutes, decision owner must choose rollback vs constrained continuation and record rationale.
+  - If rollback is initiated, attach rollback timestamp and post-rollback verification output to incident evidence artifact.
 
 ## Backup and Restore
 

@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-10 added mandatory evidence provenance fields for commit/PR/run traceability.
+- Latest meaningful change: 2026-03-10 added provenance field requirements and CI enforcement reference for changed evidence artifacts.
 
 ## Requirement to Evidence Matrix
 
@@ -50,6 +50,7 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
     - `pr_number` (or `run_id` for CI-only evidence)
     - `generated_at_utc`
 - If a required output is unavailable, record it explicitly in `summary.md` with `missing` status and rationale.
+- CI enforces provenance for changed evidence artifacts via `evidence-provenance-check`.
 
 ## Related Documents
 

@@ -153,65 +153,60 @@ pub async fn issue_auth_challenge(
         }
     };
 
-    if !identity_exists {
-        return Err(bad_request(
-            "identity_invalid",
-            "identity_id is not registered",
-        ));
-    }
-
     let challenge_id = Uuid::new_v4().to_string();
     let nonce = random_hex(32);
     let challenge_expires_at = Utc::now() + Duration::seconds(CHALLENGE_TTL_SECONDS);
     let expires_at = challenge_expires_at.to_rfc3339();
 
-    if let Some(pool) = state.db_pool.as_ref() {
-        auth_repo::insert_auth_challenge(
-            pool,
-            &challenge_id,
-            &payload.identity_id,
-            &nonce,
-            challenge_expires_at,
-        )
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to persist challenge"))?;
+    if identity_exists {
+        if let Some(pool) = state.db_pool.as_ref() {
+            auth_repo::insert_auth_challenge(
+                pool,
+                &challenge_id,
+                &payload.identity_id,
+                &nonce,
+                challenge_expires_at,
+            )
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to persist challenge"))?;
 
-        return Ok(Json(AuthChallengeResponse {
-            challenge_id,
-            nonce,
-            expires_at,
-        }));
+            return Ok(Json(AuthChallengeResponse {
+                challenge_id,
+                nonce,
+                expires_at,
+            }));
+        }
+
+        #[cfg(not(test))]
+        {
+            return Err(internal_error(
+                "storage_unavailable",
+                "auth challenge issuance requires configured database pool",
+            ));
+        }
+
+        #[cfg(test)]
+        {
+            state
+                .auth_challenges
+                .write()
+                .expect("acquire challenge write lock")
+                .insert(
+                    challenge_id.clone(),
+                    AuthChallengeRecord {
+                        identity_id: payload.identity_id,
+                        nonce: nonce.clone(),
+                        expires_at: challenge_expires_at,
+                    },
+                );
+        }
     }
 
-    #[cfg(not(test))]
-    {
-        Err(internal_error(
-            "storage_unavailable",
-            "auth challenge issuance requires configured database pool",
-        ))
-    }
-
-    #[cfg(test)]
-    {
-        state
-            .auth_challenges
-            .write()
-            .expect("acquire challenge write lock")
-            .insert(
-                challenge_id.clone(),
-                AuthChallengeRecord {
-                    identity_id: payload.identity_id,
-                    nonce: nonce.clone(),
-                    expires_at: challenge_expires_at,
-                },
-            );
-
-        Ok(Json(AuthChallengeResponse {
-            challenge_id,
-            nonce,
-            expires_at,
-        }))
-    }
+    Ok(Json(AuthChallengeResponse {
+        challenge_id,
+        nonce,
+        expires_at,
+    }))
 }
 
 pub async fn verify_auth_challenge(

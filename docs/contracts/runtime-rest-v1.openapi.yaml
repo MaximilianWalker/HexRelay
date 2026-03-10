@@ -255,7 +255,7 @@ paths:
           name: direction
           schema:
             type: string
-            enum: [incoming, outgoing]
+            enum: [inbound, outbound]
       responses:
         '200':
           description: Friend request list response
@@ -332,12 +332,8 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        '204':
           description: Friend request updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FriendRequestRecord'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
@@ -357,12 +353,8 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        '204':
           description: Friend request updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FriendRequestRecord'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':

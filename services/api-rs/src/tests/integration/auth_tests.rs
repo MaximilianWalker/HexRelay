@@ -119,7 +119,7 @@ async fn issues_auth_challenge_for_registered_identity() {
 }
 
 #[tokio::test]
-async fn rejects_auth_challenge_for_unknown_identity() {
+async fn issues_indistinguishable_challenge_for_unknown_identity() {
     let app = build_app(AppState::default());
     let challenge_request = Request::builder()
         .method("POST")
@@ -129,10 +129,31 @@ async fn rejects_auth_challenge_for_unknown_identity() {
         .expect("build challenge request");
 
     let challenge_response = app
+        .clone()
         .oneshot(challenge_request)
         .await
         .expect("challenge response");
-    assert_eq!(challenge_response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(challenge_response.status(), StatusCode::OK);
+
+    let challenge_body = to_bytes(challenge_response.into_body(), usize::MAX)
+        .await
+        .expect("read challenge response body");
+    let challenge: AuthChallengeResponse =
+        serde_json::from_slice(&challenge_body).expect("decode challenge response");
+
+    let verify_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"identity_id":"missing-user","challenge_id":"{}","signature":"{}"}}"#,
+            challenge.challenge_id,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )))
+        .expect("build verify request");
+
+    let verify_response = app.oneshot(verify_request).await.expect("verify response");
+    assert_eq!(verify_response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
