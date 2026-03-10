@@ -154,7 +154,20 @@ components:
       additionalProperties: false
       required: [code, message]
       properties:
-        code: { type: string }
+        code:
+          type: string
+          enum:
+            - origin_disallowed
+            - rate_limited
+            - session_invalid
+            - connection_cap_reached
+            - event_invalid
+            - event_version_unsupported
+            - event_identity_mismatch
+            - event_unsupported
+            - event_serialize_failed
+            - event_too_large
+            - event_rate_limited
         message: { type: string }
     RealtimeConnectedEventV1:
       allOf:

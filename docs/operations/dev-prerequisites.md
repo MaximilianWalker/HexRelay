@@ -13,7 +13,7 @@
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-03-10 standardized Rust policy and made local startup env loading deterministic via service `.env` files.
+- Latest meaningful change: 2026-03-10 added Python/pip parity prerequisites and clarified deterministic startup tooling expectations.
 
 ## Purpose
 
@@ -28,6 +28,8 @@
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
 - Bash: required for repository scripts in `scripts/*.sh`.
 - curl: required for local health checks used by `scripts/run.sh`.
+- Python: 3.10+ (required for local Semgrep parity command in contributor guide).
+- pip: bundled with Python installation and required to install Semgrep locally.
 
 ### Platform Notes
 
@@ -47,6 +49,8 @@ docker --version
 docker compose version
 bash --version
 curl --version
+python --version
+python -m pip --version
 ```
 
 Expected: commands resolve without errors and versions satisfy the required tooling section.

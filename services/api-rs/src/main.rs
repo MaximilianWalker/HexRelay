@@ -54,7 +54,12 @@ async fn main() {
         }
     };
 
-    if let Err(err) = axum::serve(listener, app).await {
+    if let Err(err) = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    {
         error!(error = %err, "api runtime exited with server error");
         std::process::exit(1);
     }

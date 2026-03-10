@@ -60,19 +60,26 @@ async fn main() {
 }
 
 async fn wait_for_api_health(api_base_url: &str) -> Result<(), String> {
+    const MAX_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+    const RETRY_SLEEP: std::time::Duration = std::time::Duration::from_millis(500);
+
     let url = format!("{}/health", api_base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(2))
-        .timeout(std::time::Duration::from_secs(3))
+        .connect_timeout(std::time::Duration::from_secs(1))
+        .timeout(std::time::Duration::from_secs(1))
         .build()
         .map_err(|err| format!("failed to build health preflight client: {err}"))?;
 
-    for _ in 0..30 {
+    let start = std::time::Instant::now();
+    while start.elapsed() < MAX_WAIT {
         match client.get(&url).send().await {
             Ok(response) if response.status().is_success() => return Ok(()),
-            Ok(_) | Err(_) => tokio::time::sleep(std::time::Duration::from_millis(500)).await,
+            Ok(_) | Err(_) => tokio::time::sleep(RETRY_SLEEP).await,
         }
     }
 
-    Err(format!("api health check failed at {url} after 15s"))
+    Err(format!(
+        "api health check failed at {url} after {:?}",
+        start.elapsed()
+    ))
 }
