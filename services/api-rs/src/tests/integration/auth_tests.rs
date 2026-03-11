@@ -406,6 +406,63 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
 }
 
 #[tokio::test]
+async fn rate_limits_auth_verify_source_even_when_identity_changes() {
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 1,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        true,
+    );
+
+    let app = build_app(state);
+
+    let first_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .header("x-forwarded-for", "198.51.100.30")
+        .body(Body::from(
+            r#"{"identity_id":"verify-user-a","challenge_id":"missing-a","signature":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+        ))
+        .expect("build first verify request");
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first verify response");
+    assert_eq!(first_response.status(), StatusCode::UNAUTHORIZED);
+
+    let second_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .header("x-forwarded-for", "198.51.100.30")
+        .body(Body::from(
+            r#"{"identity_id":"verify-user-b","challenge_id":"missing-b","signature":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+        ))
+        .expect("build second verify request");
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second verify response");
+    assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
 async fn verifies_auth_challenge_and_revokes_session() {
     let app = build_app(AppState::default());
     let rng = SystemRandom::new();

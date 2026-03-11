@@ -116,13 +116,17 @@ pub async fn issue_auth_challenge(
 
     let source_key =
         source_rate_limit_key(&state, &headers, peer_addr.as_ref().map(|value| value.0));
-    let source_allowed = allow_rate_limit(
-        &state,
-        "auth_challenge_source",
-        &source_key,
-        state.rate_limits.auth_challenge_per_window,
-    )
-    .await?;
+    let source_allowed = if source_key == "source:unknown" {
+        true
+    } else {
+        allow_rate_limit(
+            &state,
+            "auth_challenge_source",
+            &source_key,
+            state.rate_limits.auth_challenge_per_window,
+        )
+        .await?
+    };
     if !source_allowed {
         warn!("auth challenge source rate limit exceeded");
         return Err(too_many_requests(
@@ -244,13 +248,17 @@ pub async fn verify_auth_challenge(
 
     let source_key =
         source_rate_limit_key(&state, &headers, peer_addr.as_ref().map(|value| value.0));
-    let source_allowed = allow_rate_limit(
-        &state,
-        "auth_verify_source",
-        &source_key,
-        state.rate_limits.auth_verify_per_window,
-    )
-    .await?;
+    let source_allowed = if source_key == "source:unknown" {
+        true
+    } else {
+        allow_rate_limit(
+            &state,
+            "auth_verify_source",
+            &source_key,
+            state.rate_limits.auth_verify_per_window,
+        )
+        .await?
+    };
     if !source_allowed {
         warn!("auth verify source rate limit exceeded");
         return Err(too_many_requests(
