@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-10 added readiness corrections governance to reduce repeated audit loops.
+- Latest meaningful change: 2026-03-11 aligned index freshness metadata with new contract/docs-index CI parity checks.
 
 ## Purpose
 
