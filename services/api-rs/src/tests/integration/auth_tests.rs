@@ -154,6 +154,119 @@ async fn issues_indistinguishable_challenge_for_unknown_identity() {
 
     let verify_response = app.oneshot(verify_request).await.expect("verify response");
     assert_eq!(verify_response.status(), StatusCode::UNAUTHORIZED);
+
+    let verify_body = to_bytes(verify_response.into_body(), usize::MAX)
+        .await
+        .expect("read verify response body");
+    let error_body: serde_json::Value =
+        serde_json::from_slice(&verify_body).expect("decode verify error body");
+    assert_eq!(error_body["code"], "nonce_invalid");
+    assert_eq!(error_body["message"], "auth verification failed");
+}
+
+#[tokio::test]
+async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguishable() {
+    let app = build_app(AppState::default());
+    let rng = SystemRandom::new();
+
+    let missing_verify_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/challenge")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"identity_id":"missing-user"}"#))
+        .expect("build missing challenge request");
+
+    let missing_challenge_response = app
+        .clone()
+        .oneshot(missing_verify_request)
+        .await
+        .expect("missing challenge response");
+    assert_eq!(missing_challenge_response.status(), StatusCode::OK);
+
+    let missing_challenge_body = to_bytes(missing_challenge_response.into_body(), usize::MAX)
+        .await
+        .expect("read missing challenge response body");
+    let missing_challenge: AuthChallengeResponse =
+        serde_json::from_slice(&missing_challenge_body).expect("decode missing challenge body");
+
+    let missing_verify_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"identity_id":"missing-user","challenge_id":"{}","signature":"{}"}}"#,
+            missing_challenge.challenge_id,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )))
+        .expect("build missing verify request");
+
+    let missing_verify_response = app
+        .clone()
+        .oneshot(missing_verify_request)
+        .await
+        .expect("missing verify response");
+    assert_eq!(missing_verify_response.status(), StatusCode::UNAUTHORIZED);
+    let missing_verify_body = to_bytes(missing_verify_response.into_body(), usize::MAX)
+        .await
+        .expect("read missing verify body");
+    let missing_error: serde_json::Value =
+        serde_json::from_slice(&missing_verify_body).expect("decode missing verify error");
+
+    let identity_pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate identity keypair");
+    let identity_signing_key =
+        Ed25519KeyPair::from_pkcs8(identity_pkcs8.as_ref()).expect("decode identity keypair");
+    let identity_public_key = hex::encode(identity_signing_key.public_key().as_ref());
+
+    let (register_status, app) = register_identity(app, "user-signed", &identity_public_key).await;
+    assert_eq!(register_status, StatusCode::CREATED);
+
+    let challenge_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/challenge")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"identity_id":"user-signed"}"#))
+        .expect("build challenge request");
+
+    let challenge_response = app
+        .clone()
+        .oneshot(challenge_request)
+        .await
+        .expect("challenge response");
+    assert_eq!(challenge_response.status(), StatusCode::OK);
+
+    let challenge_body = to_bytes(challenge_response.into_body(), usize::MAX)
+        .await
+        .expect("read challenge response body");
+    let challenge: AuthChallengeResponse =
+        serde_json::from_slice(&challenge_body).expect("decode challenge response");
+
+    let wrong_pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate wrong keypair");
+    let wrong_signing_key =
+        Ed25519KeyPair::from_pkcs8(wrong_pkcs8.as_ref()).expect("decode wrong keypair");
+    let wrong_signature = hex::encode(wrong_signing_key.sign(challenge.nonce.as_bytes()).as_ref());
+
+    let bad_signature_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"identity_id":"user-signed","challenge_id":"{}","signature":"{}"}}"#,
+            challenge.challenge_id, wrong_signature
+        )))
+        .expect("build bad signature verify request");
+
+    let bad_signature_response = app
+        .oneshot(bad_signature_request)
+        .await
+        .expect("bad signature verify response");
+    assert_eq!(bad_signature_response.status(), StatusCode::UNAUTHORIZED);
+    let bad_signature_body = to_bytes(bad_signature_response.into_body(), usize::MAX)
+        .await
+        .expect("read bad signature verify body");
+    let bad_signature_error: serde_json::Value =
+        serde_json::from_slice(&bad_signature_body).expect("decode bad signature verify error");
+
+    assert_eq!(missing_error, bad_signature_error);
 }
 
 #[tokio::test]

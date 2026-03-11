@@ -295,7 +295,7 @@ pub async fn verify_auth_challenge(
         auth_repo::consume_auth_challenge(pool, &payload.challenge_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to read challenge"))?
-            .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
+            .ok_or_else(|| unauthorized("nonce_invalid", "auth verification failed"))?
     } else {
         #[cfg(not(test))]
         {
@@ -312,26 +312,23 @@ pub async fn verify_auth_challenge(
                 .write()
                 .expect("acquire challenge write lock")
                 .remove(&payload.challenge_id)
-                .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
+                .ok_or_else(|| unauthorized("nonce_invalid", "auth verification failed"))?
         }
     };
 
     if challenge_record.identity_id != payload.identity_id {
-        return Err(unauthorized(
-            "nonce_invalid",
-            "challenge does not match identity",
-        ));
+        return Err(unauthorized("nonce_invalid", "auth verification failed"));
     }
 
     if Utc::now() > challenge_record.expires_at {
-        return Err(unauthorized("nonce_invalid", "challenge has expired"));
+        return Err(unauthorized("nonce_invalid", "auth verification failed"));
     }
 
     let key_record = if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::get_identity_key(pool, &payload.identity_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to read identity key"))?
-            .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
+            .ok_or_else(|| unauthorized("nonce_invalid", "auth verification failed"))?
     } else {
         #[cfg(not(test))]
         {
@@ -349,7 +346,7 @@ pub async fn verify_auth_challenge(
                 .expect("acquire identity key read lock")
                 .get(&payload.identity_id)
                 .cloned()
-                .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
+                .ok_or_else(|| unauthorized("nonce_invalid", "auth verification failed"))?
         }
     };
 
@@ -374,7 +371,7 @@ pub async fn verify_auth_challenge(
         challenge_record.nonce.as_bytes(),
         &signature_bytes,
     )
-    .map_err(|_| unauthorized("signature_invalid", "signature verification failed"))?;
+    .map_err(|_| unauthorized("nonce_invalid", "auth verification failed"))?;
 
     let identity_id = payload.identity_id.clone();
 
