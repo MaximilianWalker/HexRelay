@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-10 added no-remote parity fallback while preserving branch-agnostic local parity commands.
+- Latest meaningful change: 2026-03-11 raised the enforced Rust coverage gate to 80 and aligned local parity guidance with the new threshold.
 
 ## Purpose
 

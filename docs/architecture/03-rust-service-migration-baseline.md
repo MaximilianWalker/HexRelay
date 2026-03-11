@@ -6,7 +6,7 @@
 - Owner: Architecture maintainers
 - Status: in_progress
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/architecture/03-rust-service-migration-baseline.md`
 
 ## Purpose
@@ -36,8 +36,8 @@
 - Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Threshold: `80` lines (gate)
 - Result: `pass`
-- Total line coverage snapshot: `74.34%`
-- Total region coverage snapshot: `73.52%`
+- Total line coverage snapshot: `80.42%`
+- Total region coverage snapshot: `81.04%`
 
 ## Migration Progress Snapshot
 
@@ -54,9 +54,9 @@
   - `realtime-rs` event routing moved to `domain/events/service.rs`
   - `realtime-rs` tests moved from inline handler module to `src/tests/ws_transport_tests.rs`
 - Current verification snapshot after migration work:
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 65`: pass
-  - total line coverage: `74.34%`
-  - total region coverage: `73.52%`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`: pass
+  - total line coverage: `80.42%`
+  - total region coverage: `81.04%`
   - `npm run test`: pass
   - `npm run security`: pass
 
