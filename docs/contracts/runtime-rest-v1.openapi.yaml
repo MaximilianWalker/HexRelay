@@ -319,6 +319,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
@@ -341,6 +343,8 @@ paths:
       responses:
         '204':
           description: Friend request updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
@@ -363,6 +367,8 @@ paths:
       responses:
         '204':
           description: Friend request updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
