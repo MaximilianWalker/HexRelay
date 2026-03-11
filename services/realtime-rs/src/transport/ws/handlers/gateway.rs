@@ -213,8 +213,10 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
 
     match validate_session_upstream(state, cookie_header, authorization_header).await {
         UpstreamSessionValidation::Authorized(session) => {
-            if let Some(cache_key) = cache_key {
-                cache_validated_session(state, cache_key, session.identity_id.clone()).await;
+            if state.ws_auth_grace_seconds > 0 {
+                if let Some(cache_key) = cache_key {
+                    cache_validated_session(state, cache_key, session.identity_id.clone()).await;
+                }
             }
             Some(session)
         }
@@ -287,7 +289,7 @@ async fn validate_session_upstream(
         Ok(value) => value,
         Err(error) => {
             warn!(error = %error, "session validation upstream payload decode failed");
-            return UpstreamSessionValidation::Unavailable;
+            return UpstreamSessionValidation::Denied;
         }
     };
 
@@ -299,7 +301,8 @@ async fn validate_session_upstream(
 async fn cache_validated_session(state: &AppState, key: String, identity_id: String) {
     let mut guard = state.validated_session_cache.lock().await;
 
-    if guard.len() >= state.ws_auth_cache_max_entries {
+    let is_new_key = !guard.contains_key(&key);
+    if is_new_key && guard.len() >= state.ws_auth_cache_max_entries {
         if let Some((oldest_key, _)) = guard
             .iter()
             .min_by_key(|(_, value)| value.validated_at)
