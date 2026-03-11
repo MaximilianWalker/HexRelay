@@ -41,7 +41,7 @@
 
 ## Migration Progress Snapshot
 
-- Completed in working tree (not yet merged):
+- Completed and merged baseline:
   - `api-rs` skeleton/app-domain-transport-infra-shared layout
   - `api-rs` handler extraction to `transport/http/handlers/*`
   - `api-rs` domain validation + friend transition service extraction
