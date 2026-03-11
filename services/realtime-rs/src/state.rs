@@ -17,7 +17,16 @@ pub struct AppState {
     pub ws_message_rate_limit: usize,
     pub ws_message_rate_window_seconds: u64,
     pub ws_max_connections_per_identity: usize,
+    pub ws_auth_grace_seconds: u64,
+    pub ws_auth_cache_max_entries: usize,
     pub active_connections: Arc<Mutex<HashMap<String, usize>>>,
+    pub validated_session_cache: Arc<Mutex<HashMap<String, CachedSession>>>,
+}
+
+#[derive(Clone)]
+pub struct CachedSession {
+    pub identity_id: String,
+    pub validated_at: tokio::time::Instant,
 }
 
 impl AppState {
@@ -32,6 +41,8 @@ impl AppState {
         ws_message_rate_limit: usize,
         ws_message_rate_window_seconds: u64,
         ws_max_connections_per_identity: usize,
+        ws_auth_grace_seconds: u64,
+        ws_auth_cache_max_entries: usize,
     ) -> Result<Self, String> {
         let http_client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(2))
@@ -51,7 +62,10 @@ impl AppState {
             ws_message_rate_limit,
             ws_message_rate_window_seconds,
             ws_max_connections_per_identity,
+            ws_auth_grace_seconds,
+            ws_auth_cache_max_entries,
             active_connections: Arc::new(Mutex::new(HashMap::new())),
+            validated_session_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }

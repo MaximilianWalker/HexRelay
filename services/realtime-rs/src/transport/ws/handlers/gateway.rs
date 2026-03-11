@@ -10,6 +10,7 @@ use futures::stream::StreamExt;
 use serde::Deserialize;
 use std::hash::{Hash, Hasher};
 use std::net::SocketAddr;
+use std::time::Duration;
 use tracing::warn;
 
 use crate::state::AppState;
@@ -196,6 +197,8 @@ pub(crate) async fn is_session_valid(state: &AppState, headers: &HeaderMap) -> b
 }
 
 async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<ValidatedSession> {
+    let cache_key = session_cache_key(headers);
+
     let cookie_header = headers
         .get("cookie")
         .and_then(|value| value.to_str().ok())
@@ -208,6 +211,37 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
         return None;
     }
 
+    match validate_session_upstream(state, cookie_header, authorization_header).await {
+        UpstreamSessionValidation::Authorized(session) => {
+            if let Some(cache_key) = cache_key {
+                cache_validated_session(state, cache_key, session.identity_id.clone()).await;
+            }
+            Some(session)
+        }
+        UpstreamSessionValidation::Denied => {
+            if let Some(cache_key) = cache_key {
+                remove_cached_session(state, &cache_key).await;
+            }
+            None
+        }
+        UpstreamSessionValidation::Unavailable => {
+            let cache_key = cache_key?;
+            load_cached_session(state, &cache_key).await
+        }
+    }
+}
+
+enum UpstreamSessionValidation {
+    Authorized(ValidatedSession),
+    Denied,
+    Unavailable,
+}
+
+async fn validate_session_upstream(
+    state: &AppState,
+    cookie_header: Option<&str>,
+    authorization_header: Option<&str>,
+) -> UpstreamSessionValidation {
     let url = format!("{}/v1/auth/sessions/validate", state.api_base_url);
     let mut request = state.http_client.get(url);
     if let Some(cookie_header) = cookie_header {
@@ -221,29 +255,118 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
         Ok(value) => value,
         Err(error) => {
             warn!(error = %error, "session validation upstream request failed");
-            return None;
+            return UpstreamSessionValidation::Unavailable;
         }
     };
+
+    if response.status() == StatusCode::UNAUTHORIZED || response.status() == StatusCode::FORBIDDEN {
+        warn!(
+            status = %response.status(),
+            "session validation upstream returned non-success status"
+        );
+        return UpstreamSessionValidation::Denied;
+    }
+
+    if response.status().is_server_error() {
+        warn!(
+            status = %response.status(),
+            "session validation upstream returned unavailable status"
+        );
+        return UpstreamSessionValidation::Unavailable;
+    }
 
     if !response.status().is_success() {
         warn!(
             status = %response.status(),
             "session validation upstream returned non-success status"
         );
-        return None;
+        return UpstreamSessionValidation::Denied;
     }
 
     let payload = match response.json::<SessionValidateResponse>().await {
         Ok(value) => value,
         Err(error) => {
             warn!(error = %error, "session validation upstream payload decode failed");
-            return None;
+            return UpstreamSessionValidation::Unavailable;
         }
     };
 
-    Some(ValidatedSession {
+    UpstreamSessionValidation::Authorized(ValidatedSession {
         identity_id: payload.identity_id,
     })
+}
+
+async fn cache_validated_session(state: &AppState, key: String, identity_id: String) {
+    let mut guard = state.validated_session_cache.lock().await;
+
+    if guard.len() >= state.ws_auth_cache_max_entries {
+        if let Some((oldest_key, _)) = guard
+            .iter()
+            .min_by_key(|(_, value)| value.validated_at)
+            .map(|(cache_key, value)| (cache_key.clone(), value.validated_at))
+        {
+            guard.remove(&oldest_key);
+        }
+    }
+
+    guard.insert(
+        key,
+        crate::state::CachedSession {
+            identity_id,
+            validated_at: tokio::time::Instant::now(),
+        },
+    );
+}
+
+async fn remove_cached_session(state: &AppState, key: &str) {
+    state.validated_session_cache.lock().await.remove(key);
+}
+
+async fn load_cached_session(state: &AppState, key: &str) -> Option<ValidatedSession> {
+    if state.ws_auth_grace_seconds == 0 {
+        return None;
+    }
+
+    let max_age = Duration::from_secs(state.ws_auth_grace_seconds);
+    let cached = state.validated_session_cache.lock().await.get(key).cloned();
+
+    let cached = cached?;
+
+    if cached.validated_at.elapsed() > max_age {
+        remove_cached_session(state, key).await;
+        return None;
+    }
+
+    Some(ValidatedSession {
+        identity_id: cached.identity_id,
+    })
+}
+
+fn session_cache_key(headers: &HeaderMap) -> Option<String> {
+    if let Some(value) = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(format!("auth:{:016x}", stable_hash(value)));
+    }
+
+    let session_cookie = headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(extract_session_cookie)
+        .map(str::to_string)?;
+    Some(format!("cookie:{:016x}", stable_hash(&session_cookie)))
+}
+
+fn extract_session_cookie(raw_cookie_header: &str) -> Option<&str> {
+    raw_cookie_header
+        .split(';')
+        .map(str::trim)
+        .find_map(|part| part.strip_prefix("hexrelay_session="))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 fn ws_rejection(status: StatusCode, code: &'static str, message: &'static str) -> Response {

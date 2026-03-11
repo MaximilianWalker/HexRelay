@@ -35,6 +35,8 @@ async fn main() {
         config.ws_message_rate_limit,
         config.ws_message_rate_window_seconds,
         config.ws_max_connections_per_identity,
+        config.ws_auth_grace_seconds,
+        config.ws_auth_cache_max_entries,
     ) {
         Ok(value) => value,
         Err(err) => {

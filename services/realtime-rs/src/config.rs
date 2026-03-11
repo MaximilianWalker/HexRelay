@@ -15,6 +15,8 @@ pub struct RealtimeConfig {
     pub ws_message_rate_limit: usize,
     pub ws_message_rate_window_seconds: u64,
     pub ws_max_connections_per_identity: usize,
+    pub ws_auth_grace_seconds: u64,
+    pub ws_auth_cache_max_entries: usize,
 }
 
 impl RealtimeConfig {
@@ -48,6 +50,9 @@ impl RealtimeConfig {
             parse_u64_env("REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS", 60)?;
         let ws_max_connections_per_identity =
             parse_usize_env("REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY", 3)?;
+        let ws_auth_grace_seconds = parse_u64_env("REALTIME_WS_AUTH_GRACE_SECONDS", 0)?;
+        let ws_auth_cache_max_entries =
+            parse_usize_env("REALTIME_WS_AUTH_CACHE_MAX_ENTRIES", 10000)?;
 
         if api_base_url.trim().is_empty() {
             return Err("Invalid REALTIME_API_BASE_URL. Value must not be empty".to_string());
@@ -94,6 +99,13 @@ impl RealtimeConfig {
             );
         }
 
+        if ws_auth_cache_max_entries == 0 {
+            return Err(
+                "Invalid REALTIME_WS_AUTH_CACHE_MAX_ENTRIES. Expected integer greater than 0"
+                    .to_string(),
+            );
+        }
+
         if ws_max_inbound_message_bytes < 256 {
             return Err(
                 "Invalid REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES. Expected integer >= 256"
@@ -135,6 +147,8 @@ impl RealtimeConfig {
             ws_message_rate_limit,
             ws_message_rate_window_seconds,
             ws_max_connections_per_identity,
+            ws_auth_grace_seconds,
+            ws_auth_cache_max_entries,
         })
     }
 }
@@ -291,6 +305,38 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES"));
+            },
+        );
+
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_WS_AUTH_CACHE_MAX_ENTRIES", Some("0")),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("zero auth cache entries must fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_WS_AUTH_CACHE_MAX_ENTRIES"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_auth_grace_configuration() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_WS_AUTH_GRACE_SECONDS", Some("30")),
+                ("REALTIME_WS_AUTH_CACHE_MAX_ENTRIES", Some("200")),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert_eq!(config.ws_auth_grace_seconds, 30);
+                assert_eq!(config.ws_auth_cache_max_entries, 200);
             },
         );
     }

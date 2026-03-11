@@ -13,7 +13,7 @@
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-11 updated the Rust coverage gate command and readiness baseline to 80% lines.
+- Latest meaningful change: 2026-03-11 added bounded realtime auth-upstream outage grace controls and rollback guidance.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -40,7 +40,7 @@
 - Realtime limiter scope: websocket connect/message limits are process-local; multi-instance deployments must apply sticky routing or edge/global limiting to preserve equivalent abuse controls.
 - Minimum environment:
   - API: `API_BIND`, `API_ENVIRONMENT`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_TRUST_PROXY_HEADERS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
-  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_TRUST_PROXY_HEADERS`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`.
+  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_TRUST_PROXY_HEADERS`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`, `REALTIME_WS_AUTH_GRACE_SECONDS`, `REALTIME_WS_AUTH_CACHE_MAX_ENTRIES`.
 - Startup sequence:
   1. Start database dependencies.
   2. Start API service and verify `GET /health` returns 200.
@@ -126,6 +126,10 @@ npm --prefix apps/web run e2e:smoke
   - Restart `realtime-rs` when websocket fanout/signaling degrades.
 - Full runtime restart:
   - Restart both services if cross-service auth validation fails repeatedly.
+- Realtime auth-upstream outage mode:
+  - Default is disabled (`REALTIME_WS_AUTH_GRACE_SECONDS=0`) and websocket auth remains strict fail-closed.
+  - If temporary API auth availability issues are confirmed, operators may enable a short grace window to allow only recently validated websocket sessions while upstream auth recovers.
+  - Keep grace windows short and disable immediately after upstream auth stabilizes.
 - Post-restart validation:
   - API and realtime `/health` probes return 200.
   - Session validate endpoint works with existing active `hexrelay_session` cookie.
@@ -138,6 +142,7 @@ npm --prefix apps/web run e2e:smoke
 3. Deploy previous known-good build artifacts.
 4. Start API then realtime using the bring-up command baseline.
 5. Re-run smoke validation and archive logs for incident evidence.
+6. If auth grace mode was enabled during incident response, reset `REALTIME_WS_AUTH_GRACE_SECONDS=0` and verify websocket upgrades still pass under normal upstream validation.
 
 ## Release Decision and Abort Thresholds
 
