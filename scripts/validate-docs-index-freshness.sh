@@ -35,9 +35,9 @@ if ! grep -q '^- last_updated:' "${index_file}"; then
   exit 1
 fi
 
-metadata_diff="$(git diff "${base_sha}" "${head_sha}" -- "${index_file}" | grep -E '^[-+]\- last_updated:' || true)"
+metadata_diff="$(git diff "${base_sha}" "${head_sha}" -- "${index_file}" | grep -E '^[-+]\- (last_updated|Latest meaningful change):' || true)"
 if [ -z "${metadata_diff}" ]; then
-  echo "::error::Canonical docs changed but ${index_file} metadata field last_updated was not updated."
+  echo "::error::Canonical docs changed but ${index_file} metadata fields were not refreshed (last_updated or Latest meaningful change)."
   exit 1
 fi
 

@@ -285,6 +285,49 @@ async fn rejects_transition_by_wrong_actor() {
 }
 
 #[tokio::test]
+async fn returns_bad_request_for_non_actionable_friend_request_transitions() {
+    let (app, tokens) = app_with_sessions(&["usr-h", "usr-i"]);
+
+    let missing_accept = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests/missing-request/accept")
+        .header("authorization", format!("Bearer {}", tokens["usr-i"]))
+        .body(Body::empty())
+        .expect("build missing accept request");
+    let missing_accept_response = app
+        .clone()
+        .oneshot(missing_accept)
+        .await
+        .expect("missing accept response");
+    assert_eq!(missing_accept_response.status(), StatusCode::BAD_REQUEST);
+
+    let missing_decline = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests/missing-request/decline")
+        .header("authorization", format!("Bearer {}", tokens["usr-i"]))
+        .body(Body::empty())
+        .expect("build missing decline request");
+    let missing_decline_response = app
+        .clone()
+        .oneshot(missing_decline)
+        .await
+        .expect("missing decline response");
+    assert_eq!(missing_decline_response.status(), StatusCode::BAD_REQUEST);
+
+    let missing_cancel = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests/missing-request/cancel")
+        .header("authorization", format!("Bearer {}", tokens["usr-h"]))
+        .body(Body::empty())
+        .expect("build missing cancel request");
+    let missing_cancel_response = app
+        .oneshot(missing_cancel)
+        .await
+        .expect("missing cancel response");
+    assert_eq!(missing_cancel_response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn rejects_friend_request_without_authorization_header() {
     let app = build_app(AppState::default());
 
