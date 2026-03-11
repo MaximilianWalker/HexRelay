@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-11 aligned friends mutation contract status codes with runtime behavior and added parity gates.
+- Latest meaningful change: 2026-03-11 added bounded realtime auth-upstream outage guidance and aligned realtime runtime defaults/documentation.
 
 ## Purpose
 

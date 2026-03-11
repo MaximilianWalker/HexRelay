@@ -7,6 +7,8 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
+use std::hash::{Hash, Hasher};
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{
     connect_async,
@@ -29,6 +31,12 @@ fn set_allowed_origin(request: &mut tokio_tungstenite::tungstenite::http::Reques
         .insert("origin", HeaderValue::from_static(TEST_ALLOWED_ORIGIN));
 }
 
+fn auth_cache_key(authorization_value: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    authorization_value.hash(&mut hasher);
+    format!("auth:{:016x}", hasher.finish())
+}
+
 #[derive(Serialize)]
 struct ValidatePayload {
     session_id: String,
@@ -36,9 +44,16 @@ struct ValidatePayload {
     expires_at: String,
 }
 
-async fn start_validate_server(accept_authorization: bool) -> String {
+#[derive(Clone, Copy)]
+enum ValidateMode {
+    Authorized,
+    Denied,
+    Unavailable,
+}
+
+async fn start_validate_server(mode: ValidateMode) -> String {
     async fn validate_endpoint(
-        State(accept_authorization): State<bool>,
+        State(mode): State<ValidateMode>,
         headers: HeaderMap,
     ) -> (StatusCode, Json<ValidatePayload>) {
         let authorized = headers
@@ -69,16 +84,16 @@ async fn start_validate_server(accept_authorization: bool) -> String {
             expires_at: "2030-01-01T00:00:00Z".to_string(),
         };
 
-        if accept_authorization {
-            (StatusCode::OK, Json(payload))
-        } else {
-            (StatusCode::UNAUTHORIZED, Json(payload))
+        match mode {
+            ValidateMode::Authorized => (StatusCode::OK, Json(payload)),
+            ValidateMode::Denied => (StatusCode::UNAUTHORIZED, Json(payload)),
+            ValidateMode::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, Json(payload)),
         }
     }
 
     let app = Router::new()
         .route("/v1/auth/sessions/validate", get(validate_endpoint))
-        .with_state(accept_authorization);
+        .with_state(mode);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind test listener");
@@ -102,6 +117,8 @@ async fn rejects_missing_authorization_header() {
         120,
         60,
         3,
+        0,
+        10000,
     )
     .expect("build app state");
     let headers = HeaderMap::new();
@@ -111,7 +128,7 @@ async fn rejects_missing_authorization_header() {
 
 #[tokio::test]
 async fn accepts_valid_authorization_with_successful_validation() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
@@ -122,6 +139,8 @@ async fn accepts_valid_authorization_with_successful_validation() {
         120,
         60,
         3,
+        0,
+        10000,
     )
     .expect("build app state");
     let mut headers = HeaderMap::new();
@@ -135,7 +154,7 @@ async fn accepts_valid_authorization_with_successful_validation() {
 
 #[tokio::test]
 async fn rejects_authorization_when_validation_endpoint_denies() {
-    let api_base = start_validate_server(false).await;
+    let api_base = start_validate_server(ValidateMode::Denied).await;
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
@@ -146,6 +165,8 @@ async fn rejects_authorization_when_validation_endpoint_denies() {
         120,
         60,
         3,
+        0,
+        10000,
     )
     .expect("build app state");
     let mut headers = HeaderMap::new();
@@ -158,31 +179,21 @@ async fn rejects_authorization_when_validation_endpoint_denies() {
 }
 
 async fn start_ws_server(api_base_url: String, ws_connect_rate_limit: usize) -> String {
-    start_ws_server_with_limits(api_base_url, ws_connect_rate_limit, 16384, 120, 60, 3).await
+    start_ws_server_with_limits(
+        api_base_url,
+        ws_connect_rate_limit,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .await
 }
 
-async fn start_ws_server_with_limits(
-    api_base_url: String,
-    ws_connect_rate_limit: usize,
-    ws_max_inbound_message_bytes: usize,
-    ws_message_rate_limit: usize,
-    ws_message_rate_window_seconds: u64,
-    ws_max_connections_per_identity: usize,
-) -> String {
-    let app = build_app(
-        AppState::new(
-            api_base_url,
-            test_allowed_origins(),
-            false,
-            ws_connect_rate_limit,
-            60,
-            ws_max_inbound_message_bytes,
-            ws_message_rate_limit,
-            ws_message_rate_window_seconds,
-            ws_max_connections_per_identity,
-        )
-        .expect("build app state"),
-    );
+async fn start_ws_server_with_state(state: AppState) -> String {
+    let app = build_app(state);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind websocket listener");
@@ -202,9 +213,38 @@ async fn start_ws_server_with_limits(
     format!("ws://{}/ws", address)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn start_ws_server_with_limits(
+    api_base_url: String,
+    ws_connect_rate_limit: usize,
+    ws_max_inbound_message_bytes: usize,
+    ws_message_rate_limit: usize,
+    ws_message_rate_window_seconds: u64,
+    ws_max_connections_per_identity: usize,
+    ws_auth_grace_seconds: u64,
+    ws_auth_cache_max_entries: usize,
+) -> String {
+    let state = AppState::new(
+        api_base_url,
+        test_allowed_origins(),
+        false,
+        ws_connect_rate_limit,
+        60,
+        ws_max_inbound_message_bytes,
+        ws_message_rate_limit,
+        ws_message_rate_window_seconds,
+        ws_max_connections_per_identity,
+        ws_auth_grace_seconds,
+        ws_auth_cache_max_entries,
+    )
+    .expect("build app state");
+
+    start_ws_server_with_state(state).await
+}
+
 #[tokio::test]
 async fn websocket_upgrade_rejects_missing_authorization() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -224,7 +264,7 @@ async fn websocket_upgrade_rejects_missing_authorization() {
 
 #[tokio::test]
 async fn websocket_upgrade_rejects_disallowed_origin() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -249,7 +289,7 @@ async fn websocket_upgrade_rejects_disallowed_origin() {
 
 #[tokio::test]
 async fn websocket_upgrade_rejects_missing_origin() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -271,7 +311,7 @@ async fn websocket_upgrade_rejects_missing_origin() {
 
 #[tokio::test]
 async fn websocket_upgrade_accepts_valid_cookie() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -292,7 +332,7 @@ async fn websocket_upgrade_accepts_valid_cookie() {
 
 #[tokio::test]
 async fn websocket_upgrade_accepts_valid_authorization() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -313,7 +353,7 @@ async fn websocket_upgrade_accepts_valid_authorization() {
 
 #[tokio::test]
 async fn websocket_replies_with_valid_event_envelope_for_call_signal_offer() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
     let mut request = ws_url
@@ -429,8 +469,98 @@ async fn websocket_upgrade_rejects_when_api_is_unreachable() {
 }
 
 #[tokio::test]
+async fn websocket_upgrade_accepts_cached_session_when_validation_is_unavailable() {
+    let api_base = start_validate_server(ValidateMode::Unavailable).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        30,
+        10000,
+    )
+    .expect("build app state");
+
+    let cache_key = auth_cache_key("Bearer test-token");
+    state.validated_session_cache.lock().await.insert(
+        cache_key,
+        crate::state::CachedSession {
+            identity_id: "usr-1".to_string(),
+            validated_at: tokio::time::Instant::now(),
+        },
+    );
+
+    let ws_url = start_ws_server_with_state(state).await;
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let connection = connect_async(request)
+        .await
+        .expect("websocket connect response");
+    assert_eq!(connection.1.status(), StatusCode::SWITCHING_PROTOCOLS);
+}
+
+#[tokio::test]
+async fn websocket_upgrade_rejects_stale_cached_session_when_validation_is_unavailable() {
+    let api_base = start_validate_server(ValidateMode::Unavailable).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        30,
+        10000,
+    )
+    .expect("build app state");
+
+    let cache_key = auth_cache_key("Bearer test-token");
+    state.validated_session_cache.lock().await.insert(
+        cache_key,
+        crate::state::CachedSession {
+            identity_id: "usr-1".to_string(),
+            validated_at: tokio::time::Instant::now() - Duration::from_secs(31),
+        },
+    );
+
+    let ws_url = start_ws_server_with_state(state).await;
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let result = connect_async(request).await;
+    assert!(result.is_err());
+
+    let message = result
+        .err()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    assert!(message.contains("401") || message.contains("Unauthorized"));
+}
+
+#[tokio::test]
 async fn websocket_upgrade_rejects_when_rate_limited() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 1).await;
 
     let mut first_request = ws_url
@@ -468,7 +598,7 @@ async fn websocket_upgrade_rejects_when_rate_limited() {
 
 #[tokio::test]
 async fn websocket_upgrade_rate_limit_cannot_be_bypassed_by_rotating_auth_header() {
-    let api_base = start_validate_server(true).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 1).await;
 
     let mut first_request = ws_url
@@ -505,8 +635,8 @@ async fn websocket_upgrade_rate_limit_cannot_be_bypassed_by_rotating_auth_header
 
 #[tokio::test]
 async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() {
-    let api_base = start_validate_server(true).await;
-    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 1, 60, 3).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 1, 60, 3, 0, 10000).await;
 
     let mut request = ws_url
         .into_client_request()
@@ -556,8 +686,8 @@ async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() 
 
 #[tokio::test]
 async fn websocket_upgrade_rejects_when_identity_connection_cap_exceeded() {
-    let api_base = start_validate_server(true).await;
-    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 120, 60, 1).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 120, 60, 1, 0, 10000).await;
 
     let mut first_request = ws_url
         .clone()
@@ -592,8 +722,8 @@ async fn websocket_upgrade_rejects_when_identity_connection_cap_exceeded() {
 
 #[tokio::test]
 async fn websocket_rejects_text_payload_above_limit() {
-    let api_base = start_validate_server(true).await;
-    let ws_url = start_ws_server_with_limits(api_base, 60, 64, 120, 60, 3).await;
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let ws_url = start_ws_server_with_limits(api_base, 60, 64, 120, 60, 3, 0, 10000).await;
 
     let mut request = ws_url
         .into_client_request()
