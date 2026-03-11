@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-10 refreshed contracts index metadata and aligned runtime contract references with active API/realtime behavior.
+- Latest meaningful change: 2026-03-11 clarified runtime contract authority and marked legacy iteration alias as non-authoritative.
 
 ## Purpose
 
@@ -22,8 +22,8 @@
 ## Current Runtime Contracts
 
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
-- REST compatibility alias (legacy path): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
-- Runtime auth transport: HttpOnly `hexrelay_session` cookie + `x-csrf-token` double-submit enforcement for authenticated mutation endpoints.
+- REST legacy alias path (non-authoritative): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
 

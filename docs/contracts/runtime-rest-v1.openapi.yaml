@@ -86,6 +86,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/revoke:
@@ -93,6 +95,7 @@ paths:
       summary: Revoke an active session
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
@@ -108,8 +111,6 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/validate:
@@ -117,6 +118,7 @@ paths:
       summary: Validate active session
       security:
         - CookieAuth: []
+        - BearerAuth: []
       responses:
         '200':
           description: Session is active and valid
@@ -131,6 +133,7 @@ paths:
       summary: Create an invite token
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
@@ -181,6 +184,7 @@ paths:
       summary: List servers for authenticated identity
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - in: query
           name: search
@@ -212,6 +216,7 @@ paths:
       summary: List contacts for authenticated identity
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - in: query
           name: search
@@ -243,6 +248,7 @@ paths:
       summary: List inbound/outbound friend requests
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - in: query
           name: identity_id
@@ -269,6 +275,7 @@ paths:
       summary: Create a friend request
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
@@ -297,6 +304,7 @@ paths:
       summary: Accept pending friend request
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
         - in: path
@@ -322,6 +330,7 @@ paths:
       summary: Decline pending friend request
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
         - in: path
@@ -343,6 +352,7 @@ paths:
       summary: Cancel pending friend request
       security:
         - CookieAuth: []
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
         - in: path
@@ -592,10 +602,13 @@ components:
     CsrfTokenHeader:
       name: x-csrf-token
       in: header
-      required: true
+      required: false
       schema:
         type: string
-      description: Must match the `hexrelay_csrf` cookie value.
+      description: |
+        Double-submit CSRF token associated with the `hexrelay_csrf` cookie.
+        Required for cookie-authenticated mutation requests.
+        Not required for bearer-authenticated requests.
   responses:
     BadRequest:
       description: Invalid request
@@ -632,3 +645,6 @@ components:
       type: apiKey
       in: cookie
       name: hexrelay_session
+    BearerAuth:
+      type: http
+      scheme: bearer
