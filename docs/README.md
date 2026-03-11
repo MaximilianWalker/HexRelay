@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-11 added bounded realtime auth-upstream outage guidance and aligned realtime runtime defaults/documentation.
+- Latest meaningful change: 2026-03-11 tightened contract parity coverage for API router/middleware and realtime websocket handler surfaces, and documented deferred auth verify identity-oracle hardening decision.
 
 ## Purpose
 

@@ -13,15 +13,20 @@ realtime_contract="docs/contracts/realtime-events-runtime-v1.asyncapi.yaml"
 
 api_surface_files=(
   'services/api-rs/src/models.rs'
+  'services/api-rs/src/app/router.rs'
+  'services/api-rs/src/transport/http/middleware/auth.rs'
   'services/api-rs/src/transport/http/handlers/*.rs'
 )
 
 api_surface_changes="$(git diff --name-only "${base_sha}" "${head_sha}" -- "${api_surface_files[@]}")"
 
-realtime_surface_changes="$(git diff --name-only "${base_sha}" "${head_sha}" -- \
-  'services/realtime-rs/src/domain/events/*.rs')"
+realtime_surface_files=(
+  'services/realtime-rs/src/app/router.rs'
+  'services/realtime-rs/src/domain/events/*.rs'
+  'services/realtime-rs/src/transport/ws/handlers/*.rs'
+)
 
-api_contract_sensitive_diff="$(git diff -U0 "${base_sha}" "${head_sha}" -- "${api_surface_files[@]}" | grep -E '^[+-].*(StatusCode::|/v1/|Request>|Response>|struct [A-Za-z0-9_]+(Request|Response)|enum [A-Za-z0-9_]+Error)' || true)"
+realtime_surface_changes="$(git diff --name-only "${base_sha}" "${head_sha}" -- "${realtime_surface_files[@]}")"
 
 api_contract_changed=0
 if git diff --name-only "${base_sha}" "${head_sha}" -- "${api_contract}" | grep -qxF "${api_contract}"; then
@@ -35,12 +40,10 @@ fi
 
 errors=0
 
-if [ -n "${api_contract_sensitive_diff}" ] && [ "${api_contract_changed}" -ne 1 ]; then
-  echo "::error::API HTTP surface changed but ${api_contract} was not updated."
+if [ -n "${api_surface_changes}" ] && [ "${api_contract_changed}" -ne 1 ]; then
+  echo "::error::API contract-surface files changed but ${api_contract} was not updated."
   echo "Changed API surface files:"
   echo "${api_surface_changes}"
-  echo "Contract-sensitive diff excerpts:"
-  echo "${api_contract_sensitive_diff}"
   errors=1
 fi
 
