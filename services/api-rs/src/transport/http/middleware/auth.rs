@@ -396,6 +396,27 @@ mod tests {
     }
 
     #[test]
+    fn csrf_enforcement_rejects_missing_cookie_or_header_token() {
+        let auth = AuthSession {
+            session_id: "sess-1".to_string(),
+            identity_id: "usr-1".to_string(),
+            expires_at: Utc::now().to_rfc3339(),
+            transport: AuthTransport::Cookie,
+        };
+
+        let mut missing_cookie = HeaderMap::new();
+        missing_cookie.insert("x-csrf-token", "token-123".parse().expect("csrf header"));
+        assert!(enforce_csrf_for_cookie_auth(&auth, &missing_cookie).is_err());
+
+        let mut missing_header = HeaderMap::new();
+        missing_header.insert(
+            "cookie",
+            "hexrelay_csrf=token-123".parse().expect("csrf cookie"),
+        );
+        assert!(enforce_csrf_for_cookie_auth(&auth, &missing_header).is_err());
+    }
+
+    #[test]
     fn resolve_memory_session_handles_token_mismatch_and_success() {
         let app_state = AppState::default();
         let session_id = "sess-test-1".to_string();
@@ -426,6 +447,50 @@ mod tests {
             ..ok_input
         };
         assert!(resolve_memory_session(&app_state, &bad_identity).is_err());
+    }
+
+    #[test]
+    fn resolve_memory_session_rejects_missing_expired_and_expiry_mismatch() {
+        let app_state = AppState::default();
+
+        let missing = AuthInput {
+            session_id: "missing".to_string(),
+            token_identity_id: "usr-1".to_string(),
+            token_expires_at: Utc::now().timestamp(),
+        };
+        assert!(resolve_memory_session(&app_state, &missing).is_err());
+
+        let expired_session_id = "sess-expired".to_string();
+        let expired_at = Utc::now() - Duration::minutes(1);
+        app_state.sessions.write().expect("session lock").insert(
+            expired_session_id.clone(),
+            SessionRecord {
+                identity_id: "usr-1".to_string(),
+                expires_at: expired_at,
+            },
+        );
+        let expired_input = AuthInput {
+            session_id: expired_session_id,
+            token_identity_id: "usr-1".to_string(),
+            token_expires_at: expired_at.timestamp(),
+        };
+        assert!(resolve_memory_session(&app_state, &expired_input).is_err());
+
+        let valid_session_id = "sess-valid".to_string();
+        let valid_expires_at = Utc::now() + Duration::hours(1);
+        app_state.sessions.write().expect("session lock").insert(
+            valid_session_id.clone(),
+            SessionRecord {
+                identity_id: "usr-2".to_string(),
+                expires_at: valid_expires_at,
+            },
+        );
+        let expiry_mismatch = AuthInput {
+            session_id: valid_session_id,
+            token_identity_id: "usr-2".to_string(),
+            token_expires_at: valid_expires_at.timestamp() + 1,
+        };
+        assert!(resolve_memory_session(&app_state, &expiry_mismatch).is_err());
     }
 
     #[test]
