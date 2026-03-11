@@ -35,4 +35,10 @@ if ! grep -q '^- last_updated:' "${index_file}"; then
   exit 1
 fi
 
+metadata_diff="$(git diff "${base_sha}" "${head_sha}" -- "${index_file}" | grep -E '^[-+]\- last_updated:' || true)"
+if [ -z "${metadata_diff}" ]; then
+  echo "::error::Canonical docs changed but ${index_file} metadata field last_updated was not updated."
+  exit 1
+fi
+
 echo "[docs-index-freshness] docs index updated with canonical docs changes"
