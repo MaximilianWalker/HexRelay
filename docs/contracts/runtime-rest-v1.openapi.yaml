@@ -602,10 +602,13 @@ components:
     CsrfTokenHeader:
       name: x-csrf-token
       in: header
-      required: true
+      required: false
       schema:
         type: string
-      description: Must match the `hexrelay_csrf` cookie value.
+      description: |
+        Double-submit CSRF token associated with the `hexrelay_csrf` cookie.
+        Required for cookie-authenticated mutation requests.
+        Not required for bearer-authenticated requests.
   responses:
     BadRequest:
       description: Invalid request
