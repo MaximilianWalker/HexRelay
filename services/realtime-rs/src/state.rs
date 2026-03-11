@@ -32,14 +32,14 @@ impl AppState {
         ws_message_rate_limit: usize,
         ws_message_rate_window_seconds: u64,
         ws_max_connections_per_identity: usize,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let http_client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(2))
             .timeout(Duration::from_secs(3))
             .build()
-            .expect("build realtime HTTP client");
+            .map_err(|error| format!("build realtime HTTP client: {error}"))?;
 
-        Self {
+        Ok(Self {
             api_base_url,
             allowed_origins,
             trust_proxy_headers,
@@ -52,6 +52,6 @@ impl AppState {
             ws_message_rate_window_seconds,
             ws_max_connections_per_identity,
             active_connections: Arc::new(Mutex::new(HashMap::new())),
-        }
+        })
     }
 }

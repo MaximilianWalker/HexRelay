@@ -63,10 +63,13 @@ impl ApiConfig {
         let session_cookie_same_site =
             env::var("API_SESSION_COOKIE_SAME_SITE").unwrap_or_else(|_| "Lax".to_string());
         let rate_limits = ApiRateLimitConfig {
-            auth_challenge_per_window: parse_usize_env("API_AUTH_CHALLENGE_RATE_LIMIT", 30)?,
-            auth_verify_per_window: parse_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30)?,
-            invite_create_per_window: parse_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
-            invite_redeem_per_window: parse_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
+            auth_challenge_per_window: parse_positive_usize_env(
+                "API_AUTH_CHALLENGE_RATE_LIMIT",
+                30,
+            )?,
+            auth_verify_per_window: parse_positive_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30)?,
+            invite_create_per_window: parse_positive_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
+            invite_redeem_per_window: parse_positive_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
             window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60)?,
         };
 
@@ -240,6 +243,18 @@ fn parse_usize_env(key: &str, default: usize) -> Result<usize, String> {
     }
 }
 
+fn parse_positive_usize_env(key: &str, default: usize) -> Result<usize, String> {
+    let value = parse_usize_env(key, default)?;
+    if value == 0 {
+        return Err(format!(
+            "Invalid {}='0'. Expected integer greater than zero",
+            key
+        ));
+    }
+
+    Ok(value)
+}
+
 fn parse_u64_env(key: &str, default: u64) -> Result<u64, String> {
     match env::var(key) {
         Ok(value) => value
@@ -365,6 +380,26 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert!(config.trust_proxy_headers);
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_zero_rate_limits() {
+        with_api_env(
+            &[
+                ("API_AUTH_CHALLENGE_RATE_LIMIT", Some("0")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("zero auth challenge limit should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_AUTH_CHALLENGE_RATE_LIMIT"));
             },
         );
     }

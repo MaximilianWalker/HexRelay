@@ -337,3 +337,186 @@ fn resolve_memory_session(
         expires_at: session.expires_at.to_rfc3339(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        cookie_value, enforce_csrf_for_cookie_auth, parse_bearer_token, resolve_memory_session,
+        AuthInput, AuthSession, AuthTransport,
+    };
+    use crate::{
+        infra::crypto::session_token::issue_session_token, models::SessionRecord, state::AppState,
+    };
+    use axum::http::HeaderMap;
+    use chrono::{Duration, Utc};
+
+    #[test]
+    fn parses_bearer_token_and_cookie_values() {
+        assert_eq!(parse_bearer_token("Bearer abc123"), Some("abc123"));
+        assert_eq!(parse_bearer_token("Token abc123"), None);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            "a=1; hexrelay_session=session-token"
+                .parse()
+                .expect("header"),
+        );
+        assert_eq!(
+            cookie_value(&headers, "hexrelay_session"),
+            Some("session-token")
+        );
+        assert_eq!(cookie_value(&headers, "missing"), None);
+    }
+
+    #[test]
+    fn csrf_enforcement_accepts_bearer_and_valid_cookie_flow() {
+        let bearer_auth = AuthSession {
+            session_id: "sess-1".to_string(),
+            identity_id: "usr-1".to_string(),
+            expires_at: Utc::now().to_rfc3339(),
+            transport: AuthTransport::Bearer,
+        };
+        assert!(enforce_csrf_for_cookie_auth(&bearer_auth, &HeaderMap::new()).is_ok());
+
+        let cookie_auth = AuthSession {
+            transport: AuthTransport::Cookie,
+            ..bearer_auth
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            "hexrelay_csrf=token-123".parse().expect("cookie header"),
+        );
+        headers.insert("x-csrf-token", "token-123".parse().expect("csrf header"));
+        assert!(enforce_csrf_for_cookie_auth(&cookie_auth, &headers).is_ok());
+
+        headers.insert("x-csrf-token", "mismatch".parse().expect("csrf mismatch"));
+        assert!(enforce_csrf_for_cookie_auth(&cookie_auth, &headers).is_err());
+    }
+
+    #[test]
+    fn csrf_enforcement_rejects_missing_cookie_or_header_token() {
+        let auth = AuthSession {
+            session_id: "sess-1".to_string(),
+            identity_id: "usr-1".to_string(),
+            expires_at: Utc::now().to_rfc3339(),
+            transport: AuthTransport::Cookie,
+        };
+
+        let mut missing_cookie = HeaderMap::new();
+        missing_cookie.insert("x-csrf-token", "token-123".parse().expect("csrf header"));
+        assert!(enforce_csrf_for_cookie_auth(&auth, &missing_cookie).is_err());
+
+        let mut missing_header = HeaderMap::new();
+        missing_header.insert(
+            "cookie",
+            "hexrelay_csrf=token-123".parse().expect("csrf cookie"),
+        );
+        assert!(enforce_csrf_for_cookie_auth(&auth, &missing_header).is_err());
+    }
+
+    #[test]
+    fn resolve_memory_session_handles_token_mismatch_and_success() {
+        let app_state = AppState::default();
+        let session_id = "sess-test-1".to_string();
+        let identity_id = "usr-auth".to_string();
+        let expires_at = Utc::now() + Duration::hours(1);
+
+        app_state.sessions.write().expect("session lock").insert(
+            session_id.clone(),
+            SessionRecord {
+                identity_id: identity_id.clone(),
+                expires_at,
+            },
+        );
+
+        let ok_input = AuthInput {
+            session_id: session_id.clone(),
+            token_identity_id: identity_id.clone(),
+            token_expires_at: expires_at.timestamp(),
+        };
+        let resolved = match resolve_memory_session(&app_state, &ok_input) {
+            Ok(value) => value,
+            Err(_) => panic!("session resolves"),
+        };
+        assert_eq!(resolved.session_id, session_id);
+
+        let bad_identity = AuthInput {
+            token_identity_id: "usr-other".to_string(),
+            ..ok_input
+        };
+        assert!(resolve_memory_session(&app_state, &bad_identity).is_err());
+    }
+
+    #[test]
+    fn resolve_memory_session_rejects_missing_expired_and_expiry_mismatch() {
+        let app_state = AppState::default();
+
+        let missing = AuthInput {
+            session_id: "missing".to_string(),
+            token_identity_id: "usr-1".to_string(),
+            token_expires_at: Utc::now().timestamp(),
+        };
+        assert!(resolve_memory_session(&app_state, &missing).is_err());
+
+        let expired_session_id = "sess-expired".to_string();
+        let expired_at = Utc::now() - Duration::minutes(1);
+        app_state.sessions.write().expect("session lock").insert(
+            expired_session_id.clone(),
+            SessionRecord {
+                identity_id: "usr-1".to_string(),
+                expires_at: expired_at,
+            },
+        );
+        let expired_input = AuthInput {
+            session_id: expired_session_id,
+            token_identity_id: "usr-1".to_string(),
+            token_expires_at: expired_at.timestamp(),
+        };
+        assert!(resolve_memory_session(&app_state, &expired_input).is_err());
+
+        let valid_session_id = "sess-valid".to_string();
+        let valid_expires_at = Utc::now() + Duration::hours(1);
+        app_state.sessions.write().expect("session lock").insert(
+            valid_session_id.clone(),
+            SessionRecord {
+                identity_id: "usr-2".to_string(),
+                expires_at: valid_expires_at,
+            },
+        );
+        let expiry_mismatch = AuthInput {
+            session_id: valid_session_id,
+            token_identity_id: "usr-2".to_string(),
+            token_expires_at: valid_expires_at.timestamp() + 1,
+        };
+        assert!(resolve_memory_session(&app_state, &expiry_mismatch).is_err());
+    }
+
+    #[test]
+    fn issued_session_token_validates_with_default_keyring() {
+        let state = AppState::default();
+        let expires_at = (Utc::now() + Duration::hours(1)).timestamp();
+        let secret = state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active key exists");
+
+        let token = issue_session_token(
+            "sess-issued",
+            "usr-issued",
+            expires_at,
+            &state.active_signing_key_id,
+            secret,
+        );
+
+        let claims = crate::infra::crypto::session_token::validate_session_token(
+            &token,
+            &state.session_signing_keys,
+        )
+        .expect("token validates");
+
+        assert_eq!(claims.session_id, "sess-issued");
+        assert_eq!(claims.identity_id, "usr-issued");
+    }
+}

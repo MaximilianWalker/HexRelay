@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-09
+- last_updated: 2026-03-10
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-09 aligned planning index metadata with recent iteration-log updates and active branch policy.
+- Latest meaningful change: 2026-03-10 refreshed planning index metadata after readiness-governed pre-dev flow hardening.
 
 ## Canonical Boards
 

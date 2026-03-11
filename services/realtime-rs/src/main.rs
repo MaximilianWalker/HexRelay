@@ -25,7 +25,7 @@ async fn main() {
         }
     }
 
-    let app = build_app(AppState::new(
+    let state = match AppState::new(
         config.api_base_url.clone(),
         config.allowed_origins.clone(),
         config.trust_proxy_headers,
@@ -35,7 +35,15 @@ async fn main() {
         config.ws_message_rate_limit,
         config.ws_message_rate_window_seconds,
         config.ws_max_connections_per_identity,
-    ));
+    ) {
+        Ok(value) => value,
+        Err(err) => {
+            error!(error = %err, "realtime startup aborted due to state initialization failure");
+            std::process::exit(1);
+        }
+    };
+
+    let app = build_app(state);
 
     let addr = config.bind_addr;
     info!(%addr, "starting realtime service");

@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-03-10 added Python/pip parity prerequisites and a single copy-paste first-run env bootstrap block.
+- Latest meaningful change: 2026-03-11 added lockfile-first web dependency policy (`npm ci`) to keep setup behavior deterministic with CI.
 
 ## Purpose
 
@@ -63,6 +63,8 @@ Expected: commands resolve without errors and versions satisfy the required tool
 4. Set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
 5. Run `npm run run` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
+
+- Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
 
 ## First-Run Env Bootstrap (Copy/Paste)
 

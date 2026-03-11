@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-10 added explicit incident ownership/escalation thresholds and local-first triage clarity.
+- Latest meaningful change: 2026-03-11 updated the Rust coverage gate command and readiness baseline to 80% lines.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -190,7 +190,7 @@ npm --prefix apps/web run e2e:smoke
   - `npm audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Rust coverage gate:
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 70`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.
 
 ## Realtime Upgrade Policy

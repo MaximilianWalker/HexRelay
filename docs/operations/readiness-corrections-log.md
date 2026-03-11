@@ -6,7 +6,7 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-11
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Purpose
@@ -50,5 +50,9 @@
 - 2026-03-10 | `realtime-rs` | Realtime error-code contract lacked explicit code taxonomy | constrained AsyncAPI `ErrorDataV1.code` to implemented runtime error codes in `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` | websocket error taxonomy is now explicit and versioned in contract docs | `closed`
 - 2026-03-10 | `docs` | Pre-dev gate execution still caused ambiguity around long-running `npm run run` and terminal sequencing | updated terminalized pre-dev flow in `README.md` and added copy/paste env bootstrap in `docs/operations/dev-prerequisites.md` | first-run onboarding now has deterministic command order and success criteria | `closed`
 - 2026-03-10 | `docs` | Local parity instructions lacked robust no-remote fallback and migration template provenance parity | added fallback `BASE_SHA` behavior in `docs/operations/contributor-guide.md` and added provenance fields in `docs/operations/migration-validation-template.md` | local parity and migration evidence now match provenance governance requirements | `closed`
-- 2026-03-10 | `ci` | Coverage threshold repeatedly flagged as readiness gap (70 vs 80) | revalidated and retained `70` in CI with existing policy note in `docs/operations/contributor-guide.md` | threshold increase remains intentionally deferred until accompanying test expansion lands | `watch`
+- 2026-03-10 | `ci` | Coverage threshold repeatedly flagged as readiness gap (70 vs 80) | revalidated and retained `70` in CI with existing policy note in `docs/operations/contributor-guide.md` | superseded later the same day by the enforced 80% gate update below | `closed`
 - 2026-03-10 | `realtime-rs` | WS auth path dependency on upstream API health remains an availability coupling risk | revalidated current behavior in `services/realtime-rs/src/transport/ws/handlers/gateway.rs`; no safe minimal fix without architectural contract change | tracked as architecture follow-up before large-scale deployment modes | `watch`
+- 2026-03-10 | `ci` | Coverage gap repeated across audits (70 gate below readiness target) | raised coverage gate to `80` in `.github/workflows/ci.yml`, updated docs in `docs/operations/contributor-guide.md`, `docs/operations/01-mvp-runbook.md`, and `docs/architecture/03-rust-service-migration-baseline.md`, and expanded targeted unit coverage in validation/event modules | coverage threshold gap is now closed at policy and gate level | `closed`
+- 2026-03-10 | `api-rs` | REST contract advertised revoke-session `429` path not implemented at runtime | removed `429` from `/v1/auth/sessions/revoke` in `docs/contracts/runtime-rest-v1.openapi.yaml` | runtime contract now matches actual revoke handler behavior | `closed`
+- 2026-03-10 | `realtime-rs` | Realtime state initialization could panic on HTTP client construction | converted `AppState::new` to return `Result` and added explicit startup failure handling in `services/realtime-rs/src/main.rs`; updated tests accordingly | startup error path is now controlled/logged instead of panic-based | `closed`
+- 2026-03-10 | `workflow` | Local setup reproducibility drift risk from non-lockfile install path | switched web dependency install in `scripts/setup.sh` from `npm install` to `npm ci` and documented lockfile-first policy in `docs/operations/dev-prerequisites.md` | setup and CI now share deterministic package resolution behavior | `closed`
