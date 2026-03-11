@@ -114,7 +114,24 @@ pub async fn issue_auth_challenge(
 ) -> ApiResult<Json<AuthChallengeResponse>> {
     validate_auth_challenge_request(&payload)?;
 
-    let rate_key = rate_limit_key(
+    let source_key =
+        source_rate_limit_key(&state, &headers, peer_addr.as_ref().map(|value| value.0));
+    let source_allowed = allow_rate_limit(
+        &state,
+        "auth_challenge_source",
+        &source_key,
+        state.rate_limits.auth_challenge_per_window,
+    )
+    .await?;
+    if !source_allowed {
+        warn!("auth challenge source rate limit exceeded");
+        return Err(too_many_requests(
+            "rate_limited",
+            "too many auth challenge requests",
+        ));
+    }
+
+    let rate_key = identity_rate_limit_key(
         &state,
         &payload.identity_id,
         &headers,
@@ -225,7 +242,24 @@ pub async fn verify_auth_challenge(
 ) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
     validate_auth_verify_request(&payload)?;
 
-    let rate_key = rate_limit_key(
+    let source_key =
+        source_rate_limit_key(&state, &headers, peer_addr.as_ref().map(|value| value.0));
+    let source_allowed = allow_rate_limit(
+        &state,
+        "auth_verify_source",
+        &source_key,
+        state.rate_limits.auth_verify_per_window,
+    )
+    .await?;
+    if !source_allowed {
+        warn!("auth verify source rate limit exceeded");
+        return Err(too_many_requests(
+            "rate_limited",
+            "too many auth verify requests",
+        ));
+    }
+
+    let rate_key = identity_rate_limit_key(
         &state,
         &payload.identity_id,
         &headers,
@@ -551,7 +585,7 @@ fn random_hex(byte_len: usize) -> String {
     hex::encode(bytes)
 }
 
-fn rate_limit_key(
+fn identity_rate_limit_key(
     state: &AppState,
     identity_hint: &str,
     headers: &HeaderMap,
@@ -560,6 +594,17 @@ fn rate_limit_key(
     format!(
         "identity:{}:source:{}",
         identity_hint,
+        request_source_fingerprint(state, headers, peer_addr)
+    )
+}
+
+fn source_rate_limit_key(
+    state: &AppState,
+    headers: &HeaderMap,
+    peer_addr: Option<SocketAddr>,
+) -> String {
+    format!(
+        "source:{}",
         request_source_fingerprint(state, headers, peer_addr)
     )
 }

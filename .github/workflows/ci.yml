@@ -161,7 +161,7 @@ jobs:
             exit 1
           fi
 
-          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const s=p.scripts||{};const missing=['lint','test','build'].filter((k)=>!s[k]);if(missing.length){console.error('::error::Missing required scripts in apps/web/package.json: '+missing.join(', ')+'. Add these scripts to enable CI gates.');process.exit(1);}"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const s=p.scripts||{};const missing=['lint','test:coverage','build'].filter((k)=>!s[k]);if(missing.length){console.error('::error::Missing required scripts in apps/web/package.json: '+missing.join(', ')+'. Add these scripts to enable CI gates.');process.exit(1);}"
 
       - name: Install dependencies
         working-directory: apps/web

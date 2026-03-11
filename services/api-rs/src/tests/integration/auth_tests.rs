@@ -353,6 +353,59 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
 }
 
 #[tokio::test]
+async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 1,
+            auth_verify_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        true,
+    );
+
+    let app = build_app(state);
+
+    let first_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/challenge")
+        .header("content-type", "application/json")
+        .header("x-forwarded-for", "198.51.100.20")
+        .body(Body::from(r#"{"identity_id":"spray-user-a"}"#))
+        .expect("build first challenge request");
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first challenge response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+
+    let second_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/challenge")
+        .header("content-type", "application/json")
+        .header("x-forwarded-for", "198.51.100.20")
+        .body(Body::from(r#"{"identity_id":"spray-user-b"}"#))
+        .expect("build second challenge request");
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second challenge response");
+    assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
 async fn verifies_auth_challenge_and_revokes_session() {
     let app = build_app(AppState::default());
     let rng = SystemRandom::new();

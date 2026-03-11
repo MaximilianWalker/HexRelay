@@ -4,7 +4,7 @@
 
 - Doc ID: rust-service-migration-baseline
 - Owner: Architecture maintainers
-- Status: in_progress
+- Status: ready
 - Scope: repository
 - last_updated: 2026-03-11
 - Source of truth: `docs/architecture/03-rust-service-migration-baseline.md`
@@ -30,6 +30,7 @@
   - `rust-coverage-gate`
   - `integration-smoke (web->api->realtime)`
   - `migration-evidence-check`
+  - `evidence-provenance-check`
 
 ### Coverage Baseline (workspace)
 
