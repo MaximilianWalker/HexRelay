@@ -190,7 +190,7 @@ npm --prefix apps/web run e2e:smoke
   - `npm audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Rust coverage gate:
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 70`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.
 
 ## Realtime Upgrade Policy

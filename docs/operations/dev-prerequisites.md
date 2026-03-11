@@ -64,6 +64,8 @@ Expected: commands resolve without errors and versions satisfy the required tool
 5. Run `npm run run` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
 
+- Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
+
 ## First-Run Env Bootstrap (Copy/Paste)
 
 ```bash

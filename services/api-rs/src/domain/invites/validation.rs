@@ -34,3 +34,43 @@ pub fn validate_invite_redeem_request(payload: &InviteRedeemRequest) -> ApiResul
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_invite_create_request, validate_invite_redeem_request};
+    use crate::models::{InviteCreateRequest, InviteRedeemRequest};
+
+    #[test]
+    fn rejects_invalid_invite_mode() {
+        let payload = InviteCreateRequest {
+            mode: "forever".to_string(),
+            expires_at: None,
+            max_uses: None,
+        };
+
+        let err = validate_invite_create_request(&payload).expect_err("invalid mode");
+        assert_eq!(err.0, axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn rejects_empty_redeem_values() {
+        let payload = InviteRedeemRequest {
+            token: "   ".to_string(),
+            node_fingerprint: " ".to_string(),
+        };
+
+        let err = validate_invite_redeem_request(&payload).expect_err("empty values must fail");
+        assert_eq!(err.0, axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn accepts_valid_multi_use_payload() {
+        let payload = InviteCreateRequest {
+            mode: "multi_use".to_string(),
+            expires_at: None,
+            max_uses: Some(3),
+        };
+
+        assert!(validate_invite_create_request(&payload).is_ok());
+    }
+}

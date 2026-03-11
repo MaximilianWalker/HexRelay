@@ -164,3 +164,55 @@ pub(crate) fn build_error_event(code: &str, message: &str) -> String {
 
     serde_json::to_string(&envelope).unwrap_or_else(|_| "{\"event_type\":\"error\"}".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{build_error_event, connection_ready_banner, route_inbound_event};
+    use serde_json::Value;
+
+    #[test]
+    fn connection_ready_banner_has_expected_shape() {
+        let banner = connection_ready_banner();
+        let payload: Value = serde_json::from_str(&banner).expect("decode banner");
+
+        assert_eq!(payload["event_type"], "realtime.connected");
+        assert_eq!(payload["event_version"], 1);
+        assert_eq!(payload["producer"], "realtime-gateway");
+        assert_eq!(payload["data"]["status"], "ok");
+    }
+
+    #[test]
+    fn routes_valid_answer_event() {
+        let response = route_inbound_event(
+            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
+            "usr-1",
+        );
+        let payload: Value = serde_json::from_str(&response).expect("decode routed answer");
+
+        assert_eq!(payload["event_type"], "call.signal.answer");
+        assert_eq!(payload["correlation_id"], "corr-1");
+        assert_eq!(payload["data"]["call_id"], "call-1");
+    }
+
+    #[test]
+    fn routes_valid_ice_candidate_event() {
+        let response = route_inbound_event(
+            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+            "usr-1",
+        );
+        let payload: Value = serde_json::from_str(&response).expect("decode routed candidate");
+
+        assert_eq!(payload["event_type"], "call.signal.ice_candidate");
+        assert_eq!(payload["data"]["candidate"], "candidate:1");
+    }
+
+    #[test]
+    fn build_error_event_emits_error_envelope() {
+        let response = build_error_event("event_invalid", "invalid payload");
+        let payload: Value = serde_json::from_str(&response).expect("decode error");
+
+        assert_eq!(payload["event_type"], "error");
+        assert_eq!(payload["data"]["code"], "event_invalid");
+        assert_eq!(payload["data"]["message"], "invalid payload");
+    }
+}

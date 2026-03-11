@@ -102,7 +102,8 @@ async fn rejects_missing_authorization_header() {
         120,
         60,
         3,
-    );
+    )
+    .expect("build app state");
     let headers = HeaderMap::new();
 
     assert!(!is_session_valid(&state, &headers).await);
@@ -121,7 +122,8 @@ async fn accepts_valid_authorization_with_successful_validation() {
         120,
         60,
         3,
-    );
+    )
+    .expect("build app state");
     let mut headers = HeaderMap::new();
     headers.insert(
         "authorization",
@@ -144,7 +146,8 @@ async fn rejects_authorization_when_validation_endpoint_denies() {
         120,
         60,
         3,
-    );
+    )
+    .expect("build app state");
     let mut headers = HeaderMap::new();
     headers.insert(
         "authorization",
@@ -166,17 +169,20 @@ async fn start_ws_server_with_limits(
     ws_message_rate_window_seconds: u64,
     ws_max_connections_per_identity: usize,
 ) -> String {
-    let app = build_app(AppState::new(
-        api_base_url,
-        test_allowed_origins(),
-        false,
-        ws_connect_rate_limit,
-        60,
-        ws_max_inbound_message_bytes,
-        ws_message_rate_limit,
-        ws_message_rate_window_seconds,
-        ws_max_connections_per_identity,
-    ));
+    let app = build_app(
+        AppState::new(
+            api_base_url,
+            test_allowed_origins(),
+            false,
+            ws_connect_rate_limit,
+            60,
+            ws_max_inbound_message_bytes,
+            ws_message_rate_limit,
+            ws_message_rate_window_seconds,
+            ws_max_connections_per_identity,
+        )
+        .expect("build app state"),
+    );
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind websocket listener");

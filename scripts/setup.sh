@@ -7,7 +7,7 @@ if [ ! -f "infra/.env" ]; then
 fi
 
 echo "[setup] Installing web dependencies"
-npm install --prefix "apps/web"
+npm ci --prefix "apps/web"
 
 echo "[setup] Fetching Rust dependencies"
 cargo fetch --manifest-path "services/api-rs/Cargo.toml"

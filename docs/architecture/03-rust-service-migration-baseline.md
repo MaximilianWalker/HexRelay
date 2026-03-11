@@ -33,8 +33,8 @@
 
 ### Coverage Baseline (workspace)
 
-- Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 70`
-- Threshold: `70` lines (gate)
+- Command: `API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 80`
+- Threshold: `80` lines (gate)
 - Result: `pass`
 - Total line coverage snapshot: `74.34%`
 - Total region coverage snapshot: `73.52%`
@@ -105,7 +105,7 @@
   - `cargo fmt --all -- --check`
   - `cargo clippy --all-targets --all-features -- -D warnings`
   - `cargo test --all-features`
-  - `cargo llvm-cov --workspace --all-features --fail-under-lines 70`
+  - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
   - `npm run security`
   - `npm run test`
 

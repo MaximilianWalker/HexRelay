@@ -44,3 +44,46 @@ pub fn validate_friend_request_list_query(query: &FriendRequestListQuery) -> Api
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_friend_request_create, validate_friend_request_list_query};
+    use crate::models::{FriendRequestCreate, FriendRequestListQuery};
+
+    #[test]
+    fn rejects_same_requester_and_target() {
+        let payload = FriendRequestCreate {
+            requester_identity_id: "usr-a".to_string(),
+            target_identity_id: "usr-a".to_string(),
+        };
+
+        let err = validate_friend_request_create(&payload).expect_err("same identity must fail");
+        assert_eq!(err.0, axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn rejects_invalid_direction_query() {
+        let query = FriendRequestListQuery {
+            identity_id: "usr-valid".to_string(),
+            direction: Some("sideways".to_string()),
+        };
+
+        let err = validate_friend_request_list_query(&query).expect_err("invalid direction");
+        assert_eq!(err.0, axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn accepts_valid_direction_query() {
+        let inbound = FriendRequestListQuery {
+            identity_id: "usr-valid".to_string(),
+            direction: Some("inbound".to_string()),
+        };
+        let outbound = FriendRequestListQuery {
+            identity_id: "usr-valid".to_string(),
+            direction: Some("outbound".to_string()),
+        };
+
+        assert!(validate_friend_request_list_query(&inbound).is_ok());
+        assert!(validate_friend_request_list_query(&outbound).is_ok());
+    }
+}

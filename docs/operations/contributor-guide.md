@@ -64,7 +64,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `rust-coverage-gate`, and `integration-smoke`.
-- Current enforced backend coverage threshold is 70%; raise-to-80 remains a tracked quality objective and should be increased only with accompanying test additions.
+- Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
 - Integration smoke always uploads CI evidence artifacts at `evidence/ci/<run_id>/`.
@@ -105,7 +105,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -p api-rs --all-features
 cargo test -p realtime-rs --all-features
-API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 70
+API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 80
 npm --prefix apps/web run lint
 npm --prefix apps/web run test:coverage
 npm --prefix apps/web run build
