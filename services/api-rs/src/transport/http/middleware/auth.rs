@@ -16,7 +16,7 @@ const SESSION_COOKIE_NAME: &str = "hexrelay_session";
 const CSRF_COOKIE_NAME: &str = "hexrelay_csrf";
 const CSRF_HEADER_NAME: &str = "x-csrf-token";
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AuthTransport {
     Cookie,
     Bearer,
@@ -48,11 +48,7 @@ where
             .and_then(|value| value.to_str().ok())
             .and_then(parse_bearer_token);
 
-        let (token, transport) = if let Some(token) = cookie_token {
-            (token.to_string(), AuthTransport::Cookie)
-        } else if let Some(token) = bearer_token {
-            (token.to_string(), AuthTransport::Bearer)
-        } else {
+        let Some((token, transport)) = select_auth_token(cookie_token, bearer_token) else {
             return Err(unauthorized(
                 "session_invalid",
                 "missing session cookie or authorization header",
@@ -150,6 +146,17 @@ struct ResolvedSession {
 
 fn parse_bearer_token(raw: &str) -> Option<&str> {
     raw.strip_prefix("Bearer ")
+}
+
+fn select_auth_token(
+    cookie_token: Option<&str>,
+    bearer_token: Option<&str>,
+) -> Option<(String, AuthTransport)> {
+    if let Some(token) = bearer_token {
+        return Some((token.to_string(), AuthTransport::Bearer));
+    }
+
+    cookie_token.map(|token| (token.to_string(), AuthTransport::Cookie))
 }
 
 pub fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -342,7 +349,7 @@ fn resolve_memory_session(
 mod tests {
     use super::{
         cookie_value, enforce_csrf_for_cookie_auth, parse_bearer_token, resolve_memory_session,
-        AuthInput, AuthSession, AuthTransport,
+        select_auth_token, AuthInput, AuthSession, AuthTransport,
     };
     use crate::{
         infra::crypto::session_token::issue_session_token, models::SessionRecord, state::AppState,
@@ -367,6 +374,20 @@ mod tests {
             Some("session-token")
         );
         assert_eq!(cookie_value(&headers, "missing"), None);
+    }
+
+    #[test]
+    fn select_auth_token_prefers_bearer_when_both_present() {
+        let selected =
+            select_auth_token(Some("cookie-token"), Some("bearer-token")).expect("select token");
+        assert_eq!(selected.0, "bearer-token");
+        assert_eq!(selected.1, AuthTransport::Bearer);
+
+        let cookie_only = select_auth_token(Some("cookie-token"), None).expect("cookie token");
+        assert_eq!(cookie_only.0, "cookie-token");
+        assert_eq!(cookie_only.1, AuthTransport::Cookie);
+
+        assert!(select_auth_token(None, None).is_none());
     }
 
     #[test]
