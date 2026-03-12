@@ -16,7 +16,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-12 synchronized readiness-era auth error-code metadata with current runtime and correction-log chronology.
+- Latest meaningful change: 2026-03-12 locked infrastructure-free DM connectivity execution model and staged direct-connect feature sequencing.
 
 ## 1) Product Intent and Constraints
 
@@ -64,6 +64,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked DM transport to direct user-to-user channels; guild servers do not relay/store DM payloads.
 - 2026-03-04: Locked MVP DM offline policy to best-effort online delivery with encrypted local outbox retries.
 - 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
+- 2026-03-12: Locked DM connectivity to infrastructure-free direct paths only (no STUN/TURN/relay dependency) with explicit failure guidance when direct connection is unavailable.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -107,6 +108,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
 - Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
 - DM and group DM messaging (edits, mentions, deletes, replies).
+- Infrastructure-free DM connectivity stack: direct-only enforcement, signed out-of-band pairing, deterministic preflight diagnostics, LAN fast path, WAN direct wizard, and multi-endpoint parallel dial.
 - Servers (guilds), text channels, role/permission v1.
 - Voice channels, 1:1 calls, and screen share.
 - Attachments upload/download (operator-configurable quotas, no global product cap).
@@ -168,6 +170,22 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - Recipient redeems token and sees inviter identity preview.
   - Accepting invite creates a friend request or direct friend edge per user settings.
   - Expired/invalid/exhausted tokens fail with deterministic error codes.
+
+### DM Connectivity Model (MVP Locked)
+
+- DM connection bootstrap uses signed out-of-band exchange (invite link, QR, or short-code payload).
+- Pairing payload includes inviter identity key, endpoint hints, nonce, expiry, and signature metadata.
+- DM transport execution is direct-only and must not use infrastructure-assisted NAT traversal services.
+- Connection flow order:
+  - Validate pairing envelope authenticity/replay/expiry.
+  - Run direct-connect preflight checks and select direct dial candidates.
+  - Attempt direct session establishment.
+  - If direct session cannot be established, return deterministic reason code and remediation guidance.
+- Reliability enhancers that remain in-scope under this policy:
+  - local-network discovery fast path (mDNS/multicast),
+  - WAN setup wizard (UPnP/NAT-PMP and manual mapping guidance),
+  - multi-endpoint parallel dial across user-owned devices.
+- Non-goal: hidden or optional relay fallback for DM payload transport.
 
 ### Privacy-First Social Graph Policy (MVP)
 
@@ -426,6 +444,9 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - `docs/product/02-prd-v1.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
+- `docs/product/10-infra-free-dm-connectivity-proposals.md`
+- `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/README.md`
 - `docs/reference/glossary.md`

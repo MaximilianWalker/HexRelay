@@ -22,6 +22,8 @@ Only project-specific constraints are defined here.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
 - Keep DM transport direct user-to-user; do not reintroduce guild/server relay for DM payloads.
+- Reject networking solutions that require always-on third-party or project-operated infrastructure for DM connectivity (for example STUN/TURN relay services).
+- Prefer infrastructure-free peer connectivity modes only; if direct connection cannot be established, fail explicitly with user guidance rather than introducing infra fallback.
 
 ## 4) Readiness Feedback Loop (Required)
 

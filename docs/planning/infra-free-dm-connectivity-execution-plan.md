@@ -1,0 +1,116 @@
+# Infrastructure-Free DM Connectivity Execution Plan
+
+## Document Metadata
+
+- Doc ID: infra-free-dm-connectivity-execution-plan
+- Owner: Delivery, core, and realtime maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-03-12
+- Source of truth: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+
+## Quick Context
+
+- Primary edit location for phased execution of infrastructure-free DM connectivity.
+- Update this plan when direct-connect task sequencing, acceptance criteria, or risk controls change.
+- Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
+- Latest meaningful change: 2026-03-12 established phase-ordered implementation and validation plan aligned with the no-infrastructure DM policy.
+
+## Purpose
+
+- Translate direct-connect policy into executable backlog slices.
+- Provide deterministic implementation order for DM connectivity features.
+- Keep delivery aligned with product constraints and test evidence requirements.
+- Avoid duplicating shared networking-layer design details that are canonical in the architecture plan.
+
+## Locked Policy Inputs
+
+- DM transport is direct user-to-user only.
+- No STUN, TURN, or relay infrastructure dependency is allowed for DM connectivity.
+- No hidden fallback violating direct-only policy is allowed.
+- When direct connectivity is unavailable, the product must fail with explicit user guidance.
+
+## Execution Phases
+
+### Phase A: Policy and Transport Hardening
+
+- Task IDs: `T4.1.3`
+- Outcome: runtime guarantees direct-only DM transport with CI-level policy guardrails.
+- Deliverables:
+  - direct-only transport mode enforcement
+  - policy lints/checks rejecting infra connectivity reintroduction
+  - session-level direct-path provenance output
+
+### Phase B: Trust Bootstrap Without Infrastructure
+
+- Task IDs: `T4.1.4`
+- Outcome: users can establish direct contacts via signed out-of-band pairing.
+- Deliverables:
+  - signed pairing envelope schema/versioning
+  - QR and short-code import/export UX
+  - replay/expiry/fingerprint validation
+
+### Phase C: Deterministic Failure Handling
+
+- Task IDs: `T4.1.5`
+- Outcome: connection attempts produce stable diagnostics and guided remediation.
+- Deliverables:
+  - connectivity preflight probes
+  - reason-code taxonomy
+  - in-product troubleshooter actions
+
+### Phase D: Reachability Improvements Without Infra
+
+- Task IDs: `T4.1.6`, `T4.1.7`, `T4.1.8`
+- Outcome: improved direct-connect success rates through local-network optimization and endpoint strategy.
+- Deliverables:
+  - LAN mDNS/multicast discovery fast path
+  - WAN setup wizard (UPnP/NAT-PMP attempt + manual mapping guidance)
+  - multi-endpoint parallel dial support
+
+## Detailed Task Plan
+
+| Task ID | Task | Owner | Depends on | Acceptance criteria |
+|---|---|---|---|---|
+| T4.1.3 | Enforce direct-only DM transport and infra-policy CI gate | Core | T4.1.1 | DM connect path uses direct dial only; CI rejects forbidden infra fallbacks/configs |
+| T4.1.4 | Implement signed out-of-band pairing envelope + QR/short-code UX | Core/Web | T3.1.4, T4.1.3 | Pairing works without backend rendezvous; replay/expiry checks are enforced |
+| T4.1.5 | Add DM connectivity preflight and deterministic troubleshooter | Core/Web | T4.1.4 | Failed connections emit stable reason codes and actionable remediation |
+| T4.1.6 | Add LAN discovery fast path (mDNS/multicast, local-first dialing) | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect with local-only traffic and improved latency |
+| T4.1.7 | Add WAN direct-connect setup wizard (UPnP/NAT-PMP + manual) | Core/Web | T4.1.5 | Wizard produces deterministic outcomes: success/manual_required/network_incompatible |
+| T4.1.8 | Add multi-endpoint cards and parallel dial orchestration | Core | T4.1.4, T4.1.6 | Parallel dial improves connect success and cancels non-winning attempts safely |
+
+## Validation and Evidence Plan
+
+- `T4.1.3`: policy gate report + direct transport integration tests.
+- `T4.1.4`: pairing conformance report (signature/expiry/replay checks) + UX state screenshots.
+- `T4.1.5`: reason-code matrix report and remediation action coverage.
+- `T4.1.6`: LAN discovery/connect benchmarks with local-subnet-only traffic proof.
+- `T4.1.7`: WAN wizard scenario matrix with deterministic result classification.
+- `T4.1.8`: multi-endpoint race/connect report and endpoint revocation tests.
+
+Evidence path baseline:
+
+- `evidence/iteration-02/dm-connectivity/`
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| NAT-restricted networks still fail direct connect | High | Phase C diagnostics + Phase D WAN wizard and explicit incompatibility state |
+| UX complexity increases setup friction | Medium | Keep flows deterministic, with bounded state machine and clear action language |
+| Policy drift reintroduces forbidden fallback | High | CI policy gate and contract-level non-goal tests in every DM transport PR |
+
+## Non-Goals
+
+- Adding STUN/TURN/relay for DM transport.
+- Masking connection failures with hidden infra-assisted fallbacks.
+- Broad architecture refactors outside DM connectivity scope.
+
+## Related Documents
+
+- `docs/product/10-infra-free-dm-connectivity-proposals.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
+- `docs/planning/iterations/02-sprint-board.md`
+- `docs/product/01-mvp-plan.md`
+- `docs/product/02-prd-v1.md`
+- `docs/testing/01-mvp-verification-matrix.md`
