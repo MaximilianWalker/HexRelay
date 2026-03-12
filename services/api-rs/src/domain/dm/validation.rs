@@ -1,5 +1,8 @@
 use crate::{
-    models::{DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate},
+    models::{
+        DmConnectivityPreflightRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+    },
     shared::errors::{bad_request, ApiResult},
 };
 
@@ -73,15 +76,29 @@ pub fn validate_pairing_envelope_import(payload: &DmPairingEnvelopeImportRequest
     Ok(())
 }
 
+pub fn validate_connectivity_preflight(payload: &DmConnectivityPreflightRequest) -> ApiResult<()> {
+    if let Some(peer_identity_id) = &payload.peer_identity_id {
+        if peer_identity_id.trim().is_empty() {
+            return Err(bad_request(
+                "preflight_invalid",
+                "peer_identity_id must not be empty when provided",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+        DmConnectivityPreflightRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmPolicyUpdate,
     };
 
     use super::{
-        validate_dm_policy_update, validate_pairing_envelope_create,
-        validate_pairing_envelope_import,
+        validate_connectivity_preflight, validate_dm_policy_update,
+        validate_pairing_envelope_create, validate_pairing_envelope_import,
     };
 
     #[test]
@@ -137,5 +154,26 @@ mod tests {
             envelope: "  ".to_string(),
         };
         assert!(validate_pairing_envelope_import(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_connectivity_preflight_payload() {
+        let payload = DmConnectivityPreflightRequest {
+            peer_identity_id: Some("usr-a".to_string()),
+            pairing_envelope_present: Some(true),
+            local_bind_allowed: Some(true),
+            peer_reachable_hint: Some(true),
+            same_server_context: Some(false),
+        };
+        assert!(validate_connectivity_preflight(&payload).is_ok());
+
+        let invalid = DmConnectivityPreflightRequest {
+            peer_identity_id: Some("   ".to_string()),
+            pairing_envelope_present: None,
+            local_bind_allowed: None,
+            peer_reachable_hint: None,
+            same_server_context: None,
+        };
+        assert!(validate_connectivity_preflight(&invalid).is_err());
     }
 }
