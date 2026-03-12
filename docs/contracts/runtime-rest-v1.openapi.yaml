@@ -346,6 +346,56 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/pairing-envelope:
+    post:
+      summary: Create signed out-of-band DM pairing envelope
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmPairingEnvelopeCreateRequest'
+      responses:
+        '201':
+          description: DM pairing envelope created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPairingEnvelopeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/pairing-envelope/import:
+    post:
+      summary: Import and verify signed out-of-band DM pairing envelope
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmPairingEnvelopeImportRequest'
+      responses:
+        '200':
+          description: DM pairing envelope imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPairingImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -636,6 +686,56 @@ components:
         inbound_policy:
           type: string
           enum: [friends_only, same_server, anyone]
+    DmPairingEnvelopeCreateRequest:
+      type: object
+      required: [endpoint_hints]
+      properties:
+        endpoint_hints:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+        expires_in_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          nullable: true
+    DmPairingEnvelopeResponse:
+      type: object
+      required: [envelope, short_code, expires_at, pairing_nonce]
+      properties:
+        envelope:
+          type: string
+          description: Base64url encoded signed pairing envelope payload
+        short_code:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        pairing_nonce:
+          type: string
+    DmPairingEnvelopeImportRequest:
+      type: object
+      required: [envelope]
+      properties:
+        envelope:
+          type: string
+    DmPairingImportResponse:
+      type: object
+      required: [inviter_identity_id, endpoint_hints, imported_at, expires_at]
+      properties:
+        inviter_identity_id:
+          type: string
+        endpoint_hints:
+          type: array
+          items:
+            type: string
+        imported_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
     DmThreadSummary:
       type: object
       required:
@@ -906,6 +1006,9 @@ components:
             - limit_invalid
             - thread_not_found
             - dm_policy_invalid
+            - pairing_invalid
+            - pairing_expired
+            - pairing_replayed
         message:
           type: string
   parameters:

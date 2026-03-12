@@ -3,12 +3,21 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use chrono::{Duration, TimeZone, Utc};
+use ring::hmac;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    domain::dm::validation::{validate_dm_policy_update, DM_OFFLINE_DELIVERY_MODE},
+    domain::dm::validation::{
+        validate_dm_policy_update, validate_pairing_envelope_create,
+        validate_pairing_envelope_import, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+    },
     models::{
-        ApiError, DmMessagePage, DmMessageRecord, DmPolicy, DmPolicyUpdate, DmThreadListQuery,
-        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
+        ApiError, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
+        DmPolicy, DmPolicyUpdate, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage,
+        DmThreadSummary,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -17,6 +26,23 @@ use crate::{
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
+
+#[derive(Serialize, Deserialize)]
+struct PairingEnvelopeClaims {
+    version: u32,
+    inviter_identity_id: String,
+    endpoint_hints: Vec<String>,
+    nonce: String,
+    issued_at: i64,
+    expires_at: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SignedPairingEnvelope {
+    key_id: String,
+    claims: PairingEnvelopeClaims,
+    signature: String,
+}
 
 pub async fn get_dm_policy(
     axum::extract::State(state): axum::extract::State<AppState>,
@@ -55,6 +81,117 @@ pub async fn update_dm_policy(
         .insert(auth.identity_id, policy.clone());
 
     Ok(Json(policy))
+}
+
+pub async fn create_dm_pairing_envelope(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmPairingEnvelopeCreateRequest>,
+) -> ApiResult<(StatusCode, Json<DmPairingEnvelopeResponse>)> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    let expires_in_seconds = validate_pairing_envelope_create(&payload)?;
+
+    let issued_at = Utc::now();
+    let expires_at = issued_at + Duration::seconds(expires_in_seconds as i64);
+    let nonce = random_hex(16);
+
+    let claims = PairingEnvelopeClaims {
+        version: DM_PAIRING_ENVELOPE_VERSION,
+        inviter_identity_id: auth.identity_id,
+        endpoint_hints: payload.endpoint_hints,
+        nonce: nonce.clone(),
+        issued_at: issued_at.timestamp(),
+        expires_at: expires_at.timestamp(),
+    };
+
+    let key_id = state.active_signing_key_id.clone();
+    let key_secret = state
+        .session_signing_keys
+        .get(&key_id)
+        .ok_or_else(|| bad_request("pairing_invalid", "active pairing signing key missing"))?;
+    let signature = sign_pairing_claims(&claims, key_secret)?;
+
+    let signed = SignedPairingEnvelope {
+        key_id,
+        claims,
+        signature,
+    };
+    let envelope_json = serde_json::to_vec(&signed)
+        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing envelope"))?;
+    let envelope = URL_SAFE_NO_PAD.encode(envelope_json);
+
+    Ok((
+        StatusCode::CREATED,
+        Json(DmPairingEnvelopeResponse {
+            short_code: short_code_from_envelope(&envelope),
+            envelope,
+            expires_at: expires_at.to_rfc3339(),
+            pairing_nonce: nonce,
+        }),
+    ))
+}
+
+pub async fn import_dm_pairing_envelope(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmPairingEnvelopeImportRequest>,
+) -> ApiResult<Json<DmPairingImportResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_pairing_envelope_import(&payload)?;
+
+    let signed = decode_signed_pairing_envelope(&payload.envelope)?;
+    verify_pairing_envelope_signature(&state, &signed)?;
+
+    if signed.claims.version != DM_PAIRING_ENVELOPE_VERSION {
+        return Err(bad_request(
+            "pairing_invalid",
+            "unsupported pairing envelope version",
+        ));
+    }
+
+    let now = Utc::now().timestamp();
+    if now > signed.claims.expires_at {
+        return Err(bad_request(
+            "pairing_expired",
+            "pairing envelope is expired",
+        ));
+    }
+
+    if signed.claims.inviter_identity_id == auth.identity_id {
+        return Err(bad_request(
+            "identity_invalid",
+            "cannot import a pairing envelope created by the same identity",
+        ));
+    }
+
+    {
+        let mut nonce_guard = state
+            .dm_pairing_nonces
+            .write()
+            .expect("acquire dm pairing nonce write lock");
+        nonce_guard.retain(|_, expiry| *expiry >= now);
+        if nonce_guard.contains_key(&signed.claims.nonce) {
+            return Err(bad_request(
+                "pairing_replayed",
+                "pairing envelope nonce was already consumed",
+            ));
+        }
+        nonce_guard.insert(signed.claims.nonce.clone(), signed.claims.expires_at);
+    }
+
+    let expires_at = Utc
+        .timestamp_opt(signed.claims.expires_at, 0)
+        .single()
+        .ok_or_else(|| bad_request("pairing_invalid", "invalid pairing expiry timestamp"))?;
+
+    Ok(Json(DmPairingImportResponse {
+        inviter_identity_id: signed.claims.inviter_identity_id,
+        endpoint_hints: signed.claims.endpoint_hints,
+        imported_at: Utc::now().to_rfc3339(),
+        expires_at: expires_at.to_rfc3339(),
+    }))
 }
 
 pub async fn list_dm_threads(
@@ -282,4 +419,59 @@ fn default_dm_policy() -> DmPolicy {
         inbound_policy: "friends_only".to_string(),
         offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
     }
+}
+
+fn sign_pairing_claims(claims: &PairingEnvelopeClaims, key_secret: &str) -> ApiResult<String> {
+    let claims_json = serde_json::to_vec(claims)
+        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing claims"))?;
+    let key = hmac::Key::new(hmac::HMAC_SHA256, key_secret.as_bytes());
+    let digest = hmac::sign(&key, &claims_json);
+    Ok(hex::encode(digest.as_ref()))
+}
+
+fn decode_signed_pairing_envelope(encoded: &str) -> ApiResult<SignedPairingEnvelope> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(encoded)
+        .map_err(|_| bad_request("pairing_invalid", "pairing envelope is not valid base64url"))?;
+    serde_json::from_slice::<SignedPairingEnvelope>(&bytes)
+        .map_err(|_| bad_request("pairing_invalid", "pairing envelope payload is invalid"))
+}
+
+fn verify_pairing_envelope_signature(
+    state: &AppState,
+    envelope: &SignedPairingEnvelope,
+) -> ApiResult<()> {
+    let key_secret = state
+        .session_signing_keys
+        .get(&envelope.key_id)
+        .ok_or_else(|| bad_request("pairing_invalid", "unknown pairing signing key"))?;
+
+    let expected = sign_pairing_claims(&envelope.claims, key_secret)?;
+    if expected != envelope.signature {
+        return Err(bad_request(
+            "pairing_invalid",
+            "pairing envelope signature verification failed",
+        ));
+    }
+
+    Ok(())
+}
+
+fn random_hex(bytes_len: usize) -> String {
+    use rand::RngCore;
+
+    let mut bytes = vec![0u8; bytes_len];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    hex::encode(bytes)
+}
+
+fn short_code_from_envelope(envelope: &str) -> String {
+    let digest = ring::digest::digest(&ring::digest::SHA256, envelope.as_bytes());
+    let encoded = hex::encode(digest.as_ref());
+    format!(
+        "{}-{}-{}",
+        &encoded[0..4].to_uppercase(),
+        &encoded[4..8].to_uppercase(),
+        &encoded[8..12].to_uppercase()
+    )
 }

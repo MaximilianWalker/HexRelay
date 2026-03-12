@@ -159,6 +159,33 @@ pub struct DmPolicyUpdate {
     pub inbound_policy: String,
 }
 
+#[derive(Deserialize)]
+pub struct DmPairingEnvelopeCreateRequest {
+    pub endpoint_hints: Vec<String>,
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct DmPairingEnvelopeResponse {
+    pub envelope: String,
+    pub short_code: String,
+    pub expires_at: String,
+    pub pairing_nonce: String,
+}
+
+#[derive(Deserialize)]
+pub struct DmPairingEnvelopeImportRequest {
+    pub envelope: String,
+}
+
+#[derive(Serialize)]
+pub struct DmPairingImportResponse {
+    pub inviter_identity_id: String,
+    pub endpoint_hints: Vec<String>,
+    pub imported_at: String,
+    pub expires_at: String,
+}
+
 #[derive(Clone, Serialize)]
 pub struct DmThreadSummary {
     pub thread_id: String,
