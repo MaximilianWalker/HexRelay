@@ -13,7 +13,7 @@ use crate::{
             verify_auth_challenge,
         },
         directory::{list_contacts, list_servers},
-        dm::{list_dm_thread_messages, list_dm_threads},
+        dm::{get_dm_policy, list_dm_thread_messages, list_dm_threads, update_dm_policy},
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
             decline_friend_request, list_friend_requests,
@@ -53,6 +53,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
         .route("/v1/contacts", get(list_contacts))
+        .route(
+            "/v1/dm/privacy-policy",
+            get(get_dm_policy).post(update_dm_policy),
+        )
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
             "/v1/dm/threads/:thread_id/messages",

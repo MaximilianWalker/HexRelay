@@ -1,20 +1,61 @@
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 
 use crate::{
+    domain::dm::validation::{validate_dm_policy_update, DM_OFFLINE_DELIVERY_MODE},
     models::{
-        ApiError, DmMessagePage, DmMessageRecord, DmThreadListQuery, DmThreadMessageListQuery,
-        DmThreadPage, DmThreadSummary,
+        ApiError, DmMessagePage, DmMessageRecord, DmPolicy, DmPolicyUpdate, DmThreadListQuery,
+        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
     },
     shared::errors::{bad_request, ApiResult},
-    transport::http::middleware::auth::AuthSession,
+    state::AppState,
+    transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
+
+pub async fn get_dm_policy(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+) -> Json<DmPolicy> {
+    let default = default_dm_policy();
+    let policy = state
+        .dm_policies
+        .read()
+        .expect("acquire dm policy read lock")
+        .get(&auth.identity_id)
+        .cloned()
+        .unwrap_or(default);
+    Json(policy)
+}
+
+pub async fn update_dm_policy(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmPolicyUpdate>,
+) -> ApiResult<Json<DmPolicy>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_dm_policy_update(&payload)?;
+
+    let normalized = payload.inbound_policy.trim().to_string();
+    let policy = DmPolicy {
+        inbound_policy: normalized,
+        offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
+    };
+
+    state
+        .dm_policies
+        .write()
+        .expect("acquire dm policy write lock")
+        .insert(auth.identity_id, policy.clone());
+
+    Ok(Json(policy))
+}
 
 pub async fn list_dm_threads(
     _auth: AuthSession,
@@ -233,5 +274,12 @@ fn dm_message_fixtures(thread_id: &str) -> Option<Vec<DmMessageRecord>> {
             edited_at: None,
         }]),
         _ => None,
+    }
+}
+
+fn default_dm_policy() -> DmPolicy {
+    DmPolicy {
+        inbound_policy: "friends_only".to_string(),
+        offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
     }
 }
