@@ -322,7 +322,17 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentication or verification failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                verifyFailed:
+                  summary: Indistinguishable auth verify failure
+                  value:
+                    code: nonce_invalid
+                    message: auth verification failed
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
