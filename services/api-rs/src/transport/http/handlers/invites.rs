@@ -400,36 +400,15 @@ pub async fn redeem_contact_invite(
         .await
         .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
 
-    let create_result = friends_repo::create_friend_request_in_tx(
+    let friend_request = friends_repo::create_friend_request_in_tx(
         &mut tx,
         FriendRequestCreate {
             requester_identity_id: auth.identity_id.clone(),
             target_identity_id: inviter_identity_id.clone(),
         },
     )
-    .await;
-
-    let friend_request = match create_result {
-        Ok(record) => record,
-        Err(FriendRequestRepoError::Sql(sqlx::Error::Database(db_error)))
-            if db_error.code().as_deref() == Some("23505") =>
-        {
-            friends_repo::find_pending_friend_request_by_pair_in_tx(
-                &mut tx,
-                &auth.identity_id,
-                &inviter_identity_id,
-            )
-            .await
-            .map_err(map_friend_request_db_error)?
-            .ok_or_else(|| {
-                internal_error(
-                    "storage_failure",
-                    "pending friend request lookup failed after duplicate insert",
-                )
-            })?
-        }
-        Err(error) => return Err(map_friend_request_db_error(error)),
-    };
+    .await
+    .map_err(map_friend_request_db_error)?;
 
     tx.commit()
         .await

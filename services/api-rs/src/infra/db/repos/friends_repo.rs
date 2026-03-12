@@ -57,26 +57,28 @@ pub async fn create_friend_request_in_tx(
 ) -> Result<FriendRequestRecord, FriendRequestRepoError> {
     let request_id = Uuid::new_v4().to_string();
 
-    sqlx::query(
+    let row = sqlx::query(
         "
-        INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
-        VALUES ($1, $2, $3, 'pending')
+        WITH inserted AS (
+            INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
+            VALUES ($1, $2, $3, 'pending')
+            ON CONFLICT (requester_identity_id, target_identity_id) WHERE status = 'pending' DO NOTHING
+            RETURNING request_id, requester_identity_id, target_identity_id, status, created_at
+        )
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM inserted
+        UNION ALL
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE requester_identity_id = $2
+          AND target_identity_id = $3
+          AND status = 'pending'
+        LIMIT 1
         ",
     )
     .bind(&request_id)
     .bind(&payload.requester_identity_id)
     .bind(&payload.target_identity_id)
-    .execute(&mut **tx)
-    .await?;
-
-    let row = sqlx::query(
-        "
-        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
-        FROM friend_requests
-        WHERE request_id = $1
-        ",
-    )
-    .bind(&request_id)
     .fetch_one(&mut **tx)
     .await?;
 
