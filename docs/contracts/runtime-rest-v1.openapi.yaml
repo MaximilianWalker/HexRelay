@@ -419,6 +419,46 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/lan-discovery/announce:
+    post:
+      summary: Announce local-network endpoint hints for DM LAN fast path
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmLanDiscoveryAnnounceRequest'
+      responses:
+        '200':
+          description: LAN discovery presence updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmLanDiscoveryAnnounceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/lan-discovery/peers:
+    get:
+      summary: List recently discovered LAN peers for direct DM fast path
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: LAN-discovered peer list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmLanPeerListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -788,6 +828,7 @@ components:
           type: string
           enum:
             - preflight_ok
+            - preflight_ok_lan
             - pairing_missing
             - port_unavailable
             - policy_blocked
@@ -799,6 +840,53 @@ components:
           type: array
           items:
             type: string
+    DmLanDiscoveryAnnounceRequest:
+      type: object
+      required: [endpoint_hints]
+      properties:
+        endpoint_hints:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+    DmLanDiscoveryAnnounceResponse:
+      type: object
+      required: [identity_id, endpoint_hints, scope, last_seen_at]
+      properties:
+        identity_id:
+          type: string
+        endpoint_hints:
+          type: array
+          items:
+            type: string
+        scope:
+          type: string
+          enum: [lan_subnet]
+        last_seen_at:
+          type: string
+          format: date-time
+    DmLanPeerSummary:
+      type: object
+      required: [identity_id, endpoint_hints, last_seen_at]
+      properties:
+        identity_id:
+          type: string
+        endpoint_hints:
+          type: array
+          items:
+            type: string
+        last_seen_at:
+          type: string
+          format: date-time
+    DmLanPeerListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmLanPeerSummary'
     DmThreadSummary:
       type: object
       required:
@@ -1073,6 +1161,7 @@ components:
             - pairing_expired
             - pairing_replayed
             - preflight_invalid
+            - lan_discovery_invalid
         message:
           type: string
   parameters:

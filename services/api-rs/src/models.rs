@@ -195,6 +195,38 @@ pub struct DmConnectivityPreflightResponse {
     pub remediation: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DmLanDiscoveryAnnounceRequest {
+    pub endpoint_hints: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmLanDiscoveryAnnounceResponse {
+    pub identity_id: String,
+    pub endpoint_hints: Vec<String>,
+    pub scope: String,
+    pub last_seen_at: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmLanPeerSummary {
+    pub identity_id: String,
+    pub endpoint_hints: Vec<String>,
+    pub last_seen_at: String,
+}
+
+#[derive(Serialize)]
+pub struct DmLanPeerListResponse {
+    pub items: Vec<DmLanPeerSummary>,
+}
+
+#[derive(Clone)]
+pub struct DmLanPresenceRecord {
+    pub identity_id: String,
+    pub endpoint_hints: Vec<String>,
+    pub last_seen_epoch: i64,
+}
+
 #[derive(Serialize)]
 pub struct DmPairingImportResponse {
     pub inviter_identity_id: String,
