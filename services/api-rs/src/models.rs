@@ -141,6 +141,55 @@ pub struct ContactListResponse {
     pub items: Vec<ContactSummary>,
 }
 
+#[derive(Deserialize)]
+pub struct DmThreadListQuery {
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+    pub unread_only: Option<bool>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmThreadSummary {
+    pub thread_id: String,
+    pub kind: String,
+    pub title: String,
+    pub participant_ids: Vec<String>,
+    pub unread: u32,
+    pub last_read_seq: u64,
+    pub last_message_seq: u64,
+    pub last_message_preview: String,
+    pub last_message_at: String,
+}
+
+#[derive(Serialize)]
+pub struct DmThreadPage {
+    pub items: Vec<DmThreadSummary>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DmThreadMessageListQuery {
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmMessageRecord {
+    pub message_id: String,
+    pub thread_id: String,
+    pub author_id: String,
+    pub seq: u64,
+    pub ciphertext: String,
+    pub created_at: String,
+    pub edited_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmMessagePage {
+    pub items: Vec<DmMessageRecord>,
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct FriendRequestRecord {
     pub request_id: String,
