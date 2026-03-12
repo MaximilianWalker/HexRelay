@@ -6,6 +6,8 @@ info:
     Current runtime REST contract authority.
     This artifact defines currently implemented REST behavior and must be
     updated when runtime endpoint payloads, auth semantics, or error codes change.
+    Auth challenge/verify distributed rate-limit key derivation uses deterministic
+    source fingerprint hashing so enforcement remains consistent across instances.
 servers:
   - url: https://api.hexrelay.local
 paths:

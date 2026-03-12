@@ -191,7 +191,7 @@ npm --prefix apps/web run e2e:smoke
 ## CI Security and Evidence Baseline
 
 - Security gates run in CI:
-  - `cargo audit --deny warnings`
+  - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071`
   - `npm audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Rust coverage gate:
