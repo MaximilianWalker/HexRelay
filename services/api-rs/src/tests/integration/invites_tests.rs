@@ -208,6 +208,8 @@ async fn rate_limits_invite_redeem_requests() {
         .insert(
             token_hash,
             crate::models::InviteRecord {
+                invite_id: None,
+                creator_identity_id: None,
                 mode: "multi_use".to_string(),
                 node_fingerprint: TEST_NODE_FINGERPRINT.to_string(),
                 expires_at: None,
@@ -248,4 +250,116 @@ async fn rate_limits_invite_redeem_requests() {
         .await
         .expect("second redeem response");
     assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn contact_invite_redeem_creates_pending_friend_request() {
+    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build contact invite create request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read contact invite create body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
+    assert!(!created.invite_id.is_empty());
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build contact invite redeem request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("redeem contact invite response");
+    assert_eq!(redeem_response.status(), StatusCode::OK);
+
+    let redeem_bytes = to_bytes(redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read contact invite redeem body");
+    let friend_request: FriendRequestRecord =
+        serde_json::from_slice(&redeem_bytes).expect("decode friend request body");
+
+    assert_eq!(friend_request.requester_identity_id, "usr-target");
+    assert_eq!(friend_request.target_identity_id, "usr-invite");
+    assert_eq!(friend_request.status, "pending");
+}
+
+#[tokio::test]
+async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
+    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build contact invite create request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read contact invite create body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
+
+    let first_redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build first contact invite redeem request");
+    let first_redeem_response = app
+        .clone()
+        .oneshot(first_redeem_request)
+        .await
+        .expect("first redeem response");
+    let first_bytes = to_bytes(first_redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read first redeem body");
+    let first_record: FriendRequestRecord =
+        serde_json::from_slice(&first_bytes).expect("decode first friend request");
+
+    let second_redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build second contact invite redeem request");
+    let second_redeem_response = app
+        .oneshot(second_redeem_request)
+        .await
+        .expect("second redeem response");
+    let second_bytes = to_bytes(second_redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read second redeem body");
+    let second_record: FriendRequestRecord =
+        serde_json::from_slice(&second_bytes).expect("decode second friend request");
+
+    assert_eq!(first_record.request_id, second_record.request_id);
 }
