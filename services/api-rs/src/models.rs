@@ -227,6 +227,24 @@ pub struct DmLanPresenceRecord {
     pub last_seen_epoch: i64,
 }
 
+#[derive(Deserialize)]
+pub struct DmWanWizardRequest {
+    pub preferred_port: Option<u16>,
+    pub upnp_available: Option<bool>,
+    pub nat_pmp_available: Option<bool>,
+    pub auto_mapping_succeeds: Option<bool>,
+    pub external_port_open: Option<bool>,
+    pub network_profile: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmWanWizardResponse {
+    pub outcome: String,
+    pub method: String,
+    pub reason_code: String,
+    pub checklist: Vec<String>,
+}
+
 #[derive(Serialize)]
 pub struct DmPairingImportResponse {
     pub inviter_identity_id: String,

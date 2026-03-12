@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for DM LAN discovery fast-path announce/list APIs and LAN-preferred preflight reason coding.
+- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for DM WAN direct-connect wizard diagnostics and deterministic outcome taxonomy.
 
 ## Purpose
 
