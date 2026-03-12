@@ -14,6 +14,8 @@ realtime_contract="docs/contracts/realtime-events-runtime-v1.asyncapi.yaml"
 api_surface_files=(
   'services/api-rs/src/models.rs'
   'services/api-rs/src/app/router.rs'
+  'services/api-rs/src/domain/**/*.rs'
+  'services/api-rs/src/shared/errors.rs'
   'services/api-rs/src/transport/http/middleware/auth.rs'
   'services/api-rs/src/transport/http/handlers/*.rs'
 )

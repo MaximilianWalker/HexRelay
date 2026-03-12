@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-03-12
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-11 tightened contract parity coverage for API router/middleware and realtime websocket handler surfaces, then closed auth verify identity-oracle drift by normalizing verify failure semantics and tests.
+- Latest meaningful change: 2026-03-12 aligned runbook CI security command with workflow behavior and added explicit docs index ownership for readiness evidence templates.
 
 ## Purpose
 
@@ -44,8 +44,10 @@
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
+| Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |
 | MVP requirement-to-evidence verification | `docs/testing/01-mvp-verification-matrix.md` | Delivery/QA maintainers | Verification mapping, evidence format, or validator rules change |
+| Observability evidence template | `docs/testing/observability-evidence-template.md` | Delivery/QA maintainers | Observability evidence format, provenance fields, or SLO reporting requirements change |
 | Crypto profile conformance verification | `docs/testing/crypto-conformance-checklist.md` | QA/core maintainers | Crypto profile requirement, verification steps, or evidence expectations change |
 | Contributor workflow and release hygiene | `docs/operations/contributor-guide.md` | Maintainers | Branch/PR policy, validation gates, or release workflow changes |
 | Architecture decisions (ADR set) | `docs/architecture/README.md` and `docs/architecture/adr-*.md` | Architecture maintainers | Any accepted/rejected architecture decision |

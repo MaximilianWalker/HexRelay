@@ -6,8 +6,10 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use rand::RngCore;
-use ring::signature::{UnparsedPublicKey, ED25519};
-use std::hash::{Hash, Hasher};
+use ring::{
+    digest::{digest, SHA256},
+    signature::{UnparsedPublicKey, ED25519},
+};
 use std::net::SocketAddr;
 use tracing::warn;
 use uuid::Uuid;
@@ -652,9 +654,10 @@ fn request_source_fingerprint(
 }
 
 fn stable_hash(value: &str) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+    let digest = digest(&SHA256, value.as_bytes());
+    let mut first_eight = [0_u8; 8];
+    first_eight.copy_from_slice(&digest.as_ref()[..8]);
+    u64::from_be_bytes(first_eight)
 }
 
 fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
@@ -694,4 +697,14 @@ async fn allow_rate_limit(
     Ok(state
         .rate_limiter
         .allow(scope, key, limit, state.rate_limits.window_seconds))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stable_hash;
+
+    #[test]
+    fn stable_hash_is_deterministic_across_processes() {
+        assert_eq!(stable_hash("test-value"), 6_562_878_253_510_288_723);
+    }
 }
