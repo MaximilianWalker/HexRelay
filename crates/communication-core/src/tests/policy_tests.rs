@@ -1,6 +1,7 @@
 use crate::app::PolicyEngine;
 use crate::domain::{
-    CommunicationMode, ConnectIntent, ConnectTarget, PolicyContext, PolicyError, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, PolicyContext,
+    PolicyError, TransportProfile,
 };
 
 #[test]
@@ -83,6 +84,10 @@ fn builds_policy_compliant_provenance_for_dm() {
 
     assert_eq!(provenance.mode, CommunicationMode::DmDirect);
     assert_eq!(provenance.profile, TransportProfile::DirectPeer);
+    assert_eq!(
+        provenance.reason_code,
+        CommunicationReasonCode::DmDirectRouteSelected
+    );
     assert_eq!(
         provenance.policy_assertions,
         vec!["dm_direct_policy_compliant".to_string()]

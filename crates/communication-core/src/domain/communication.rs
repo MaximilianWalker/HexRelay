@@ -38,7 +38,20 @@ pub struct SendEnvelope {
 pub struct SessionProvenance {
     pub mode: CommunicationMode,
     pub profile: TransportProfile,
+    pub reason_code: CommunicationReasonCode,
     pub policy_assertions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommunicationReasonCode {
+    DmDirectRouteSelected,
+    ServerChannelRouteSelected,
+    PresenceRouteSelected,
+    ModeDisabled,
+    TargetProfileMismatch,
+    TransportConnectFailed,
+    TransportSendFailed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
