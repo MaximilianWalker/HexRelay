@@ -325,3 +325,154 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
     assert_eq!(payload.items[0]["inbound_request"], false);
     assert_eq!(payload.items[0]["pending_request"], false);
 }
+
+#[tokio::test]
+async fn redeems_contact_invite_in_db_and_is_idempotent() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let inviter_identity = unique_identity("db-user-contact-invite-a");
+    let redeemer_identity = unique_identity("db-user-contact-invite-b");
+    let (inviter_cookie, app) = authenticate_identity(app, &inviter_identity).await;
+    let (redeemer_cookie, app) = authenticate_identity(app, &redeemer_identity).await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build create contact invite request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create contact invite body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_body).expect("decode create contact invite body");
+
+    let first_redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={redeemer_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build first contact invite redeem request");
+
+    let first_redeem_response = app
+        .clone()
+        .oneshot(first_redeem_request)
+        .await
+        .expect("first contact invite redeem response");
+    assert_eq!(first_redeem_response.status(), StatusCode::OK);
+
+    let first_redeem_body = to_bytes(first_redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read first contact invite redeem body");
+    let first_friend_request: FriendRequestRecord =
+        serde_json::from_slice(&first_redeem_body).expect("decode first contact friend request");
+    assert_eq!(
+        first_friend_request.requester_identity_id,
+        redeemer_identity
+    );
+    assert_eq!(first_friend_request.target_identity_id, inviter_identity);
+    assert_eq!(first_friend_request.status, "pending");
+
+    let second_redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={redeemer_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build second contact invite redeem request");
+
+    let second_redeem_response = app
+        .oneshot(second_redeem_request)
+        .await
+        .expect("second contact invite redeem response");
+    assert_eq!(second_redeem_response.status(), StatusCode::OK);
+
+    let second_redeem_body = to_bytes(second_redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read second contact invite redeem body");
+    let second_friend_request: FriendRequestRecord =
+        serde_json::from_slice(&second_redeem_body).expect("decode second contact friend request");
+
+    assert_eq!(
+        first_friend_request.request_id,
+        second_friend_request.request_id
+    );
+}
+
+#[tokio::test]
+async fn rejects_redeeming_own_contact_invite_in_db() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let inviter_identity = unique_identity("db-user-contact-invite-self");
+    let (inviter_cookie, app) = authenticate_identity(app, &inviter_identity).await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build create contact invite request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create contact invite body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_body).expect("decode create contact invite body");
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build contact invite redeem request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("contact invite redeem response");
+
+    assert_eq!(redeem_response.status(), StatusCode::CONFLICT);
+}

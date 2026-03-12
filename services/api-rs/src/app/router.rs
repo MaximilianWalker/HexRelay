@@ -18,7 +18,7 @@ use crate::{
             decline_friend_request, list_friend_requests,
         },
         health::health,
-        invites::{create_invite, redeem_invite},
+        invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
     },
 };
 
@@ -48,6 +48,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/auth/sessions/validate", get(validate_session))
         .route("/v1/invites", post(create_invite))
         .route("/v1/invites/redeem", post(redeem_invite))
+        .route("/v1/contact-invites", post(create_contact_invite))
+        .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
         .route("/v1/contacts", get(list_contacts))
         .route(

@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -49,6 +49,92 @@ pub async fn create_friend_request(
     .await?;
 
     Ok(map_friend_request_row(row)?)
+}
+
+pub async fn create_friend_request_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    payload: FriendRequestCreate,
+) -> Result<FriendRequestRecord, FriendRequestRepoError> {
+    let request_id = Uuid::new_v4().to_string();
+
+    let row = sqlx::query(
+        "
+        WITH inserted AS (
+            INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
+            VALUES ($1, $2, $3, 'pending')
+            ON CONFLICT (requester_identity_id, target_identity_id) WHERE status = 'pending' DO NOTHING
+            RETURNING request_id, requester_identity_id, target_identity_id, status, created_at
+        )
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM inserted
+        UNION ALL
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE requester_identity_id = $2
+          AND target_identity_id = $3
+          AND status = 'pending'
+        LIMIT 1
+        ",
+    )
+    .bind(&request_id)
+    .bind(&payload.requester_identity_id)
+    .bind(&payload.target_identity_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(map_friend_request_row(row)?)
+}
+
+pub async fn find_pending_friend_request_by_pair(
+    pool: &PgPool,
+    requester_identity_id: &str,
+    target_identity_id: &str,
+) -> Result<Option<FriendRequestRecord>, FriendRequestRepoError> {
+    let row = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE requester_identity_id = $1
+          AND target_identity_id = $2
+          AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+        ",
+    )
+    .bind(requester_identity_id)
+    .bind(target_identity_id)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(map_friend_request_row)
+        .transpose()
+        .map_err(FriendRequestRepoError::Sql)
+}
+
+pub async fn find_pending_friend_request_by_pair_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    requester_identity_id: &str,
+    target_identity_id: &str,
+) -> Result<Option<FriendRequestRecord>, FriendRequestRepoError> {
+    let row = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE requester_identity_id = $1
+          AND target_identity_id = $2
+          AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+        ",
+    )
+    .bind(requester_identity_id)
+    .bind(target_identity_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    row.map(map_friend_request_row)
+        .transpose()
+        .map_err(FriendRequestRepoError::Sql)
 }
 
 pub async fn list_friend_requests(

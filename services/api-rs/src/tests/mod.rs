@@ -41,6 +41,7 @@ struct AuthVerifyResponse {
 
 #[derive(Deserialize)]
 struct InviteCreateResponse {
+    invite_id: String,
     token: String,
 }
 
@@ -57,6 +58,9 @@ struct ContactListResponse {
 #[derive(Deserialize)]
 struct FriendRequestRecord {
     request_id: String,
+    requester_identity_id: String,
+    target_identity_id: String,
+    status: String,
 }
 
 #[derive(Deserialize)]

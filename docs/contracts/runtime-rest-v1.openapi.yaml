@@ -183,6 +183,66 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/contact-invites:
+    post:
+      summary: Create a contact invite token
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCreateRequest'
+      responses:
+        '201':
+          description: Contact invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/contact-invites/redeem:
+    post:
+      summary: Redeem a contact invite token and create friend request
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactInviteRedeemRequest'
+      responses:
+        '200':
+          description: Pending friend request created or returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/servers:
     get:
       summary: List servers for authenticated identity
@@ -569,8 +629,10 @@ components:
           type: string
     InviteCreateResponse:
       type: object
-      required: [token, mode]
+      required: [invite_id, token, mode, created_at]
       properties:
+        invite_id:
+          type: string
         token:
           type: string
         mode:
@@ -584,6 +646,15 @@ components:
           type: integer
           minimum: 1
           nullable: true
+        created_at:
+          type: string
+          format: date-time
+    ContactInviteRedeemRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
     InviteRedeemResponse:
       type: object
       required: [accepted]

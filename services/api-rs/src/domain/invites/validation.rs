@@ -1,5 +1,5 @@
 use crate::{
-    models::{InviteCreateRequest, InviteRedeemRequest},
+    models::{ContactInviteRedeemRequest, InviteCreateRequest, InviteRedeemRequest},
     shared::errors::{bad_request, ApiResult},
 };
 
@@ -30,6 +30,16 @@ pub fn validate_invite_redeem_request(payload: &InviteRedeemRequest) -> ApiResul
             "fingerprint_mismatch",
             "node_fingerprint must not be empty",
         ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_contact_invite_redeem_request(
+    payload: &ContactInviteRedeemRequest,
+) -> ApiResult<()> {
+    if payload.token.trim().is_empty() {
+        return Err(bad_request("invite_invalid", "token must not be empty"));
     }
 
     Ok(())

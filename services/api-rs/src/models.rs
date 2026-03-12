@@ -60,14 +60,18 @@ pub struct InviteCreateRequest {
 
 #[derive(Serialize)]
 pub struct InviteCreateResponse {
+    pub invite_id: String,
     pub token: String,
     pub mode: String,
     pub expires_at: Option<String>,
     pub max_uses: Option<u32>,
+    pub created_at: String,
 }
 
 #[derive(Clone)]
 pub struct InviteRecord {
+    pub invite_id: Option<String>,
+    pub creator_identity_id: Option<String>,
     pub mode: String,
     pub node_fingerprint: String,
     pub expires_at: Option<DateTime<Utc>>,
@@ -84,6 +88,11 @@ pub struct InviteRedeemRequest {
 #[derive(Serialize)]
 pub struct InviteRedeemResponse {
     pub accepted: bool,
+}
+
+#[derive(Deserialize)]
+pub struct ContactInviteRedeemRequest {
+    pub token: String,
 }
 
 #[derive(Deserialize)]
