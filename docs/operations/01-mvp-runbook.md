@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-03-12
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-11 added bounded realtime auth-upstream outage grace controls and rollback guidance.
+- Latest meaningful change: 2026-03-12 aligned CI security gate commands with workflow behavior and documented temporary cargo-audit ignore governance.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -192,8 +192,10 @@ npm --prefix apps/web run e2e:smoke
 
 - Security gates run in CI:
   - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071`
-  - `npm audit --omit=dev --audit-level=high`
+  - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
+- Advisory ignore governance:
+  - `RUSTSEC-2023-0071` temporary ignore remains CI-blocked by `scripts/validate-cargo-audit-ignore.sh` expiry checks.
 - Rust coverage gate:
   - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.

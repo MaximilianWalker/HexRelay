@@ -7,7 +7,7 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
-use std::hash::{Hash, Hasher};
+use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{
@@ -32,9 +32,10 @@ fn set_allowed_origin(request: &mut tokio_tungstenite::tungstenite::http::Reques
 }
 
 fn auth_cache_key(authorization_value: &str) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    authorization_value.hash(&mut hasher);
-    format!("auth:{:016x}", hasher.finish())
+    let digest = Sha256::digest(authorization_value.as_bytes());
+    let mut first_eight = [0_u8; 8];
+    first_eight.copy_from_slice(&digest[..8]);
+    format!("auth:{:016x}", u64::from_be_bytes(first_eight))
 }
 
 #[derive(Serialize)]
@@ -718,6 +719,55 @@ async fn websocket_upgrade_rejects_when_identity_connection_cap_exceeded() {
         .map(|value| value.to_string())
         .unwrap_or_default();
     assert!(message.contains("429") || message.contains("Too Many Requests"));
+}
+
+#[tokio::test]
+async fn websocket_upgrade_allows_reconnect_after_connection_slot_release() {
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let ws_url = start_ws_server_with_limits(api_base, 60, 16384, 120, 60, 1, 0, 10000).await;
+
+    let mut first_request = ws_url
+        .clone()
+        .into_client_request()
+        .expect("build first websocket request");
+    first_request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut first_request);
+    let (mut first_socket, _) = connect_async(first_request)
+        .await
+        .expect("first websocket should connect");
+
+    let mut second_request = ws_url
+        .clone()
+        .into_client_request()
+        .expect("build second websocket request");
+    second_request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut second_request);
+
+    let blocked = connect_async(second_request).await;
+    assert!(blocked.is_err());
+
+    first_socket.close(None).await.expect("close first socket");
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let mut third_request = ws_url
+        .into_client_request()
+        .expect("build third websocket request");
+    third_request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut third_request);
+
+    let reopened = connect_async(third_request)
+        .await
+        .expect("third websocket should connect after release");
+    assert_eq!(reopened.1.status(), StatusCode::SWITCHING_PROTOCOLS);
 }
 
 #[tokio::test]

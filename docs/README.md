@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 aligned runbook CI security command with workflow behavior and added explicit docs index ownership for readiness evidence templates.
+- Latest meaningful change: 2026-03-12 closed readiness-loop gaps across limiter cleanup cadence, failed-upgrade connection-slot release, and canonical doc-structure parity.
 
 ## Purpose
 

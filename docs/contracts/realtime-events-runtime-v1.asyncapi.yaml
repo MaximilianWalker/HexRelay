@@ -6,6 +6,8 @@ info:
   description: |
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
+    Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
+    so limiter/cache behavior remains stable across process restarts and instances.
 defaultContentType: application/json
 channels:
   callSignalOffer:

@@ -36,6 +36,9 @@ jobs:
       - name: Install pinned cargo-audit
         run: bash scripts/ensure-cargo-audit.sh
 
+      - name: Validate cargo-audit ignore expiry
+        run: bash scripts/validate-cargo-audit-ignore.sh
+
       - name: Rust dependency audit
         run: cargo audit --deny warnings --ignore RUSTSEC-2023-0071
 

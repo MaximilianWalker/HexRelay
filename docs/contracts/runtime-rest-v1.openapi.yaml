@@ -8,6 +8,8 @@ info:
     updated when runtime endpoint payloads, auth semantics, or error codes change.
     Auth challenge/verify distributed rate-limit key derivation uses deterministic
     source fingerprint hashing so enforcement remains consistent across instances.
+    Distributed counter cleanup runs at most once per process/window epoch to avoid
+    per-request cleanup amplification while preserving stale-window pruning.
 servers:
   - url: https://api.hexrelay.local
 paths:
