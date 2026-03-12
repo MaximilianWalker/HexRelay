@@ -2,6 +2,7 @@ use crate::{
     models::{
         DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
         DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+        DmWanWizardRequest,
     },
     shared::errors::{bad_request, ApiResult},
 };
@@ -117,17 +118,43 @@ pub fn validate_lan_discovery_announce(payload: &DmLanDiscoveryAnnounceRequest) 
     Ok(())
 }
 
+pub fn validate_wan_wizard_request(payload: &DmWanWizardRequest) -> ApiResult<()> {
+    if let Some(profile) = &payload.network_profile {
+        if !matches!(
+            profile.as_str(),
+            "home_nat" | "symmetric_nat" | "carrier_nat" | "enterprise_restricted"
+        ) {
+            return Err(bad_request(
+                "wan_wizard_invalid",
+                "network_profile must be one of: home_nat, symmetric_nat, carrier_nat, enterprise_restricted",
+            ));
+        }
+    }
+
+    if let Some(port) = payload.preferred_port {
+        if port == 0 {
+            return Err(bad_request(
+                "wan_wizard_invalid",
+                "preferred_port must be a valid non-zero port",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
         DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
         DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+        DmWanWizardRequest,
     };
 
     use super::{
         validate_connectivity_preflight, validate_dm_policy_update,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import,
+        validate_pairing_envelope_import, validate_wan_wizard_request,
     };
 
     #[test]
@@ -222,5 +249,28 @@ mod tests {
             endpoint_hints: vec!["   ".to_string()],
         };
         assert!(validate_lan_discovery_announce(&invalid_blank).is_err());
+    }
+
+    #[test]
+    fn validates_wan_wizard_payload() {
+        let payload = DmWanWizardRequest {
+            preferred_port: Some(4040),
+            upnp_available: Some(true),
+            nat_pmp_available: Some(false),
+            auto_mapping_succeeds: Some(true),
+            external_port_open: Some(true),
+            network_profile: Some("home_nat".to_string()),
+        };
+        assert!(validate_wan_wizard_request(&payload).is_ok());
+
+        let invalid = DmWanWizardRequest {
+            preferred_port: Some(4040),
+            upnp_available: None,
+            nat_pmp_available: None,
+            auto_mapping_succeeds: None,
+            external_port_open: None,
+            network_profile: Some("invalid".to_string()),
+        };
+        assert!(validate_wan_wizard_request(&invalid).is_err());
     }
 }

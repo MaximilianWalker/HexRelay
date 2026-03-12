@@ -12,7 +12,8 @@ use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+        validate_pairing_envelope_import, validate_wan_wizard_request, DM_OFFLINE_DELIVERY_MODE,
+        DM_PAIRING_ENVELOPE_VERSION,
     },
     models::{
         ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse,
@@ -20,7 +21,8 @@ use crate::{
         DmLanPeerSummary, DmLanPresenceRecord, DmMessagePage, DmMessageRecord,
         DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse,
         DmPairingImportResponse, DmPolicy, DmPolicyUpdate, DmThreadListQuery,
-        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
+        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary, DmWanWizardRequest,
+        DmWanWizardResponse,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -356,6 +358,83 @@ pub async fn list_dm_lan_peers(
         .collect::<Vec<_>>();
 
     Json(DmLanPeerListResponse { items })
+}
+
+pub async fn run_dm_wan_wizard(
+    _auth: AuthSession,
+    Json(payload): Json<DmWanWizardRequest>,
+) -> ApiResult<Json<DmWanWizardResponse>> {
+    validate_wan_wizard_request(&payload)?;
+
+    let profile = payload
+        .network_profile
+        .unwrap_or_else(|| "home_nat".to_string());
+    let upnp_available = payload.upnp_available.unwrap_or(false);
+    let nat_pmp_available = payload.nat_pmp_available.unwrap_or(false);
+    let auto_mapping_succeeds = payload.auto_mapping_succeeds.unwrap_or(false);
+    let external_port_open = payload.external_port_open.unwrap_or(false);
+    let port = payload.preferred_port.unwrap_or(4040);
+
+    if upnp_available && auto_mapping_succeeds {
+        return Ok(Json(DmWanWizardResponse {
+            outcome: "success".to_string(),
+            method: "upnp".to_string(),
+            reason_code: "wan_path_ready".to_string(),
+            checklist: vec![
+                format!("UPnP opened port {port} successfully."),
+                "Use direct DM connection over WAN now.".to_string(),
+            ],
+        }));
+    }
+
+    if nat_pmp_available && auto_mapping_succeeds {
+        return Ok(Json(DmWanWizardResponse {
+            outcome: "success".to_string(),
+            method: "nat_pmp".to_string(),
+            reason_code: "wan_path_ready".to_string(),
+            checklist: vec![
+                format!("NAT-PMP opened port {port} successfully."),
+                "Use direct DM connection over WAN now.".to_string(),
+            ],
+        }));
+    }
+
+    if external_port_open {
+        return Ok(Json(DmWanWizardResponse {
+            outcome: "success".to_string(),
+            method: "manual".to_string(),
+            reason_code: "wan_path_ready_manual".to_string(),
+            checklist: vec![
+                format!("Port {port} is externally reachable."),
+                "Proceed with direct DM connection.".to_string(),
+            ],
+        }));
+    }
+
+    if matches!(
+        profile.as_str(),
+        "symmetric_nat" | "carrier_nat" | "enterprise_restricted"
+    ) {
+        return Ok(Json(DmWanWizardResponse {
+            outcome: "network_incompatible".to_string(),
+            method: "none".to_string(),
+            reason_code: "wan_path_unavailable".to_string(),
+            checklist: vec![
+                "Current network profile blocks direct inbound WAN connectivity.".to_string(),
+                "Try connecting on a shared LAN or different home network.".to_string(),
+            ],
+        }));
+    }
+
+    Ok(Json(DmWanWizardResponse {
+        outcome: "manual_required".to_string(),
+        method: "manual".to_string(),
+        reason_code: "wan_manual_mapping_required".to_string(),
+        checklist: vec![
+            format!("Create manual router port-forward for UDP/TCP {port}."),
+            "Re-run WAN wizard after applying router changes.".to_string(),
+        ],
+    }))
 }
 
 pub async fn list_dm_threads(

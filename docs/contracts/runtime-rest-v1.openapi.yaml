@@ -459,6 +459,29 @@ paths:
                 $ref: '#/components/schemas/DmLanPeerListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/wan-wizard:
+    post:
+      summary: Run WAN direct-connect setup wizard diagnostics
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmWanWizardRequest'
+      responses:
+        '200':
+          description: WAN direct-connect wizard result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmWanWizardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -887,6 +910,47 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DmLanPeerSummary'
+    DmWanWizardRequest:
+      type: object
+      properties:
+        preferred_port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          nullable: true
+        upnp_available:
+          type: boolean
+          nullable: true
+        nat_pmp_available:
+          type: boolean
+          nullable: true
+        auto_mapping_succeeds:
+          type: boolean
+          nullable: true
+        external_port_open:
+          type: boolean
+          nullable: true
+        network_profile:
+          type: string
+          enum: [home_nat, symmetric_nat, carrier_nat, enterprise_restricted]
+          nullable: true
+    DmWanWizardResponse:
+      type: object
+      required: [outcome, method, reason_code, checklist]
+      properties:
+        outcome:
+          type: string
+          enum: [success, manual_required, network_incompatible]
+        method:
+          type: string
+          enum: [upnp, nat_pmp, manual, none]
+        reason_code:
+          type: string
+          enum: [wan_path_ready, wan_path_ready_manual, wan_manual_mapping_required, wan_path_unavailable]
+        checklist:
+          type: array
+          items:
+            type: string
     DmThreadSummary:
       type: object
       required:
@@ -1162,6 +1226,7 @@ components:
             - pairing_replayed
             - preflight_invalid
             - lan_discovery_invalid
+            - wan_wizard_invalid
         message:
           type: string
   parameters:

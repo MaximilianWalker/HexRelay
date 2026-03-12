@@ -16,7 +16,7 @@ use crate::{
         dm::{
             announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
             get_dm_policy, import_dm_pairing_envelope, list_dm_lan_peers, list_dm_thread_messages,
-            list_dm_threads, update_dm_policy,
+            list_dm_threads, run_dm_wan_wizard, update_dm_policy,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -78,6 +78,7 @@ pub fn build_app(state: AppState) -> Router {
             "/v1/dm/connectivity/lan-discovery/peers",
             get(list_dm_lan_peers),
         )
+        .route("/v1/dm/connectivity/wan-wizard", post(run_dm_wan_wizard))
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
             "/v1/dm/threads/:thread_id/messages",
