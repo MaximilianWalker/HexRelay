@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-12
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-10 readiness revalidation pass added runtime safeguard hardening and correction-log governance to prevent repeated audit loops.
+- Latest meaningful change: 2026-03-12 readiness hardening cycle added deterministic limiter behavior, CI guardrail expansion, and docs governance parity fixes.
 
 ## Purpose
 
@@ -29,6 +29,17 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-12 (readiness hardening cycle: limiter determinism, parity guards, and governance metadata)
+
+- Area affected: API/realtime limiter resilience, CI security/parity guardrails, and canonical documentation governance.
+- Change summary:
+  - Hardened API distributed limiter cleanup cadence to avoid per-request cleanup amplification while preserving stale-window pruning.
+  - Normalized realtime websocket limiter/auth-cache hashing to deterministic digest-derived keys and aligned realtime tests.
+  - Added CI gate for cargo-audit ignore expiry and expanded contract-parity watchlists to include limiter modules.
+  - Reconciled canonical docs metadata/context drift across runbook, contributor guide, readiness log, and MVP plan; added explicit regression-linked closure notes in readiness corrections log.
+- Rationale:
+  - Raise readiness confidence by eliminating operational drift and ensuring runtime abuse-control behavior remains predictable across instances and over time.
 
 ### 2026-03-10 (readiness revalidation pass: recurrence prevention and runtime safeguard hardening)
 

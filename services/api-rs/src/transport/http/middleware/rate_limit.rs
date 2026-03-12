@@ -1,12 +1,16 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use sqlx::PgPool;
 
 const MAX_BUCKETS: usize = 10_000;
+static LAST_DISTRIBUTED_CLEANUP_WINDOW: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default)]
 struct Bucket {
@@ -81,7 +85,17 @@ pub async fn allow_distributed(
     let window_start = now / window_seconds;
     let cleanup_before = window_start.saturating_sub(2);
 
-    if window_start.is_multiple_of(16) {
+    let last_cleanup_window = LAST_DISTRIBUTED_CLEANUP_WINDOW.load(Ordering::Acquire);
+    if should_run_distributed_cleanup(window_start, last_cleanup_window)
+        && LAST_DISTRIBUTED_CLEANUP_WINDOW
+            .compare_exchange(
+                last_cleanup_window,
+                window_start,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+    {
         sqlx::query("DELETE FROM rate_limit_counters WHERE window_start < $1")
             .bind(cleanup_before as i64)
             .execute(pool)
@@ -115,9 +129,13 @@ fn now_unix_seconds() -> u64 {
         .as_secs()
 }
 
+fn should_run_distributed_cleanup(window_start: u64, last_cleanup_window: u64) -> bool {
+    window_start >= last_cleanup_window.saturating_add(16)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::RateLimiter;
+    use super::{should_run_distributed_cleanup, RateLimiter};
 
     #[test]
     fn in_memory_limiter_rejects_after_limit_within_window() {
@@ -133,5 +151,12 @@ mod tests {
 
         assert!(limiter.allow("auth", "user-b", 0, 60));
         assert!(limiter.allow("auth", "user-b", 0, 60));
+    }
+
+    #[test]
+    fn distributed_cleanup_runs_on_elapsed_window_interval() {
+        assert!(!should_run_distributed_cleanup(31, 16));
+        assert!(should_run_distributed_cleanup(32, 16));
+        assert!(should_run_distributed_cleanup(48, 16));
     }
 }

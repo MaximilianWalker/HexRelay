@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-03-12
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-11 added contract/docs-index parity checks and updated local parity commands to include them.
+- Latest meaningful change: 2026-03-12 added cargo-audit ignore expiry validation and tightened readiness parity commands.
 
 ## Purpose
 
@@ -58,6 +58,7 @@
 ## Security Tooling Baseline
 
 - `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
+- Temporary cargo-audit ignore exceptions must pass `scripts/validate-cargo-audit-ignore.sh` expiry checks in CI.
 - If `npm run setup` fails installing `cargo-audit` because Rust is too old, run `rustup update stable` and retry setup.
 
 ## CI Expectations
@@ -102,6 +103,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
+bash scripts/validate-cargo-audit-ignore.sh
 python -m pip install semgrep
 semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
 npm --prefix apps/web audit --omit=dev --audit-level=high

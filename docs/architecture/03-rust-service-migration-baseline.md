@@ -6,8 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-03-12
 - Source of truth: `docs/architecture/03-rust-service-migration-baseline.md`
+
+## Quick Context
+
+- Primary edit location for Rust migration status, module ownership mapping, and readiness baseline evidence.
+- Update this file when migration scope, confidence gates, or readiness-mapped file ownership changes.
+- Latest meaningful change: 2026-03-12 normalized canonical doc structure with Quick Context parity and refreshed migration baseline metadata.
 
 ## Purpose
 

@@ -17,6 +17,7 @@ api_surface_files=(
   'services/api-rs/src/domain/**/*.rs'
   'services/api-rs/src/shared/errors.rs'
   'services/api-rs/src/transport/http/middleware/auth.rs'
+  'services/api-rs/src/transport/http/middleware/rate_limit.rs'
   'services/api-rs/src/transport/http/handlers/*.rs'
 )
 
@@ -25,6 +26,7 @@ api_surface_changes="$(git diff --name-only "${base_sha}" "${head_sha}" -- "${ap
 realtime_surface_files=(
   'services/realtime-rs/src/app/router.rs'
   'services/realtime-rs/src/domain/events/*.rs'
+  'services/realtime-rs/src/transport/ws/middleware/rate_limit.rs'
   'services/realtime-rs/src/transport/ws/handlers/*.rs'
 )
 

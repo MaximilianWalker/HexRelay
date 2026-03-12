@@ -8,7 +8,7 @@ use axum::{
 };
 use futures::stream::StreamExt;
 use serde::Deserialize;
-use std::hash::{Hash, Hasher};
+use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::warn;
@@ -74,7 +74,24 @@ pub async fn ws_handler(
         );
     }
 
-    ws.on_upgrade(move |socket| handle_socket(state, socket, session.identity_id))
+    let identity_id = session.identity_id;
+    let state_for_upgrade = state.clone();
+    let state_for_failed_upgrade = state.clone();
+    let identity_for_failed_upgrade = identity_id.clone();
+
+    ws.on_failed_upgrade(move |error| {
+        let state = state_for_failed_upgrade.clone();
+        let identity_id = identity_for_failed_upgrade.clone();
+        warn!(
+            identity_id = %identity_id,
+            error = %error,
+            "failed websocket upgrade after acquiring connection slot"
+        );
+        tokio::spawn(async move {
+            release_connection_slot_after_failed_upgrade(state, identity_id).await;
+        });
+    })
+    .on_upgrade(move |socket| handle_socket(state_for_upgrade, socket, identity_id))
 }
 
 async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_id: String) {
@@ -443,9 +460,10 @@ fn is_allowed_origin(state: &AppState, headers: &HeaderMap) -> bool {
 }
 
 fn stable_hash(value: &str) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+    let digest = Sha256::digest(value.as_bytes());
+    let mut first_eight = [0_u8; 8];
+    first_eight.copy_from_slice(&digest[..8]);
+    u64::from_be_bytes(first_eight)
 }
 
 async fn try_acquire_connection_slot(state: &AppState, identity_id: &str) -> bool {
@@ -467,5 +485,78 @@ async fn release_connection_slot(state: &AppState, identity_id: &str) {
         } else {
             *current -= 1;
         }
+    }
+}
+
+async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_id: String) {
+    release_connection_slot(&state, &identity_id).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        cache_validated_session, release_connection_slot_after_failed_upgrade, stable_hash,
+    };
+    use crate::state::AppState;
+    use tokio::time::{sleep, Duration};
+
+    #[test]
+    fn stable_hash_is_deterministic_across_processes() {
+        assert_eq!(stable_hash("test-value"), 6_562_878_253_510_288_723);
+    }
+
+    #[tokio::test]
+    async fn cache_eviction_respects_max_entries_bound() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            false,
+            60,
+            60,
+            16384,
+            120,
+            60,
+            3,
+            30,
+            1,
+        )
+        .expect("build state");
+
+        cache_validated_session(&state, "k1".to_string(), "u1".to_string()).await;
+        sleep(Duration::from_millis(1)).await;
+        cache_validated_session(&state, "k2".to_string(), "u2".to_string()).await;
+
+        let cache = state.validated_session_cache.lock().await;
+        assert_eq!(cache.len(), 1);
+        assert!(!cache.contains_key("k1"));
+        assert!(cache.contains_key("k2"));
+    }
+
+    #[tokio::test]
+    async fn failed_upgrade_release_removes_connection_slot() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            false,
+            60,
+            60,
+            16384,
+            120,
+            60,
+            1,
+            30,
+            10000,
+        )
+        .expect("build state");
+
+        state
+            .active_connections
+            .lock()
+            .await
+            .insert("usr-1".to_string(), 1);
+
+        release_connection_slot_after_failed_upgrade(state.clone(), "usr-1".to_string()).await;
+
+        assert!(state.active_connections.lock().await.get("usr-1").is_none());
     }
 }

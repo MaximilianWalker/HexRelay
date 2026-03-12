@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-05
+- last_updated: 2026-03-12
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -16,7 +16,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-05 clarified that passphrase-gated local key unlock is optional and explicitly not an MVP priority.
+- Latest meaningful change: 2026-03-12 synchronized readiness-era auth error-code metadata with current runtime and correction-log chronology.
 
 ## 1) Product Intent and Constraints
 
