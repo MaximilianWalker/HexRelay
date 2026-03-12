@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-11 tightened contract parity coverage for API router/middleware and realtime websocket handler surfaces, and documented deferred auth verify identity-oracle hardening decision.
+- Latest meaningful change: 2026-03-11 tightened contract parity coverage for API router/middleware and realtime websocket handler surfaces, then closed auth verify identity-oracle drift by normalizing verify failure semantics and tests.
 
 ## Purpose
 

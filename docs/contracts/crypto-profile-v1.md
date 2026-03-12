@@ -6,14 +6,14 @@
 - Owner: Core and security maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-11
 - Source of truth: `docs/contracts/crypto-profile-v1.md`
 
 ## Quick Context
 
 - Runtime crypto contract authority for MVP identity/auth and E2EE interoperability requirements.
 - Update this file when algorithm, nonce/replay, key-rotation, or crypto error-code requirements change.
-- Latest meaningful change: 2026-03-04 standardized executable MVP crypto requirements and deterministic invalid-code expectations.
+- Latest meaningful change: 2026-03-11 aligned auth verify failure semantics to a single non-enumerating invalid code while preserving explicit invalid-code requirements.
 
 ## Purpose
 
@@ -38,6 +38,7 @@
 
 ## Minimum Error Code Expectations
 
-- Required for Iteration 1 auth paths: `nonce_invalid`, `signature_invalid`, `session_invalid`.
+- Required for Iteration 1 auth 401 verification failures: `nonce_invalid`, `session_invalid`.
+- Required for Iteration 1 auth 400 validation errors: `signature_invalid`.
 - Additional crypto failures must follow the same explicit `*_invalid` naming pattern.
 - Error payloads may include stable machine-readable code and generic message only.

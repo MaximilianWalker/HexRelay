@@ -37,6 +37,8 @@ use crate::{
 use crate::models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord};
 
 const CHALLENGE_TTL_SECONDS: i64 = 60;
+const AUTH_VERIFY_FAILURE_CODE: &str = "nonce_invalid";
+const AUTH_VERIFY_FAILURE_MESSAGE: &str = "auth verification failed";
 
 pub async fn register_identity_key(
     State(state): State<AppState>,
@@ -295,7 +297,7 @@ pub async fn verify_auth_challenge(
         auth_repo::consume_auth_challenge(pool, &payload.challenge_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to read challenge"))?
-            .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
+            .ok_or_else(auth_verify_failure)?
     } else {
         #[cfg(not(test))]
         {
@@ -312,26 +314,23 @@ pub async fn verify_auth_challenge(
                 .write()
                 .expect("acquire challenge write lock")
                 .remove(&payload.challenge_id)
-                .ok_or_else(|| unauthorized("nonce_invalid", "challenge_id is invalid"))?
+                .ok_or_else(auth_verify_failure)?
         }
     };
 
     if challenge_record.identity_id != payload.identity_id {
-        return Err(unauthorized(
-            "nonce_invalid",
-            "challenge does not match identity",
-        ));
+        return Err(auth_verify_failure());
     }
 
     if Utc::now() > challenge_record.expires_at {
-        return Err(unauthorized("nonce_invalid", "challenge has expired"));
+        return Err(auth_verify_failure());
     }
 
     let key_record = if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::get_identity_key(pool, &payload.identity_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to read identity key"))?
-            .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
+            .ok_or_else(auth_verify_failure)?
     } else {
         #[cfg(not(test))]
         {
@@ -349,7 +348,7 @@ pub async fn verify_auth_challenge(
                 .expect("acquire identity key read lock")
                 .get(&payload.identity_id)
                 .cloned()
-                .ok_or_else(|| unauthorized("identity_invalid", "identity_id is not registered"))?
+                .ok_or_else(auth_verify_failure)?
         }
     };
 
@@ -374,7 +373,7 @@ pub async fn verify_auth_challenge(
         challenge_record.nonce.as_bytes(),
         &signature_bytes,
     )
-    .map_err(|_| unauthorized("signature_invalid", "signature verification failed"))?;
+    .map_err(|_| auth_verify_failure())?;
 
     let identity_id = payload.identity_id.clone();
 
@@ -661,6 +660,10 @@ fn stable_hash(value: &str) -> u64 {
 fn verify_signature(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
     let key = UnparsedPublicKey::new(&ED25519, public_key);
     key.verify(message, signature).map_err(|_| ())
+}
+
+fn auth_verify_failure() -> (StatusCode, Json<crate::models::ApiError>) {
+    unauthorized(AUTH_VERIFY_FAILURE_CODE, AUTH_VERIFY_FAILURE_MESSAGE)
 }
 
 async fn allow_rate_limit(
