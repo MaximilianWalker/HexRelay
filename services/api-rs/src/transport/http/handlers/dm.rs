@@ -11,14 +11,16 @@ use serde::{Deserialize, Serialize};
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_pairing_envelope_create, validate_pairing_envelope_import,
-        DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+        validate_lan_discovery_announce, validate_pairing_envelope_create,
+        validate_pairing_envelope_import, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
     },
     models::{
-        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmMessagePage,
-        DmMessageRecord, DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest,
-        DmPairingEnvelopeResponse, DmPairingImportResponse, DmPolicy, DmPolicyUpdate,
-        DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
+        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse,
+        DmLanDiscoveryAnnounceRequest, DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse,
+        DmLanPeerSummary, DmLanPresenceRecord, DmMessagePage, DmMessageRecord,
+        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse,
+        DmPairingImportResponse, DmPolicy, DmPolicyUpdate, DmThreadListQuery,
+        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -27,6 +29,7 @@ use crate::{
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
+const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
 
 #[derive(Serialize, Deserialize)]
 struct PairingEnvelopeClaims {
@@ -275,12 +278,84 @@ pub async fn dm_connectivity_preflight(
         )));
     }
 
+    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
+        if has_fresh_lan_peer(&state, peer_identity_id, Utc::now().timestamp()) {
+            return Ok(Json(DmConnectivityPreflightResponse {
+                status: "ready".to_string(),
+                reason_code: "preflight_ok_lan".to_string(),
+                transport_profile: "direct_only".to_string(),
+                remediation: vec![
+                    "Peer discovered on local network; prioritize LAN direct path.".to_string(),
+                ],
+            }));
+        }
+    }
+
     Ok(Json(DmConnectivityPreflightResponse {
         status: "ready".to_string(),
         reason_code: "preflight_ok".to_string(),
         transport_profile: "direct_only".to_string(),
         remediation: vec!["Start direct DM connection.".to_string()],
     }))
+}
+
+pub async fn announce_dm_lan_discovery(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmLanDiscoveryAnnounceRequest>,
+) -> ApiResult<Json<DmLanDiscoveryAnnounceResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_lan_discovery_announce(&payload)?;
+
+    let now = Utc::now();
+    let record = DmLanPresenceRecord {
+        identity_id: auth.identity_id.clone(),
+        endpoint_hints: payload.endpoint_hints,
+        last_seen_epoch: now.timestamp(),
+    };
+
+    state
+        .dm_lan_presence
+        .write()
+        .expect("acquire dm lan presence write lock")
+        .insert(auth.identity_id.clone(), record.clone());
+
+    Ok(Json(DmLanDiscoveryAnnounceResponse {
+        identity_id: record.identity_id,
+        endpoint_hints: record.endpoint_hints,
+        scope: "lan_subnet".to_string(),
+        last_seen_at: now.to_rfc3339(),
+    }))
+}
+
+pub async fn list_dm_lan_peers(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+) -> Json<DmLanPeerListResponse> {
+    let now = Utc::now().timestamp();
+    let mut guard = state
+        .dm_lan_presence
+        .write()
+        .expect("acquire dm lan presence write lock");
+
+    guard.retain(|_, record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS);
+
+    let items = guard
+        .values()
+        .filter(|record| record.identity_id != auth.identity_id)
+        .map(|record| DmLanPeerSummary {
+            identity_id: record.identity_id.clone(),
+            endpoint_hints: record.endpoint_hints.clone(),
+            last_seen_at: Utc
+                .timestamp_opt(record.last_seen_epoch, 0)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+        })
+        .collect::<Vec<_>>();
+
+    Json(DmLanPeerListResponse { items })
 }
 
 pub async fn list_dm_threads(
@@ -533,6 +608,16 @@ fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
                 && ((record.requester_identity_id == a && record.target_identity_id == b)
                     || (record.requester_identity_id == b && record.target_identity_id == a))
         })
+}
+
+fn has_fresh_lan_peer(state: &AppState, peer_identity_id: &str, now: i64) -> bool {
+    state
+        .dm_lan_presence
+        .read()
+        .expect("acquire dm lan presence read lock")
+        .get(peer_identity_id)
+        .map(|record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS)
+        .unwrap_or(false)
 }
 
 fn sign_pairing_claims(claims: &PairingEnvelopeClaims, key_secret: &str) -> ApiResult<String> {

@@ -1,7 +1,7 @@
 use crate::{
     models::{
-        DmConnectivityPreflightRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+        DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
+        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
     },
     shared::errors::{bad_request, ApiResult},
 };
@@ -11,6 +11,7 @@ pub const DM_PAIRING_ENVELOPE_VERSION: u32 = 1;
 pub const DM_PAIRING_DEFAULT_EXPIRY_SECONDS: u32 = 600;
 pub const DM_PAIRING_MAX_EXPIRY_SECONDS: u32 = 3600;
 pub const DM_PAIRING_MAX_ENDPOINT_HINTS: usize = 8;
+pub const DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS: usize = 8;
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -89,16 +90,44 @@ pub fn validate_connectivity_preflight(payload: &DmConnectivityPreflightRequest)
     Ok(())
 }
 
+pub fn validate_lan_discovery_announce(payload: &DmLanDiscoveryAnnounceRequest) -> ApiResult<()> {
+    if payload.endpoint_hints.is_empty() {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "endpoint_hints must include at least one LAN endpoint",
+        ));
+    }
+    if payload.endpoint_hints.len() > DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "too many LAN endpoint hints",
+        ));
+    }
+
+    for hint in &payload.endpoint_hints {
+        let value = hint.trim();
+        if value.is_empty() || value.len() > 200 {
+            return Err(bad_request(
+                "lan_discovery_invalid",
+                "LAN endpoint hints must be non-empty and <= 200 chars",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        DmConnectivityPreflightRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPolicyUpdate,
+        DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
+        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
     };
 
     use super::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_pairing_envelope_create, validate_pairing_envelope_import,
+        validate_lan_discovery_announce, validate_pairing_envelope_create,
+        validate_pairing_envelope_import,
     };
 
     #[test]
@@ -175,5 +204,23 @@ mod tests {
             same_server_context: None,
         };
         assert!(validate_connectivity_preflight(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_lan_discovery_announce_payload() {
+        let payload = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["udp://192.168.1.11:4040".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&payload).is_ok());
+
+        let invalid_empty = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec![],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_empty).is_err());
+
+        let invalid_blank = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["   ".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_blank).is_err());
     }
 }
