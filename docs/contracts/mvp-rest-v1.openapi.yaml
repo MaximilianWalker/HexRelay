@@ -192,6 +192,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
+  /v1/dm/threads:
+    get:
+      summary: List DM and group DM threads
+      operationId: listDmThreads
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CursorParam'
+        - name: unread_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: DM thread page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadPage'
+  /v1/dm/threads/{thread_id}/messages:
+    get:
+      summary: List DM thread message history
+      operationId: listDmThreadMessages
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CursorParam'
+      responses:
+        '200':
+          description: DM message page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmMessagePage'
+        '404':
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /v1/guilds:
     post:
       summary: Create server (guild)
@@ -600,6 +644,49 @@ components:
       required: [inbound_policy]
       properties:
         inbound_policy: { type: string, enum: [friends_only, same_server, anyone] }
+    DmThreadSummary:
+      type: object
+      required:
+        [thread_id, kind, title, participant_ids, unread, last_read_seq, last_message_seq, last_message_preview, last_message_at]
+      properties:
+        thread_id: { type: string }
+        kind: { type: string, enum: [dm, group_dm] }
+        title: { type: string }
+        participant_ids:
+          type: array
+          items: { type: string }
+        unread: { type: integer, minimum: 0 }
+        last_read_seq: { type: integer, minimum: 0 }
+        last_message_seq: { type: integer, minimum: 0 }
+        last_message_preview: { type: string }
+        last_message_at: { type: string, format: date-time }
+    DmThreadPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DmThreadSummary' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    DmMessage:
+      type: object
+      required: [message_id, thread_id, author_id, seq, ciphertext, created_at]
+      properties:
+        message_id: { type: string }
+        thread_id: { type: string }
+        author_id: { type: string }
+        seq: { type: integer, minimum: 1 }
+        ciphertext: { type: string }
+        created_at: { type: string, format: date-time }
+        edited_at: { type: string, format: date-time, nullable: true }
+    DmMessagePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DmMessage' }
+        page: { $ref: '#/components/schemas/PageMeta' }
     GuildCreate:
       type: object
       required: [name]

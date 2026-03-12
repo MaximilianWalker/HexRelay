@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 added canonical communication networking-layer architecture authority plus DM proposal/execution authorities.
+- Latest meaningful change: 2026-03-12 updated REST contract authorities for DM thread and DM-message pagination endpoints.
 
 ## Purpose
 

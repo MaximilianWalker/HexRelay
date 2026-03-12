@@ -307,6 +307,77 @@ paths:
                 $ref: '#/components/schemas/ContactListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/threads:
+    get:
+      summary: List DM and group DM threads for authenticated identity
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: DM thread page response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/threads/{thread_id}/messages:
+    get:
+      summary: List encrypted message history for a DM thread
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: thread_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: DM message history page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmMessagePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /v1/friends/requests:
     get:
       summary: List inbound/outbound friend requests
@@ -509,6 +580,94 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactSummary'
+    DmThreadSummary:
+      type: object
+      required:
+        - thread_id
+        - kind
+        - title
+        - participant_ids
+        - unread
+        - last_read_seq
+        - last_message_seq
+        - last_message_preview
+        - last_message_at
+      properties:
+        thread_id:
+          type: string
+        kind:
+          type: string
+          enum: [dm, group_dm]
+        title:
+          type: string
+        participant_ids:
+          type: array
+          items:
+            type: string
+        unread:
+          type: integer
+          minimum: 0
+        last_read_seq:
+          type: integer
+          minimum: 0
+        last_message_seq:
+          type: integer
+          minimum: 0
+        last_message_preview:
+          type: string
+        last_message_at:
+          type: string
+          format: date-time
+    DmThreadPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmThreadSummary'
+        next_cursor:
+          type: string
+          nullable: true
+    DmMessageRecord:
+      type: object
+      required:
+        - message_id
+        - thread_id
+        - author_id
+        - seq
+        - ciphertext
+        - created_at
+      properties:
+        message_id:
+          type: string
+        thread_id:
+          type: string
+        author_id:
+          type: string
+        seq:
+          type: integer
+          minimum: 1
+        ciphertext:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+    DmMessagePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmMessageRecord'
+        next_cursor:
+          type: string
+          nullable: true
     FriendRequestRecord:
       type: object
       required: [request_id, requester_identity_id, target_identity_id, status, created_at]
@@ -687,6 +846,9 @@ components:
             - transition_invalid
             - storage_failure
             - cookie_invalid
+            - cursor_invalid
+            - limit_invalid
+            - thread_not_found
         message:
           type: string
   parameters:
