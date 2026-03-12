@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-12 captured limiter determinism/cleanup hardening, cargo-audit ignore expiry enforcement, and explicit runbook CI command parity regression closure.
+- Latest meaningful change: 2026-03-12 captured documentation hardening for networking-plan authority boundaries and cross-doc consistency.
 
 ## Purpose
 
@@ -30,6 +30,8 @@
 - For `watch` entries only: `owner=<team-or-role>`, `decision_trigger=<event>`, `exit_criteria=<objective condition>`
 
 ## Entries
+
+- 2026-03-12 | `docs` | Networking policy/planning updates introduced cross-document authority overlap and a DM pairing wording inconsistency | added canonical cross-scenario networking architecture authority in `docs/architecture/04-communication-networking-layer-plan.md`, delegated sequencing authority to `docs/planning/infra-free-dm-connectivity-execution-plan.md`, trimmed redundant execution-order sections in `docs/product/10-infra-free-dm-connectivity-proposals.md` and `docs/architecture/04-communication-networking-layer-plan.md`, and fixed DM pairing wording consistency in `docs/planning/iterations/02-sprint-board.md` | docs authority boundaries are now explicit (architecture vs planning vs product options), reducing drift and duplicate-sequencing regressions | `closed`
 
 - 2026-03-10 | `ci` | Rust toolchain policy drift between pinned version and stable preference | switched toolchain policy to `stable` in `rust-toolchain.toml` and `.github/workflows/ci.yml` | documented stable-first standard in `docs/operations/dev-prerequisites.md` and `docs/operations/contributor-guide.md` | `closed`
 - 2026-03-10 | `workflow` | Integration smoke repeatedly failed with low-signal timeout output | added fail-fast health wait with process-liveness/log-tail behavior in `.github/workflows/ci.yml` and timeout control in `apps/web/scripts/e2e-smoke.mjs` | CI troubleshooting now tied to explicit logs and deterministic startup checks in workflow | `closed`

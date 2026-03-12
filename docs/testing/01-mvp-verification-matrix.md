@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-12
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-10 added provenance field requirements and CI enforcement reference for changed evidence artifacts.
+- Latest meaningful change: 2026-03-12 added infrastructure-free DM connectivity conformance evidence requirements.
 
 ## Requirement to Evidence Matrix
 
@@ -22,6 +22,7 @@
 | Identity/auth/invites | T2.1.1, T2.2.1, T2.3.1, T2.4.1 | OpenAPI conformance + auth/invite integration report | `npm --prefix apps/web run e2e:smoke` and `cargo test -p api-rs --all-features` | `evidence/iteration-01/identity-auth-invites/<YYYY-MM-DD>/` |
 | Friend request privacy mediation | T3.1.1, T3.1.2, T3.1.5 | Privacy policy test report (no pre-accept identity exposure) | Friend-request integration tests assert redaction before acceptance | `evidence/iteration-02/friend-privacy/<YYYY-MM-DD>/` |
 | DM inbound policy defaults/overrides | T4.1.2 | DM policy matrix test output | Integration tests cover default + override policy matrix outcomes | `evidence/iteration-03/dm-policy/<YYYY-MM-DD>/` |
+| Infrastructure-free DM connectivity conformance | T4.1.3-T4.1.8 | Direct-connect conformance report (policy gate, pairing validation, diagnostics, LAN/WAN pathing) | Direct-connect suite confirms no STUN/TURN/relay fallback and deterministic failure guidance behavior | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | E2EE DM (1:1 + group) | T4.5.1-T4.5.4 | Direct user-to-user transport assertion + decrypt success + offline outbox retry report | Crypto conformance checklist and E2EE integration suite pass | `evidence/iteration-03/e2ee-dm/<YYYY-MM-DD>/` |
 | Navigation and hubs | T4.6.1-T4.6.4 | UI checklist with screenshots (desktop + mobile) | Manual checklist completed against `docs/product/07-ui-navigation-spec.md` and `docs/product/08-screen-state-spec.md` | `evidence/iteration-03/navigation/<YYYY-MM-DD>/` |
 | Voice/screen share | T5.1.1-T5.3.1 | KPI profile run report (join success, reconnect, jitter) | TURN/NAT profile procedure passes with required metrics captured | `evidence/iteration-03/voice/turn-nat/<scenario-id>/` |

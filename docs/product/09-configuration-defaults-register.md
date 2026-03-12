@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-12
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-03-04 added runtime mode defaults for desktop local-first and dedicated server operation.
+- Latest meaningful change: 2026-03-12 added infrastructure-free DM connectivity policy defaults and fallback behavior constraints.
 
 ## Override Precedence
 
@@ -32,6 +32,12 @@
 | `contact_invite.max_uses` | `1` | integer >= 1 | user |
 | `dm.inbound_policy` | `friends_only` | `friends_only`, `same_server`, `anyone` | user |
 | `dm.offline_delivery_mode` | `best_effort_online` | `best_effort_online` | user |
+| `dm.connectivity.mode` | `direct_only` | `direct_only` | user |
+| `dm.connectivity.bootstrap` | `oob_signed_envelope` | `oob_signed_envelope` | user |
+| `dm.connectivity.fallback_behavior` | `fail_with_guidance` | `fail_with_guidance` | user |
+| `dm.connectivity.lan_fast_path` | `enabled` | `enabled`, `disabled` | device |
+| `dm.connectivity.wan_wizard` | `enabled` | `enabled`, `disabled` | device |
+| `dm.connectivity.multi_endpoint_parallel_dial` | `enabled` | `enabled`, `disabled` | user |
 | `discovery.listing_visibility` | `private` | `private`, `public` | server |
 | `storage.quota_mb` | `null` | integer >= 100 or `null` | server |
 | `retention.message_days` | `null` | integer >= 1 or `null` | server |
@@ -43,5 +49,6 @@
 ## Related Documents
 
 - `docs/product/02-prd-v1.md`
+- `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/planning/iterations/02-sprint-board.md`

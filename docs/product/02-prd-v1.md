@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-12
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-04 locked primary runtime to downloadable desktop local-first mode with optional dedicated server deployments.
+- Latest meaningful change: 2026-03-12 locked infrastructure-free DM connectivity requirements and phased direct-connect delivery model.
 
 ## Product Summary
 
@@ -102,11 +102,12 @@ Build a communication stack where users and communities control identity, data l
 
 ### 3) E2EE Direct Messaging
 
-1. Users establish DM session and exchange encryption material.
-2. Client encrypts outbound DM payloads.
-3. Payload is transported over direct user-to-user channel (not via guild server relay).
-4. Recipient client decrypts locally.
-5. If recipient is offline, sender keeps encrypted local outbox and retries on reconnect (best-effort, no guaranteed offline queue in MVP).
+1. Users establish contact bootstrap material through signed out-of-band pairing (invite link, QR, or short code).
+2. Client validates pairing signature, nonce/replay, and expiry, then exchanges DM encryption material.
+3. Client encrypts outbound DM payloads.
+4. Payload is transported over direct user-to-user channel (not via guild server relay and without infra-assisted NAT traversal dependency).
+5. Recipient client decrypts locally.
+6. If recipient is offline, sender keeps encrypted local outbox and retries on reconnect (best-effort, no guaranteed offline queue in MVP).
 
 ### 4) New Device Restore
 
@@ -159,6 +160,7 @@ Build a communication stack where users and communities control identity, data l
 - User contact invites
   - Users can generate expiring contact invite links or QR payloads.
   - One-time by default, optional bounded max-uses.
+  - Invite payloads are signed and include nonce/expiry for replay-safe pairing bootstrap.
   - Redeem flow must return deterministic error states (`invite_invalid`, `invite_expired`, `invite_exhausted`).
 - Friend requests and identity exposure
   - Server-mediated friend request flow is required for in-server user discovery paths.
@@ -168,9 +170,17 @@ Build a communication stack where users and communities control identity, data l
   - DMs/group DMs and server channels with edits, mentions, and replies.
   - Moderation-visible edit history applies to server channels, not direct DMs.
   - Guild/community servers do not relay or store DM payloads.
+  - DM connectivity must not depend on STUN, TURN, relay, or other always-on third-party/project-operated connectivity services.
+  - DM runtime must expose deterministic connection failure reason codes with guided remediation actions.
   - DM offline behavior is best-effort online delivery with encrypted local retry queue on sender device.
   - Default DM policy allows incoming DMs only from friends/accepted requests.
   - Per-user override options: allow same-server members or anyone.
+- DM connectivity execution model
+  - Direct-only transport enforcement is required.
+  - Out-of-band signed pairing (QR/link/short code) is required.
+  - Connectivity preflight and troubleshooter states are required for failed direct attempts.
+  - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
+  - If direct connectivity cannot be established, product must fail explicitly with user guidance; infra fallback is out of scope.
 - Navigation and Information Architecture
   - Discord-like overall layout and interaction model are baseline.
   - Server navigation must not rely on small circular icon rails as the primary pattern.
@@ -228,6 +238,8 @@ Build a communication stack where users and communities control identity, data l
 
 - Master plan: `docs/product/01-mvp-plan.md`
 - Iteration boards index: `docs/planning/iterations/README.md`
+- DM connectivity proposals: `docs/product/10-infra-free-dm-connectivity-proposals.md`
+- DM connectivity execution plan: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Related Documents
 
@@ -235,5 +247,6 @@ Build a communication stack where users and communities control identity, data l
 - `docs/README.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/reference/glossary.md`

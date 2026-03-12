@@ -6,14 +6,14 @@
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-09
+- last_updated: 2026-03-12
 - Source of truth: `docs/product/04-dependencies-risks.md`
 
 ## Quick Context
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-09 reconciled review cadence guidance with iteration-log update cadence and refreshed register review date.
+- Latest meaningful change: 2026-03-12 aligned networking policy to reject infrastructure-dependent DM connectivity solutions.
 
 ## Purpose
 
@@ -30,7 +30,7 @@
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | TURN connectivity test environment for NAT-restricted scenarios | External | ready | Voice reliability gates cannot be validated realistically | Platform/Realtime | Profile and procedure defined in `docs/planning/turn-nat-test-profile.md`; required before Iteration 3 exit |
+| D-007 | Infrastructure-free NAT test environment for direct peer connectivity scenarios | External | deferred | NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; replace TURN profile usage with infra-free direct-connect test harness and explicit failure-mode UX evidence |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
 
@@ -39,7 +39,7 @@
 | ID | Risk | Severity | Likelihood | Mitigation | Owner |
 |---|---|---|---|---|---|
 | R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery | Product |
-| R-002 | Voice quality instability across network conditions | high | medium | Enforce TURN fallback and add diagnostics/soak tests | Realtime |
+| R-002 | Voice/DM connection failure across NAT-restricted network conditions | high | high | Use infrastructure-free direct-connect strategy only, add stronger diagnostics/soak tests, and provide explicit user guidance when direct path is unavailable | Realtime |
 | R-003 | E2EE implementation complexity delays messaging roadmap | high | medium | Keep 1:1 and group DM E2EE in MVP scope; reduce risk by phased delivery (1:1 baseline then group rollout in Iteration 2 with explicit test gates) | API |
 | R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
@@ -52,7 +52,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-03-09 (no dependency/risk severity changes required in this pass).
+- Last reviewed: 2026-03-12 (updated networking dependency and risk posture for infra-free DM connectivity rule).
 
 ## Risk to Task Mitigation Matrix
 
@@ -79,6 +79,7 @@
 | DEC-006 | Friend requests are server-mediated with privacy-first identity exposure; DM inbound defaults to friends-only with user-configurable overrides | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-007 | DM transport is direct user-to-user and guild/community servers do not relay/store DM payloads | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-008 | MVP DM offline behavior is best-effort online with encrypted local outbox retries and no guaranteed offline queue | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-009 | Candidate solutions that require connectivity infrastructure (STUN/TURN/relay) are rejected for DM transport; only infrastructure-free direct connectivity is acceptable | accepted | `docs/product/03-clarifications.md` |
 
 ## Related Documents
 

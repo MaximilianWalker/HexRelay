@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-12
 - Source of truth: `docs/product/03-clarifications.md`
 
 ## Quick Context
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-03-04 locked runtime/deployment model to bundled desktop local-first with optional dedicated server mode.
+- Latest meaningful change: 2026-03-12 locked DM connectivity policy to infrastructure-free only (no STUN/TURN or relay dependency accepted for candidate solutions).
 
 ## Purpose
 
@@ -57,6 +57,7 @@
 - C-019 (resolved 2026-03-04): DMs use direct user-to-user transport and are not relayed or stored by guild/community servers.
 - C-020 (resolved 2026-03-04): MVP DM offline behavior is best-effort online delivery with encrypted local outbox retries and no guaranteed offline queue.
 - C-021 (resolved 2026-03-04): Primary runtime is downloadable desktop local-first; dedicated server deployments remain a supported optional mode.
+- C-022 (resolved 2026-03-12): Networking solutions that require infrastructure for DM connectivity (including STUN/TURN/relay) are out of scope; accepted solutions must be infrastructure-free and fail with explicit guidance when direct connectivity cannot be established.
 
 ## Related Documents
 

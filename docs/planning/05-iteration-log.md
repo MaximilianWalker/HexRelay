@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-12 readiness hardening cycle added deterministic limiter behavior, CI guardrail expansion, and docs governance parity fixes.
+- Latest meaningful change: 2026-03-12 completed documentation hardening for networking-layer authority boundaries and cross-document consistency.
 
 ## Purpose
 
@@ -29,6 +29,64 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-12 (networking docs consistency hardening)
+
+- Area affected: Networking architecture/planning/product authority boundaries and readiness traceability.
+- Change summary:
+  - Trimmed redundant sequencing content from architecture/product proposal docs and delegated execution authority to the DM connectivity execution plan.
+  - Added cross-scenario networking architecture references across product/planning indexes to keep source-of-truth routing explicit.
+  - Fixed DM pairing wording drift in Iteration 2 exit criteria (`QR/short code`), keeping direct-bootstrap terminology consistent.
+  - Logged this correction in readiness governance history.
+- Rationale:
+  - Reduce drift risk by enforcing clear ownership boundaries between architecture, product options, and planning execution docs.
+- Linked docs updated:
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/README.md`
+  - `docs/README.md`
+  - `docs/operations/readiness-corrections-log.md`
+
+### 2026-03-12 (infra-free DM connectivity full planning alignment)
+
+- Area affected: Product requirements, iteration feature plan, configuration defaults, and verification evidence model for DM connectivity.
+- Change summary:
+  - Added shared communication networking-layer architecture plan with explicit DM direct path vs server communication divergence boundaries.
+  - Added full infrastructure-free DM connectivity execution plan with phased delivery and deterministic task gates.
+  - Updated MVP plan and PRD to require direct-only DM transport, signed out-of-band pairing bootstrap, deterministic failure guidance, and no infra-assisted DM fallback.
+  - Expanded Iteration 2 backlog with shared communication-layer tasks (`T4.0.1` to `T4.0.3`, `T4.3.3`) and direct-connect tasks (`T4.1.3` to `T4.1.8`).
+  - Updated configuration defaults and verification matrix to enforce direct-only policy at runtime and evidence level.
+- Rationale:
+  - Convert high-level policy lock into executable delivery artifacts so implementation work remains deterministic and policy-compliant.
+- Linked docs updated:
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/09-configuration-defaults-register.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/README.md`
+  - `docs/planning/README.md`
+
+### 2026-03-12 (infra-free DM connectivity policy lock)
+
+- Area affected: DM connectivity architecture guardrails and dependency/risk register.
+- Change summary:
+  - Added repository-level guardrail rejecting infrastructure-dependent DM connectivity solutions (including STUN/TURN/relay).
+  - Locked clarification entry that accepted DM connectivity candidates must be infrastructure-free and fail with explicit user guidance when direct connectivity is unavailable.
+  - Updated dependency/risk register entries to remove TURN fallback assumptions and raise NAT-restricted direct-connect risk visibility.
+- Rationale:
+  - Enforce hard product direction toward no-infrastructure DM connectivity and prevent incremental drift toward hosted connectivity dependencies.
+- Linked docs updated:
+  - `AGENTS.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-12 (readiness hardening cycle: limiter determinism, parity guards, and governance metadata)
 

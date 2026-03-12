@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 added runtime contact-invite endpoints (`/v1/contact-invites`, `/v1/contact-invites/redeem`) with friend-request creation semantics and updated runtime contract coverage.
+- Latest meaningful change: 2026-03-12 added canonical communication networking-layer architecture authority plus DM proposal/execution authorities.
 
 ## Purpose
 
@@ -36,12 +36,15 @@
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
+| Infrastructure-free DM connectivity solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM connectivity policy, direct-connect mechanisms, or acceptance criteria change |
+| Infrastructure-free DM connectivity execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM connectivity sequencing, task gates, or acceptance evidence changes |
 | Dependencies and risk register | `docs/product/04-dependencies-risks.md` | Product/architecture maintainers | Dependency status or risk severity/mitigation changes |
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
+| Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, DM/server transport divergence, or networking rollout phases change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
@@ -83,6 +86,7 @@
 - `docs/product/02-prd-v1.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
+- `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
@@ -95,12 +99,14 @@
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
 - `docs/architecture/03-rust-service-migration-baseline.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
 - `docs/planning/kpi-slo-test-profile.md`
+- `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`
 - `docs/testing/crypto-conformance-checklist.md`
 - `docs/planning/05-iteration-log.md`

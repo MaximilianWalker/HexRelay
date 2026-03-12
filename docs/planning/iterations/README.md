@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-12
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-10 refreshed planning index metadata after readiness-governed pre-dev flow hardening.
+- Latest meaningful change: 2026-03-12 added shared networking-layer trace mapping and DM direct-connect execution references.
 
 ## Canonical Boards
 
@@ -35,7 +35,9 @@
 | Join fingerprint verification (fail closed) | T2.4.1 |
 | Friends/block/mute/presence | T3.1.1, T3.1.2, T3.2.1, T3.3.1 |
 | Global/shared-server user discovery with abuse controls | T3.4.1 |
+| Shared communication networking layer abstraction (mode routing, adapters, diagnostics model) | T4.0.1, T4.0.2, T4.0.3, T4.3.3 |
 | DM/group DM direct transport + server-channel messaging primitives | T4.1.1, T4.3.1, T4.3.2 |
+| Infrastructure-free DM connectivity stack (direct-only, pairing, diagnostics, LAN/WAN setup, multi-endpoint dial) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8 |
 | DM inbound policy defaults and user overrides | T4.1.2 |
 | E2EE 1:1 DM | T4.5.1, T4.5.2 |
 | E2EE group DM | T4.5.3, T4.5.4 |
@@ -46,7 +48,7 @@
 | Export/import/full migration and cutover | T7.1.1, T7.1.2, T7.5.1, T7.5.2, T7.5.3, T7.5.4, T7.5.5 |
 | Observability, SLOs, beta docs | T8.1.1, T8.2.1, T8.3.1 |
 | NFR: reliability (reconnect, ordering, consistency) | T3.3.1, T4.3.2, T5.1.1, T5.3.1 |
-| NFR: security (nonce replay, auth verification, no guild-server DM relay/storage) | T2.3.1, T2.4.1, T4.5.2, T4.5.4 |
+| NFR: security (nonce replay, auth verification, no guild-server DM relay/storage, no infra DM fallback) | T2.3.1, T2.4.1, T4.1.3, T4.1.4, T4.5.2, T4.5.4 |
 | NFR: performance (chat latency, call setup/jitter, alert detection windows) | T4.3.2, T5.2.1, T8.2.1 |
 | NFR: operability (compose-first, CI gates, observability dashboards) | T1.1.2, T1.2.1, T8.1.1 |
 | KPI: message delivery p95 < 300ms | T4.3.2, T8.1.1, T8.2.1 |
