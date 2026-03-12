@@ -1,6 +1,6 @@
 mod communication;
 
 pub use communication::{
-    CommunicationMode, ConnectIntent, ConnectTarget, DmTransportPolicy, PolicyContext, PolicyError,
-    SendEnvelope, SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,
+    PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };

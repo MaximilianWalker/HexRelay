@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::app::{CommunicationError, CommunicationRouter};
 use crate::domain::{
-    CommunicationMode, ConnectIntent, ConnectTarget, PolicyContext, SendEnvelope,
-    SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, PolicyContext,
+    SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{DirectPeerTransport, NodeClientTransport, TransportError};
 
@@ -16,6 +16,7 @@ impl DirectPeerTransport for RecordingDirectPeer {
         Ok(SessionProvenance {
             mode: intent.mode,
             profile: TransportProfile::DirectPeer,
+            reason_code: CommunicationReasonCode::DmDirectRouteSelected,
             policy_assertions: vec!["dm_direct_policy_compliant".to_string()],
         })
     }
@@ -35,6 +36,7 @@ impl NodeClientTransport for RecordingNodeClient {
         Ok(SessionProvenance {
             mode: intent.mode,
             profile: TransportProfile::NodeClient,
+            reason_code: CommunicationReasonCode::ServerChannelRouteSelected,
             policy_assertions: vec!["server_channel_policy_compliant".to_string()],
         })
     }
@@ -49,6 +51,18 @@ static DIRECT_CONNECT_CALLS: AtomicUsize = AtomicUsize::new(0);
 static DIRECT_SEND_CALLS: AtomicUsize = AtomicUsize::new(0);
 static NODE_CONNECT_CALLS: AtomicUsize = AtomicUsize::new(0);
 static NODE_SEND_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+struct FailingDirectPeer;
+
+impl DirectPeerTransport for FailingDirectPeer {
+    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
+        Err(TransportError::ConnectFailed)
+    }
+
+    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
+        Err(TransportError::SendFailed)
+    }
+}
 
 fn reset_counters() {
     DIRECT_CONNECT_CALLS.store(0, Ordering::SeqCst);
@@ -113,7 +127,62 @@ fn rejects_target_profile_mismatch_before_adapter_call() {
         },
     });
 
-    assert_eq!(result, Err(CommunicationError::PolicyViolation));
+    assert_eq!(
+        result,
+        Err(CommunicationError {
+            code: CommunicationReasonCode::TargetProfileMismatch,
+            mode: CommunicationMode::DmDirect,
+            profile: Some(TransportProfile::DirectPeer),
+        })
+    );
     assert_eq!(DIRECT_CONNECT_CALLS.load(Ordering::SeqCst), 0);
     assert_eq!(NODE_CONNECT_CALLS.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn maps_transport_connect_failure_to_reason_code() {
+    let router = CommunicationRouter::new(
+        PolicyContext::default(),
+        FailingDirectPeer,
+        RecordingNodeClient,
+    );
+
+    let result = router.connect(&ConnectIntent {
+        mode: CommunicationMode::DmDirect,
+        target: ConnectTarget::PeerIdentity {
+            identity_id: "peer-a".to_string(),
+        },
+    });
+
+    assert_eq!(
+        result,
+        Err(CommunicationError {
+            code: CommunicationReasonCode::TransportConnectFailed,
+            mode: CommunicationMode::DmDirect,
+            profile: Some(TransportProfile::DirectPeer),
+        })
+    );
+}
+
+#[test]
+fn maps_mode_disabled_to_reason_code() {
+    let policy = PolicyContext {
+        enable_server_channel: false,
+        ..PolicyContext::default()
+    };
+    let router = CommunicationRouter::new(policy, RecordingDirectPeer, RecordingNodeClient);
+
+    let result = router.send(&SendEnvelope {
+        mode: CommunicationMode::ServerChannel,
+        payload: b"hello".to_vec(),
+    });
+
+    assert_eq!(
+        result,
+        Err(CommunicationError {
+            code: CommunicationReasonCode::ModeDisabled,
+            mode: CommunicationMode::ServerChannel,
+            profile: None,
+        })
+    );
 }

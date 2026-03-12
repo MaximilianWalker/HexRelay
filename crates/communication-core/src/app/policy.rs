@@ -1,6 +1,6 @@
 use crate::domain::{
-    CommunicationMode, ConnectIntent, ConnectTarget, DmTransportPolicy, PolicyContext, PolicyError,
-    SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,
+    PolicyContext, PolicyError, SessionProvenance, TransportProfile,
 };
 
 pub struct PolicyEngine;
@@ -49,22 +49,29 @@ impl PolicyEngine {
         mode: CommunicationMode,
         profile: TransportProfile,
     ) -> SessionProvenance {
-        let assertion = match (mode, profile) {
-            (CommunicationMode::DmDirect, TransportProfile::DirectPeer) => {
-                "dm_direct_policy_compliant"
-            }
-            (CommunicationMode::ServerChannel, TransportProfile::NodeClient) => {
-                "server_channel_policy_compliant"
-            }
-            (CommunicationMode::Presence, TransportProfile::NodeClient) => {
-                "presence_policy_compliant"
-            }
-            _ => "policy_violation",
+        let (reason_code, assertion) = match (mode, profile) {
+            (CommunicationMode::DmDirect, TransportProfile::DirectPeer) => (
+                CommunicationReasonCode::DmDirectRouteSelected,
+                "dm_direct_policy_compliant",
+            ),
+            (CommunicationMode::ServerChannel, TransportProfile::NodeClient) => (
+                CommunicationReasonCode::ServerChannelRouteSelected,
+                "server_channel_policy_compliant",
+            ),
+            (CommunicationMode::Presence, TransportProfile::NodeClient) => (
+                CommunicationReasonCode::PresenceRouteSelected,
+                "presence_policy_compliant",
+            ),
+            _ => (
+                CommunicationReasonCode::TargetProfileMismatch,
+                "policy_violation",
+            ),
         };
 
         SessionProvenance {
             mode,
             profile,
+            reason_code,
             policy_assertions: vec![assertion.to_string()],
         }
     }

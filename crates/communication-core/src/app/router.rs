@@ -1,14 +1,15 @@
 use crate::app::PolicyEngine;
 use crate::domain::{
-    CommunicationMode, ConnectIntent, PolicyContext, SendEnvelope, SessionProvenance,
-    TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, PolicyContext, PolicyError,
+    SendEnvelope, SessionProvenance, TransportProfile,
 };
-use crate::transport::{DirectPeerTransport, NodeClientTransport, TransportError};
+use crate::transport::{DirectPeerTransport, NodeClientTransport};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CommunicationError {
-    PolicyViolation,
-    TransportFailure,
+pub struct CommunicationError {
+    pub code: CommunicationReasonCode,
+    pub mode: CommunicationMode,
+    pub profile: Option<TransportProfile>,
 }
 
 pub struct CommunicationRouter<D, N> {
@@ -34,14 +35,20 @@ where
         let profile = self.route_profile(intent.mode, Some(intent))?;
 
         match profile {
-            TransportProfile::DirectPeer => self
-                .direct_peer
-                .connect(intent)
-                .map_err(map_transport_error),
-            TransportProfile::NodeClient => self
-                .node_client
-                .connect(intent)
-                .map_err(map_transport_error),
+            TransportProfile::DirectPeer => self.direct_peer.connect(intent).map_err(|_| {
+                transport_error(
+                    CommunicationReasonCode::TransportConnectFailed,
+                    intent.mode,
+                    profile,
+                )
+            }),
+            TransportProfile::NodeClient => self.node_client.connect(intent).map_err(|_| {
+                transport_error(
+                    CommunicationReasonCode::TransportConnectFailed,
+                    intent.mode,
+                    profile,
+                )
+            }),
         }
     }
 
@@ -49,12 +56,20 @@ where
         let profile = self.route_profile(envelope.mode, None)?;
 
         match profile {
-            TransportProfile::DirectPeer => {
-                self.direct_peer.send(envelope).map_err(map_transport_error)
-            }
-            TransportProfile::NodeClient => {
-                self.node_client.send(envelope).map_err(map_transport_error)
-            }
+            TransportProfile::DirectPeer => self.direct_peer.send(envelope).map_err(|_| {
+                transport_error(
+                    CommunicationReasonCode::TransportSendFailed,
+                    envelope.mode,
+                    profile,
+                )
+            }),
+            TransportProfile::NodeClient => self.node_client.send(envelope).map_err(|_| {
+                transport_error(
+                    CommunicationReasonCode::TransportSendFailed,
+                    envelope.mode,
+                    profile,
+                )
+            }),
         }
     }
 
@@ -64,17 +79,40 @@ where
         intent: Option<&ConnectIntent>,
     ) -> Result<TransportProfile, CommunicationError> {
         let profile = PolicyEngine::route_mode(mode, &self.policy)
-            .map_err(|_| CommunicationError::PolicyViolation)?;
+            .map_err(|error| map_policy_error(error, mode))?;
 
         if let Some(intent) = intent {
             PolicyEngine::validate_connect_intent(profile, intent)
-                .map_err(|_| CommunicationError::PolicyViolation)?;
+                .map_err(|error| map_policy_error(error, mode))?;
         }
 
         Ok(profile)
     }
 }
 
-fn map_transport_error(_: TransportError) -> CommunicationError {
-    CommunicationError::TransportFailure
+fn map_policy_error(error: PolicyError, mode: CommunicationMode) -> CommunicationError {
+    match error {
+        PolicyError::ModeDisabled { .. } => CommunicationError {
+            code: CommunicationReasonCode::ModeDisabled,
+            mode,
+            profile: None,
+        },
+        PolicyError::TargetProfileMismatch { profile, .. } => CommunicationError {
+            code: CommunicationReasonCode::TargetProfileMismatch,
+            mode,
+            profile: Some(profile),
+        },
+    }
+}
+
+fn transport_error(
+    code: CommunicationReasonCode,
+    mode: CommunicationMode,
+    profile: TransportProfile,
+) -> CommunicationError {
+    CommunicationError {
+        code,
+        mode,
+        profile: Some(profile),
+    }
 }
