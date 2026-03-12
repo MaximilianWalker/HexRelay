@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for DM privacy-policy get/update endpoints and validation errors.
+- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for signed DM pairing-envelope create/import endpoints and deterministic pairing error codes.
 
 ## Purpose
 

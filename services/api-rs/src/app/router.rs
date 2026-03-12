@@ -13,7 +13,10 @@ use crate::{
             verify_auth_challenge,
         },
         directory::{list_contacts, list_servers},
-        dm::{get_dm_policy, list_dm_thread_messages, list_dm_threads, update_dm_policy},
+        dm::{
+            create_dm_pairing_envelope, get_dm_policy, import_dm_pairing_envelope,
+            list_dm_thread_messages, list_dm_threads, update_dm_policy,
+        },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
             decline_friend_request, list_friend_requests,
@@ -56,6 +59,11 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/v1/dm/privacy-policy",
             get(get_dm_policy).post(update_dm_policy),
+        )
+        .route("/v1/dm/pairing-envelope", post(create_dm_pairing_envelope))
+        .route(
+            "/v1/dm/pairing-envelope/import",
+            post(import_dm_pairing_envelope),
         )
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
