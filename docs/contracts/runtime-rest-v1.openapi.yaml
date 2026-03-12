@@ -307,6 +307,45 @@ paths:
                 $ref: '#/components/schemas/ContactListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/privacy-policy:
+    get:
+      summary: Get DM inbound policy for authenticated identity
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: DM policy response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Update DM inbound policy for authenticated identity
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmPolicyUpdate'
+      responses:
+        '200':
+          description: DM policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -580,6 +619,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactSummary'
+    DmPolicy:
+      type: object
+      required: [inbound_policy, offline_delivery_mode]
+      properties:
+        inbound_policy:
+          type: string
+          enum: [friends_only, same_server, anyone]
+        offline_delivery_mode:
+          type: string
+          enum: [best_effort_online]
+    DmPolicyUpdate:
+      type: object
+      required: [inbound_policy]
+      properties:
+        inbound_policy:
+          type: string
+          enum: [friends_only, same_server, anyone]
     DmThreadSummary:
       type: object
       required:
@@ -849,6 +905,7 @@ components:
             - cursor_invalid
             - limit_invalid
             - thread_not_found
+            - dm_policy_invalid
         message:
           type: string
   parameters:

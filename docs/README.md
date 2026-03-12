@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 updated REST contract authorities for DM thread and DM-message pagination endpoints.
+- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for DM privacy-policy get/update endpoints and validation errors.
 
 ## Purpose
 

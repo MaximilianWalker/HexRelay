@@ -149,6 +149,17 @@ pub struct DmThreadListQuery {
 }
 
 #[derive(Clone, Serialize)]
+pub struct DmPolicy {
+    pub inbound_policy: String,
+    pub offline_delivery_mode: String,
+}
+
+#[derive(Deserialize)]
+pub struct DmPolicyUpdate {
+    pub inbound_policy: String,
+}
+
+#[derive(Clone, Serialize)]
 pub struct DmThreadSummary {
     pub thread_id: String,
     pub kind: String,
