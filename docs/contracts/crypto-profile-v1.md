@@ -38,6 +38,7 @@
 
 ## Minimum Error Code Expectations
 
-- Required for Iteration 1 auth paths: `nonce_invalid`, `session_invalid`.
+- Required for Iteration 1 auth 401 verification failures: `nonce_invalid`, `session_invalid`.
+- Required for Iteration 1 auth 400 validation errors: `signature_invalid`.
 - Additional crypto failures must follow the same explicit `*_invalid` naming pattern.
 - Error payloads may include stable machine-readable code and generic message only.

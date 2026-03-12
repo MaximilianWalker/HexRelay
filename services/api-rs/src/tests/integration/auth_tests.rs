@@ -169,7 +169,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
     let app = build_app(AppState::default());
     let rng = SystemRandom::new();
 
-    let missing_verify_request = Request::builder()
+    let missing_challenge_request = Request::builder()
         .method("POST")
         .uri("/v1/auth/challenge")
         .header("content-type", "application/json")
@@ -178,7 +178,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 
     let missing_challenge_response = app
         .clone()
-        .oneshot(missing_verify_request)
+        .oneshot(missing_challenge_request)
         .await
         .expect("missing challenge response");
     assert_eq!(missing_challenge_response.status(), StatusCode::OK);
