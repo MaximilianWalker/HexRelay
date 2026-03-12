@@ -178,6 +178,23 @@ pub struct DmPairingEnvelopeImportRequest {
     pub envelope: String,
 }
 
+#[derive(Deserialize)]
+pub struct DmConnectivityPreflightRequest {
+    pub peer_identity_id: Option<String>,
+    pub pairing_envelope_present: Option<bool>,
+    pub local_bind_allowed: Option<bool>,
+    pub peer_reachable_hint: Option<bool>,
+    pub same_server_context: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct DmConnectivityPreflightResponse {
+    pub status: String,
+    pub reason_code: String,
+    pub transport_profile: String,
+    pub remediation: Vec<String>,
+}
+
 #[derive(Serialize)]
 pub struct DmPairingImportResponse {
     pub inviter_identity_id: String,

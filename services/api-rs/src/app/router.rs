@@ -14,8 +14,8 @@ use crate::{
         },
         directory::{list_contacts, list_servers},
         dm::{
-            create_dm_pairing_envelope, get_dm_policy, import_dm_pairing_envelope,
-            list_dm_thread_messages, list_dm_threads, update_dm_policy,
+            create_dm_pairing_envelope, dm_connectivity_preflight, get_dm_policy,
+            import_dm_pairing_envelope, list_dm_thread_messages, list_dm_threads, update_dm_policy,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -64,6 +64,10 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/v1/dm/pairing-envelope/import",
             post(import_dm_pairing_envelope),
+        )
+        .route(
+            "/v1/dm/connectivity/preflight",
+            post(dm_connectivity_preflight),
         )
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(

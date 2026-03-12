@@ -10,14 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     domain::dm::validation::{
-        validate_dm_policy_update, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+        validate_connectivity_preflight, validate_dm_policy_update,
+        validate_pairing_envelope_create, validate_pairing_envelope_import,
+        DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
     },
     models::{
-        ApiError, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
-        DmPolicy, DmPolicyUpdate, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage,
-        DmThreadSummary,
+        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmMessagePage,
+        DmMessageRecord, DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest,
+        DmPairingEnvelopeResponse, DmPairingImportResponse, DmPolicy, DmPolicyUpdate,
+        DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -191,6 +192,94 @@ pub async fn import_dm_pairing_envelope(
         endpoint_hints: signed.claims.endpoint_hints,
         imported_at: Utc::now().to_rfc3339(),
         expires_at: expires_at.to_rfc3339(),
+    }))
+}
+
+pub async fn dm_connectivity_preflight(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    Json(payload): Json<DmConnectivityPreflightRequest>,
+) -> ApiResult<Json<DmConnectivityPreflightResponse>> {
+    validate_connectivity_preflight(&payload)?;
+
+    if !payload.pairing_envelope_present.unwrap_or(false) {
+        return Ok(Json(preflight_blocked(
+            "pairing_missing",
+            vec![
+                "Import a signed pairing envelope from your contact.",
+                "Ask your contact to regenerate the envelope if needed.",
+            ],
+        )));
+    }
+
+    if !payload.local_bind_allowed.unwrap_or(true) {
+        return Ok(Json(preflight_blocked(
+            "port_unavailable",
+            vec![
+                "Allow the app to bind a local port in your firewall settings.",
+                "Close conflicting local apps and rerun preflight.",
+            ],
+        )));
+    }
+
+    let policy = state
+        .dm_policies
+        .read()
+        .expect("acquire dm policy read lock")
+        .get(&auth.identity_id)
+        .cloned()
+        .unwrap_or_else(default_dm_policy);
+
+    let same_server = payload.same_server_context.unwrap_or(false);
+    match policy.inbound_policy.as_str() {
+        "friends_only" => {
+            let Some(peer_identity_id) = payload.peer_identity_id.as_deref() else {
+                return Ok(Json(preflight_blocked(
+                    "policy_blocked",
+                    vec![
+                        "Select a peer identity before running DM preflight.",
+                        "Your DM policy currently allows only friends.",
+                    ],
+                )));
+            };
+
+            if !is_friend(&state, &auth.identity_id, peer_identity_id) {
+                return Ok(Json(preflight_blocked(
+                    "policy_blocked",
+                    vec![
+                        "Send and accept a friend request before starting this DM.",
+                        "Or change your DM inbound policy from friends_only.",
+                    ],
+                )));
+            }
+        }
+        "same_server" if !same_server => {
+            return Ok(Json(preflight_blocked(
+                "policy_blocked",
+                vec![
+                    "Join a shared server with this contact.",
+                    "Or change your DM inbound policy from same_server.",
+                ],
+            )));
+        }
+        _ => {}
+    }
+
+    if !payload.peer_reachable_hint.unwrap_or(true) {
+        return Ok(Json(preflight_blocked(
+            "peer_unreachable",
+            vec![
+                "Ask your contact to keep the app online and rerun preflight.",
+                "Confirm both clients use fresh pairing envelopes.",
+            ],
+        )));
+    }
+
+    Ok(Json(DmConnectivityPreflightResponse {
+        status: "ready".to_string(),
+        reason_code: "preflight_ok".to_string(),
+        transport_profile: "direct_only".to_string(),
+        remediation: vec!["Start direct DM connection.".to_string()],
     }))
 }
 
@@ -419,6 +508,31 @@ fn default_dm_policy() -> DmPolicy {
         inbound_policy: "friends_only".to_string(),
         offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
     }
+}
+
+fn preflight_blocked(reason_code: &str, remediation: Vec<&str>) -> DmConnectivityPreflightResponse {
+    DmConnectivityPreflightResponse {
+        status: "blocked".to_string(),
+        reason_code: reason_code.to_string(),
+        transport_profile: "direct_only".to_string(),
+        remediation: remediation
+            .into_iter()
+            .map(std::string::ToString::to_string)
+            .collect(),
+    }
+}
+
+fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
+    state
+        .friend_requests
+        .read()
+        .expect("acquire friend request read lock")
+        .values()
+        .any(|record| {
+            record.status == "accepted"
+                && ((record.requester_identity_id == a && record.target_identity_id == b)
+                    || (record.requester_identity_id == b && record.target_identity_id == a))
+        })
 }
 
 fn sign_pairing_claims(claims: &PairingEnvelopeClaims, key_secret: &str) -> ApiResult<String> {

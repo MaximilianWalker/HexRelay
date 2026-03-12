@@ -396,6 +396,29 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/preflight:
+    post:
+      summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmConnectivityPreflightRequest'
+      responses:
+        '200':
+          description: DM preflight diagnostics result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmConnectivityPreflightResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -736,6 +759,46 @@ components:
         expires_at:
           type: string
           format: date-time
+    DmConnectivityPreflightRequest:
+      type: object
+      properties:
+        peer_identity_id:
+          type: string
+          nullable: true
+        pairing_envelope_present:
+          type: boolean
+          nullable: true
+        local_bind_allowed:
+          type: boolean
+          nullable: true
+        peer_reachable_hint:
+          type: boolean
+          nullable: true
+        same_server_context:
+          type: boolean
+          nullable: true
+    DmConnectivityPreflightResponse:
+      type: object
+      required: [status, reason_code, transport_profile, remediation]
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        reason_code:
+          type: string
+          enum:
+            - preflight_ok
+            - pairing_missing
+            - port_unavailable
+            - policy_blocked
+            - peer_unreachable
+        transport_profile:
+          type: string
+          enum: [direct_only]
+        remediation:
+          type: array
+          items:
+            type: string
     DmThreadSummary:
       type: object
       required:
@@ -1009,6 +1072,7 @@ components:
             - pairing_invalid
             - pairing_expired
             - pairing_replayed
+            - preflight_invalid
         message:
           type: string
   parameters:
