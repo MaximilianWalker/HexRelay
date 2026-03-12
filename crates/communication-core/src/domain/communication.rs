@@ -46,6 +46,7 @@ pub struct SessionProvenance {
 #[serde(rename_all = "snake_case")]
 pub enum CommunicationReasonCode {
     DmDirectRouteSelected,
+    DmDirectPolicyViolation,
     ServerChannelRouteSelected,
     PresenceRouteSelected,
     ModeDisabled,

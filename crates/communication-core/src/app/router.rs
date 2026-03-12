@@ -86,8 +86,25 @@ where
                 .map_err(|error| map_policy_error(error, mode))?;
         }
 
+        assert_dm_direct_profile(mode, profile)?;
+
         Ok(profile)
     }
+}
+
+pub(crate) fn assert_dm_direct_profile(
+    mode: CommunicationMode,
+    profile: TransportProfile,
+) -> Result<(), CommunicationError> {
+    if mode == CommunicationMode::DmDirect && profile != TransportProfile::DirectPeer {
+        return Err(CommunicationError {
+            code: CommunicationReasonCode::DmDirectPolicyViolation,
+            mode,
+            profile: Some(profile),
+        });
+    }
+
+    Ok(())
 }
 
 fn map_policy_error(error: PolicyError, mode: CommunicationMode) -> CommunicationError {

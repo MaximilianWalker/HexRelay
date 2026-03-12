@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::app::{CommunicationError, CommunicationRouter};
+use crate::app::{router::assert_dm_direct_profile, CommunicationError, CommunicationRouter};
 use crate::domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, PolicyContext,
     SendEnvelope, SessionProvenance, TransportProfile,
@@ -183,6 +183,21 @@ fn maps_mode_disabled_to_reason_code() {
             code: CommunicationReasonCode::ModeDisabled,
             mode: CommunicationMode::ServerChannel,
             profile: None,
+        })
+    );
+}
+
+#[test]
+fn rejects_non_direct_profile_for_dm_mode() {
+    let result =
+        assert_dm_direct_profile(CommunicationMode::DmDirect, TransportProfile::NodeClient);
+
+    assert_eq!(
+        result,
+        Err(CommunicationError {
+            code: CommunicationReasonCode::DmDirectPolicyViolation,
+            mode: CommunicationMode::DmDirect,
+            profile: Some(TransportProfile::NodeClient),
         })
     );
 }
