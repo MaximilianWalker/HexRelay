@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 aligned dependency IDs for DM vs voice constrained-network validation and refreshed local parity guidance for DM transport policy checks.
+- Latest meaningful change: 2026-03-16 aligned required-check/readiness doc parity and replaced iteration-count compatibility-stub policy with a release-window retention rule.
 
 ## Purpose
 
@@ -70,7 +70,7 @@
 ## Lightweight Governance
 
 - If canonical docs change, update `last_updated` and affected links in this file in the same PR.
-- If docs are moved or renamed, keep compatibility stubs at old paths until at least Iteration 6.
+- If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
 
