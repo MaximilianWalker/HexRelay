@@ -583,9 +583,12 @@ paths:
   /v1/dm/fanout/dispatch:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
+      description: Profile-device convergence primitive under direct-only DM policy; does not authorize relay fallback or persistent server-side DM payload storage.
       security:
         - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
@@ -606,6 +609,7 @@ paths:
   /v1/dm/fanout/catch-up:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
+      description: Profile-device convergence replay under direct-only DM policy; replays bounded in-memory delivery history and does not permit relay fallback.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -918,6 +922,12 @@ components:
         inbound_policy:
           type: string
           enum: [friends_only, same_server, anyone]
+    DmDirectEndpointHint:
+      type: string
+      minLength: 1
+      maxLength: 200
+      pattern: '^(tcp|udp|quic)://[^\s]+$'
+      description: Direct peer endpoint hint only; relay-oriented schemes (stun://, turn://, relay://) are forbidden.
     DmPairingEnvelopeCreateRequest:
       type: object
       required: [endpoint_hints]
@@ -926,7 +936,7 @@ components:
           type: array
           maxItems: 8
           items:
-            type: string
+            $ref: '#/components/schemas/DmDirectEndpointHint'
         expires_in_seconds:
           type: integer
           minimum: 1
@@ -1018,7 +1028,7 @@ components:
           minItems: 1
           maxItems: 8
           items:
-            type: string
+            $ref: '#/components/schemas/DmDirectEndpointHint'
     DmLanDiscoveryAnnounceResponse:
       type: object
       required: [identity_id, endpoint_hints, scope, last_seen_at]
@@ -1106,9 +1116,7 @@ components:
           minLength: 1
           maxLength: 64
         endpoint_hint:
-          type: string
-          minLength: 1
-          maxLength: 200
+          $ref: '#/components/schemas/DmDirectEndpointHint'
         estimated_rtt_ms:
           type: integer
           minimum: 1
@@ -1391,6 +1399,7 @@ components:
           type: string
         deduped_message_ids:
           type: array
+          description: Message IDs skipped as duplicate replay entries using key `(message_id, sender_identity_id, source_device_id, ciphertext)`.
           items:
             type: string
         items:

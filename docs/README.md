@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM late-device catch-up and per-device cursor dedupe in addition to active-device fanout flows.
+- Latest meaningful change: 2026-03-16 hardened DM convergence semantics across runtime/docs (cursor safety, dedupe-key definition, and direct-only endpoint-hint constraints) and aligned evidence-path routing.
 
 ## Purpose
 

@@ -5,7 +5,7 @@ use axum::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
-use ring::hmac;
+use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -710,9 +710,11 @@ pub async fn heartbeat_dm_profile_device(
 
 pub async fn run_dm_active_fanout(
     axum::extract::State(state): axum::extract::State<AppState>,
-    _auth: AuthSession,
+    auth: AuthSession,
+    headers: HeaderMap,
     Json(payload): Json<DmFanoutDispatchRequest>,
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
 
     let recipient_identity_id = payload.recipient_identity_id.trim();
@@ -790,6 +792,7 @@ pub async fn run_dm_active_fanout(
     delivery_log.push(DmFanoutDeliveryRecord {
         cursor,
         message_id,
+        sender_identity_id: auth.identity_id.clone(),
         ciphertext: payload.ciphertext.clone(),
         source_device_id: source_device_id.clone(),
         delivered_device_ids: delivered_device_ids.clone(),
@@ -888,7 +891,6 @@ pub async fn run_dm_fanout_catch_up(
             .unwrap_or(0);
         (last, request_cursor.unwrap_or(0))
     };
-    let mut effective_cursor = user_cursor.max(last_cursor);
 
     let delivery_log = state
         .dm_fanout_delivery_log
@@ -898,27 +900,42 @@ pub async fn run_dm_fanout_catch_up(
         .get(&identity_id)
         .map(Vec::as_slice)
         .unwrap_or(&[]);
+    let tail_cursor = entries.last().map(|entry| entry.cursor).unwrap_or(0);
+    if user_cursor > tail_cursor {
+        return Err(bad_request(
+            "cursor_out_of_range",
+            "cursor exceeds available fanout history",
+        ));
+    }
+
+    let effective_cursor = user_cursor.max(last_cursor);
 
     let mut items = Vec::new();
     let mut deduped_message_ids = Vec::new();
-    let mut seen_message_ids = HashSet::new();
+    let mut seen_delivery_keys = HashSet::new();
+    let mut scanned_cursor = last_cursor;
     for entry in entries {
         if entry.cursor <= effective_cursor {
             continue;
         }
 
-        effective_cursor = entry.cursor;
+        scanned_cursor = entry.cursor;
 
         if entry.delivered_device_ids.iter().any(|id| id == &device_id) {
             continue;
         }
 
-        if seen_message_ids.contains(&entry.message_id) {
+        let dedupe_key = (
+            entry.message_id.clone(),
+            entry.sender_identity_id.clone(),
+            entry.source_device_id.clone(),
+            ciphertext_fingerprint(&entry.ciphertext),
+        );
+        if !seen_delivery_keys.insert(dedupe_key) {
             deduped_message_ids.push(entry.message_id.clone());
             continue;
         }
 
-        seen_message_ids.insert(entry.message_id.clone());
         items.push(DmFanoutCatchUpItem {
             cursor: entry.cursor.to_string(),
             message_id: entry.message_id.clone(),
@@ -934,15 +951,15 @@ pub async fn run_dm_fanout_catch_up(
     deduped_message_ids.sort();
     deduped_message_ids.dedup();
 
-    let mut committed_cursor = effective_cursor;
-    if effective_cursor > last_cursor {
+    let mut committed_cursor = last_cursor;
+    if scanned_cursor > last_cursor {
         let mut fanout_cursors = state
             .dm_fanout_device_cursors
             .write()
             .expect("acquire dm fanout cursor write lock");
         let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
         let current = device_cursors.get(&device_id).copied().unwrap_or(0);
-        committed_cursor = current.max(effective_cursor);
+        committed_cursor = current.max(scanned_cursor);
         device_cursors.insert(device_id.clone(), committed_cursor);
     }
 
@@ -1316,6 +1333,13 @@ fn verify_pairing_envelope_signature(
     }
 
     Ok(())
+}
+
+fn ciphertext_fingerprint(value: &str) -> [u8; 32] {
+    let digest = digest::digest(&digest::SHA256, value.as_bytes());
+    let mut bytes = [0_u8; 32];
+    bytes.copy_from_slice(digest.as_ref());
+    bytes
 }
 
 fn random_hex(bytes_len: usize) -> String {

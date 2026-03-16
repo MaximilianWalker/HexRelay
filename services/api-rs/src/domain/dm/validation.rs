@@ -28,6 +28,74 @@ pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
 pub const DM_FANOUT_CATCH_UP_DEFAULT_LIMIT: u32 = 50;
 pub const DM_FANOUT_CATCH_UP_MAX_LIMIT: u32 = 100;
+const DM_ENDPOINT_HINT_ALLOWED_SCHEMES: [&str; 3] = ["tcp", "udp", "quic"];
+const DM_ENDPOINT_HINT_FORBIDDEN_SCHEMES: [&str; 3] = ["stun", "turn", "relay"];
+
+fn validate_direct_endpoint_hint(
+    hint: &str,
+    code: &'static str,
+    field: &'static str,
+) -> ApiResult<()> {
+    let value = hint.trim();
+    if value.is_empty() || value.len() > 200 {
+        return Err(bad_request(
+            code,
+            "endpoint hints must be non-empty and <= 200 chars",
+        ));
+    }
+    if value != hint {
+        return Err(bad_request(
+            code,
+            "endpoint hints must not include leading or trailing whitespace",
+        ));
+    }
+
+    let (scheme, address) = value.split_once("://").ok_or_else(|| {
+        bad_request(
+            code,
+            "endpoint hints must include a direct scheme prefix like tcp://, udp://, or quic://",
+        )
+    })?;
+    if address.trim().is_empty() {
+        return Err(bad_request(
+            code,
+            "endpoint hints must include a non-empty address",
+        ));
+    }
+
+    let normalized_scheme = scheme.to_ascii_lowercase();
+    if scheme != normalized_scheme {
+        return Err(bad_request(
+            code,
+            "endpoint hint scheme must be lowercase (tcp://, udp://, quic://)",
+        ));
+    }
+    if DM_ENDPOINT_HINT_FORBIDDEN_SCHEMES
+        .iter()
+        .any(|forbidden| &normalized_scheme == forbidden)
+    {
+        return Err(bad_request(
+            code,
+            "endpoint hints must not use relay-oriented schemes (stun://, turn://, relay://)",
+        ));
+    }
+
+    if !DM_ENDPOINT_HINT_ALLOWED_SCHEMES
+        .iter()
+        .any(|allowed| &normalized_scheme == allowed)
+    {
+        return Err(bad_request(
+            code,
+            match field {
+                "lan" => "LAN endpoint hints must use direct schemes: udp://, tcp://, quic://",
+                "card" => "endpoint_hint must use direct schemes: udp://, tcp://, quic://",
+                _ => "endpoint hints must use direct schemes: udp://, tcp://, quic://",
+            },
+        ));
+    }
+
+    Ok(())
+}
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -59,13 +127,7 @@ pub fn validate_pairing_envelope_create(
     }
 
     for hint in &payload.endpoint_hints {
-        let value = hint.trim();
-        if value.is_empty() || value.len() > 200 {
-            return Err(bad_request(
-                "pairing_invalid",
-                "endpoint hints must be non-empty and <= 200 chars",
-            ));
-        }
+        validate_direct_endpoint_hint(hint, "pairing_invalid", "pairing")?;
     }
 
     let expires_in_seconds = payload
@@ -121,13 +183,7 @@ pub fn validate_lan_discovery_announce(payload: &DmLanDiscoveryAnnounceRequest) 
     }
 
     for hint in &payload.endpoint_hints {
-        let value = hint.trim();
-        if value.is_empty() || value.len() > 200 {
-            return Err(bad_request(
-                "lan_discovery_invalid",
-                "LAN endpoint hints must be non-empty and <= 200 chars",
-            ));
-        }
+        validate_direct_endpoint_hint(hint, "lan_discovery_invalid", "lan")?;
     }
 
     Ok(())
@@ -180,12 +236,7 @@ pub fn validate_endpoint_card_register(payload: &DmEndpointCardRegisterRequest) 
                 "endpoint_id must not include leading or trailing whitespace",
             ));
         }
-        if card.endpoint_hint.trim().is_empty() || card.endpoint_hint.len() > 200 {
-            return Err(bad_request(
-                "endpoint_cards_invalid",
-                "endpoint_hint must be non-empty and <= 200 chars",
-            ));
-        }
+        validate_direct_endpoint_hint(&card.endpoint_hint, "endpoint_cards_invalid", "card")?;
 
         if let Some(expires_in_seconds) = card.expires_in_seconds {
             if expires_in_seconds == 0 || expires_in_seconds > DM_ENDPOINT_CARD_MAX_EXPIRY_SECONDS {
@@ -458,6 +509,12 @@ mod tests {
             expires_in_seconds: Some(0),
         };
         assert!(validate_pairing_envelope_create(&invalid).is_err());
+
+        let relay_scheme = DmPairingEnvelopeCreateRequest {
+            endpoint_hints: vec!["turn://relay.example.com:3478".to_string()],
+            expires_in_seconds: Some(600),
+        };
+        assert!(validate_pairing_envelope_create(&relay_scheme).is_err());
     }
 
     #[test]
@@ -510,6 +567,11 @@ mod tests {
             endpoint_hints: vec!["   ".to_string()],
         };
         assert!(validate_lan_discovery_announce(&invalid_blank).is_err());
+
+        let invalid_scheme = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["stun://192.168.1.11:3478".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_scheme).is_err());
     }
 
     #[test]
@@ -550,6 +612,17 @@ mod tests {
 
         let invalid = DmEndpointCardRegisterRequest { cards: vec![] };
         assert!(validate_endpoint_card_register(&invalid).is_err());
+
+        let invalid_scheme = DmEndpointCardRegisterRequest {
+            cards: vec![crate::models::DmEndpointCardInput {
+                endpoint_id: "relay-card".to_string(),
+                endpoint_hint: "relay://edge.example.net:3478".to_string(),
+                estimated_rtt_ms: Some(15),
+                priority: Some(3),
+                expires_in_seconds: Some(900),
+            }],
+        };
+        assert!(validate_endpoint_card_register(&invalid_scheme).is_err());
     }
 
     #[test]
