@@ -400,7 +400,7 @@ paths:
   /v1/dm/connectivity/preflight:
     post:
       summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
-      description: Runs direct-connect diagnostics using trusted runtime state only. `same_server` allow-path verification is not implemented yet, so that policy currently fails closed even if a client claims shared-server context.
+      description: Runs direct-connect diagnostics using trusted runtime state only. If the authenticated identity's DM inbound policy is `same_server`, the preflight currently fails closed because trusted shared-server verification is not implemented yet.
       security:
         - CookieAuth: []
         - BearerAuth: []

@@ -272,8 +272,8 @@ pub async fn dm_connectivity_preflight(
             return Ok(Json(preflight_blocked(
                 "policy_blocked",
                 vec![
-                    "Recipient DM policy is same_server, but trusted shared-server verification is not implemented yet.",
-                    "Ask recipient to switch DM inbound policy, or retry after same_server execution checks are implemented.",
+                    "Your DM inbound policy is same_server, but trusted shared-server verification is not implemented yet.",
+                    "Change your DM inbound policy, or retry after same_server execution checks are implemented.",
                 ],
             )));
         }
