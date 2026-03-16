@@ -1,8 +1,22 @@
 use super::*;
 
 #[tokio::test]
-async fn announces_lan_presence_and_lists_peer() {
+async fn announces_lan_presence_and_lists_policy_eligible_peer() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
+        .expect("build dm policy update request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
 
     let announce_request = Request::builder()
         .method("POST")
@@ -46,6 +60,52 @@ async fn announces_lan_presence_and_lists_peer() {
         .expect("peers items array");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["identity_id"], "usr-jules-p");
+}
+
+#[tokio::test]
+async fn hides_lan_peer_when_peer_policy_disallows_sender() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+
+    let announce_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/lan-discovery/announce")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"endpoint_hints":["udp://192.168.1.12:4040"]}"#,
+        ))
+        .expect("build lan announce request");
+
+    let announce_response = app
+        .clone()
+        .oneshot(announce_request)
+        .await
+        .expect("lan announce response");
+    assert_eq!(announce_response.status(), StatusCode::OK);
+
+    let peers_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/connectivity/lan-discovery/peers")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .body(Body::empty())
+        .expect("build lan peers request");
+
+    let peers_response = app
+        .oneshot(peers_request)
+        .await
+        .expect("lan peers response");
+    assert_eq!(peers_response.status(), StatusCode::OK);
+
+    let peers_body = to_bytes(peers_response.into_body(), usize::MAX)
+        .await
+        .expect("read lan peers body");
+    let peers_payload: serde_json::Value =
+        serde_json::from_slice(&peers_body).expect("decode lan peers body");
+
+    let items = peers_payload["items"]
+        .as_array()
+        .expect("peers items array");
+    assert!(items.is_empty());
 }
 
 #[tokio::test]

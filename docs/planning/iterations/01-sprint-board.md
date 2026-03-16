@@ -6,15 +6,15 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-09
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/iterations/01-sprint-board.md`
-- Board status: in_progress
+- Board status: done
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-09 reconciled sprint metadata freshness with iteration log and branch policy authority.
+- Latest meaningful change: 2026-03-16 reconciled historical Iteration 1 task status with the implemented identity/auth/invite baseline and current iteration log.
 
 ## Iteration Scope
 
@@ -99,13 +99,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T2.1.1 | Implement key identity schema + key registration endpoints | In progress | Added `/v1/identity/keys/register` with algorithm/key validation and API tests in `services/api-rs`; identity persistence is DB-backed with migration coverage |
-| T2.1.2 | Build client key generation/import + secure local key storage | In progress | Onboarding identity now generates/imports ed25519 key material client-side, registers identity key, completes challenge-signature auth, and persists persona-scoped key/session data locally with AES-GCM encrypted private-key storage |
-| T2.1.3 | Implement multi-persona profile switching and session isolation | In progress | Added local persona store and Home persona switch/remove actions with active-session revocation wiring on switch/remove and persona-scoped key/session cleanup; routed Home/Servers/Contacts/Settings through shared workspace shell and switched Servers/Contacts hubs to live API-backed queries |
-| T2.1.4 | Implement mandatory recovery phrase onboarding step | In progress | Added onboarding recovery checkpoint (`/onboarding/recovery`) with required phrase-word confirmation gate; removed in-onboarding server/contact join actions so onboarding completes then routes users into app hubs |
-| T2.2.1 | Add invite token create/redeem flow | In progress | Added `/v1/invites` and `/v1/invites/redeem` with mode/expiry/max-uses validation plus onboarding access integration for live invite create/redeem and invalid/expired/exhausted handling |
-| T2.3.1 | Implement nonce challenge-signature auth + session revoke endpoint | In progress | Added `/v1/auth/challenge`, `/v1/auth/verify`, and `/v1/auth/sessions/revoke` with nonce issuance, ed25519 signature verification, DB-backed challenge/session persistence paths, and API tests |
-| T2.4.1 | Add node fingerprint verification in join flow + security tests | In progress | Invite records now bind server node fingerprint; redeem fails with `fingerprint_mismatch` on mismatch and onboarding access step is wired to real redeem API responses |
+| None | - | - | Iteration 1 baseline is complete; active implementation work moved to later iteration boards |
 
 ## Done
 
@@ -115,7 +109,15 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T1.1.2 | Local infra compose stack | 2026-03-04 | Postgres/Redis/MinIO/coturn compose stack with health checks and infra runbook |
 | T1.1.3 | Setup/run/test scripts | 2026-03-04 | Root `Makefile`, `scripts/*.sh`, and root npm scripts provide one-command setup/run/test |
 | T1.2.1 | CI matrix (Rust + web) | 2026-03-04 | `.github/workflows/ci.yml` enforces active Rust/Web lint/test/build gates on `master` and PRs |
+| T1.2.2 | Runtime REST OpenAPI contract artifact | 2026-03-04 | Runtime REST authority is published at `docs/contracts/runtime-rest-v1.openapi.yaml` and referenced by later iteration work |
 | T1.3.1 | Env schema validation + config templates | 2026-03-04 | Runtime env validation added in services and web; `.env.example` templates added for web/api/realtime/infra |
+| T2.1.1 | Key identity schema + key registration endpoints | 2026-03-16 | `/v1/identity/keys/register` is implemented with validation, DB-backed identity persistence, and API coverage |
+| T2.1.2 | Client key generation/import + secure local key storage | 2026-03-16 | Onboarding generates/imports ed25519 identity keys, completes live auth flow, and stores persona-scoped encrypted private keys locally |
+| T2.1.3 | Multi-persona profile switching and session isolation | 2026-03-16 | Persona switching/removal keeps session isolation, revokes active sessions on change, and routes users through shared workspace surfaces |
+| T2.1.4 | Mandatory recovery phrase onboarding step | 2026-03-16 | Onboarding enforces recovery confirmation before completion and then hands off into the main app surfaces |
+| T2.2.1 | Invite token create/redeem flow | 2026-03-16 | Invite create/redeem endpoints and UI integration cover invalid, expired, exhausted, and bounded multi-use cases |
+| T2.3.1 | Nonce challenge-signature auth + session revoke endpoint | 2026-03-16 | Challenge, verify, validate, and revoke session flows are implemented with DB-backed persistence and regression tests |
+| T2.4.1 | Node fingerprint verification in join flow + security tests | 2026-03-16 | Invite redeem enforces fingerprint match and onboarding surfaces real mismatch failures |
 
 ## Suggested Sprint Sequencing
 

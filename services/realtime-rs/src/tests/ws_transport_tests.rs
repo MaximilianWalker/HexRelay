@@ -354,7 +354,7 @@ async fn websocket_upgrade_accepts_valid_authorization() {
 }
 
 #[tokio::test]
-async fn websocket_replies_with_valid_event_envelope_for_call_signal_offer() {
+async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_signal_offer() {
     let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
 
@@ -375,7 +375,7 @@ async fn websocket_replies_with_valid_event_envelope_for_call_signal_offer() {
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-123","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-123","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -397,6 +397,49 @@ async fn websocket_replies_with_valid_event_envelope_for_call_signal_offer() {
     assert_eq!(payload["producer"], "realtime-gateway");
     assert_eq!(payload["correlation_id"], "corr-123");
     assert_eq!(payload["data"]["call_id"], "call-1");
+}
+
+#[tokio::test]
+async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists() {
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let ws_url = start_ws_server(api_base, 60).await;
+
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let (mut socket, _) = connect_async(request)
+        .await
+        .expect("websocket connect response");
+
+    let _ = socket.next().await;
+
+    socket
+        .send(WsMessage::Text(
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+                .to_string(),
+        ))
+        .await
+        .expect("send offer event");
+
+    let message = socket
+        .next()
+        .await
+        .expect("socket message")
+        .expect("ws frame");
+    let text = match message {
+        WsMessage::Text(value) => value,
+        _ => panic!("expected text frame"),
+    };
+
+    let payload: Value = serde_json::from_str(&text).expect("decode response envelope");
+    assert_eq!(payload["event_type"], "error");
+    assert_eq!(payload["data"]["code"], "event_unsupported");
 }
 
 #[test]

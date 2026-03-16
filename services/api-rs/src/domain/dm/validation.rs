@@ -537,7 +537,6 @@ mod tests {
             pairing_envelope_present: Some(true),
             local_bind_allowed: Some(true),
             peer_reachable_hint: Some(true),
-            same_server_context: Some(false),
         };
         assert!(validate_connectivity_preflight(&payload).is_ok());
 
@@ -546,7 +545,6 @@ mod tests {
             pairing_envelope_present: None,
             local_bind_allowed: None,
             peer_reachable_hint: None,
-            same_server_context: None,
         };
         assert!(validate_connectivity_preflight(&invalid).is_err());
     }
