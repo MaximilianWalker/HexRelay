@@ -926,7 +926,7 @@ components:
       type: string
       minLength: 1
       maxLength: 200
-      pattern: '^(tcp|udp|quic)://.+$'
+      pattern: '^(tcp|udp|quic)://[^\s]+$'
       description: Direct peer endpoint hint only; relay-oriented schemes (stun://, turn://, relay://) are forbidden.
     DmPairingEnvelopeCreateRequest:
       type: object

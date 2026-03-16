@@ -53,7 +53,7 @@ fn validate_direct_endpoint_hint(
     let (scheme, address) = value.split_once("://").ok_or_else(|| {
         bad_request(
             code,
-            "endpoint hints must include a direct scheme prefix like tcp:// or udp://",
+            "endpoint hints must include a direct scheme prefix like tcp://, udp://, or quic://",
         )
     })?;
     if address.trim().is_empty() {

@@ -5,7 +5,7 @@ use axum::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
-use ring::hmac;
+use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -925,12 +925,11 @@ pub async fn run_dm_fanout_catch_up(
             continue;
         }
 
-        let dedupe_key = format!(
-            "{}|{}|{}|{}",
-            entry.message_id,
-            entry.sender_identity_id,
-            entry.source_device_id.as_deref().unwrap_or(""),
-            entry.ciphertext
+        let dedupe_key = (
+            entry.message_id.clone(),
+            entry.sender_identity_id.clone(),
+            entry.source_device_id.clone(),
+            ciphertext_fingerprint(&entry.ciphertext),
         );
         if !seen_delivery_keys.insert(dedupe_key) {
             deduped_message_ids.push(entry.message_id.clone());
@@ -1334,6 +1333,13 @@ fn verify_pairing_envelope_signature(
     }
 
     Ok(())
+}
+
+fn ciphertext_fingerprint(value: &str) -> [u8; 32] {
+    let digest = digest::digest(&digest::SHA256, value.as_bytes());
+    let mut bytes = [0_u8; 32];
+    bytes.copy_from_slice(digest.as_ref());
+    bytes
 }
 
 fn random_hex(bytes_len: usize) -> String {
