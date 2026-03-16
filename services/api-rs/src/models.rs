@@ -227,6 +227,85 @@ pub struct DmLanPresenceRecord {
     pub last_seen_epoch: i64,
 }
 
+#[derive(Clone, Deserialize)]
+pub struct DmEndpointCardInput {
+    pub endpoint_id: String,
+    pub endpoint_hint: String,
+    pub estimated_rtt_ms: Option<u32>,
+    pub priority: Option<u8>,
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct DmEndpointCardRegisterRequest {
+    pub cards: Vec<DmEndpointCardInput>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmEndpointCard {
+    pub endpoint_id: String,
+    pub endpoint_hint: String,
+    pub estimated_rtt_ms: u32,
+    pub priority: u8,
+    pub expires_at: String,
+    pub revoked: bool,
+}
+
+#[derive(Serialize)]
+pub struct DmEndpointCardRegisterResponse {
+    pub identity_id: String,
+    pub cards: Vec<DmEndpointCard>,
+}
+
+#[derive(Deserialize)]
+pub struct DmEndpointCardRevokeRequest {
+    pub endpoint_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmEndpointCardRevokeResponse {
+    pub identity_id: String,
+    pub revoked_endpoint_ids: Vec<String>,
+    pub remaining_cards: Vec<DmEndpointCard>,
+}
+
+#[derive(Deserialize)]
+pub struct DmParallelDialRequest {
+    pub peer_identity_id: String,
+    pub max_parallel_attempts: Option<u8>,
+    pub unreachable_endpoint_ids: Option<Vec<String>>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmParallelDialAttempt {
+    pub endpoint_id: String,
+    pub endpoint_hint: String,
+    pub estimated_rtt_ms: u32,
+    pub status: String,
+    pub cancellation_reason: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmParallelDialResponse {
+    pub status: String,
+    pub reason_code: String,
+    pub transport_profile: String,
+    pub winner_endpoint_id: Option<String>,
+    pub canceled_endpoint_ids: Vec<String>,
+    pub attempts: Vec<DmParallelDialAttempt>,
+    pub remediation: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct DmEndpointCardRecord {
+    pub endpoint_id: String,
+    pub endpoint_hint: String,
+    pub estimated_rtt_ms: u32,
+    pub priority: u8,
+    pub expires_at_epoch: i64,
+    pub revoked: bool,
+}
+
 #[derive(Deserialize)]
 pub struct DmWanWizardRequest {
     pub preferred_port: Option<u16>,

@@ -1,8 +1,8 @@
 use crate::{
     models::{
-        DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
-        DmWanWizardRequest,
+        DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
+        DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate, DmWanWizardRequest,
     },
     shared::errors::{bad_request, ApiResult},
 };
@@ -13,6 +13,13 @@ pub const DM_PAIRING_DEFAULT_EXPIRY_SECONDS: u32 = 600;
 pub const DM_PAIRING_MAX_EXPIRY_SECONDS: u32 = 3600;
 pub const DM_PAIRING_MAX_ENDPOINT_HINTS: usize = 8;
 pub const DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS: usize = 8;
+pub const DM_ENDPOINT_CARD_MAX_ITEMS: usize = 8;
+pub const DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS: u32 = 900;
+pub const DM_ENDPOINT_CARD_MAX_EXPIRY_SECONDS: u32 = 3600;
+pub const DM_ENDPOINT_CARD_DEFAULT_RTT_MS: u32 = 150;
+pub const DM_ENDPOINT_CARD_MAX_RTT_MS: u32 = 5000;
+pub const DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS: u8 = 3;
+pub const DM_PARALLEL_DIAL_MAX_ATTEMPTS: u8 = 8;
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -143,18 +150,113 @@ pub fn validate_wan_wizard_request(payload: &DmWanWizardRequest) -> ApiResult<()
     Ok(())
 }
 
+pub fn validate_endpoint_card_register(payload: &DmEndpointCardRegisterRequest) -> ApiResult<()> {
+    if payload.cards.is_empty() || payload.cards.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
+        return Err(bad_request(
+            "endpoint_cards_invalid",
+            "cards must include between 1 and 8 endpoint cards",
+        ));
+    }
+
+    for card in &payload.cards {
+        if card.endpoint_id.trim().is_empty() || card.endpoint_id.len() > 64 {
+            return Err(bad_request(
+                "endpoint_cards_invalid",
+                "endpoint_id must be non-empty and <= 64 chars",
+            ));
+        }
+        if card.endpoint_hint.trim().is_empty() || card.endpoint_hint.len() > 200 {
+            return Err(bad_request(
+                "endpoint_cards_invalid",
+                "endpoint_hint must be non-empty and <= 200 chars",
+            ));
+        }
+
+        if let Some(expires_in_seconds) = card.expires_in_seconds {
+            if expires_in_seconds == 0 || expires_in_seconds > DM_ENDPOINT_CARD_MAX_EXPIRY_SECONDS {
+                return Err(bad_request(
+                    "endpoint_cards_invalid",
+                    "expires_in_seconds must be between 1 and 3600",
+                ));
+            }
+        }
+
+        if let Some(estimated_rtt_ms) = card.estimated_rtt_ms {
+            if estimated_rtt_ms == 0 || estimated_rtt_ms > DM_ENDPOINT_CARD_MAX_RTT_MS {
+                return Err(bad_request(
+                    "endpoint_cards_invalid",
+                    "estimated_rtt_ms must be between 1 and 5000",
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_endpoint_card_revoke(payload: &DmEndpointCardRevokeRequest) -> ApiResult<()> {
+    if payload.endpoint_ids.is_empty() || payload.endpoint_ids.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
+        return Err(bad_request(
+            "endpoint_cards_invalid",
+            "endpoint_ids must include between 1 and 8 ids",
+        ));
+    }
+
+    for endpoint_id in &payload.endpoint_ids {
+        if endpoint_id.trim().is_empty() || endpoint_id.len() > 64 {
+            return Err(bad_request(
+                "endpoint_cards_invalid",
+                "endpoint_id must be non-empty and <= 64 chars",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_parallel_dial_request(payload: &DmParallelDialRequest) -> ApiResult<()> {
+    if payload.peer_identity_id.trim().is_empty() {
+        return Err(bad_request(
+            "parallel_dial_invalid",
+            "peer_identity_id must not be empty",
+        ));
+    }
+
+    if let Some(max_parallel_attempts) = payload.max_parallel_attempts {
+        if max_parallel_attempts == 0 || max_parallel_attempts > DM_PARALLEL_DIAL_MAX_ATTEMPTS {
+            return Err(bad_request(
+                "parallel_dial_invalid",
+                "max_parallel_attempts must be between 1 and 8",
+            ));
+        }
+    }
+
+    if let Some(unreachable_endpoint_ids) = &payload.unreachable_endpoint_ids {
+        if unreachable_endpoint_ids.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
+            return Err(bad_request(
+                "parallel_dial_invalid",
+                "unreachable_endpoint_ids must not exceed 8 ids",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        DmConnectivityPreflightRequest, DmLanDiscoveryAnnounceRequest,
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPolicyUpdate,
-        DmWanWizardRequest,
+        DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
+        DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate, DmWanWizardRequest,
     };
 
     use super::{
         validate_connectivity_preflight, validate_dm_policy_update,
+        validate_endpoint_card_register, validate_endpoint_card_revoke,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, validate_wan_wizard_request,
+        validate_pairing_envelope_import, validate_parallel_dial_request,
+        validate_wan_wizard_request,
     };
 
     #[test]
@@ -272,5 +374,52 @@ mod tests {
             network_profile: Some("invalid".to_string()),
         };
         assert!(validate_wan_wizard_request(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_endpoint_card_register_payload() {
+        let payload = DmEndpointCardRegisterRequest {
+            cards: vec![crate::models::DmEndpointCardInput {
+                endpoint_id: "lan-1".to_string(),
+                endpoint_hint: "udp://192.168.1.10:4040".to_string(),
+                estimated_rtt_ms: Some(12),
+                priority: Some(5),
+                expires_in_seconds: Some(900),
+            }],
+        };
+        assert!(validate_endpoint_card_register(&payload).is_ok());
+
+        let invalid = DmEndpointCardRegisterRequest { cards: vec![] };
+        assert!(validate_endpoint_card_register(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_endpoint_card_revoke_payload() {
+        let payload = DmEndpointCardRevokeRequest {
+            endpoint_ids: vec!["lan-1".to_string()],
+        };
+        assert!(validate_endpoint_card_revoke(&payload).is_ok());
+
+        let invalid = DmEndpointCardRevokeRequest {
+            endpoint_ids: vec![],
+        };
+        assert!(validate_endpoint_card_revoke(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_parallel_dial_payload() {
+        let payload = DmParallelDialRequest {
+            peer_identity_id: "usr-jules-p".to_string(),
+            max_parallel_attempts: Some(3),
+            unreachable_endpoint_ids: Some(vec!["wan-1".to_string()]),
+        };
+        assert!(validate_parallel_dial_request(&payload).is_ok());
+
+        let invalid = DmParallelDialRequest {
+            peer_identity_id: " ".to_string(),
+            max_parallel_attempts: Some(0),
+            unreachable_endpoint_ids: None,
+        };
+        assert!(validate_parallel_dial_request(&invalid).is_err());
     }
 }

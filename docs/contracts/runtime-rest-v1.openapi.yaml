@@ -482,6 +482,79 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/endpoint-cards:
+    post:
+      summary: Register DM endpoint cards for multi-endpoint direct dialing
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmEndpointCardRegisterRequest'
+      responses:
+        '200':
+          description: Endpoint cards registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmEndpointCardRegisterResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/endpoint-cards/revoke:
+    post:
+      summary: Revoke previously published DM endpoint cards
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmEndpointCardRevokeRequest'
+      responses:
+        '200':
+          description: Endpoint cards revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmEndpointCardRevokeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/connectivity/parallel-dial:
+    post:
+      summary: Run DM multi-endpoint parallel dial orchestration
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmParallelDialRequest'
+      responses:
+        '200':
+          description: Parallel dial orchestration result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmParallelDialResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -948,6 +1021,160 @@ components:
           type: string
           enum: [wan_path_ready, wan_path_ready_manual, wan_manual_mapping_required, wan_path_unavailable]
         checklist:
+          type: array
+          items:
+            type: string
+    DmEndpointCardInput:
+      type: object
+      required: [endpoint_id, endpoint_hint]
+      properties:
+        endpoint_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        endpoint_hint:
+          type: string
+          minLength: 1
+          maxLength: 200
+        estimated_rtt_ms:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          nullable: true
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 255
+          nullable: true
+        expires_in_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          nullable: true
+    DmEndpointCardRegisterRequest:
+      type: object
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/DmEndpointCardInput'
+    DmEndpointCard:
+      type: object
+      required: [endpoint_id, endpoint_hint, estimated_rtt_ms, priority, expires_at, revoked]
+      properties:
+        endpoint_id:
+          type: string
+        endpoint_hint:
+          type: string
+        estimated_rtt_ms:
+          type: integer
+        priority:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        revoked:
+          type: boolean
+    DmEndpointCardRegisterResponse:
+      type: object
+      required: [identity_id, cards]
+      properties:
+        identity_id:
+          type: string
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmEndpointCard'
+    DmEndpointCardRevokeRequest:
+      type: object
+      required: [endpoint_ids]
+      properties:
+        endpoint_ids:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+    DmEndpointCardRevokeResponse:
+      type: object
+      required: [identity_id, revoked_endpoint_ids, remaining_cards]
+      properties:
+        identity_id:
+          type: string
+        revoked_endpoint_ids:
+          type: array
+          items:
+            type: string
+        remaining_cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmEndpointCard'
+    DmParallelDialRequest:
+      type: object
+      required: [peer_identity_id]
+      properties:
+        peer_identity_id:
+          type: string
+        max_parallel_attempts:
+          type: integer
+          minimum: 1
+          maximum: 8
+          nullable: true
+        unreachable_endpoint_ids:
+          type: array
+          nullable: true
+          items:
+            type: string
+    DmParallelDialAttempt:
+      type: object
+      required: [endpoint_id, endpoint_hint, estimated_rtt_ms, status]
+      properties:
+        endpoint_id:
+          type: string
+        endpoint_hint:
+          type: string
+        estimated_rtt_ms:
+          type: integer
+        status:
+          type: string
+          enum: [connected, cancelled, failed]
+        cancellation_reason:
+          type: string
+          nullable: true
+    DmParallelDialResponse:
+      type: object
+      required:
+        - status
+        - reason_code
+        - transport_profile
+        - canceled_endpoint_ids
+        - attempts
+        - remediation
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        reason_code:
+          type: string
+          enum: [parallel_dial_connected, parallel_dial_exhausted, endpoint_cards_missing]
+        transport_profile:
+          type: string
+          enum: [direct_only]
+        winner_endpoint_id:
+          type: string
+          nullable: true
+        canceled_endpoint_ids:
+          type: array
+          items:
+            type: string
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmParallelDialAttempt'
+        remediation:
           type: array
           items:
             type: string
