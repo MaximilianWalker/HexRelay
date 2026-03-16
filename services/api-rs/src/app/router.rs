@@ -18,7 +18,7 @@ use crate::{
             get_dm_policy, heartbeat_dm_profile_device, import_dm_pairing_envelope,
             list_dm_lan_peers, list_dm_thread_messages, list_dm_threads,
             register_dm_endpoint_cards, revoke_dm_endpoint_cards, run_dm_active_fanout,
-            run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
+            run_dm_fanout_catch_up, run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -98,6 +98,7 @@ pub fn build_app(state: AppState) -> Router {
             post(heartbeat_dm_profile_device),
         )
         .route("/v1/dm/fanout/dispatch", post(run_dm_active_fanout))
+        .route("/v1/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
             "/v1/dm/threads/:thread_id/messages",

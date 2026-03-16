@@ -1,9 +1,9 @@
 use crate::{
     models::{
         DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate,
-        DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
+        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest,
+        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmParallelDialRequest,
+        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
     },
     shared::errors::{bad_request, ApiResult},
 };
@@ -26,6 +26,8 @@ pub const DM_PARALLEL_DIAL_MAX_ATTEMPTS: u8 = 8;
 pub const DM_PROFILE_DEVICE_ID_MAX_LENGTH: usize = 64;
 pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
+pub const DM_FANOUT_CATCH_UP_DEFAULT_LIMIT: u32 = 50;
+pub const DM_FANOUT_CATCH_UP_MAX_LIMIT: u32 = 100;
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -348,21 +350,48 @@ pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<
     Ok(())
 }
 
+pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<u32> {
+    let device_id = payload.device_id.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            "fanout_invalid",
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if device_id != payload.device_id {
+        return Err(bad_request(
+            "fanout_invalid",
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    let limit = payload.limit.unwrap_or(DM_FANOUT_CATCH_UP_DEFAULT_LIMIT);
+    if limit == 0 || limit > DM_FANOUT_CATCH_UP_MAX_LIMIT {
+        return Err(bad_request(
+            "fanout_invalid",
+            "limit must be between 1 and 100 when provided",
+        ));
+    }
+
+    Ok(limit)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
         DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate,
-        DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
+        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest,
+        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmParallelDialRequest,
+        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
     };
 
     use super::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_dispatch,
-        validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, validate_parallel_dial_request,
-        validate_profile_device_heartbeat, validate_wan_wizard_request,
+        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
+        validate_fanout_dispatch, validate_lan_discovery_announce,
+        validate_pairing_envelope_create, validate_pairing_envelope_import,
+        validate_parallel_dial_request, validate_profile_device_heartbeat,
+        validate_wan_wizard_request,
     };
 
     #[test]
@@ -561,5 +590,29 @@ mod tests {
             source_device_id: None,
         };
         assert!(validate_fanout_dispatch(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_fanout_catch_up_payload() {
+        let payload = DmFanoutCatchUpRequest {
+            device_id: "desktop-main".to_string(),
+            cursor: Some(2),
+            limit: Some(25),
+        };
+        assert!(matches!(validate_fanout_catch_up(&payload), Ok(25)));
+
+        let invalid_device = DmFanoutCatchUpRequest {
+            device_id: "  ".to_string(),
+            cursor: None,
+            limit: None,
+        };
+        assert!(validate_fanout_catch_up(&invalid_device).is_err());
+
+        let invalid_limit = DmFanoutCatchUpRequest {
+            device_id: "desktop-main".to_string(),
+            cursor: None,
+            limit: Some(0),
+        };
+        assert!(validate_fanout_catch_up(&invalid_limit).is_err());
     }
 }

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM active-device profile fanout in addition to endpoint-card and parallel-dial flows.
+- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM late-device catch-up and per-device cursor dedupe in addition to active-device fanout flows.
 
 ## Purpose
 

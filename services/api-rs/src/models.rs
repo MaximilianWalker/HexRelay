@@ -333,6 +333,33 @@ pub struct DmFanoutDispatchResponse {
     pub skipped_device_ids: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DmFanoutCatchUpRequest {
+    pub device_id: String,
+    pub cursor: Option<u64>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmFanoutCatchUpItem {
+    pub cursor: String,
+    pub message_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmFanoutCatchUpResponse {
+    pub status: String,
+    pub reason_code: String,
+    pub transport_profile: String,
+    pub device_id: String,
+    pub replay_count: u32,
+    pub next_cursor: String,
+    pub deduped_message_ids: Vec<String>,
+    pub items: Vec<DmFanoutCatchUpItem>,
+}
+
 #[derive(Clone)]
 pub struct DmEndpointCardRecord {
     pub endpoint_id: String,
@@ -348,6 +375,15 @@ pub struct DmProfileDeviceRecord {
     pub device_id: String,
     pub active: bool,
     pub last_seen_epoch: i64,
+}
+
+#[derive(Clone)]
+pub struct DmFanoutDeliveryRecord {
+    pub cursor: u64,
+    pub message_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+    pub delivered_device_ids: Vec<String>,
 }
 
 #[derive(Deserialize)]

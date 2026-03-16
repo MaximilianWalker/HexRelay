@@ -603,6 +603,31 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/fanout/catch-up:
+    post:
+      summary: Replay missed DM payloads for a late-activated profile device
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmFanoutCatchUpRequest'
+      responses:
+        '200':
+          description: DM late-device catch-up replay result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmFanoutCatchUpResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -1306,6 +1331,73 @@ components:
           type: array
           items:
             type: string
+    DmFanoutCatchUpRequest:
+      type: object
+      required: [device_id]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        cursor:
+          type: integer
+          minimum: 0
+          nullable: true
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          nullable: true
+    DmFanoutCatchUpItem:
+      type: object
+      required: [cursor, message_id, ciphertext]
+      properties:
+        cursor:
+          type: string
+        message_id:
+          type: string
+        ciphertext:
+          type: string
+        source_device_id:
+          type: string
+          nullable: true
+    DmFanoutCatchUpResponse:
+      type: object
+      required:
+        - status
+        - reason_code
+        - transport_profile
+        - device_id
+        - replay_count
+        - next_cursor
+        - deduped_message_ids
+        - items
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        reason_code:
+          type: string
+          enum:
+            [fanout_catch_up_ok, fanout_catch_up_no_missed, fanout_device_unknown, fanout_device_inactive]
+        transport_profile:
+          type: string
+          enum: [direct_only]
+        device_id:
+          type: string
+        replay_count:
+          type: integer
+          minimum: 0
+        next_cursor:
+          type: string
+        deduped_message_ids:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmFanoutCatchUpItem'
     DmThreadSummary:
       type: object
       required:
