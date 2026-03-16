@@ -777,27 +777,6 @@ pub async fn run_dm_active_fanout(
         }));
     }
 
-    let message_id = payload.message_id.trim().to_string();
-    let mut fanout_delivery_log = state
-        .dm_fanout_delivery_log
-        .write()
-        .expect("acquire dm fanout delivery log write lock");
-    let delivery_log = fanout_delivery_log
-        .entry(recipient_identity_id.to_string())
-        .or_default();
-    let cursor = delivery_log
-        .last()
-        .map(|record| record.cursor.saturating_add(1))
-        .unwrap_or(1);
-    delivery_log.push(DmFanoutDeliveryRecord {
-        cursor,
-        message_id,
-        sender_identity_id: auth.identity_id.clone(),
-        ciphertext: payload.ciphertext.clone(),
-        source_device_id: source_device_id.clone(),
-        delivered_device_ids: delivered_device_ids.clone(),
-    });
-
     let known_device_ids = state
         .dm_profile_devices
         .read()
@@ -818,22 +797,41 @@ pub async fn run_dm_active_fanout(
                 .unwrap_or(0)
         })
         .unwrap_or(0);
+
+    let message_id = payload.message_id.trim().to_string();
+    let mut fanout_delivery_log = state
+        .dm_fanout_delivery_log
+        .write()
+        .expect("acquire dm fanout delivery log write lock");
+    let delivery_log = fanout_delivery_log
+        .entry(recipient_identity_id.to_string())
+        .or_default();
     if min_cursor > 0 {
         delivery_log.retain(|record| record.cursor > min_cursor);
     }
-    if delivery_log.len() > DM_FANOUT_MAX_LOG_ENTRIES {
-        let overflow = delivery_log.len() - DM_FANOUT_MAX_LOG_ENTRIES;
-        if min_cursor > 0 {
-            let removable = delivery_log
-                .iter()
-                .take_while(|record| record.cursor <= min_cursor)
-                .count()
-                .min(overflow);
-            if removable > 0 {
-                delivery_log.drain(0..removable);
-            }
-        }
+    if delivery_log.len() >= DM_FANOUT_MAX_LOG_ENTRIES {
+        return Ok(Json(DmFanoutDispatchResponse {
+            status: "blocked".to_string(),
+            reason_code: "fanout_backlog_full".to_string(),
+            transport_profile: "direct_only".to_string(),
+            fanout_count: 0,
+            delivered_device_ids: vec![],
+            skipped_device_ids,
+        }));
     }
+
+    let cursor = delivery_log
+        .last()
+        .map(|record| record.cursor.saturating_add(1))
+        .unwrap_or(1);
+    delivery_log.push(DmFanoutDeliveryRecord {
+        cursor,
+        message_id,
+        sender_identity_id: auth.identity_id.clone(),
+        ciphertext: payload.ciphertext.clone(),
+        source_device_id: source_device_id.clone(),
+        delivered_device_ids: delivered_device_ids.clone(),
+    });
 
     Ok(Json(DmFanoutDispatchResponse {
         status: "ready".to_string(),

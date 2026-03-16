@@ -1326,7 +1326,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_no_active_devices]
+          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full]
         transport_profile:
           type: string
           enum: [direct_only]
