@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 hardened multi-device profile convergence routing for DM direct communication and server communication execution/verification docs.
+- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM endpoint-card lifecycle and parallel-dial orchestration.
 
 ## Purpose
 
