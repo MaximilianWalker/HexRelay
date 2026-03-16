@@ -6,14 +6,14 @@
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/04-dependencies-risks.md`
 
 ## Quick Context
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-12 added profile-device convergence risk posture for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 added profile-device convergence risk posture for DM and server communication paths.
 
 ## Purpose
 

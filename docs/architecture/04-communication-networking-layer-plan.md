@@ -6,14 +6,14 @@
 - Owner: Architecture, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/architecture/04-communication-networking-layer-plan.md`
 
 ## Quick Context
 
 - Primary edit location for networking-layer architecture and execution across both direct DM and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-03-12 locked profile-device eventual-sync convergence across DM direct and server communication paths.
+- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync convergence across DM direct and server communication paths.
 
 ## Purpose
 

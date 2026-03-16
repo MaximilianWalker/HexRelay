@@ -6,7 +6,7 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM connectivity solution candidates under the no-infrastructure rule.
 - Update this file when direct-connect architecture, feasibility assumptions, or acceptance criteria change.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-12 aligned multi-endpoint DM proposal with profile-device eventual-sync convergence requirements.
+- Latest meaningful change: 2026-03-16 aligned multi-endpoint DM proposal with profile-device eventual-sync convergence requirements.
 
 ## Purpose
 

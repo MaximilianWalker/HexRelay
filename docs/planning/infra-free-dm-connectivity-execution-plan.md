@@ -6,7 +6,7 @@
 - Owner: Delivery, core, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of infrastructure-free DM connectivity.
 - Update this plan when direct-connect task sequencing, acceptance criteria, or risk controls change.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-12 expanded execution plan to include profile-device eventual-sync convergence for active and later-active devices.
+- Latest meaningful change: 2026-03-16 expanded execution plan to include profile-device eventual-sync convergence for active and later-active devices.
 
 ## Purpose
 

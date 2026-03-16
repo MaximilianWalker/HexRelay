@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-03-12 added profile-device sync defaults for active fanout and late-device catch-up convergence.
+- Latest meaningful change: 2026-03-16 added profile-device sync defaults for active fanout and late-device catch-up convergence.
 
 ## Override Precedence
 
@@ -41,8 +41,8 @@
 | `dm.device_sync.active_fanout` | `all_active_devices` | `all_active_devices` | user |
 | `dm.device_sync.catchup_mode` | `cursor_replay` | `cursor_replay` | user |
 | `dm.device_sync.replay_retention_hours` | `72` | integer >= 1 | user |
-| `server.device_sync.active_fanout` | `all_active_devices` | `all_active_devices` | user |
-| `server.device_sync.catchup_mode` | `cursor_hydration` | `cursor_hydration` | user |
+| `server.device_sync.active_fanout` | `all_active_devices` | `all_active_devices` | server |
+| `server.device_sync.catchup_mode` | `cursor_hydration` | `cursor_hydration` | server |
 | `server.device_sync.replay_retention_hours` | `72` | integer >= 1 | server |
 | `discovery.listing_visibility` | `private` | `private`, `public` | server |
 | `storage.quota_mb` | `null` | integer >= 100 or `null` | server |

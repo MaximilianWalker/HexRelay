@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 extended networking backlog with profile-device eventual-sync tasks for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 extended networking backlog with profile-device eventual-sync tasks for DM and server communication paths.
 
 ## Iteration Scope
 

@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-12 locked profile-device eventual-sync requirement for both DM and server communication paths.
+- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement for both DM and server communication paths.
 
 ## Product Summary
 

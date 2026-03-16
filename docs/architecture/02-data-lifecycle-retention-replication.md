@@ -6,14 +6,14 @@
 - Owner: Architecture and API maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/architecture/02-data-lifecycle-retention-replication.md`
 
 ## Quick Context
 
 - Purpose: define where data lives, who is authoritative, and how retention/reconciliation behaves.
 - Primary edit location: update when persistence boundaries or retention policy semantics change.
-- Latest meaningful change: 2026-03-12 added profile-device sync cursor and replay retention boundaries for DM and server convergence.
+- Latest meaningful change: 2026-03-16 added profile-device sync cursor and replay retention boundaries for DM and server convergence.
 
 ## Persistence Boundary Matrix
 

@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 added profile-device eventual-sync trace mapping for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 added profile-device eventual-sync trace mapping for DM and server communication paths.
 
 ## Canonical Boards
 

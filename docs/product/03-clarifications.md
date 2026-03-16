@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/03-clarifications.md`
 
 ## Quick Context
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-03-12 locked profile-device eventual-sync requirement for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement for DM and server communication paths.
 
 ## Purpose
 
