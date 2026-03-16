@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-16 captured DM fanout/catch-up readiness hardening for cursor safety, CSRF parity, and docs/contract convergence.
+- Latest meaningful change: 2026-03-16 resolved readiness findings for DM replay durability/scoping and docs-policy alignment (DM infra-free scope vs voice TURN profile).
 
 ## Purpose
 
@@ -30,6 +30,12 @@
 - For `watch` entries only: `owner=<team-or-role>`, `decision_trigger=<event>`, `exit_criteria=<objective condition>`
 
 ## Entries
+
+- 2026-03-16 | `docs` | D-007 wording implied TURN-profile replacement while Iteration 3 voice docs require TURN fallback validation | clarified `D-007` in `docs/product/04-dependencies-risks.md` as DM-only infra-free dependency and aligned TURN profile scope wording in `docs/planning/turn-nat-test-profile.md`; added canonical routing row for TURN/NAT profile in `docs/README.md` | DM infra-free policy and voice TURN validation now have explicit non-overlapping scope, removing planning contradiction | `closed`
+- 2026-03-16 | `docs` | Contributor CI required job list drifted from workflow gates | updated required jobs in `docs/operations/contributor-guide.md` to include `dm-transport-policy-check` | contributor guidance now matches enforced CI gate set | `closed`
+- 2026-03-16 | `api-rs` | DM fanout replay log pruning could drop history before inactive/late devices consumed catch-up backlog | updated pruning in `services/api-rs/src/transport/http/handlers/dm.rs` to use cursor floor across all known recipient devices (inactive included) and only trim acknowledged history under cap pressure | late-device catch-up backlog is preserved until every known device advances replay cursor | `closed`
+- 2026-03-16 | `api-rs` | DM thread/message listing was not identity-scoped and allowed non-member fixture access | enforced membership scoping in `services/api-rs/src/transport/http/handlers/dm.rs` and added non-member regression coverage in `services/api-rs/src/tests/integration/dm_threads_tests.rs` | DM thread and message list routes now apply authenticated identity membership boundaries | `closed`
+- 2026-03-16 | `api-rs` | Pairing-envelope replay protection was in-memory only and reset across process restarts | added durable nonce replay store migration `services/api-rs/migrations/0011_dm_pairing_nonces.sql`, DB repo `services/api-rs/src/infra/db/repos/dm_repo.rs`, migration wiring in `services/api-rs/src/db.rs`, and DB-first replay checks in `services/api-rs/src/transport/http/handlers/dm.rs` with in-memory fallback | pairing replay protection now persists across restarts when DB is configured, reducing replay-window regression risk | `closed`
 
 - 2026-03-16 | `api-rs` | DM fanout dispatch mutation lacked CSRF parity and catch-up accepted client cursor values that could poison replay state | added CSRF enforcement in `services/api-rs/src/transport/http/handlers/dm.rs` for `/v1/dm/fanout/dispatch`; added catch-up cursor out-of-range rejection and commit-on-scanned-cursor semantics in `services/api-rs/src/transport/http/handlers/dm.rs` | DM convergence mutations now align with cookie-auth CSRF policy and per-device cursor state cannot be advanced by untrusted out-of-range client input | `closed`
 - 2026-03-16 | `docs` | DM convergence evidence-path mapping and runtime-contract boundary wording were inconsistent across canonical docs | aligned T4.1.9/T4.1.10 evidence path in `docs/testing/01-mvp-verification-matrix.md`; added explicit direct-only/non-relay wording and CSRF parameter parity for DM fanout/catch-up in `docs/contracts/runtime-rest-v1.openapi.yaml`; refreshed contracts index metadata in `docs/contracts/README.md` and docs index latest-change note in `docs/README.md` | canonical docs now converge on DM connectivity evidence routing and explicit direct-only runtime contract boundaries | `closed`

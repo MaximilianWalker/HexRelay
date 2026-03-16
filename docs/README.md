@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 hardened DM convergence semantics across runtime/docs (cursor safety, dedupe-key definition, and direct-only endpoint-hint constraints) and aligned evidence-path routing.
+- Latest meaningful change: 2026-03-16 clarified DM infra-free dependency scope versus Iteration 3 voice TURN validation and added canonical mapping for TURN/NAT constrained-network profile.
 
 ## Purpose
 
@@ -41,6 +41,7 @@
 | Dependencies and risk register | `docs/product/04-dependencies-risks.md` | Product/architecture maintainers | Dependency status or risk severity/mitigation changes |
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
+| TURN/NAT constrained-network voice validation profile | `docs/planning/turn-nat-test-profile.md` | Platform/realtime maintainers | NAT scenario matrix, relay expectations, or constrained-network evidence contract changes |
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |

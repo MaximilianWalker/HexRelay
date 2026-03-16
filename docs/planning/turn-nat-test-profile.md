@@ -19,7 +19,7 @@
 
 - Applies to Iteration 3 tasks `T5.1.2`, `T5.2.1`, and `T5.3.1` in `docs/planning/iterations/03-sprint-board.md`.
 - Complements `docs/planning/kpi-slo-test-profile.md`; this profile is the constrained-network procedure for the voice/media KPI targets.
-- Dependency gate covered: `D-007` in `docs/product/04-dependencies-risks.md`.
+- Scope clarification: this profile is for Iteration 3 voice/screen-share media paths only; DM transport remains infra-free direct-only under `D-007` in `docs/product/04-dependencies-risks.md`.
 
 ## Test Environment Baseline
 

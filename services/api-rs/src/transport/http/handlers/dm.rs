@@ -9,6 +9,7 @@ use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+use crate::infra::db::repos::dm_repo;
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
@@ -34,7 +35,7 @@ use crate::{
         DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery,
         DmThreadPage, DmThreadSummary, DmWanWizardRequest, DmWanWizardResponse,
     },
-    shared::errors::{bad_request, ApiResult},
+    shared::errors::{bad_request, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -183,25 +184,24 @@ pub async fn import_dm_pairing_envelope(
         ));
     }
 
-    {
-        let mut nonce_guard = state
-            .dm_pairing_nonces
-            .write()
-            .expect("acquire dm pairing nonce write lock");
-        nonce_guard.retain(|_, expiry| *expiry >= now);
-        if nonce_guard.contains_key(&signed.claims.nonce) {
-            return Err(bad_request(
-                "pairing_replayed",
-                "pairing envelope nonce was already consumed",
-            ));
-        }
-        nonce_guard.insert(signed.claims.nonce.clone(), signed.claims.expires_at);
-    }
-
     let expires_at = Utc
         .timestamp_opt(signed.claims.expires_at, 0)
         .single()
         .ok_or_else(|| bad_request("pairing_invalid", "invalid pairing expiry timestamp"))?;
+
+    let nonce_consumed = consume_pairing_nonce(
+        &state,
+        &signed.claims.nonce,
+        signed.claims.expires_at,
+        expires_at,
+    )
+    .await?;
+    if !nonce_consumed {
+        return Err(bad_request(
+            "pairing_replayed",
+            "pairing envelope nonce was already consumed",
+        ));
+    }
 
     Ok(Json(DmPairingImportResponse {
         inviter_identity_id: signed.claims.inviter_identity_id,
@@ -798,18 +798,41 @@ pub async fn run_dm_active_fanout(
         delivered_device_ids: delivered_device_ids.clone(),
     });
 
+    let known_device_ids = state
+        .dm_profile_devices
+        .read()
+        .expect("acquire dm profile devices read lock")
+        .get(recipient_identity_id)
+        .map(|devices| devices.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
     let min_cursor = state
         .dm_fanout_device_cursors
         .read()
         .expect("acquire dm fanout cursor read lock")
         .get(recipient_identity_id)
-        .and_then(|cursors| cursors.values().copied().min());
-    if let Some(value) = min_cursor {
-        delivery_log.retain(|record| record.cursor > value);
+        .map(|cursors| {
+            known_device_ids
+                .iter()
+                .map(|device_id| cursors.get(device_id).copied().unwrap_or(0))
+                .min()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    if min_cursor > 0 {
+        delivery_log.retain(|record| record.cursor > min_cursor);
     }
     if delivery_log.len() > DM_FANOUT_MAX_LOG_ENTRIES {
         let overflow = delivery_log.len() - DM_FANOUT_MAX_LOG_ENTRIES;
-        delivery_log.drain(0..overflow);
+        if min_cursor > 0 {
+            let removable = delivery_log
+                .iter()
+                .take_while(|record| record.cursor <= min_cursor)
+                .count()
+                .min(overflow);
+            if removable > 0 {
+                delivery_log.drain(0..removable);
+            }
+        }
     }
 
     Ok(Json(DmFanoutDispatchResponse {
@@ -982,11 +1005,11 @@ pub async fn run_dm_fanout_catch_up(
 }
 
 pub async fn list_dm_threads(
-    _auth: AuthSession,
+    auth: AuthSession,
     Query(query): Query<DmThreadListQuery>,
 ) -> ApiResult<Json<DmThreadPage>> {
     let limit = parse_limit(query.limit)?;
-    let mut items = dm_thread_fixtures();
+    let mut items = dm_thread_fixtures_for_identity(&auth.identity_id);
 
     if query.unread_only.unwrap_or(false) {
         items.retain(|item| item.unread > 0);
@@ -1022,12 +1045,25 @@ pub async fn list_dm_threads(
 }
 
 pub async fn list_dm_thread_messages(
-    _auth: AuthSession,
+    auth: AuthSession,
     Path(thread_id): Path<String>,
     Query(query): Query<DmThreadMessageListQuery>,
 ) -> ApiResult<Json<DmMessagePage>> {
     let limit = parse_limit(query.limit)?;
     let cursor = parse_message_cursor(query.cursor)?;
+
+    let thread_visible = dm_thread_fixtures_for_identity(&auth.identity_id)
+        .iter()
+        .any(|thread| thread.thread_id == thread_id);
+    if !thread_visible {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "thread_not_found",
+                message: "dm thread was not found",
+            }),
+        ));
+    }
 
     let mut items = dm_message_fixtures(&thread_id).ok_or({
         (
@@ -1055,6 +1091,36 @@ pub async fn list_dm_thread_messages(
         items: page_items,
         next_cursor,
     }))
+}
+
+async fn consume_pairing_nonce(
+    state: &AppState,
+    nonce: &str,
+    expires_at_epoch: i64,
+    expires_at: chrono::DateTime<Utc>,
+) -> ApiResult<bool> {
+    if let Some(pool) = &state.db_pool {
+        return dm_repo::consume_dm_pairing_nonce(pool, nonce, expires_at)
+            .await
+            .map_err(|_| {
+                internal_error(
+                    "pairing_store_unavailable",
+                    "failed to persist pairing nonce replay state",
+                )
+            });
+    }
+
+    let now = Utc::now().timestamp();
+    let mut nonce_guard = state
+        .dm_pairing_nonces
+        .write()
+        .expect("acquire dm pairing nonce write lock");
+    nonce_guard.retain(|_, expiry| *expiry >= now);
+    if nonce_guard.contains_key(nonce) {
+        return Ok(false);
+    }
+    nonce_guard.insert(nonce.to_string(), expires_at_epoch);
+    Ok(true)
 }
 
 fn parse_limit(value: Option<u32>) -> ApiResult<usize> {
@@ -1126,6 +1192,13 @@ fn dm_thread_fixtures() -> Vec<DmThreadSummary> {
             last_message_at: "2026-03-11T21:45:30Z".to_string(),
         },
     ]
+}
+
+fn dm_thread_fixtures_for_identity(identity_id: &str) -> Vec<DmThreadSummary> {
+    dm_thread_fixtures()
+        .into_iter()
+        .filter(|thread| thread.participant_ids.iter().any(|id| id == identity_id))
+        .collect()
 }
 
 fn dm_message_fixtures(thread_id: &str) -> Option<Vec<DmMessageRecord>> {
