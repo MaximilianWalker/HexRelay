@@ -43,7 +43,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
         .uri("/v1/dm/profile-devices/heartbeat")
         .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
+        .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
         .expect("build profile device activation request");
     let activate_response = app
         .clone()
@@ -122,7 +122,7 @@ async fn fanout_catch_up_dedupes_duplicate_message_ids_and_advances_cursor() {
         .uri("/v1/dm/profile-devices/heartbeat")
         .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
+        .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
         .expect("build profile device activation request");
     let activate_response = app
         .clone()

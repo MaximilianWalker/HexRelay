@@ -1340,8 +1340,7 @@ components:
           minLength: 1
           maxLength: 64
         cursor:
-          type: integer
-          minimum: 0
+          type: string
           nullable: true
         limit:
           type: integer

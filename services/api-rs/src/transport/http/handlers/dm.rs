@@ -42,6 +42,7 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
+const DM_FANOUT_MAX_LOG_ENTRIES: usize = 1024;
 
 #[derive(Serialize, Deserialize)]
 struct PairingEnvelopeClaims {
@@ -794,6 +795,20 @@ pub async fn run_dm_active_fanout(
         delivered_device_ids: delivered_device_ids.clone(),
     });
 
+    let min_cursor = state
+        .dm_fanout_device_cursors
+        .read()
+        .expect("acquire dm fanout cursor read lock")
+        .get(recipient_identity_id)
+        .and_then(|cursors| cursors.values().copied().min());
+    if let Some(value) = min_cursor {
+        delivery_log.retain(|record| record.cursor > value);
+    }
+    if delivery_log.len() > DM_FANOUT_MAX_LOG_ENTRIES {
+        let overflow = delivery_log.len() - DM_FANOUT_MAX_LOG_ENTRIES;
+        delivery_log.drain(0..overflow);
+    }
+
     Ok(Json(DmFanoutDispatchResponse {
         status: "ready".to_string(),
         reason_code: "fanout_ok".to_string(),
@@ -811,7 +826,7 @@ pub async fn run_dm_fanout_catch_up(
     Json(payload): Json<DmFanoutCatchUpRequest>,
 ) -> ApiResult<Json<DmFanoutCatchUpResponse>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    let limit = validate_fanout_catch_up(&payload)?;
+    let (limit, request_cursor) = validate_fanout_catch_up(&payload)?;
 
     let device_id = payload.device_id.trim().to_string();
     let identity_id = auth.identity_id;
@@ -871,7 +886,7 @@ pub async fn run_dm_fanout_catch_up(
             .and_then(|cursors| cursors.get(&device_id))
             .copied()
             .unwrap_or(0);
-        (last, payload.cursor.unwrap_or(0))
+        (last, request_cursor.unwrap_or(0))
     };
     let mut effective_cursor = user_cursor.max(last_cursor);
 
@@ -919,15 +934,16 @@ pub async fn run_dm_fanout_catch_up(
     deduped_message_ids.sort();
     deduped_message_ids.dedup();
 
+    let mut committed_cursor = effective_cursor;
     if effective_cursor > last_cursor {
         let mut fanout_cursors = state
             .dm_fanout_device_cursors
             .write()
             .expect("acquire dm fanout cursor write lock");
-        fanout_cursors
-            .entry(identity_id.clone())
-            .or_default()
-            .insert(device_id.clone(), effective_cursor);
+        let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
+        let current = device_cursors.get(&device_id).copied().unwrap_or(0);
+        committed_cursor = current.max(effective_cursor);
+        device_cursors.insert(device_id.clone(), committed_cursor);
     }
 
     let reason_code = if items.is_empty() {
@@ -942,7 +958,7 @@ pub async fn run_dm_fanout_catch_up(
         transport_profile: "direct_only".to_string(),
         device_id,
         replay_count: items.len() as u32,
-        next_cursor: effective_cursor.to_string(),
+        next_cursor: committed_cursor.to_string(),
         deduped_message_ids,
         items,
     }))

@@ -336,7 +336,7 @@ pub struct DmFanoutDispatchResponse {
 #[derive(Deserialize)]
 pub struct DmFanoutCatchUpRequest {
     pub device_id: String,
-    pub cursor: Option<u64>,
+    pub cursor: Option<String>,
     pub limit: Option<u32>,
 }
 

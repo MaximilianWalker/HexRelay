@@ -350,7 +350,7 @@ pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<
     Ok(())
 }
 
-pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<u32> {
+pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(u32, Option<u64>)> {
     let device_id = payload.device_id.trim();
     if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
         return Err(bad_request(
@@ -373,7 +373,31 @@ pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<u
         ));
     }
 
-    Ok(limit)
+    let cursor = if let Some(cursor) = &payload.cursor {
+        let normalized = cursor.trim();
+        if normalized.is_empty() {
+            return Err(bad_request(
+                "fanout_invalid",
+                "cursor must be a non-empty numeric string when provided",
+            ));
+        }
+        if normalized != cursor {
+            return Err(bad_request(
+                "fanout_invalid",
+                "cursor must not include leading or trailing whitespace",
+            ));
+        }
+
+        Some(
+            normalized
+                .parse::<u64>()
+                .map_err(|_| bad_request("fanout_invalid", "cursor must be a numeric string"))?,
+        )
+    } else {
+        None
+    };
+
+    Ok((limit, cursor))
 }
 
 #[cfg(test)]
@@ -596,10 +620,13 @@ mod tests {
     fn validates_fanout_catch_up_payload() {
         let payload = DmFanoutCatchUpRequest {
             device_id: "desktop-main".to_string(),
-            cursor: Some(2),
+            cursor: Some("2".to_string()),
             limit: Some(25),
         };
-        assert!(matches!(validate_fanout_catch_up(&payload), Ok(25)));
+        assert!(matches!(
+            validate_fanout_catch_up(&payload),
+            Ok((25, Some(2)))
+        ));
 
         let invalid_device = DmFanoutCatchUpRequest {
             device_id: "  ".to_string(),
