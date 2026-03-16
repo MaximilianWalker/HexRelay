@@ -14,7 +14,7 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-12 locked infrastructure-free DM connectivity requirements and phased direct-connect delivery model.
+- Latest meaningful change: 2026-03-12 locked profile-device eventual-sync requirement for both DM and server communication paths.
 
 ## Product Summary
 
@@ -108,6 +108,7 @@ Build a communication stack where users and communities control identity, data l
 4. Payload is transported over direct user-to-user channel (not via guild server relay and without infra-assisted NAT traversal dependency).
 5. Recipient client decrypts locally.
 6. If recipient is offline, sender keeps encrypted local outbox and retries on reconnect (best-effort, no guaranteed offline queue in MVP).
+7. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
 
 ### 4) New Device Restore
 
@@ -175,12 +176,18 @@ Build a communication stack where users and communities control identity, data l
   - DM offline behavior is best-effort online delivery with encrypted local retry queue on sender device.
   - Default DM policy allows incoming DMs only from friends/accepted requests.
   - Per-user override options: allow same-server members or anyone.
+  - Incoming DM payloads must converge across all devices linked to a profile, including devices activated after first delivery.
 - DM connectivity execution model
   - Direct-only transport enforcement is required.
   - Out-of-band signed pairing (QR/link/short code) is required.
   - Connectivity preflight and troubleshooter states are required for failed direct attempts.
   - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
+  - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.
   - If direct connectivity cannot be established, product must fail explicitly with user guidance; infra fallback is out of scope.
+- Server communication multi-device convergence
+  - Channel and presence events must fan out to all active devices linked to the authenticated profile.
+  - Devices activated later must hydrate missed channel/presence state by per-device cursor.
+  - Reconnect and late-activation hydration must preserve deterministic ordering and dedupe semantics.
 - Navigation and Information Architecture
   - Discord-like overall layout and interaction model are baseline.
   - Server navigation must not rely on small circular icon rails as the primary pattern.

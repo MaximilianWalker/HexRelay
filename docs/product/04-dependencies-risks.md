@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-12 aligned networking policy to reject infrastructure-dependent DM connectivity solutions.
+- Latest meaningful change: 2026-03-12 added profile-device convergence risk posture for DM and server communication paths.
 
 ## Purpose
 
@@ -46,6 +46,7 @@
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
 | R-007 | User identity scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, hide raw key/profile-identifying data by default, release bootstrap data only on accepted requests | API |
 | R-008 | Missed DM delivery when recipient remains offline | medium | medium | Encrypted local outbox retries, explicit delivery-state UI, and user guidance that offline queue is best-effort in MVP | Core/Web |
+| R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, and active+late-device convergence tests for DM and server paths | Core/Realtime |
 
 ## Review Cadence
 
@@ -80,6 +81,7 @@
 | DEC-007 | DM transport is direct user-to-user and guild/community servers do not relay/store DM payloads | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-008 | MVP DM offline behavior is best-effort online with encrypted local outbox retries and no guaranteed offline queue | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-009 | Candidate solutions that require connectivity infrastructure (STUN/TURN/relay) are rejected for DM transport; only infrastructure-free direct connectivity is acceptable | accepted | `docs/product/03-clarifications.md` |
+| DEC-010 | Incoming communication must converge across all profile-linked devices (active fanout + late-device catch-up) for DM and server communication domains | accepted | `docs/product/01-mvp-plan.md` |
 
 ## Related Documents
 

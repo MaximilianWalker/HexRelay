@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 added shared networking-layer trace mapping and DM direct-connect execution references.
+- Latest meaningful change: 2026-03-12 added profile-device eventual-sync trace mapping for DM and server communication paths.
 
 ## Canonical Boards
 
@@ -38,6 +38,7 @@
 | Shared communication networking layer abstraction (mode routing, adapters, diagnostics model) | T4.0.1, T4.0.2, T4.0.3, T4.3.3 |
 | DM/group DM direct transport + server-channel messaging primitives | T4.1.1, T4.3.1, T4.3.2 |
 | Infrastructure-free DM connectivity stack (direct-only, pairing, diagnostics, LAN/WAN setup, multi-endpoint dial) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8 |
+| Multi-device eventual sync for DM and server communication | T4.1.9, T4.1.10, T4.3.4, T3.3.2 |
 | DM inbound policy defaults and user overrides | T4.1.2 |
 | E2EE 1:1 DM | T4.5.1, T4.5.2 |
 | E2EE group DM | T4.5.3, T4.5.4 |
