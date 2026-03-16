@@ -259,7 +259,7 @@ pub async fn dm_connectivity_preflight(
                 )));
             };
 
-            if !is_friend(&state, &auth.identity_id, peer_identity_id).await {
+            if !is_friend(&state, &auth.identity_id, peer_identity_id).await? {
                 return Ok(Json(preflight_blocked(
                     "policy_blocked",
                     vec![
@@ -1347,12 +1347,17 @@ fn profile_devices_to_response(
     items
 }
 
-async fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
+async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
     if let Some(pool) = state.db_pool.as_ref() {
-        return friends_repo::are_friends(pool, a, b).await.unwrap_or(false);
+        return friends_repo::are_friends(pool, a, b).await.map_err(|_| {
+            internal_error(
+                "friendship_lookup_failed",
+                "failed to evaluate friendship state for DM policy",
+            )
+        });
     }
 
-    state
+    Ok(state
         .friend_requests
         .read()
         .expect("acquire friend request read lock")
@@ -1361,7 +1366,7 @@ async fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
             record.status == "accepted"
                 && ((record.requester_identity_id == a && record.target_identity_id == b)
                     || (record.requester_identity_id == b && record.target_identity_id == a))
-        })
+        }))
 }
 
 fn has_fresh_lan_peer(state: &AppState, peer_identity_id: &str, now: i64) -> bool {
