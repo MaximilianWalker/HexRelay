@@ -33,7 +33,7 @@
 
 ## Branch and PR Workflow
 
-- Use short-lived branches from the default branch (`master` currently).
+- Use short-lived branches from the default branch.
 - Suggested branch naming: `feat/<scope>`, `fix/<scope>`, `docs/<scope>`, `chore/<scope>`.
 - Keep each PR scoped to one main task or one coherent doc update.
 - Reference the task ID as defined in the active sprint board in PR title/body when applicable.

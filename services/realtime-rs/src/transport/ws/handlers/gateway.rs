@@ -326,7 +326,7 @@ async fn validate_session_upstream(
         }
     };
 
-    if Utc::now() >= expires_at {
+    if Utc::now() > expires_at {
         warn!(expires_at = %expires_at, "session validation upstream returned expired session");
         return UpstreamSessionValidation::Denied;
     }
@@ -376,19 +376,15 @@ async fn load_cached_session(state: &AppState, key: &str) -> Option<ValidatedSes
     }
 
     let max_age = Duration::from_secs(state.ws_auth_grace_seconds);
-    let cached = state.validated_session_cache.lock().await.get(key).cloned();
+    let mut guard = state.validated_session_cache.lock().await;
+    let cached = guard.get(key).cloned()?;
 
-    let cached = cached?;
-
-    if cached.validated_at.elapsed() > max_age {
-        remove_cached_session(state, key).await;
+    if cached.validated_at.elapsed() > max_age || Utc::now() > cached.expires_at {
+        guard.remove(key);
         return None;
     }
 
-    if Utc::now() >= cached.expires_at {
-        remove_cached_session(state, key).await;
-        return None;
-    }
+    drop(guard);
 
     Some(ValidatedSession {
         identity_id: cached.identity_id,
