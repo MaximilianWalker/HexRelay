@@ -7,22 +7,28 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
 use ring::hmac;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
+        validate_endpoint_card_register, validate_endpoint_card_revoke,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, validate_wan_wizard_request, DM_OFFLINE_DELIVERY_MODE,
-        DM_PAIRING_ENVELOPE_VERSION,
+        validate_pairing_envelope_import, validate_parallel_dial_request,
+        validate_wan_wizard_request, DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS,
+        DM_ENDPOINT_CARD_DEFAULT_RTT_MS, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+        DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
     },
     models::{
-        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse,
-        DmLanDiscoveryAnnounceRequest, DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse,
-        DmLanPeerSummary, DmLanPresenceRecord, DmMessagePage, DmMessageRecord,
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse,
-        DmPairingImportResponse, DmPolicy, DmPolicyUpdate, DmThreadListQuery,
-        DmThreadMessageListQuery, DmThreadPage, DmThreadSummary, DmWanWizardRequest,
-        DmWanWizardResponse,
+        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmEndpointCard,
+        DmEndpointCardRecord, DmEndpointCardRegisterRequest, DmEndpointCardRegisterResponse,
+        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmLanDiscoveryAnnounceRequest,
+        DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
+        DmLanPresenceRecord, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
+        DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
+        DmPolicyUpdate, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
+        DmWanWizardRequest, DmWanWizardResponse,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -437,6 +443,232 @@ pub async fn run_dm_wan_wizard(
     }))
 }
 
+pub async fn register_dm_endpoint_cards(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmEndpointCardRegisterRequest>,
+) -> ApiResult<Json<DmEndpointCardRegisterResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_endpoint_card_register(&payload)?;
+
+    let now = Utc::now();
+    let now_epoch = now.timestamp();
+    let mut cards_by_identity = state
+        .dm_endpoint_cards
+        .write()
+        .expect("acquire endpoint cards write lock");
+    let cards = cards_by_identity
+        .entry(auth.identity_id.clone())
+        .or_default();
+
+    cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+
+    for card in payload.cards {
+        let endpoint_id = card.endpoint_id.trim().to_string();
+        let expires_in_seconds = card
+            .expires_in_seconds
+            .unwrap_or(DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS);
+        let record = DmEndpointCardRecord {
+            endpoint_id: endpoint_id.clone(),
+            endpoint_hint: card.endpoint_hint.trim().to_string(),
+            estimated_rtt_ms: card
+                .estimated_rtt_ms
+                .unwrap_or(DM_ENDPOINT_CARD_DEFAULT_RTT_MS),
+            priority: card.priority.unwrap_or(0),
+            expires_at_epoch: now_epoch + expires_in_seconds as i64,
+            revoked: false,
+        };
+        cards.insert(endpoint_id, record);
+    }
+
+    Ok(Json(DmEndpointCardRegisterResponse {
+        identity_id: auth.identity_id,
+        cards: cards_to_response(cards, now_epoch),
+    }))
+}
+
+pub async fn revoke_dm_endpoint_cards(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmEndpointCardRevokeRequest>,
+) -> ApiResult<Json<DmEndpointCardRevokeResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_endpoint_card_revoke(&payload)?;
+
+    let now_epoch = Utc::now().timestamp();
+    let mut cards_by_identity = state
+        .dm_endpoint_cards
+        .write()
+        .expect("acquire endpoint cards write lock");
+    let cards = cards_by_identity
+        .entry(auth.identity_id.clone())
+        .or_default();
+
+    cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+
+    let mut revoked_endpoint_ids = Vec::new();
+    for endpoint_id in payload.endpoint_ids {
+        let normalized_endpoint_id = endpoint_id.trim().to_string();
+        if let Some(record) = cards.get_mut(&normalized_endpoint_id) {
+            if !record.revoked {
+                record.revoked = true;
+                revoked_endpoint_ids.push(normalized_endpoint_id);
+            }
+        }
+    }
+
+    Ok(Json(DmEndpointCardRevokeResponse {
+        identity_id: auth.identity_id,
+        revoked_endpoint_ids,
+        remaining_cards: cards_to_response(cards, now_epoch),
+    }))
+}
+
+pub async fn run_dm_parallel_dial(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    _auth: AuthSession,
+    Json(payload): Json<DmParallelDialRequest>,
+) -> ApiResult<Json<DmParallelDialResponse>> {
+    validate_parallel_dial_request(&payload)?;
+
+    let now_epoch = Utc::now().timestamp();
+    let max_attempts = payload
+        .max_parallel_attempts
+        .unwrap_or(DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS) as usize;
+    let peer_identity_id = payload.peer_identity_id.trim().to_string();
+    let unreachable: HashSet<String> = payload
+        .unreachable_endpoint_ids
+        .unwrap_or_default()
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .collect();
+
+    let mut candidates = {
+        let mut cards_by_identity = state
+            .dm_endpoint_cards
+            .write()
+            .expect("acquire endpoint cards write lock");
+        let Some(cards) = cards_by_identity.get_mut(&peer_identity_id) else {
+            return Ok(Json(DmParallelDialResponse {
+                status: "blocked".to_string(),
+                reason_code: "endpoint_cards_missing".to_string(),
+                transport_profile: "direct_only".to_string(),
+                winner_endpoint_id: None,
+                canceled_endpoint_ids: vec![],
+                attempts: vec![],
+                remediation: vec![
+                    "Ask your contact to publish fresh endpoint cards.".to_string(),
+                    "Retry parallel dial after endpoint-card sync completes.".to_string(),
+                ],
+            }));
+        };
+        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+
+        cards
+            .values()
+            .filter(|record| !record.revoked)
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+
+    if candidates.is_empty() {
+        return Ok(Json(DmParallelDialResponse {
+            status: "blocked".to_string(),
+            reason_code: "endpoint_cards_missing".to_string(),
+            transport_profile: "direct_only".to_string(),
+            winner_endpoint_id: None,
+            canceled_endpoint_ids: vec![],
+            attempts: vec![],
+            remediation: vec![
+                "Ask your contact to publish fresh endpoint cards.".to_string(),
+                "Retry parallel dial after endpoint-card sync completes.".to_string(),
+            ],
+        }));
+    }
+
+    candidates.sort_by(|a, b| {
+        a.estimated_rtt_ms
+            .cmp(&b.estimated_rtt_ms)
+            .then_with(|| b.priority.cmp(&a.priority))
+    });
+    candidates.truncate(max_attempts);
+
+    let winner = candidates
+        .iter()
+        .find(|record| !unreachable.contains(&record.endpoint_id));
+
+    let mut attempts = Vec::with_capacity(candidates.len());
+    let mut canceled_endpoint_ids = Vec::new();
+
+    if let Some(winner) = winner {
+        for record in &candidates {
+            if unreachable.contains(&record.endpoint_id) {
+                attempts.push(DmParallelDialAttempt {
+                    endpoint_id: record.endpoint_id.clone(),
+                    endpoint_hint: record.endpoint_hint.clone(),
+                    estimated_rtt_ms: record.estimated_rtt_ms,
+                    status: "failed".to_string(),
+                    cancellation_reason: Some("dial_unreachable".to_string()),
+                });
+            } else if record.endpoint_id == winner.endpoint_id {
+                attempts.push(DmParallelDialAttempt {
+                    endpoint_id: record.endpoint_id.clone(),
+                    endpoint_hint: record.endpoint_hint.clone(),
+                    estimated_rtt_ms: record.estimated_rtt_ms,
+                    status: "connected".to_string(),
+                    cancellation_reason: None,
+                });
+            } else {
+                canceled_endpoint_ids.push(record.endpoint_id.clone());
+                attempts.push(DmParallelDialAttempt {
+                    endpoint_id: record.endpoint_id.clone(),
+                    endpoint_hint: record.endpoint_hint.clone(),
+                    estimated_rtt_ms: record.estimated_rtt_ms,
+                    status: "cancelled".to_string(),
+                    cancellation_reason: Some("winner_selected".to_string()),
+                });
+            }
+        }
+
+        return Ok(Json(DmParallelDialResponse {
+            status: "ready".to_string(),
+            reason_code: "parallel_dial_connected".to_string(),
+            transport_profile: "direct_only".to_string(),
+            winner_endpoint_id: Some(winner.endpoint_id.clone()),
+            canceled_endpoint_ids,
+            attempts,
+            remediation: vec![
+                "Parallel dial selected the fastest reachable endpoint card.".to_string(),
+            ],
+        }));
+    }
+
+    for record in &candidates {
+        attempts.push(DmParallelDialAttempt {
+            endpoint_id: record.endpoint_id.clone(),
+            endpoint_hint: record.endpoint_hint.clone(),
+            estimated_rtt_ms: record.estimated_rtt_ms,
+            status: "failed".to_string(),
+            cancellation_reason: Some("dial_unreachable".to_string()),
+        });
+    }
+
+    Ok(Json(DmParallelDialResponse {
+        status: "blocked".to_string(),
+        reason_code: "parallel_dial_exhausted".to_string(),
+        transport_profile: "direct_only".to_string(),
+        winner_endpoint_id: None,
+        canceled_endpoint_ids,
+        attempts,
+        remediation: vec![
+            "All attempted endpoint cards were unreachable.".to_string(),
+            "Refresh endpoint cards and retry direct connection.".to_string(),
+        ],
+    }))
+}
+
 pub async fn list_dm_threads(
     _auth: AuthSession,
     Query(query): Query<DmThreadListQuery>,
@@ -674,6 +906,36 @@ fn preflight_blocked(reason_code: &str, remediation: Vec<&str>) -> DmConnectivit
             .map(std::string::ToString::to_string)
             .collect(),
     }
+}
+
+fn cards_to_response(
+    cards: &std::collections::HashMap<String, DmEndpointCardRecord>,
+    now_epoch: i64,
+) -> Vec<DmEndpointCard> {
+    let mut items = cards
+        .values()
+        .filter(|record| record.expires_at_epoch >= now_epoch)
+        .map(|record| DmEndpointCard {
+            endpoint_id: record.endpoint_id.clone(),
+            endpoint_hint: record.endpoint_hint.clone(),
+            estimated_rtt_ms: record.estimated_rtt_ms,
+            priority: record.priority,
+            expires_at: Utc
+                .timestamp_opt(record.expires_at_epoch, 0)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| {
+                    Utc.timestamp_opt(now_epoch, 0)
+                        .single()
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| Utc::now().to_rfc3339())
+                }),
+            revoked: record.revoked,
+        })
+        .collect::<Vec<_>>();
+
+    items.sort_by(|a, b| a.endpoint_id.cmp(&b.endpoint_id));
+    items
 }
 
 fn is_friend(state: &AppState, a: &str, b: &str) -> bool {

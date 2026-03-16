@@ -9,8 +9,8 @@ use sqlx::PgPool;
 use crate::{
     config::ApiRateLimitConfig,
     models::{
-        AuthChallengeRecord, DmLanPresenceRecord, DmPolicy, FriendRequestRecord, InviteRecord,
-        RegisteredIdentityKey, SessionRecord,
+        AuthChallengeRecord, DmEndpointCardRecord, DmLanPresenceRecord, DmPolicy,
+        FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
     },
     transport::http::middleware::rate_limit::RateLimiter,
 };
@@ -21,6 +21,7 @@ pub struct AppState {
     pub allowed_origins: Vec<String>,
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub db_pool: Option<PgPool>,
+    pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
     pub dm_lan_presence: Arc<RwLock<HashMap<String, DmLanPresenceRecord>>>,
     pub dm_pairing_nonces: Arc<RwLock<HashMap<String, i64>>>,
     pub dm_policies: Arc<RwLock<HashMap<String, DmPolicy>>>,
@@ -56,6 +57,7 @@ impl AppState {
             allowed_origins,
             auth_challenges: Arc::default(),
             db_pool: None,
+            dm_endpoint_cards: Arc::default(),
             dm_lan_presence: Arc::default(),
             dm_pairing_nonces: Arc::default(),
             dm_policies: Arc::default(),
