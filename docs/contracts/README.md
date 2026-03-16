@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-03-16
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-11 clarified runtime contract authority and marked legacy iteration alias as non-authoritative.
+- Latest meaningful change: 2026-03-16 expanded runtime DM contract scope for fanout/catch-up convergence semantics, including direct-only endpoint-hint constraints and replay dedupe-key definition.
 
 ## Purpose
 

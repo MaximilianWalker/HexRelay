@@ -381,6 +381,7 @@ pub struct DmProfileDeviceRecord {
 pub struct DmFanoutDeliveryRecord {
     pub cursor: u64,
     pub message_id: String,
+    pub sender_identity_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
     pub delivered_device_ids: Vec<String>,

@@ -78,7 +78,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 }
 
 #[tokio::test]
-async fn fanout_catch_up_dedupes_duplicate_message_ids_and_advances_cursor() {
+async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
@@ -99,15 +99,15 @@ async fn fanout_catch_up_dedupes_duplicate_message_ids_and_advances_cursor() {
         assert_eq!(heartbeat_response.status(), StatusCode::OK);
     }
 
-    for ciphertext in ["enc:dup-1", "enc:dup-2"] {
+    for _ in [0, 1] {
         let dispatch = Request::builder()
             .method("POST")
             .uri("/v1/dm/fanout/dispatch")
             .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
             .header("content-type", "application/json")
-            .body(Body::from(format!(
-                r#"{{"recipient_identity_id":"usr-jules-p","message_id":"msg-dup","ciphertext":"{ciphertext}"}}"#
-            )))
+            .body(Body::from(
+                r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-dup","ciphertext":"enc:dup-same","source_device_id":"sender-main"}"#,
+            ))
             .expect("build fanout dispatch request");
         let dispatch_response = app
             .clone()
@@ -184,6 +184,93 @@ async fn fanout_catch_up_dedupes_duplicate_message_ids_and_advances_cursor() {
 }
 
 #[tokio::test]
+async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+
+    for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
+        let heartbeat = Request::builder()
+            .method("POST")
+            .uri("/v1/dm/profile-devices/heartbeat")
+            .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"device_id":"{device_id}","active":{active}}}"#
+            )))
+            .expect("build profile device heartbeat request");
+        let heartbeat_response = app
+            .clone()
+            .oneshot(heartbeat)
+            .await
+            .expect("profile device heartbeat response");
+        assert_eq!(heartbeat_response.status(), StatusCode::OK);
+    }
+
+    for (ciphertext, source_device_id) in [
+        ("enc:variant-1", "sender-main"),
+        ("enc:variant-2", "tablet-main"),
+    ] {
+        let dispatch = Request::builder()
+            .method("POST")
+            .uri("/v1/dm/fanout/dispatch")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"recipient_identity_id":"usr-jules-p","message_id":"msg-variant","ciphertext":"{ciphertext}","source_device_id":"{source_device_id}"}}"#
+            )))
+            .expect("build fanout dispatch request");
+        let dispatch_response = app
+            .clone()
+            .oneshot(dispatch)
+            .await
+            .expect("fanout dispatch response");
+        assert_eq!(dispatch_response.status(), StatusCode::OK);
+    }
+
+    let activate_phone = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
+        .expect("build profile device activation request");
+    let activate_response = app
+        .clone()
+        .oneshot(activate_phone)
+        .await
+        .expect("profile device activation response");
+    assert_eq!(activate_response.status(), StatusCode::OK);
+
+    let catch_up = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"phone-main"}"#))
+        .expect("build fanout catch-up request");
+    let response = app
+        .oneshot(catch_up)
+        .await
+        .expect("fanout catch-up response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read catch-up body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode catch-up body");
+
+    assert_eq!(payload["reason_code"], "fanout_catch_up_ok");
+    assert_eq!(payload["replay_count"], 2);
+    assert_eq!(payload["next_cursor"], "2");
+    assert_eq!(
+        payload["deduped_message_ids"]
+            .as_array()
+            .expect("deduped ids array")
+            .len(),
+        0
+    );
+}
+
+#[tokio::test]
 async fn fanout_catch_up_blocks_for_inactive_device() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
 
@@ -221,4 +308,42 @@ async fn fanout_catch_up_blocks_for_inactive_device() {
 
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_device_inactive");
+}
+
+#[tokio::test]
+async fn fanout_catch_up_rejects_cursor_beyond_delivery_tail() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let heartbeat = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .expect("build profile device heartbeat request");
+    let heartbeat_response = app
+        .clone()
+        .oneshot(heartbeat)
+        .await
+        .expect("profile device heartbeat response");
+    assert_eq!(heartbeat_response.status(), StatusCode::OK);
+
+    let catch_up = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"desktop-main","cursor":"99"}"#))
+        .expect("build fanout catch-up request");
+    let response = app
+        .oneshot(catch_up)
+        .await
+        .expect("fanout catch-up response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read catch-up body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode catch-up body");
+    assert_eq!(payload["code"], "cursor_out_of_range");
 }

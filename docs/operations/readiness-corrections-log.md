@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-12 captured documentation hardening for networking-plan authority boundaries and cross-doc consistency.
+- Latest meaningful change: 2026-03-16 captured DM fanout/catch-up readiness hardening for cursor safety, CSRF parity, and docs/contract convergence.
 
 ## Purpose
 
@@ -30,6 +30,11 @@
 - For `watch` entries only: `owner=<team-or-role>`, `decision_trigger=<event>`, `exit_criteria=<objective condition>`
 
 ## Entries
+
+- 2026-03-16 | `api-rs` | DM fanout dispatch mutation lacked CSRF parity and catch-up accepted client cursor values that could poison replay state | added CSRF enforcement in `services/api-rs/src/transport/http/handlers/dm.rs` for `/v1/dm/fanout/dispatch`; added catch-up cursor out-of-range rejection and commit-on-scanned-cursor semantics in `services/api-rs/src/transport/http/handlers/dm.rs` | DM convergence mutations now align with cookie-auth CSRF policy and per-device cursor state cannot be advanced by untrusted out-of-range client input | `closed`
+- 2026-03-16 | `docs` | DM convergence evidence-path mapping and runtime-contract boundary wording were inconsistent across canonical docs | aligned T4.1.9/T4.1.10 evidence path in `docs/testing/01-mvp-verification-matrix.md`; added explicit direct-only/non-relay wording and CSRF parameter parity for DM fanout/catch-up in `docs/contracts/runtime-rest-v1.openapi.yaml`; refreshed contracts index metadata in `docs/contracts/README.md` and docs index latest-change note in `docs/README.md` | canonical docs now converge on DM connectivity evidence routing and explicit direct-only runtime contract boundaries | `closed`
+- 2026-03-16 | `api-rs` | DM catch-up dedupe keyed only on `message_id`, collapsing payload variants under replay | upgraded dedupe key in `services/api-rs/src/transport/http/handlers/dm.rs` to `(message_id, sender_identity_id, source_device_id, ciphertext)` and extended coverage in `services/api-rs/src/tests/integration/dm_fanout_catch_up_tests.rs` for identical dedupe vs variant replay behavior; documented key semantics in `docs/contracts/runtime-rest-v1.openapi.yaml` | catch-up idempotency now dedupes only true replay-equivalent entries while preserving distinct payload variants | `closed`
+- 2026-03-16 | `api-rs` | DM endpoint hints accepted unconstrained schemes, under-specifying infra-free direct-only guardrail | added direct-endpoint scheme validation (allowlist `tcp://`, `udp://`, `quic://`; denylist `stun://`, `turn://`, `relay://`) in `services/api-rs/src/domain/dm/validation.rs` with regression tests; mirrored constraints in `docs/contracts/runtime-rest-v1.openapi.yaml` | DM endpoint-hint inputs now enforce direct-only transport semantics in both runtime validation and contract schema | `closed`
 
 - 2026-03-12 | `docs` | Networking policy/planning updates introduced cross-document authority overlap and a DM pairing wording inconsistency | added canonical cross-scenario networking architecture authority in `docs/architecture/04-communication-networking-layer-plan.md`, delegated sequencing authority to `docs/planning/infra-free-dm-connectivity-execution-plan.md`, trimmed redundant execution-order sections in `docs/product/10-infra-free-dm-connectivity-proposals.md` and `docs/architecture/04-communication-networking-layer-plan.md`, and fixed DM pairing wording consistency in `docs/planning/iterations/02-sprint-board.md` | docs authority boundaries are now explicit (architecture vs planning vs product options), reducing drift and duplicate-sequencing regressions | `closed`
 
