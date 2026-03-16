@@ -6,7 +6,7 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM connectivity solution candidates under the no-infrastructure rule.
 - Update this file when direct-connect architecture, feasibility assumptions, or acceptance criteria change.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-12 established ranked implementation propositions for infrastructure-free direct DM connectivity.
+- Latest meaningful change: 2026-03-16 aligned multi-endpoint DM proposal with profile-device eventual-sync convergence requirements.
 
 ## Purpose
 
@@ -203,31 +203,34 @@
 ### What changes
 
 - Allow each user to publish multiple direct endpoint cards (desktop/laptop/phone).
-- Improve success rates by racing direct attempts across valid endpoints.
+- Improve success rates by racing direct attempts across valid endpoints and converging payloads across profile devices.
 
 ### How it works
 
 1. Pairing envelope carries multiple endpoint cards with expiry and signing metadata.
 2. Initiator launches parallel direct dial attempts with deterministic concurrency limits.
 3. First successful direct session wins; remaining attempts are canceled.
-4. Endpoint health stats update locally to prioritize better cards in subsequent sessions.
+4. Any device that first receives payloads triggers profile-device fanout and cursor-based catch-up for sibling devices that become active later.
+5. Endpoint health stats update locally to prioritize better cards in subsequent sessions.
 
 ### Trade-offs and risks
 
 - More endpoint lifecycle complexity (expiry, revocation, stale cards).
 - Slight additional power/network cost during connect windows.
+- Requires deterministic per-device cursor and dedupe semantics to avoid divergence.
 
 ### Acceptance criteria
 
 - Connection success improves versus single-endpoint mode in controlled test profile.
 - Endpoint revocation blocks stale endpoint usage deterministically.
 - Parallel dial limits prevent resource exhaustion under repeated retries.
+- Later-active devices converge on missed payloads with deterministic replay behavior.
 
 ### Implementation slices
 
 - Extend pairing envelope to include endpoint card arrays.
 - Implement parallel dial orchestration and winner selection.
-- Add endpoint management UI and revocation handling.
+- Add profile-device fanout + catch-up rules and endpoint management/revocation handling.
 
 ## Delivery Ownership
 

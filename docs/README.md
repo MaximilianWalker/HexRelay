@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 updated runtime REST contract authority for DM WAN direct-connect wizard diagnostics and deterministic outcome taxonomy.
+- Latest meaningful change: 2026-03-16 hardened multi-device profile convergence routing for DM direct communication and server communication execution/verification docs.
 
 ## Purpose
 

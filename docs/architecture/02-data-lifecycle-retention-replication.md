@@ -6,14 +6,14 @@
 - Owner: Architecture and API maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-16
 - Source of truth: `docs/architecture/02-data-lifecycle-retention-replication.md`
 
 ## Quick Context
 
 - Purpose: define where data lives, who is authoritative, and how retention/reconciliation behaves.
 - Primary edit location: update when persistence boundaries or retention policy semantics change.
-- Latest meaningful change: 2026-03-04 execution-hardening pass added MVP persistence boundary matrix.
+- Latest meaningful change: 2026-03-16 added profile-device sync cursor and replay retention boundaries for DM and server convergence.
 
 ## Persistence Boundary Matrix
 
@@ -24,7 +24,9 @@
 | Private profile capsule | user device | yes (encrypted) | yes (encrypted replica) | fail closed on signature/version mismatch |
 | Friend requests | server policy + user consent | optional cache | yes | pending/accepted/declined lifecycle tracked |
 | DM payloads and session state | sender/recipient clients | yes (decrypted local view + encrypted local cache) | no guild server storage | direct user-to-user transport; no guild server DM relay/storage |
+| DM per-device sync cursor/receipt state | profile devices | yes | optional metadata replica only (no payload content) | used for late-device replay and idempotent dedupe |
 | Server channel messages | server | optional cache | yes | subject to server retention policy |
+| Server channel/presence per-device cursor state | server + profile devices | yes (cache) | yes (cursor metadata) | required for late-device hydration and reconnect convergence |
 | Session tokens | server | yes (session storage) | yes | revocable and expirable |
 | Migration bundle metadata | migrating user | yes | no bundle plaintext | signed+encrypted bundle only |
 
@@ -33,6 +35,8 @@
 - Server retention defaults can be `null` (forever) or bounded by `retention.message_days`.
 - Delete operations must emit deterministic tombstone semantics for sync/reconcile paths.
 - Replica purge behavior follows explicit server policy and must not violate signed-profile authority model.
+- DM replay metadata retention defaults to bounded window so later-active devices can converge without unbounded local growth.
+- Per-device cursor checkpoints must persist across restarts and support idempotent replay.
 
 ## Related Documents
 

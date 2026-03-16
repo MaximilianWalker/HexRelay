@@ -6,7 +6,7 @@
 - Owner: Delivery, core, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of infrastructure-free DM connectivity.
 - Update this plan when direct-connect task sequencing, acceptance criteria, or risk controls change.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-12 established phase-ordered implementation and validation plan aligned with the no-infrastructure DM policy.
+- Latest meaningful change: 2026-03-16 expanded execution plan to include profile-device eventual-sync convergence for active and later-active devices.
 
 ## Purpose
 
@@ -61,12 +61,14 @@
 
 ### Phase D: Reachability Improvements Without Infra
 
-- Task IDs: `T4.1.6`, `T4.1.7`, `T4.1.8`
-- Outcome: improved direct-connect success rates through local-network optimization and endpoint strategy.
+- Task IDs: `T4.1.6`, `T4.1.7`, `T4.1.8`, `T4.1.9`, `T4.1.10`
+- Outcome: improved direct-connect success rates plus profile-device convergence through active fanout and late-device catch-up.
 - Deliverables:
   - LAN mDNS/multicast discovery fast path
   - WAN setup wizard (UPnP/NAT-PMP attempt + manual mapping guidance)
   - multi-endpoint parallel dial support
+  - active profile-device DM fanout once one recipient device is reachable
+  - late-device DM replay/catch-up using deterministic per-device cursors
 
 ## Detailed Task Plan
 
@@ -78,6 +80,8 @@
 | T4.1.6 | Add LAN discovery fast path (mDNS/multicast, local-first dialing) | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect with local-only traffic and improved latency |
 | T4.1.7 | Add WAN direct-connect setup wizard (UPnP/NAT-PMP + manual) | Core/Web | T4.1.5 | Wizard produces deterministic outcomes: success/manual_required/network_incompatible |
 | T4.1.8 | Add multi-endpoint cards and parallel dial orchestration | Core | T4.1.4, T4.1.6 | Parallel dial improves connect success and cancels non-winning attempts safely |
+| T4.1.9 | Add DM active-device fanout for profile-linked devices | Core/Realtime | T4.1.8 | Incoming DM payload reaches all currently active devices linked to recipient profile |
+| T4.1.10 | Add DM late-device catch-up by per-device cursor and dedupe | Core | T4.1.9 | Devices activated after initial receive replay missing DM payloads and converge deterministically |
 
 ## Validation and Evidence Plan
 
@@ -87,6 +91,8 @@
 - `T4.1.6`: LAN discovery/connect benchmarks with local-subnet-only traffic proof.
 - `T4.1.7`: WAN wizard scenario matrix with deterministic result classification.
 - `T4.1.8`: multi-endpoint race/connect report and endpoint revocation tests.
+- `T4.1.9`: DM active-device fanout matrix for multi-device profiles.
+- `T4.1.10`: late-device replay/catch-up convergence report (offline-then-activate scenarios).
 
 Evidence path baseline:
 
@@ -99,6 +105,7 @@ Evidence path baseline:
 | NAT-restricted networks still fail direct connect | High | Phase C diagnostics + Phase D WAN wizard and explicit incompatibility state |
 | UX complexity increases setup friction | Medium | Keep flows deterministic, with bounded state machine and clear action language |
 | Policy drift reintroduces forbidden fallback | High | CI policy gate and contract-level non-goal tests in every DM transport PR |
+| Multi-device convergence drift across profile devices | High | Per-device cursor contracts, idempotent replay semantics, and late-activation convergence tests |
 
 ## Non-Goals
 

@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-12 completed documentation hardening for networking-layer authority boundaries and cross-document consistency.
+- Latest meaningful change: 2026-03-16 aligned multi-device profile convergence semantics for DM and server communication paths across architecture, planning, product, and verification docs.
 
 ## Purpose
 
@@ -29,6 +29,32 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-16 (multi-device profile convergence hardening)
+
+- Area affected: Communication networking semantics, iteration sequencing, and verification traceability.
+- Change summary:
+  - Added explicit profile-device convergence contract requiring active-device fanout plus late-device catch-up for DM communication and server communication paths.
+  - Extended Iteration 2 backlog and execution docs with convergence tasks (`T4.1.9`, `T4.1.10`, `T3.3.2`, `T4.3.4`) and updated exit criteria/evidence mapping.
+  - Updated product clarifications, defaults, and risk register to preserve direct-only DM policy while requiring deterministic multi-device eventual consistency.
+  - Updated testing matrix to require profile-device convergence evidence for both DM and server-channel/presence flows.
+- Rationale:
+  - One profile can be active on multiple devices; communication state must converge without introducing infrastructure-dependent DM fallback.
+- Linked docs updated:
+  - `docs/architecture/02-data-lifecycle-retention-replication.md`
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/product/09-configuration-defaults-register.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-03-12 (networking docs consistency hardening)
 

@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -16,7 +16,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Primary edit location for product intent, constraints, architecture baseline, and epics/stories.
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
-- Latest meaningful change: 2026-03-12 locked infrastructure-free DM connectivity execution model and staged direct-connect feature sequencing.
+- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement so DM and server communication converge across active and later-active devices.
 
 ## 1) Product Intent and Constraints
 
@@ -65,6 +65,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked MVP DM offline policy to best-effort online delivery with encrypted local outbox retries.
 - 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
 - 2026-03-12: Locked DM connectivity to infrastructure-free direct paths only (no STUN/TURN/relay dependency) with explicit failure guidance when direct connection is unavailable.
+- 2026-03-12: Locked profile-device convergence requirement: incoming communication must sync to all profile devices, including devices that become active after first delivery.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -109,6 +110,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
 - DM and group DM messaging (edits, mentions, deletes, replies).
 - Infrastructure-free DM connectivity stack: direct-only enforcement, signed out-of-band pairing, deterministic preflight diagnostics, LAN fast path, WAN direct wizard, and multi-endpoint parallel dial.
+- Profile-device eventual-sync stack: active-device fanout plus late-device replay/catch-up by per-device cursor for DM and server communication.
 - Servers (guilds), text channels, role/permission v1.
 - Voice channels, 1:1 calls, and screen share.
 - Attachments upload/download (operator-configurable quotas, no global product cap).
@@ -185,7 +187,24 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - local-network discovery fast path (mDNS/multicast),
   - WAN setup wizard (UPnP/NAT-PMP and manual mapping guidance),
   - multi-endpoint parallel dial across user-owned devices.
+- Multi-device convergence requirements under this policy:
+  - if any recipient device receives a DM payload, all profile-linked devices must eventually converge when they become active,
+  - convergence uses per-device cursors and idempotent replay/dedupe,
+  - no DM payload relay/storage on guild/community servers.
 - Non-goal: hidden or optional relay fallback for DM payload transport.
+
+### Profile-Device Sync (DM and Server Communication)
+
+- One profile may be active on multiple devices simultaneously.
+- Incoming communication must fan out to all currently active profile devices.
+- Devices that were offline at first receive must catch up on later activation.
+- Convergence contract applies to:
+  - DM direct communication (payload envelope replay across profile devices),
+  - server-channel and presence communication (node-authoritative event hydration by per-device cursor).
+- Reconciliation baseline:
+  - per-device cursor checkpoints are tracked and persisted,
+  - duplicate replays are idempotent by stable message/event identity,
+  - read-state merge rules are deterministic across profile devices.
 
 ### Privacy-First Social Graph Policy (MVP)
 

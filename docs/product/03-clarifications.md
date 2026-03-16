@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/product/03-clarifications.md`
 
 ## Quick Context
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-03-12 locked DM connectivity policy to infrastructure-free only (no STUN/TURN or relay dependency accepted for candidate solutions).
+- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement for DM and server communication paths.
 
 ## Purpose
 
@@ -58,6 +58,7 @@
 - C-020 (resolved 2026-03-04): MVP DM offline behavior is best-effort online delivery with encrypted local outbox retries and no guaranteed offline queue.
 - C-021 (resolved 2026-03-04): Primary runtime is downloadable desktop local-first; dedicated server deployments remain a supported optional mode.
 - C-022 (resolved 2026-03-12): Networking solutions that require infrastructure for DM connectivity (including STUN/TURN/relay) are out of scope; accepted solutions must be infrastructure-free and fail with explicit guidance when direct connectivity cannot be established.
+- C-023 (resolved 2026-03-12): One profile may run on multiple devices, and incoming communication must converge across all profile devices (active fanout plus later-active catch-up) for both DM and server communication domains.
 
 ## Related Documents
 
