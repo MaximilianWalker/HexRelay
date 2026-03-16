@@ -6,20 +6,20 @@
 - Owner: Platform and Realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-16
 - Source of truth: `docs/planning/turn-nat-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define a deterministic TURN/NAT validation profile for Iteration 3 voice and screen share gates.
 - Primary edit location: update this file when NAT scenarios, thresholds, or evidence requirements change.
-- Latest meaningful change: 2026-03-04 created D-007 TURN/NAT profile with measurable pass/fail criteria and evidence contract.
+- Latest meaningful change: 2026-03-16 split voice TURN/NAT dependency ownership to D-010 and clarified non-overlap with DM direct-only D-007 scope.
 
 ## Scope and Alignment
 
 - Applies to Iteration 3 tasks `T5.1.2`, `T5.2.1`, and `T5.3.1` in `docs/planning/iterations/03-sprint-board.md`.
 - Complements `docs/planning/kpi-slo-test-profile.md`; this profile is the constrained-network procedure for the voice/media KPI targets.
-- Scope clarification: this profile is for Iteration 3 voice/screen-share media paths only; DM transport remains infra-free direct-only under `D-007` in `docs/product/04-dependencies-risks.md`.
+- Scope clarification: this profile is for Iteration 3 voice/screen-share media paths only under `D-010`; DM transport remains infra-free direct-only under `D-007` in `docs/product/04-dependencies-risks.md`.
 
 ## Test Environment Baseline
 
@@ -65,7 +65,7 @@
 ### Global Gate
 
 - All four scenarios must pass voice and screen share criteria.
-- If any scenario fails, `D-007` remains blocked and Iteration 3 exit evidence is incomplete.
+- If any scenario fails, `D-010` remains blocked and Iteration 3 exit evidence is incomplete.
 
 ## Evidence Artifacts Required Per Run
 

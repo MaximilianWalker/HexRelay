@@ -9,7 +9,7 @@ use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use crate::infra::db::repos::dm_repo;
+use crate::infra::db::repos::{dm_repo, friends_repo};
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
@@ -259,7 +259,7 @@ pub async fn dm_connectivity_preflight(
                 )));
             };
 
-            if !is_friend(&state, &auth.identity_id, peer_identity_id) {
+            if !is_friend(&state, &auth.identity_id, peer_identity_id).await {
                 return Ok(Json(preflight_blocked(
                     "policy_blocked",
                     vec![
@@ -1347,7 +1347,11 @@ fn profile_devices_to_response(
     items
 }
 
-fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
+async fn is_friend(state: &AppState, a: &str, b: &str) -> bool {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return friends_repo::are_friends(pool, a, b).await.unwrap_or(false);
+    }
+
     state
         .friend_requests
         .read()
