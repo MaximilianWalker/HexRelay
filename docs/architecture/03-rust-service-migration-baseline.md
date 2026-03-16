@@ -13,7 +13,7 @@
 
 - Primary edit location for Rust migration status, module ownership mapping, and readiness baseline evidence.
 - Update this file when migration scope, confidence gates, or readiness-mapped file ownership changes.
-- Latest meaningful change: 2026-03-16 aligned required-check readiness list with current CI gate set.
+- Latest meaningful change: 2026-03-16 refreshed baseline CI evidence against the current master run and active required-check set.
 
 ## Purpose
 
@@ -24,10 +24,10 @@
 
 ### CI Baseline
 
-- Baseline run: `22745777330`
-- URL: `https://github.com/MaximilianWalker/HexRelay/actions/runs/22745777330`
+- Baseline run: `23156177100`
+- URL: `https://github.com/MaximilianWalker/HexRelay/actions/runs/23156177100`
 - Conclusion: `success`
-- Completed at: `2026-03-06T02:11:34Z`
+- Completed at: `2026-03-16T17:13:07Z`
 - Required checks all green:
   - `security-audit`
   - `web-check (apps/web)`

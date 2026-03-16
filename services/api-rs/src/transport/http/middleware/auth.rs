@@ -8,8 +8,10 @@ use chrono::Utc;
 use sqlx::Row;
 
 use crate::{
-    infra::crypto::session_token::validate_session_token, models::ApiError,
-    shared::errors::unauthorized, state::AppState,
+    infra::crypto::session_token::validate_session_token,
+    models::ApiError,
+    shared::errors::{internal_error, unauthorized},
+    state::AppState,
 };
 
 const SESSION_COOKIE_NAME: &str = "hexrelay_session";
@@ -188,15 +190,7 @@ async fn resolve_db_session(
     .bind(&input.session_id)
     .fetch_optional(pool)
     .await
-    .map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiError {
-                code: "session_invalid",
-                message: "session lookup failed",
-            }),
-        )
-    })?
+    .map_err(|_| internal_error("storage_unavailable", "session lookup failed"))?
     .ok_or({
         (
             StatusCode::UNAUTHORIZED,

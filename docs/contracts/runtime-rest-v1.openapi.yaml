@@ -707,7 +707,7 @@ paths:
                 $ref: '#/components/schemas/ApiError'
   /v1/friends/requests:
     get:
-      summary: List inbound/outbound friend requests
+      summary: List the authenticated identity's inbound/outbound friend requests
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -715,6 +715,7 @@ paths:
         - in: query
           name: identity_id
           required: true
+          description: Must match the authenticated session identity; provided explicitly for request/response parity with storage-backed query validation.
           schema:
             type: string
         - in: query
@@ -1676,15 +1677,22 @@ components:
             - storage_failure
             - cookie_invalid
             - cursor_invalid
+            - cursor_out_of_range
             - limit_invalid
             - thread_not_found
             - dm_policy_invalid
             - pairing_invalid
             - pairing_expired
             - pairing_replayed
+            - pairing_store_unavailable
             - preflight_invalid
             - lan_discovery_invalid
             - wan_wizard_invalid
+            - endpoint_cards_invalid
+            - parallel_dial_invalid
+            - profile_device_invalid
+            - fanout_invalid
+            - friendship_lookup_failed
         message:
           type: string
   parameters:

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 aligned required-check/readiness doc parity and replaced iteration-count compatibility-stub policy with a release-window retention rule.
+- Latest meaningful change: 2026-03-16 refreshed readiness evidence/authority docs, expanded runtime contract parity for active auth/DM errors, and documented bounded websocket auth-cache expiry semantics.
 
 ## Purpose
 
