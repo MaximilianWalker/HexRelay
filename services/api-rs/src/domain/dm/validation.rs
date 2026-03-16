@@ -7,6 +7,8 @@ use crate::{
     shared::errors::{bad_request, ApiResult},
 };
 
+use crate::domain::auth::validation::is_valid_identity_id;
+
 pub const DM_OFFLINE_DELIVERY_MODE: &str = "best_effort_online";
 pub const DM_PAIRING_ENVELOPE_VERSION: u32 = 1;
 pub const DM_PAIRING_DEFAULT_EXPIRY_SECONDS: u32 = 600;
@@ -159,10 +161,17 @@ pub fn validate_endpoint_card_register(payload: &DmEndpointCardRegisterRequest) 
     }
 
     for card in &payload.cards {
-        if card.endpoint_id.trim().is_empty() || card.endpoint_id.len() > 64 {
+        let endpoint_id = card.endpoint_id.trim();
+        if endpoint_id.is_empty() || endpoint_id.len() > 64 {
             return Err(bad_request(
                 "endpoint_cards_invalid",
                 "endpoint_id must be non-empty and <= 64 chars",
+            ));
+        }
+        if endpoint_id != card.endpoint_id {
+            return Err(bad_request(
+                "endpoint_cards_invalid",
+                "endpoint_id must not include leading or trailing whitespace",
             ));
         }
         if card.endpoint_hint.trim().is_empty() || card.endpoint_hint.len() > 200 {
@@ -203,10 +212,17 @@ pub fn validate_endpoint_card_revoke(payload: &DmEndpointCardRevokeRequest) -> A
     }
 
     for endpoint_id in &payload.endpoint_ids {
-        if endpoint_id.trim().is_empty() || endpoint_id.len() > 64 {
+        let normalized = endpoint_id.trim();
+        if normalized.is_empty() || normalized.len() > 64 {
             return Err(bad_request(
                 "endpoint_cards_invalid",
                 "endpoint_id must be non-empty and <= 64 chars",
+            ));
+        }
+        if normalized != endpoint_id {
+            return Err(bad_request(
+                "endpoint_cards_invalid",
+                "endpoint_id must not include leading or trailing whitespace",
             ));
         }
     }
@@ -215,10 +231,10 @@ pub fn validate_endpoint_card_revoke(payload: &DmEndpointCardRevokeRequest) -> A
 }
 
 pub fn validate_parallel_dial_request(payload: &DmParallelDialRequest) -> ApiResult<()> {
-    if payload.peer_identity_id.trim().is_empty() {
+    if !is_valid_identity_id(&payload.peer_identity_id) {
         return Err(bad_request(
             "parallel_dial_invalid",
-            "peer_identity_id must not be empty",
+            "peer_identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
 
@@ -237,6 +253,22 @@ pub fn validate_parallel_dial_request(payload: &DmParallelDialRequest) -> ApiRes
                 "parallel_dial_invalid",
                 "unreachable_endpoint_ids must not exceed 8 ids",
             ));
+        }
+
+        for endpoint_id in unreachable_endpoint_ids {
+            let normalized = endpoint_id.trim();
+            if normalized.is_empty() || normalized.len() > 64 {
+                return Err(bad_request(
+                    "parallel_dial_invalid",
+                    "unreachable_endpoint_ids must contain non-empty ids <= 64 chars",
+                ));
+            }
+            if normalized != endpoint_id {
+                return Err(bad_request(
+                    "parallel_dial_invalid",
+                    "unreachable_endpoint_ids must not include leading or trailing whitespace",
+                ));
+            }
         }
     }
 

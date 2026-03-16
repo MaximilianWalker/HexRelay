@@ -465,11 +465,12 @@ pub async fn register_dm_endpoint_cards(
     cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
 
     for card in payload.cards {
+        let endpoint_id = card.endpoint_id.trim().to_string();
         let expires_in_seconds = card
             .expires_in_seconds
             .unwrap_or(DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS);
         let record = DmEndpointCardRecord {
-            endpoint_id: card.endpoint_id.clone(),
+            endpoint_id: endpoint_id.clone(),
             endpoint_hint: card.endpoint_hint.trim().to_string(),
             estimated_rtt_ms: card
                 .estimated_rtt_ms
@@ -478,7 +479,7 @@ pub async fn register_dm_endpoint_cards(
             expires_at_epoch: now_epoch + expires_in_seconds as i64,
             revoked: false,
         };
-        cards.insert(card.endpoint_id, record);
+        cards.insert(endpoint_id, record);
     }
 
     Ok(Json(DmEndpointCardRegisterResponse {
@@ -509,10 +510,11 @@ pub async fn revoke_dm_endpoint_cards(
 
     let mut revoked_endpoint_ids = Vec::new();
     for endpoint_id in payload.endpoint_ids {
-        if let Some(record) = cards.get_mut(&endpoint_id) {
+        let normalized_endpoint_id = endpoint_id.trim().to_string();
+        if let Some(record) = cards.get_mut(&normalized_endpoint_id) {
             if !record.revoked {
                 record.revoked = true;
-                revoked_endpoint_ids.push(endpoint_id);
+                revoked_endpoint_ids.push(normalized_endpoint_id);
             }
         }
     }
@@ -535,10 +537,12 @@ pub async fn run_dm_parallel_dial(
     let max_attempts = payload
         .max_parallel_attempts
         .unwrap_or(DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS) as usize;
+    let peer_identity_id = payload.peer_identity_id.trim().to_string();
     let unreachable: HashSet<String> = payload
         .unreachable_endpoint_ids
         .unwrap_or_default()
         .into_iter()
+        .map(|value| value.trim().to_string())
         .collect();
 
     let mut candidates = {
@@ -546,9 +550,20 @@ pub async fn run_dm_parallel_dial(
             .dm_endpoint_cards
             .write()
             .expect("acquire endpoint cards write lock");
-        let cards = cards_by_identity
-            .entry(payload.peer_identity_id)
-            .or_default();
+        let Some(cards) = cards_by_identity.get_mut(&peer_identity_id) else {
+            return Ok(Json(DmParallelDialResponse {
+                status: "blocked".to_string(),
+                reason_code: "endpoint_cards_missing".to_string(),
+                transport_profile: "direct_only".to_string(),
+                winner_endpoint_id: None,
+                canceled_endpoint_ids: vec![],
+                attempts: vec![],
+                remediation: vec![
+                    "Ask your contact to publish fresh endpoint cards.".to_string(),
+                    "Retry parallel dial after endpoint-card sync completes.".to_string(),
+                ],
+            }));
+        };
         cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
 
         cards
@@ -909,7 +924,12 @@ fn cards_to_response(
                 .timestamp_opt(record.expires_at_epoch, 0)
                 .single()
                 .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+                .unwrap_or_else(|| {
+                    Utc.timestamp_opt(now_epoch, 0)
+                        .single()
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| Utc::now().to_rfc3339())
+                }),
             revoked: record.revoked,
         })
         .collect::<Vec<_>>();
