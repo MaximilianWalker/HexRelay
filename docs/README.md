@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 isolated the migration checksum mismatch regression test onto a temporary database to stop shared-CI DB contamination.
+- Latest meaningful change: 2026-03-16 isolated DB migration regression tests from shared CI state and hardened temporary test database naming against collisions.
 
 ## Purpose
 

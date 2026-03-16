@@ -164,12 +164,15 @@ async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), 
 mod tests {
     use std::{
         env,
+        sync::atomic::{AtomicU64, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
 
     use ring::digest::{digest, SHA256};
 
     use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations};
+
+    static TEMP_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     async fn prepare_test_pool() -> Option<PgPool> {
         let url = match env::var("API_DATABASE_URL") {
@@ -202,11 +205,17 @@ mod tests {
     }
 
     fn temporary_db_name() -> String {
-        let millis = SystemTime::now()
+        let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|value| value.as_millis())
+            .map(|value| value.as_nanos())
             .unwrap_or(0);
-        format!("hexrelay_ci_bootstrap_{}_{}", std::process::id(), millis)
+        let sequence = TEMP_DB_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        format!(
+            "hexrelay_ci_bootstrap_{}_{}_{}",
+            std::process::id(),
+            nanos,
+            sequence
+        )
     }
 
     async fn create_temp_database(admin_url: &str, name: &str) -> Result<(), sqlx::Error> {
