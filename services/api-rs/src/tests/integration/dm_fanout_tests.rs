@@ -128,3 +128,63 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
     assert_eq!(payload["reason_code"], "fanout_no_active_devices");
     assert_eq!(payload["fanout_count"], 0);
 }
+
+#[tokio::test]
+async fn fanout_dispatch_blocks_when_backlog_reaches_capacity() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+
+    let heartbeat = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .expect("build profile device heartbeat request");
+    let heartbeat_response = app
+        .clone()
+        .oneshot(heartbeat)
+        .await
+        .expect("profile device heartbeat response");
+    assert_eq!(heartbeat_response.status(), StatusCode::OK);
+
+    for index in 1..=1024 {
+        let fanout_request = Request::builder()
+            .method("POST")
+            .uri("/v1/dm/fanout/dispatch")
+            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"recipient_identity_id":"usr-jules-p","message_id":"msg-{index}","ciphertext":"enc:{index}"}}"#
+            )))
+            .expect("build fanout request");
+        let fanout_response = app
+            .clone()
+            .oneshot(fanout_request)
+            .await
+            .expect("fanout response while filling backlog");
+        assert_eq!(fanout_response.status(), StatusCode::OK);
+    }
+
+    let blocked_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-overflow","ciphertext":"enc:overflow"}"#,
+        ))
+        .expect("build blocked fanout request");
+    let blocked_response = app
+        .oneshot(blocked_request)
+        .await
+        .expect("blocked fanout response");
+    assert_eq!(blocked_response.status(), StatusCode::OK);
+
+    let body = to_bytes(blocked_response.into_body(), usize::MAX)
+        .await
+        .expect("read blocked fanout body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode blocked payload");
+    assert_eq!(payload["status"], "blocked");
+    assert_eq!(payload["reason_code"], "fanout_backlog_full");
+    assert_eq!(payload["fanout_count"], 0);
+}

@@ -635,6 +635,7 @@ paths:
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
+      description: Returns only threads where the authenticated identity is a participant.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -667,6 +668,7 @@ paths:
   /v1/dm/threads/{thread_id}/messages:
     get:
       summary: List encrypted message history for a DM thread
+      description: Returns message history only when the authenticated identity is a participant in the requested thread.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1324,7 +1326,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_no_active_devices]
+          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full]
         transport_profile:
           type: string
           enum: [direct_only]

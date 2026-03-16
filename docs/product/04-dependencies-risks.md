@@ -30,7 +30,7 @@
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | Infrastructure-free NAT test environment for direct peer connectivity scenarios | External | deferred | NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; replace TURN profile usage with infra-free direct-connect test harness and explicit failure-mode UX evidence |
+| D-007 | Infrastructure-free NAT test environment for direct DM peer connectivity scenarios | External | deferred | DM NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; this does not apply to Iteration 3 voice/screen-share TURN validation profile |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
 
@@ -53,7 +53,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-03-12 (updated networking dependency and risk posture for infra-free DM connectivity rule).
+- Last reviewed: 2026-03-16 (clarified DM-only infra-free dependency scope vs voice TURN validation profile).
 
 ## Risk to Task Mitigation Matrix
 

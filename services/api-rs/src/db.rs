@@ -44,6 +44,10 @@ const MIGRATIONS: &[Migration] = &[
         "0010_contact_invite_fields",
         include_str!("../migrations/0010_contact_invite_fields.sql"),
     ),
+    (
+        "0011_dm_pairing_nonces",
+        include_str!("../migrations/0011_dm_pairing_nonces.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
