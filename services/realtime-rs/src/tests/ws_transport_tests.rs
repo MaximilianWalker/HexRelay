@@ -4,6 +4,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use chrono::{Duration as ChronoDuration, Utc};
 use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
@@ -492,6 +493,7 @@ async fn websocket_upgrade_accepts_cached_session_when_validation_is_unavailable
         cache_key,
         crate::state::CachedSession {
             identity_id: "usr-1".to_string(),
+            expires_at: Utc::now() + ChronoDuration::minutes(5),
             validated_at: tokio::time::Instant::now(),
         },
     );
@@ -535,7 +537,56 @@ async fn websocket_upgrade_rejects_stale_cached_session_when_validation_is_unava
         cache_key,
         crate::state::CachedSession {
             identity_id: "usr-1".to_string(),
+            expires_at: Utc::now() + ChronoDuration::minutes(5),
             validated_at: tokio::time::Instant::now() - Duration::from_secs(31),
+        },
+    );
+
+    let ws_url = start_ws_server_with_state(state).await;
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let result = connect_async(request).await;
+    assert!(result.is_err());
+
+    let message = result
+        .err()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    assert!(message.contains("401") || message.contains("Unauthorized"));
+}
+
+#[tokio::test]
+async fn websocket_upgrade_rejects_expired_cached_session_when_validation_is_unavailable() {
+    let api_base = start_validate_server(ValidateMode::Unavailable).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        30,
+        10000,
+    )
+    .expect("build app state");
+
+    let cache_key = auth_cache_key("Bearer test-token");
+    state.validated_session_cache.lock().await.insert(
+        cache_key,
+        crate::state::CachedSession {
+            identity_id: "usr-1".to_string(),
+            expires_at: Utc::now() - ChronoDuration::seconds(1),
+            validated_at: tokio::time::Instant::now(),
         },
     );
 

@@ -17,39 +17,10 @@ use crate::{
 };
 
 pub async fn list_servers(
-    _auth: AuthSession,
+    auth: AuthSession,
     Query(query): Query<ServerListQuery>,
 ) -> Json<ServerListResponse> {
-    let mut items = vec![
-        ServerSummary {
-            id: "srv-atlas-core".to_string(),
-            name: "Atlas Core".to_string(),
-            unread: 2,
-            favorite: true,
-            muted: false,
-        },
-        ServerSummary {
-            id: "srv-relay-lab".to_string(),
-            name: "Relay Lab".to_string(),
-            unread: 0,
-            favorite: false,
-            muted: true,
-        },
-        ServerSummary {
-            id: "srv-dev-signals".to_string(),
-            name: "Dev Signals".to_string(),
-            unread: 5,
-            favorite: true,
-            muted: false,
-        },
-        ServerSummary {
-            id: "srv-ops-watch".to_string(),
-            name: "Ops Watch".to_string(),
-            unread: 0,
-            favorite: false,
-            muted: false,
-        },
-    ];
+    let mut items = server_fixtures_for_identity(&auth.identity_id);
 
     if query.favorites_only.unwrap_or(false) {
         items.retain(|item| item.favorite);
@@ -68,6 +39,74 @@ pub async fn list_servers(
     }
 
     Json(ServerListResponse { items })
+}
+
+fn server_fixtures_for_identity(identity_id: &str) -> Vec<ServerSummary> {
+    match identity_id {
+        "usr-nora-k" => vec![
+            ServerSummary {
+                id: "srv-atlas-core".to_string(),
+                name: "Atlas Core".to_string(),
+                unread: 2,
+                favorite: true,
+                muted: false,
+            },
+            ServerSummary {
+                id: "srv-relay-lab".to_string(),
+                name: "Relay Lab".to_string(),
+                unread: 0,
+                favorite: false,
+                muted: true,
+            },
+            ServerSummary {
+                id: "srv-dev-signals".to_string(),
+                name: "Dev Signals".to_string(),
+                unread: 5,
+                favorite: true,
+                muted: false,
+            },
+            ServerSummary {
+                id: "srv-ops-watch".to_string(),
+                name: "Ops Watch".to_string(),
+                unread: 0,
+                favorite: false,
+                muted: false,
+            },
+        ],
+        "usr-alex-r" => vec![
+            ServerSummary {
+                id: "srv-alex-craft".to_string(),
+                name: "Alex Craft".to_string(),
+                unread: 1,
+                favorite: true,
+                muted: false,
+            },
+            ServerSummary {
+                id: "srv-night-shift".to_string(),
+                name: "Night Shift".to_string(),
+                unread: 0,
+                favorite: false,
+                muted: true,
+            },
+        ],
+        "usr-mina-s" => vec![
+            ServerSummary {
+                id: "srv-mina-labs".to_string(),
+                name: "Mina Labs".to_string(),
+                unread: 4,
+                favorite: true,
+                muted: false,
+            },
+            ServerSummary {
+                id: "srv-release-watch".to_string(),
+                name: "Release Watch".to_string(),
+                unread: 0,
+                favorite: false,
+                muted: false,
+            },
+        ],
+        _ => Vec::new(),
+    }
 }
 
 pub async fn list_contacts(

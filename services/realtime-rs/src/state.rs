@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 
 use crate::transport::ws::middleware::rate_limit::RateLimiter;
@@ -26,6 +27,7 @@ pub struct AppState {
 #[derive(Clone)]
 pub struct CachedSession {
     pub identity_id: String,
+    pub expires_at: DateTime<Utc>,
     pub validated_at: tokio::time::Instant,
 }
 

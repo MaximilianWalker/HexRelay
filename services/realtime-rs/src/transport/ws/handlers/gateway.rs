@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -188,12 +189,13 @@ struct SessionValidateResponse {
     #[serde(rename = "identity_id")]
     identity_id: String,
     #[serde(rename = "expires_at")]
-    _expires_at: String,
+    expires_at: String,
 }
 
 #[derive(Clone)]
 struct ValidatedSession {
     identity_id: String,
+    expires_at: DateTime<Utc>,
 }
 
 pub(crate) fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
@@ -232,7 +234,13 @@ async fn validate_session(state: &AppState, headers: &HeaderMap) -> Option<Valid
         UpstreamSessionValidation::Authorized(session) => {
             if state.ws_auth_grace_seconds > 0 {
                 if let Some(cache_key) = cache_key {
-                    cache_validated_session(state, cache_key, session.identity_id.clone()).await;
+                    cache_validated_session(
+                        state,
+                        cache_key,
+                        session.identity_id.clone(),
+                        session.expires_at,
+                    )
+                    .await;
                 }
             }
             Some(session)
@@ -310,12 +318,31 @@ async fn validate_session_upstream(
         }
     };
 
+    let expires_at = match DateTime::parse_from_rfc3339(&payload.expires_at) {
+        Ok(value) => value.with_timezone(&Utc),
+        Err(error) => {
+            warn!(error = %error, "session validation upstream expires_at decode failed");
+            return UpstreamSessionValidation::Denied;
+        }
+    };
+
+    if Utc::now() >= expires_at {
+        warn!(expires_at = %expires_at, "session validation upstream returned expired session");
+        return UpstreamSessionValidation::Denied;
+    }
+
     UpstreamSessionValidation::Authorized(ValidatedSession {
         identity_id: payload.identity_id,
+        expires_at,
     })
 }
 
-async fn cache_validated_session(state: &AppState, key: String, identity_id: String) {
+async fn cache_validated_session(
+    state: &AppState,
+    key: String,
+    identity_id: String,
+    expires_at: DateTime<Utc>,
+) {
     let mut guard = state.validated_session_cache.lock().await;
 
     let is_new_key = !guard.contains_key(&key);
@@ -333,6 +360,7 @@ async fn cache_validated_session(state: &AppState, key: String, identity_id: Str
         key,
         crate::state::CachedSession {
             identity_id,
+            expires_at,
             validated_at: tokio::time::Instant::now(),
         },
     );
@@ -357,8 +385,14 @@ async fn load_cached_session(state: &AppState, key: &str) -> Option<ValidatedSes
         return None;
     }
 
+    if Utc::now() >= cached.expires_at {
+        remove_cached_session(state, key).await;
+        return None;
+    }
+
     Some(ValidatedSession {
         identity_id: cached.identity_id,
+        expires_at: cached.expires_at,
     })
 }
 
@@ -498,6 +532,7 @@ mod tests {
         cache_validated_session, release_connection_slot_after_failed_upgrade, stable_hash,
     };
     use crate::state::AppState;
+    use chrono::{Duration as ChronoDuration, Utc};
     use tokio::time::{sleep, Duration};
 
     #[test]
@@ -522,9 +557,21 @@ mod tests {
         )
         .expect("build state");
 
-        cache_validated_session(&state, "k1".to_string(), "u1".to_string()).await;
+        cache_validated_session(
+            &state,
+            "k1".to_string(),
+            "u1".to_string(),
+            Utc::now() + ChronoDuration::minutes(5),
+        )
+        .await;
         sleep(Duration::from_millis(1)).await;
-        cache_validated_session(&state, "k2".to_string(), "u2".to_string()).await;
+        cache_validated_session(
+            &state,
+            "k2".to_string(),
+            "u2".to_string(),
+            Utc::now() + ChronoDuration::minutes(5),
+        )
+        .await;
 
         let cache = state.validated_session_cache.lock().await;
         assert_eq!(cache.len(), 1);

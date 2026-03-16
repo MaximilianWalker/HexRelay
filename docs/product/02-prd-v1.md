@@ -14,6 +14,7 @@
 - Primary edit location for product requirements and success metrics.
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
+- `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
 - Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement for both DM and server communication paths.
 
 ## Product Summary

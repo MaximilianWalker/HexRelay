@@ -6,14 +6,15 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-03-16
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
 
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
-- Latest meaningful change: 2026-03-12 aligned CI security gate commands with workflow behavior and documented temporary cargo-audit ignore governance.
+- `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
+- Latest meaningful change: 2026-03-16 clarified readiness-status interpretation against open watch findings.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
