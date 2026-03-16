@@ -12,25 +12,27 @@ use std::collections::HashSet;
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_dispatch,
-        validate_lan_discovery_announce, validate_pairing_envelope_create,
-        validate_pairing_envelope_import, validate_parallel_dial_request,
-        validate_profile_device_heartbeat, validate_wan_wizard_request,
-        DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS, DM_ENDPOINT_CARD_DEFAULT_RTT_MS,
-        DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION, DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
+        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
+        validate_fanout_dispatch, validate_lan_discovery_announce,
+        validate_pairing_envelope_create, validate_pairing_envelope_import,
+        validate_parallel_dial_request, validate_profile_device_heartbeat,
+        validate_wan_wizard_request, DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS,
+        DM_ENDPOINT_CARD_DEFAULT_RTT_MS, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
+        DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
     },
     models::{
         ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmEndpointCard,
         DmEndpointCardRecord, DmEndpointCardRegisterRequest, DmEndpointCardRegisterResponse,
-        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmFanoutDispatchRequest,
-        DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest, DmLanDiscoveryAnnounceResponse,
-        DmLanPeerListResponse, DmLanPeerSummary, DmLanPresenceRecord, DmMessagePage,
-        DmMessageRecord, DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest,
-        DmPairingEnvelopeResponse, DmPairingImportResponse, DmParallelDialAttempt,
-        DmParallelDialRequest, DmParallelDialResponse, DmPolicy, DmPolicyUpdate,
-        DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse, DmProfileDeviceRecord,
-        DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage,
-        DmThreadSummary, DmWanWizardRequest, DmWanWizardResponse,
+        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmFanoutCatchUpItem,
+        DmFanoutCatchUpRequest, DmFanoutCatchUpResponse, DmFanoutDeliveryRecord,
+        DmFanoutDispatchRequest, DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest,
+        DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
+        DmLanPresenceRecord, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
+        DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
+        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse,
+        DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery,
+        DmThreadPage, DmThreadSummary, DmWanWizardRequest, DmWanWizardResponse,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -40,6 +42,7 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
+const DM_FANOUT_MAX_LOG_ENTRIES: usize = 1024;
 
 #[derive(Serialize, Deserialize)]
 struct PairingEnvelopeClaims {
@@ -772,6 +775,40 @@ pub async fn run_dm_active_fanout(
         }));
     }
 
+    let message_id = payload.message_id.trim().to_string();
+    let mut fanout_delivery_log = state
+        .dm_fanout_delivery_log
+        .write()
+        .expect("acquire dm fanout delivery log write lock");
+    let delivery_log = fanout_delivery_log
+        .entry(recipient_identity_id.to_string())
+        .or_default();
+    let cursor = delivery_log
+        .last()
+        .map(|record| record.cursor.saturating_add(1))
+        .unwrap_or(1);
+    delivery_log.push(DmFanoutDeliveryRecord {
+        cursor,
+        message_id,
+        ciphertext: payload.ciphertext.clone(),
+        source_device_id: source_device_id.clone(),
+        delivered_device_ids: delivered_device_ids.clone(),
+    });
+
+    let min_cursor = state
+        .dm_fanout_device_cursors
+        .read()
+        .expect("acquire dm fanout cursor read lock")
+        .get(recipient_identity_id)
+        .and_then(|cursors| cursors.values().copied().min());
+    if let Some(value) = min_cursor {
+        delivery_log.retain(|record| record.cursor > value);
+    }
+    if delivery_log.len() > DM_FANOUT_MAX_LOG_ENTRIES {
+        let overflow = delivery_log.len() - DM_FANOUT_MAX_LOG_ENTRIES;
+        delivery_log.drain(0..overflow);
+    }
+
     Ok(Json(DmFanoutDispatchResponse {
         status: "ready".to_string(),
         reason_code: "fanout_ok".to_string(),
@@ -779,6 +816,151 @@ pub async fn run_dm_active_fanout(
         fanout_count: delivered_device_ids.len() as u32,
         delivered_device_ids,
         skipped_device_ids,
+    }))
+}
+
+pub async fn run_dm_fanout_catch_up(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmFanoutCatchUpRequest>,
+) -> ApiResult<Json<DmFanoutCatchUpResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    let (limit, request_cursor) = validate_fanout_catch_up(&payload)?;
+
+    let device_id = payload.device_id.trim().to_string();
+    let identity_id = auth.identity_id;
+
+    {
+        let devices_by_identity = state
+            .dm_profile_devices
+            .read()
+            .expect("acquire dm profile devices read lock");
+        let Some(devices) = devices_by_identity.get(&identity_id) else {
+            return Ok(Json(DmFanoutCatchUpResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_device_unknown".to_string(),
+                transport_profile: "direct_only".to_string(),
+                device_id,
+                replay_count: 0,
+                next_cursor: "0".to_string(),
+                deduped_message_ids: vec![],
+                items: vec![],
+            }));
+        };
+
+        let Some(record) = devices.get(&device_id) else {
+            return Ok(Json(DmFanoutCatchUpResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_device_unknown".to_string(),
+                transport_profile: "direct_only".to_string(),
+                device_id,
+                replay_count: 0,
+                next_cursor: "0".to_string(),
+                deduped_message_ids: vec![],
+                items: vec![],
+            }));
+        };
+
+        if !record.active {
+            return Ok(Json(DmFanoutCatchUpResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_device_inactive".to_string(),
+                transport_profile: "direct_only".to_string(),
+                device_id,
+                replay_count: 0,
+                next_cursor: "0".to_string(),
+                deduped_message_ids: vec![],
+                items: vec![],
+            }));
+        }
+    }
+
+    let (last_cursor, user_cursor) = {
+        let fanout_cursors = state
+            .dm_fanout_device_cursors
+            .read()
+            .expect("acquire dm fanout cursor read lock");
+        let last = fanout_cursors
+            .get(&identity_id)
+            .and_then(|cursors| cursors.get(&device_id))
+            .copied()
+            .unwrap_or(0);
+        (last, request_cursor.unwrap_or(0))
+    };
+    let mut effective_cursor = user_cursor.max(last_cursor);
+
+    let delivery_log = state
+        .dm_fanout_delivery_log
+        .read()
+        .expect("acquire dm fanout delivery log read lock");
+    let entries = delivery_log
+        .get(&identity_id)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+
+    let mut items = Vec::new();
+    let mut deduped_message_ids = Vec::new();
+    let mut seen_message_ids = HashSet::new();
+    for entry in entries {
+        if entry.cursor <= effective_cursor {
+            continue;
+        }
+
+        effective_cursor = entry.cursor;
+
+        if entry.delivered_device_ids.iter().any(|id| id == &device_id) {
+            continue;
+        }
+
+        if seen_message_ids.contains(&entry.message_id) {
+            deduped_message_ids.push(entry.message_id.clone());
+            continue;
+        }
+
+        seen_message_ids.insert(entry.message_id.clone());
+        items.push(DmFanoutCatchUpItem {
+            cursor: entry.cursor.to_string(),
+            message_id: entry.message_id.clone(),
+            ciphertext: entry.ciphertext.clone(),
+            source_device_id: entry.source_device_id.clone(),
+        });
+
+        if items.len() >= limit as usize {
+            break;
+        }
+    }
+
+    deduped_message_ids.sort();
+    deduped_message_ids.dedup();
+
+    let mut committed_cursor = effective_cursor;
+    if effective_cursor > last_cursor {
+        let mut fanout_cursors = state
+            .dm_fanout_device_cursors
+            .write()
+            .expect("acquire dm fanout cursor write lock");
+        let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
+        let current = device_cursors.get(&device_id).copied().unwrap_or(0);
+        committed_cursor = current.max(effective_cursor);
+        device_cursors.insert(device_id.clone(), committed_cursor);
+    }
+
+    let reason_code = if items.is_empty() {
+        "fanout_catch_up_no_missed"
+    } else {
+        "fanout_catch_up_ok"
+    };
+
+    Ok(Json(DmFanoutCatchUpResponse {
+        status: "ready".to_string(),
+        reason_code: reason_code.to_string(),
+        transport_profile: "direct_only".to_string(),
+        device_id,
+        replay_count: items.len() as u32,
+        next_cursor: committed_cursor.to_string(),
+        deduped_message_ids,
+        items,
     }))
 }
 

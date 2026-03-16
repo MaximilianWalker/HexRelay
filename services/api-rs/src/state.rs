@@ -9,8 +9,8 @@ use sqlx::PgPool;
 use crate::{
     config::ApiRateLimitConfig,
     models::{
-        AuthChallengeRecord, DmEndpointCardRecord, DmLanPresenceRecord, DmPolicy,
-        DmProfileDeviceRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey,
+        AuthChallengeRecord, DmEndpointCardRecord, DmFanoutDeliveryRecord, DmLanPresenceRecord,
+        DmPolicy, DmProfileDeviceRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey,
         SessionRecord,
     },
     transport::http::middleware::rate_limit::RateLimiter,
@@ -23,6 +23,8 @@ pub struct AppState {
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub db_pool: Option<PgPool>,
     pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
+    pub dm_fanout_delivery_log: Arc<RwLock<HashMap<String, Vec<DmFanoutDeliveryRecord>>>>,
+    pub dm_fanout_device_cursors: Arc<RwLock<HashMap<String, HashMap<String, u64>>>>,
     pub dm_lan_presence: Arc<RwLock<HashMap<String, DmLanPresenceRecord>>>,
     pub dm_profile_devices: Arc<RwLock<HashMap<String, HashMap<String, DmProfileDeviceRecord>>>>,
     pub dm_pairing_nonces: Arc<RwLock<HashMap<String, i64>>>,
@@ -60,6 +62,8 @@ impl AppState {
             auth_challenges: Arc::default(),
             db_pool: None,
             dm_endpoint_cards: Arc::default(),
+            dm_fanout_delivery_log: Arc::default(),
+            dm_fanout_device_cursors: Arc::default(),
             dm_lan_presence: Arc::default(),
             dm_profile_devices: Arc::default(),
             dm_pairing_nonces: Arc::default(),
