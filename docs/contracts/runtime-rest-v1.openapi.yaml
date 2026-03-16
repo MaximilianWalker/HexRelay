@@ -555,6 +555,54 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/dm/profile-devices/heartbeat:
+    post:
+      summary: Mark DM profile device activity state for multi-device fanout
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmProfileDeviceHeartbeatRequest'
+      responses:
+        '200':
+          description: Profile device state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmProfileDeviceHeartbeatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/dm/fanout/dispatch:
+    post:
+      summary: Fanout incoming DM payload to active devices of recipient profile
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmFanoutDispatchRequest'
+      responses:
+        '200':
+          description: DM active-device fanout result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmFanoutDispatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
@@ -1175,6 +1223,86 @@ components:
           items:
             $ref: '#/components/schemas/DmParallelDialAttempt'
         remediation:
+          type: array
+          items:
+            type: string
+    DmProfileDeviceHeartbeatRequest:
+      type: object
+      required: [device_id, active]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        active:
+          type: boolean
+    DmProfileDeviceSummary:
+      type: object
+      required: [device_id, active, last_seen_at]
+      properties:
+        device_id:
+          type: string
+        active:
+          type: boolean
+        last_seen_at:
+          type: string
+          format: date-time
+    DmProfileDeviceHeartbeatResponse:
+      type: object
+      required: [identity_id, devices]
+      properties:
+        identity_id:
+          type: string
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmProfileDeviceSummary'
+    DmFanoutDispatchRequest:
+      type: object
+      required: [recipient_identity_id, message_id, ciphertext]
+      properties:
+        recipient_identity_id:
+          type: string
+        message_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        ciphertext:
+          type: string
+          minLength: 1
+          maxLength: 8192
+        source_device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+    DmFanoutDispatchResponse:
+      type: object
+      required:
+        - status
+        - reason_code
+        - transport_profile
+        - fanout_count
+        - delivered_device_ids
+        - skipped_device_ids
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        reason_code:
+          type: string
+          enum: [fanout_ok, fanout_no_active_devices]
+        transport_profile:
+          type: string
+          enum: [direct_only]
+        fanout_count:
+          type: integer
+          minimum: 0
+        delivered_device_ids:
+          type: array
+          items:
+            type: string
+        skipped_device_ids:
           type: array
           items:
             type: string

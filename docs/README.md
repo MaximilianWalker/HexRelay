@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM endpoint-card lifecycle and parallel-dial orchestration.
+- Latest meaningful change: 2026-03-16 updated runtime REST contract authority for DM active-device profile fanout in addition to endpoint-card and parallel-dial flows.
 
 ## Purpose
 

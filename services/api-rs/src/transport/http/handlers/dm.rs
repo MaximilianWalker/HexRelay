@@ -12,23 +12,25 @@ use std::collections::HashSet;
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke,
+        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_dispatch,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
         validate_pairing_envelope_import, validate_parallel_dial_request,
-        validate_wan_wizard_request, DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS,
-        DM_ENDPOINT_CARD_DEFAULT_RTT_MS, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
-        DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
+        validate_profile_device_heartbeat, validate_wan_wizard_request,
+        DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS, DM_ENDPOINT_CARD_DEFAULT_RTT_MS,
+        DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION, DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
     },
     models::{
         ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmEndpointCard,
         DmEndpointCardRecord, DmEndpointCardRegisterRequest, DmEndpointCardRegisterResponse,
-        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmLanDiscoveryAnnounceRequest,
-        DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
-        DmLanPresenceRecord, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
-        DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
-        DmPolicyUpdate, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage, DmThreadSummary,
-        DmWanWizardRequest, DmWanWizardResponse,
+        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmFanoutDispatchRequest,
+        DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest, DmLanDiscoveryAnnounceResponse,
+        DmLanPeerListResponse, DmLanPeerSummary, DmLanPresenceRecord, DmMessagePage,
+        DmMessageRecord, DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest,
+        DmPairingEnvelopeResponse, DmPairingImportResponse, DmParallelDialAttempt,
+        DmParallelDialRequest, DmParallelDialResponse, DmPolicy, DmPolicyUpdate,
+        DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse, DmProfileDeviceRecord,
+        DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery, DmThreadPage,
+        DmThreadSummary, DmWanWizardRequest, DmWanWizardResponse,
     },
     shared::errors::{bad_request, ApiResult},
     state::AppState,
@@ -669,6 +671,119 @@ pub async fn run_dm_parallel_dial(
     }))
 }
 
+pub async fn heartbeat_dm_profile_device(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(payload): Json<DmProfileDeviceHeartbeatRequest>,
+) -> ApiResult<Json<DmProfileDeviceHeartbeatResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    validate_profile_device_heartbeat(&payload)?;
+
+    let now_epoch = Utc::now().timestamp();
+    let mut devices_by_identity = state
+        .dm_profile_devices
+        .write()
+        .expect("acquire dm profile devices write lock");
+    let devices = devices_by_identity
+        .entry(auth.identity_id.clone())
+        .or_default();
+    let device_id = payload.device_id.trim().to_string();
+
+    devices.insert(
+        device_id.clone(),
+        DmProfileDeviceRecord {
+            device_id,
+            active: payload.active,
+            last_seen_epoch: now_epoch,
+        },
+    );
+
+    Ok(Json(DmProfileDeviceHeartbeatResponse {
+        identity_id: auth.identity_id,
+        devices: profile_devices_to_response(devices, now_epoch),
+    }))
+}
+
+pub async fn run_dm_active_fanout(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    _auth: AuthSession,
+    Json(payload): Json<DmFanoutDispatchRequest>,
+) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    validate_fanout_dispatch(&payload)?;
+
+    let now_epoch = Utc::now().timestamp();
+    let recipient_identity_id = payload.recipient_identity_id.trim();
+    let source_device_id = payload
+        .source_device_id
+        .as_ref()
+        .map(|value| value.trim().to_string());
+
+    let (mut delivered_device_ids, mut skipped_device_ids) = {
+        let mut devices_by_identity = state
+            .dm_profile_devices
+            .write()
+            .expect("acquire dm profile devices write lock");
+
+        let Some(devices) = devices_by_identity.get_mut(recipient_identity_id) else {
+            return Ok(Json(DmFanoutDispatchResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_no_active_devices".to_string(),
+                transport_profile: "direct_only".to_string(),
+                fanout_count: 0,
+                delivered_device_ids: vec![],
+                skipped_device_ids: vec![],
+            }));
+        };
+
+        let mut delivered = Vec::new();
+        let mut skipped = Vec::new();
+        for record in devices.values_mut() {
+            if !record.active {
+                skipped.push(record.device_id.clone());
+                continue;
+            }
+
+            if source_device_id
+                .as_ref()
+                .map(|value| value == &record.device_id)
+                .unwrap_or(false)
+            {
+                skipped.push(record.device_id.clone());
+                continue;
+            }
+
+            record.last_seen_epoch = now_epoch;
+            delivered.push(record.device_id.clone());
+        }
+
+        (delivered, skipped)
+    };
+
+    delivered_device_ids.sort();
+    skipped_device_ids.sort();
+
+    if delivered_device_ids.is_empty() {
+        return Ok(Json(DmFanoutDispatchResponse {
+            status: "blocked".to_string(),
+            reason_code: "fanout_no_active_devices".to_string(),
+            transport_profile: "direct_only".to_string(),
+            fanout_count: 0,
+            delivered_device_ids,
+            skipped_device_ids,
+        }));
+    }
+
+    Ok(Json(DmFanoutDispatchResponse {
+        status: "ready".to_string(),
+        reason_code: "fanout_ok".to_string(),
+        transport_profile: "direct_only".to_string(),
+        fanout_count: delivered_device_ids.len() as u32,
+        delivered_device_ids,
+        skipped_device_ids,
+    }))
+}
+
 pub async fn list_dm_threads(
     _auth: AuthSession,
     Query(query): Query<DmThreadListQuery>,
@@ -935,6 +1050,32 @@ fn cards_to_response(
         .collect::<Vec<_>>();
 
     items.sort_by(|a, b| a.endpoint_id.cmp(&b.endpoint_id));
+    items
+}
+
+fn profile_devices_to_response(
+    devices: &std::collections::HashMap<String, DmProfileDeviceRecord>,
+    now_epoch: i64,
+) -> Vec<DmProfileDeviceSummary> {
+    let mut items = devices
+        .values()
+        .map(|record| DmProfileDeviceSummary {
+            device_id: record.device_id.clone(),
+            active: record.active,
+            last_seen_at: Utc
+                .timestamp_opt(record.last_seen_epoch, 0)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| {
+                    Utc.timestamp_opt(now_epoch, 0)
+                        .single()
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| Utc::now().to_rfc3339())
+                }),
+        })
+        .collect::<Vec<_>>();
+
+    items.sort_by(|a, b| a.device_id.cmp(&b.device_id));
     items
 }
 

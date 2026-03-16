@@ -296,6 +296,43 @@ pub struct DmParallelDialResponse {
     pub remediation: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DmProfileDeviceHeartbeatRequest {
+    pub device_id: String,
+    pub active: bool,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DmProfileDeviceSummary {
+    pub device_id: String,
+    pub active: bool,
+    pub last_seen_at: String,
+}
+
+#[derive(Serialize)]
+pub struct DmProfileDeviceHeartbeatResponse {
+    pub identity_id: String,
+    pub devices: Vec<DmProfileDeviceSummary>,
+}
+
+#[derive(Deserialize)]
+pub struct DmFanoutDispatchRequest {
+    pub recipient_identity_id: String,
+    pub message_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmFanoutDispatchResponse {
+    pub status: String,
+    pub reason_code: String,
+    pub transport_profile: String,
+    pub fanout_count: u32,
+    pub delivered_device_ids: Vec<String>,
+    pub skipped_device_ids: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct DmEndpointCardRecord {
     pub endpoint_id: String,
@@ -304,6 +341,13 @@ pub struct DmEndpointCardRecord {
     pub priority: u8,
     pub expires_at_epoch: i64,
     pub revoked: bool,
+}
+
+#[derive(Clone)]
+pub struct DmProfileDeviceRecord {
+    pub device_id: String,
+    pub active: bool,
+    pub last_seen_epoch: i64,
 }
 
 #[derive(Deserialize)]
