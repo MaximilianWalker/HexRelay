@@ -13,11 +13,12 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 refreshed readiness evidence/authority docs, expanded runtime contract parity for active auth/DM errors, and documented bounded websocket auth-cache expiry semantics.
+- Latest meaningful change: 2026-03-16 isolated DB migration regression tests from shared CI state and hardened temporary test database naming against collisions.
 
 ## Purpose
 
 - Canonical routing for project documentation and update responsibilities.
+- `Status: ready` means this index is the canonical docs router, not that every deferred runtime gap is closed; check open `watch` entries in `docs/operations/readiness-corrections-log.md` before relying on current implementation assumptions.
 
 ## Source-of-Truth Matrix
 

@@ -62,9 +62,10 @@ This directory defines the local development infrastructure for HexRelay blocker
 
    Expected: allocation succeeds and client output reports at least one successful relay test.
 
-## TURN/NAT Local Test Notes (D-007)
+## TURN/NAT Local Test Notes (D-010)
 
 - Canonical test procedure and pass/fail thresholds: `docs/planning/turn-nat-test-profile.md`.
+- This section is scoped to Iteration 3 voice/screen-share constrained-network validation; `D-007` remains the separate DM-only infrastructure-free NAT test dependency in `docs/product/04-dependencies-risks.md`.
 - For constrained NAT scenarios, run two browser clients on separate hosts or isolated network namespaces.
 - Capture TURN logs during each run:
 

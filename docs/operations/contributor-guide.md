@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-16 added local DM transport policy validation to the required pre-PR parity checklist.
+- Latest meaningful change: 2026-03-16 clarified that contributors must check open readiness-watch items before assuming deferred runtime behavior is already complete.
 
 ## Purpose
 
@@ -25,6 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery and fixture-backed runtime surfaces.
 
 ## Local Development Prerequisites
 

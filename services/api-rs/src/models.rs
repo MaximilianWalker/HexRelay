@@ -184,7 +184,6 @@ pub struct DmConnectivityPreflightRequest {
     pub pairing_envelope_present: Option<bool>,
     pub local_bind_allowed: Option<bool>,
     pub peer_reachable_hint: Option<bool>,
-    pub same_server_context: Option<bool>,
 }
 
 #[derive(Serialize)]

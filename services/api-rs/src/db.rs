@@ -164,12 +164,15 @@ async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), 
 mod tests {
     use std::{
         env,
+        sync::atomic::{AtomicU64, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
 
     use ring::digest::{digest, SHA256};
 
     use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations};
+
+    static TEMP_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     async fn prepare_test_pool() -> Option<PgPool> {
         let url = match env::var("API_DATABASE_URL") {
@@ -202,11 +205,17 @@ mod tests {
     }
 
     fn temporary_db_name() -> String {
-        let millis = SystemTime::now()
+        let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|value| value.as_millis())
+            .map(|value| value.as_nanos())
             .unwrap_or(0);
-        format!("hexrelay_ci_bootstrap_{}_{}", std::process::id(), millis)
+        let sequence = TEMP_DB_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        format!(
+            "hexrelay_ci_bootstrap_{}_{}_{}",
+            std::process::id(),
+            nanos,
+            sequence
+        )
     }
 
     async fn create_temp_database(admin_url: &str, name: &str) -> Result<(), sqlx::Error> {
@@ -227,8 +236,40 @@ mod tests {
 
     #[tokio::test]
     async fn migration_checksum_mismatch_is_detected_and_lock_is_released() {
-        let Some(pool) = prepare_test_pool().await else {
+        let url = match env::var("API_DATABASE_URL") {
+            Ok(value) if !value.trim().is_empty() => value,
+            _ => {
+                assert!(
+                    env::var("CI").is_err(),
+                    "API_DATABASE_URL must be set in CI"
+                );
+                return;
+            }
+        };
+
+        let Some((url_prefix, _)) = split_database_url(&url) else {
+            assert!(env::var("CI").is_err(), "invalid API_DATABASE_URL in CI");
             return;
+        };
+
+        let admin_url = format!("{url_prefix}/postgres");
+        let db_name = temporary_db_name();
+        let test_url = format!("{url_prefix}/{db_name}");
+
+        if let Err(error) = create_temp_database(&admin_url, &db_name).await {
+            assert!(
+                env::var("CI").is_err(),
+                "failed to create temporary database in CI: {error}"
+            );
+            return;
+        }
+
+        let pool = match connect_and_prepare(&test_url).await {
+            Ok(pool) => pool,
+            Err(error) => {
+                let _ = drop_temp_database(&admin_url, &db_name).await;
+                panic!("failed to prepare isolated test DB: {error}");
+            }
         };
 
         let update = sqlx::query("UPDATE schema_migrations SET checksum = $1 WHERE version = $2")
@@ -238,6 +279,8 @@ mod tests {
             .await;
 
         if update.is_err() {
+            pool.close().await;
+            let _ = drop_temp_database(&admin_url, &db_name).await;
             assert!(
                 env::var("CI").is_err(),
                 "failed to prepare checksum mismatch setup in CI"
@@ -267,6 +310,11 @@ mod tests {
         run_migrations(&pool)
             .await
             .expect("lock should be released after mismatch");
+
+        pool.close().await;
+        drop_temp_database(&admin_url, &db_name)
+            .await
+            .expect("drop temporary database");
     }
 
     #[tokio::test]

@@ -246,7 +246,6 @@ pub async fn dm_connectivity_preflight(
         .cloned()
         .unwrap_or_else(default_dm_policy);
 
-    let same_server = payload.same_server_context.unwrap_or(false);
     match policy.inbound_policy.as_str() {
         "friends_only" => {
             let Some(peer_identity_id) = payload.peer_identity_id.as_deref() else {
@@ -269,12 +268,12 @@ pub async fn dm_connectivity_preflight(
                 )));
             }
         }
-        "same_server" if !same_server => {
+        "same_server" => {
             return Ok(Json(preflight_blocked(
                 "policy_blocked",
                 vec![
-                    "Join a shared server with this contact.",
-                    "Or change your DM inbound policy from same_server.",
+                    "Your DM inbound policy is same_server, but trusted shared-server verification is not implemented yet.",
+                    "Change your DM inbound policy, or retry after same_server execution checks are implemented.",
                 ],
             )));
         }
@@ -345,30 +344,44 @@ pub async fn announce_dm_lan_discovery(
 pub async fn list_dm_lan_peers(
     axum::extract::State(state): axum::extract::State<AppState>,
     auth: AuthSession,
-) -> Json<DmLanPeerListResponse> {
+) -> ApiResult<Json<DmLanPeerListResponse>> {
     let now = Utc::now().timestamp();
-    let mut guard = state
-        .dm_lan_presence
-        .write()
-        .expect("acquire dm lan presence write lock");
+    let candidate_records = {
+        let mut guard = state
+            .dm_lan_presence
+            .write()
+            .expect("acquire dm lan presence write lock");
 
-    guard.retain(|_, record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS);
+        guard.retain(|_, record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS);
 
-    let items = guard
-        .values()
-        .filter(|record| record.identity_id != auth.identity_id)
-        .map(|record| DmLanPeerSummary {
-            identity_id: record.identity_id.clone(),
-            endpoint_hints: record.endpoint_hints.clone(),
-            last_seen_at: Utc
-                .timestamp_opt(record.last_seen_epoch, 0)
-                .single()
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
-        })
-        .collect::<Vec<_>>();
+        guard
+            .values()
+            .filter(|record| record.identity_id != auth.identity_id)
+            .cloned()
+            .collect::<Vec<_>>()
+    };
 
-    Json(DmLanPeerListResponse { items })
+    let mut items = Vec::new();
+    for record in candidate_records {
+        if matches!(
+            dm_interaction_policy_decision(&state, &auth.identity_id, &record.identity_id).await?,
+            DmInteractionPolicyDecision::Allowed
+        ) {
+            items.push(DmLanPeerSummary {
+                identity_id: record.identity_id,
+                endpoint_hints: record.endpoint_hints,
+                last_seen_at: Utc
+                    .timestamp_opt(record.last_seen_epoch, 0)
+                    .single()
+                    .map(|dt| dt.to_rfc3339())
+                    .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            });
+        }
+    }
+
+    items.sort_by(|a, b| a.identity_id.cmp(&b.identity_id));
+
+    Ok(Json(DmLanPeerListResponse { items }))
 }
 
 pub async fn run_dm_wan_wizard(

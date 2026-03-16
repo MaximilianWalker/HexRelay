@@ -246,6 +246,7 @@ paths:
   /v1/servers:
     get:
       summary: List servers for authenticated identity
+      description: Returns identity-scoped server summaries using current fixture-backed runtime data with deterministic filter/search behavior. Persistence-backed joined-server membership semantics remain an open readiness watch.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -399,6 +400,7 @@ paths:
   /v1/dm/connectivity/preflight:
     post:
       summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
+      description: Runs direct-connect diagnostics using trusted runtime state only. If the authenticated identity's DM inbound policy is `same_server`, the preflight currently fails closed because trusted shared-server verification is not implemented yet.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -447,6 +449,7 @@ paths:
   /v1/dm/connectivity/lan-discovery/peers:
     get:
       summary: List recently discovered LAN peers for direct DM fast path
+      description: Returns only recently discovered peer endpoint hints whose current DM inbound policy allows the authenticated requester. Peers using `same_server` remain hidden until authoritative shared-server verification exists for execution/discovery flows.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -459,6 +462,8 @@ paths:
                 $ref: '#/components/schemas/DmLanPeerListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/wan-wizard:
     post:
       summary: Run WAN direct-connect setup wizard diagnostics
@@ -635,13 +640,14 @@ paths:
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
-      description: Returns only threads where the authenticated identity is a participant.
+      description: Returns only threads where the authenticated identity is a participant. Current runtime behavior is fixture-backed and participant-scoped; persistence-backed DM history and stable long-term pagination semantics remain an open readiness watch.
       security:
         - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: query
           name: cursor
+          description: Current runtime uses the last returned `thread_id` as a provisional page cursor.
           schema:
             type: string
         - in: query
@@ -668,7 +674,7 @@ paths:
   /v1/dm/threads/{thread_id}/messages:
     get:
       summary: List encrypted message history for a DM thread
-      description: Returns message history only when the authenticated identity is a participant in the requested thread.
+      description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is fixture-backed and participant-scoped; persistence-backed DM history and stable long-term pagination semantics remain an open readiness watch.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -680,6 +686,7 @@ paths:
             type: string
         - in: query
           name: cursor
+          description: Current runtime uses the last returned message `seq` encoded as a string cursor.
           schema:
             type: string
         - in: query
@@ -994,9 +1001,6 @@ components:
           type: boolean
           nullable: true
         peer_reachable_hint:
-          type: boolean
-          nullable: true
-        same_server_context:
           type: boolean
           nullable: true
     DmConnectivityPreflightResponse:

@@ -6,6 +6,12 @@ info:
   description: |
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
+    Current signaling operations support authenticated loopback/self-targeted
+    envelope validation on the active websocket session only; they do not yet
+    imply recipient-targeted delivery/fanout.
+    Cross-identity recipient targeting is currently rejected as unsupported,
+    and recipient delivery remains an open readiness watch in
+    `docs/operations/readiness-corrections-log.md`.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains

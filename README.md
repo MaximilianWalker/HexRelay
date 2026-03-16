@@ -8,22 +8,22 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-10
+- last_updated: 2026-03-16
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-10 clarified terminal-by-terminal pre-dev execution flow and first-run success criteria.
+- Latest meaningful change: 2026-03-16 clarified current readiness watch gaps and updated project stage wording to reflect completed Iteration 1 foundations.
 
 ## Project Stage
 
-- MVP planning complete and Iteration 1 implementation active
+- MVP planning complete; Iteration 1 foundations are complete and Iteration 2 implementation is active
 
 ## Current Focus
 
-- Implement Iteration 1 foundations on top of the committed scaffolds.
+- Implement Iteration 2 social graph, messaging, and realtime convergence work on top of the committed foundations.
 - Keep decentralization phased so core UX quality is not blocked.
 - Maintain portability/export-import guarantees across identity and data flows.
 
@@ -45,6 +45,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 ## Getting Started
 
 - Current repository state: active API/realtime/web implementation with baseline infra/CI gates running.
+- Before treating current runtime behavior as fully settled, review open `watch` items in `docs/operations/readiness-corrections-log.md`; current deferred gaps include recipient-targeted realtime signaling delivery and fixture-backed runtime surfaces such as `/v1/servers` and DM history listing endpoints.
 - If you want project direction and delivery scope first, read:
   - `docs/product/01-mvp-plan.md`
   - `docs/product/02-prd-v1.md`

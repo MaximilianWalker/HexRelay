@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 extended networking backlog with profile-device eventual-sync tasks for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 clarified that current runtime signaling remains self-targeted loopback only until recipient fanout exists and documented provisional fixture-backed runtime list surfaces.
 
 ## Iteration Scope
 
@@ -106,6 +106,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 - Iteration 1 exit checklist is complete and OpenAPI/auth baseline is stable.
 - Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events-v1.asyncapi.yaml` (resolved by `C-012`).
+- Current runtime realtime signaling authority covers authenticated self-targeted websocket envelope validation only; recipient-targeted signaling delivery remains an open readiness `watch`, and cross-identity targeting is currently rejected until realtime routing fanout is implemented.
 - Navigation implementation uses `docs/product/07-ui-navigation-spec.md` as authority.
 
 ## Exit Evidence
