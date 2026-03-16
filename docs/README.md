@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 clarified DM infra-free dependency scope versus Iteration 3 voice TURN validation and added canonical mapping for TURN/NAT constrained-network profile.
+- Latest meaningful change: 2026-03-16 aligned dependency IDs for DM vs voice constrained-network validation and refreshed local parity guidance for DM transport policy checks.
 
 ## Purpose
 

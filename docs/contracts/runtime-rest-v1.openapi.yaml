@@ -1007,6 +1007,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
+          description: For `policy_blocked`, friends-only checks use accepted friendship state from configured persistence when available.
           enum:
             - preflight_ok
             - preflight_ok_lan

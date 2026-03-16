@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-16 resolved readiness findings for DM replay durability/scoping and docs-policy alignment (DM infra-free scope vs voice TURN profile).
+- Latest meaningful change: 2026-03-16 resolved docs dependency/risk scope drift and fixed DB-backed friendship evaluation for DM friends-only preflight checks.
 
 ## Purpose
 
@@ -30,6 +30,12 @@
 - For `watch` entries only: `owner=<team-or-role>`, `decision_trigger=<event>`, `exit_criteria=<objective condition>`
 
 ## Entries
+
+- 2026-03-16 | `docs` | Risk register mixed voice constrained-network reliability with DM direct-only mitigation language in one row | narrowed `R-002` in `docs/product/04-dependencies-risks.md` to Iteration 3 voice/screen-share TURN/NAT constrained-network mitigation and pass/fail gate semantics | voice constrained-network risk treatment no longer conflicts with DM direct-only policy language | `closed`
+- 2026-03-16 | `docs` | Local parity checklist omitted enforced DM transport policy guard command | added `./scripts/validate-dm-transport-policy.sh` to required local checks and command block in `docs/operations/contributor-guide.md` | local pre-PR parity now includes all enforced policy checks in the CI gate set | `closed`
+- 2026-03-16 | `api-rs` | DM friends-only preflight used in-memory friendship map and could reject valid DB-backed accepted friendships | added DB-backed friendship lookup in `services/api-rs/src/infra/db/repos/friends_repo.rs`, switched DM preflight friendship check in `services/api-rs/src/transport/http/handlers/dm.rs`, and added DB integration coverage in `services/api-rs/src/tests/integration/db_persistence_tests.rs` | friends-only policy evaluation now uses persistent friendship authority when DB storage is configured | `closed`
+- 2026-03-16 | `api-rs` | DM runtime policy is enforced at preflight but not consistently re-validated across all DM execution endpoints | deferred broad endpoint-level policy enforcement changes after readiness pass due API-contract and flow-impact risk; tracked for targeted hardening follow-up | `watch` | owner=api-maintainers | decision_trigger=next DM endpoint hardening cycle or any policy-bypass bug report | exit_criteria=all DM execution endpoints share a common policy-authorization gate with regression coverage
+- 2026-03-16 | `api-rs` | Core DM convergence state (endpoint cards, profile devices, fanout logs/cursors, LAN presence, policy maps) is process-memory scoped and restart/scale sensitive | deferred persistence migration in this minimal readiness pass because it spans schema, retention policy, and operational rollback design | `watch` | owner=api-maintainers | decision_trigger=planned DM durability milestone or any restart/scale consistency incident | exit_criteria=state is persisted with restart/scale integration tests covering fanout cursor and policy continuity
 
 - 2026-03-16 | `docs` | D-007 wording implied TURN-profile replacement while Iteration 3 voice docs require TURN fallback validation | clarified `D-007` in `docs/product/04-dependencies-risks.md` as DM-only infra-free dependency and aligned TURN profile scope wording in `docs/planning/turn-nat-test-profile.md`; added canonical routing row for TURN/NAT profile in `docs/README.md` | DM infra-free policy and voice TURN validation now have explicit non-overlapping scope, removing planning contradiction | `closed`
 - 2026-03-16 | `docs` | Contributor CI required job list drifted from workflow gates | updated required jobs in `docs/operations/contributor-guide.md` to include `dm-transport-policy-check` | contributor guidance now matches enforced CI gate set | `closed`

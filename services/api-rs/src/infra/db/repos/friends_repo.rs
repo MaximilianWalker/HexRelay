@@ -218,6 +218,33 @@ pub async fn update_friend_request_status(
         .transpose()
 }
 
+pub async fn are_friends(
+    pool: &PgPool,
+    first_identity_id: &str,
+    second_identity_id: &str,
+) -> Result<bool, FriendRequestRepoError> {
+    let row = sqlx::query(
+        "
+        SELECT EXISTS (
+            SELECT 1
+            FROM friend_requests
+            WHERE status = 'accepted'
+              AND (
+                (requester_identity_id = $1 AND target_identity_id = $2)
+                OR (requester_identity_id = $2 AND target_identity_id = $1)
+              )
+        ) AS are_friends
+        ",
+    )
+    .bind(first_identity_id)
+    .bind(second_identity_id)
+    .fetch_one(pool)
+    .await?;
+
+    row.try_get::<bool, _>("are_friends")
+        .map_err(FriendRequestRepoError::Sql)
+}
+
 fn map_friend_request_row(row: sqlx::postgres::PgRow) -> Result<FriendRequestRecord, sqlx::Error> {
     Ok(FriendRequestRecord {
         request_id: row.try_get::<String, _>("request_id")?,

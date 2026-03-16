@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-16 added profile-device convergence risk posture for DM and server communication paths.
+- Latest meaningful change: 2026-03-16 separated DM vs voice TURN/NAT dependency ownership and corrected constrained-network mitigation scope.
 
 ## Purpose
 
@@ -30,7 +30,8 @@
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | Infrastructure-free NAT test environment for direct DM peer connectivity scenarios | External | deferred | DM NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; this does not apply to Iteration 3 voice/screen-share TURN validation profile |
+| D-007 | Infrastructure-free NAT test environment for direct DM peer connectivity scenarios | External | deferred | DM NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; this dependency is DM-only |
+| D-010 | TURN/NAT constrained-network validation profile for Iteration 3 voice/screen-share flows | Internal | ready | Voice/screen-share constrained-network behavior cannot be signed off with repeatable evidence | Platform/Realtime | Canonical profile: `docs/planning/turn-nat-test-profile.md`; scoped to voice/screen-share only |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
 
@@ -39,7 +40,7 @@
 | ID | Risk | Severity | Likelihood | Mitigation | Owner |
 |---|---|---|---|---|---|
 | R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery | Product |
-| R-002 | Voice/DM connection failure across NAT-restricted network conditions | high | high | Use infrastructure-free direct-connect strategy only, add stronger diagnostics/soak tests, and provide explicit user guidance when direct path is unavailable | Realtime |
+| R-002 | Voice/screen-share connection failure across NAT-restricted network conditions | high | high | Enforce Iteration 3 TURN/NAT constrained-network profile (`NAT-01`..`NAT-04`), keep relay fallback success thresholds, and block iteration sign-off until profile passes | Realtime |
 | R-003 | E2EE implementation complexity delays messaging roadmap | high | medium | Keep 1:1 and group DM E2EE in MVP scope; reduce risk by phased delivery (1:1 baseline then group rollout in Iteration 2 with explicit test gates) | API |
 | R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
@@ -53,7 +54,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-03-16 (clarified DM-only infra-free dependency scope vs voice TURN validation profile).
+- Last reviewed: 2026-03-16 (split DM-only D-007 from voice TURN/NAT D-010 and aligned voice constrained-network risk mitigation).
 
 ## Risk to Task Mitigation Matrix
 
