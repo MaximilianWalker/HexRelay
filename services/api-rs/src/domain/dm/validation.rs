@@ -1,8 +1,9 @@
 use crate::{
     models::{
         DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate, DmWanWizardRequest,
+        DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate,
+        DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
     },
     shared::errors::{bad_request, ApiResult},
 };
@@ -22,6 +23,9 @@ pub const DM_ENDPOINT_CARD_DEFAULT_RTT_MS: u32 = 150;
 pub const DM_ENDPOINT_CARD_MAX_RTT_MS: u32 = 5000;
 pub const DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS: u8 = 3;
 pub const DM_PARALLEL_DIAL_MAX_ATTEMPTS: u8 = 8;
+pub const DM_PROFILE_DEVICE_ID_MAX_LENGTH: usize = 64;
+pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
+pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -275,20 +279,90 @@ pub fn validate_parallel_dial_request(payload: &DmParallelDialRequest) -> ApiRes
     Ok(())
 }
 
+pub fn validate_profile_device_heartbeat(
+    payload: &DmProfileDeviceHeartbeatRequest,
+) -> ApiResult<()> {
+    let device_id = payload.device_id.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            "profile_device_invalid",
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if device_id != payload.device_id {
+        return Err(bad_request(
+            "profile_device_invalid",
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<()> {
+    if !is_valid_identity_id(&payload.recipient_identity_id) {
+        return Err(bad_request(
+            "fanout_invalid",
+            "recipient_identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
+    }
+
+    let message_id = payload.message_id.trim();
+    if message_id.is_empty() || message_id.len() > DM_FANOUT_MESSAGE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            "fanout_invalid",
+            "message_id must be non-empty and <= 128 chars",
+        ));
+    }
+    if message_id != payload.message_id {
+        return Err(bad_request(
+            "fanout_invalid",
+            "message_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    let ciphertext = payload.ciphertext.trim();
+    if ciphertext.is_empty() || ciphertext.len() > DM_FANOUT_CIPHERTEXT_MAX_LENGTH {
+        return Err(bad_request(
+            "fanout_invalid",
+            "ciphertext must be non-empty and <= 8192 chars",
+        ));
+    }
+
+    if let Some(source_device_id) = &payload.source_device_id {
+        let normalized = source_device_id.trim();
+        if normalized.is_empty() || normalized.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+            return Err(bad_request(
+                "fanout_invalid",
+                "source_device_id must be non-empty and <= 64 chars when provided",
+            ));
+        }
+        if normalized != source_device_id {
+            return Err(bad_request(
+                "fanout_invalid",
+                "source_device_id must not include leading or trailing whitespace",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
         DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate, DmWanWizardRequest,
+        DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest, DmPairingEnvelopeCreateRequest,
+        DmPairingEnvelopeImportRequest, DmParallelDialRequest, DmPolicyUpdate,
+        DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
     };
 
     use super::{
         validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke,
+        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_dispatch,
         validate_lan_discovery_announce, validate_pairing_envelope_create,
         validate_pairing_envelope_import, validate_parallel_dial_request,
-        validate_wan_wizard_request,
+        validate_profile_device_heartbeat, validate_wan_wizard_request,
     };
 
     #[test]
@@ -453,5 +527,39 @@ mod tests {
             unreachable_endpoint_ids: None,
         };
         assert!(validate_parallel_dial_request(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_profile_device_heartbeat_payload() {
+        let payload = DmProfileDeviceHeartbeatRequest {
+            device_id: "desktop-1".to_string(),
+            active: true,
+        };
+        assert!(validate_profile_device_heartbeat(&payload).is_ok());
+
+        let invalid = DmProfileDeviceHeartbeatRequest {
+            device_id: "  desktop-1".to_string(),
+            active: true,
+        };
+        assert!(validate_profile_device_heartbeat(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_fanout_dispatch_payload() {
+        let payload = DmFanoutDispatchRequest {
+            recipient_identity_id: "usr-jules-p".to_string(),
+            message_id: "msg-9001".to_string(),
+            ciphertext: "enc:abc123".to_string(),
+            source_device_id: Some("desktop-1".to_string()),
+        };
+        assert!(validate_fanout_dispatch(&payload).is_ok());
+
+        let invalid = DmFanoutDispatchRequest {
+            recipient_identity_id: "invalid id".to_string(),
+            message_id: "msg-9001".to_string(),
+            ciphertext: "enc:abc123".to_string(),
+            source_device_id: None,
+        };
+        assert!(validate_fanout_dispatch(&invalid).is_err());
     }
 }

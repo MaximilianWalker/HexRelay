@@ -10,7 +10,8 @@ use crate::{
     config::ApiRateLimitConfig,
     models::{
         AuthChallengeRecord, DmEndpointCardRecord, DmLanPresenceRecord, DmPolicy,
-        FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
+        DmProfileDeviceRecord, FriendRequestRecord, InviteRecord, RegisteredIdentityKey,
+        SessionRecord,
     },
     transport::http::middleware::rate_limit::RateLimiter,
 };
@@ -23,6 +24,7 @@ pub struct AppState {
     pub db_pool: Option<PgPool>,
     pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
     pub dm_lan_presence: Arc<RwLock<HashMap<String, DmLanPresenceRecord>>>,
+    pub dm_profile_devices: Arc<RwLock<HashMap<String, HashMap<String, DmProfileDeviceRecord>>>>,
     pub dm_pairing_nonces: Arc<RwLock<HashMap<String, i64>>>,
     pub dm_policies: Arc<RwLock<HashMap<String, DmPolicy>>>,
     pub friend_requests: Arc<RwLock<HashMap<String, FriendRequestRecord>>>,
@@ -59,6 +61,7 @@ impl AppState {
             db_pool: None,
             dm_endpoint_cards: Arc::default(),
             dm_lan_presence: Arc::default(),
+            dm_profile_devices: Arc::default(),
             dm_pairing_nonces: Arc::default(),
             dm_policies: Arc::default(),
             friend_requests: Arc::default(),
