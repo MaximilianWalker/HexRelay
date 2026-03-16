@@ -1243,7 +1243,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [parallel_dial_connected, parallel_dial_exhausted, endpoint_cards_missing, parallel_dial_policy_blocked]
+          enum: [parallel_dial_connected, parallel_dial_exhausted, endpoint_cards_missing, parallel_dial_policy_blocked, parallel_dial_same_server_context_required]
         transport_profile:
           type: string
           enum: [direct_only]
@@ -1327,7 +1327,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full, fanout_policy_blocked]
+          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full, fanout_policy_blocked, fanout_same_server_context_required]
         transport_profile:
           type: string
           enum: [direct_only]
