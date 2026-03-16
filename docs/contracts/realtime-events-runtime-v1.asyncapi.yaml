@@ -8,6 +8,9 @@ info:
     This contract only includes event types supported in live websocket routing.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
+    When outage-grace auth fallback is enabled, cached websocket session reuse remains
+    bounded by both cache age and the upstream session expiry returned by
+    `/v1/auth/sessions/validate`.
 defaultContentType: application/json
 channels:
   callSignalOffer:
