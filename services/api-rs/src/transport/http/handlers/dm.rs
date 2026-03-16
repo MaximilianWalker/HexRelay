@@ -712,7 +712,6 @@ pub async fn run_dm_active_fanout(
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
     validate_fanout_dispatch(&payload)?;
 
-    let now_epoch = Utc::now().timestamp();
     let recipient_identity_id = payload.recipient_identity_id.trim();
     let source_device_id = payload
         .source_device_id
@@ -753,7 +752,6 @@ pub async fn run_dm_active_fanout(
                 continue;
             }
 
-            record.last_seen_epoch = now_epoch;
             delivered.push(record.device_id.clone());
         }
 
