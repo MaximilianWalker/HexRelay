@@ -1,8 +1,26 @@
 use super::*;
 
+async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
+        .expect("build dm policy update request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(response.status(), StatusCode::OK);
+    app
+}
+
 #[tokio::test]
 async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [
         ("desktop-main", true),
@@ -58,6 +76,7 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
 #[tokio::test]
 async fn fanout_dispatch_skips_source_device_when_present() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for device_id in ["desktop-main", "phone-main"] {
         let heartbeat = Request::builder()
@@ -106,6 +125,7 @@ async fn fanout_dispatch_skips_source_device_when_present() {
 #[tokio::test]
 async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     let fanout_request = Request::builder()
         .method("POST")
@@ -132,6 +152,7 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
 #[tokio::test]
 async fn fanout_dispatch_blocks_when_backlog_reaches_capacity() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     let heartbeat = Request::builder()
         .method("POST")
@@ -187,4 +208,28 @@ async fn fanout_dispatch_blocks_when_backlog_reaches_capacity() {
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_backlog_full");
     assert_eq!(payload["fanout_count"], 0);
+}
+
+#[tokio::test]
+async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-policy-blocked","ciphertext":"enc:block"}"#,
+        ))
+        .expect("build fanout request");
+    let response = app.oneshot(request).await.expect("fanout response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read fanout body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
+    assert_eq!(payload["status"], "blocked");
+    assert_eq!(payload["reason_code"], "fanout_policy_blocked");
 }

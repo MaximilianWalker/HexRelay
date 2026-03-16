@@ -533,7 +533,7 @@ pub async fn revoke_dm_endpoint_cards(
 
 pub async fn run_dm_parallel_dial(
     axum::extract::State(state): axum::extract::State<AppState>,
-    _auth: AuthSession,
+    auth: AuthSession,
     Json(payload): Json<DmParallelDialRequest>,
 ) -> ApiResult<Json<DmParallelDialResponse>> {
     validate_parallel_dial_request(&payload)?;
@@ -543,6 +543,43 @@ pub async fn run_dm_parallel_dial(
         .max_parallel_attempts
         .unwrap_or(DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS) as usize;
     let peer_identity_id = payload.peer_identity_id.trim().to_string();
+    match dm_interaction_policy_decision(&state, &auth.identity_id, &peer_identity_id).await? {
+        DmInteractionPolicyDecision::Allowed => {}
+        DmInteractionPolicyDecision::BlockedFriendsOnly
+        | DmInteractionPolicyDecision::BlockedUnknown => {
+            return Ok(Json(DmParallelDialResponse {
+                status: "blocked".to_string(),
+                reason_code: "parallel_dial_policy_blocked".to_string(),
+                transport_profile: "direct_only".to_string(),
+                winner_endpoint_id: None,
+                canceled_endpoint_ids: vec![],
+                attempts: vec![],
+                remediation: vec![
+                    "Recipient DM policy currently blocks direct connectivity attempts from this sender."
+                        .to_string(),
+                    "Send and accept a friend request, or ask recipient to change DM inbound policy."
+                        .to_string(),
+                ],
+            }));
+        }
+        DmInteractionPolicyDecision::BlockedSameServer => {
+            return Ok(Json(DmParallelDialResponse {
+                status: "blocked".to_string(),
+                reason_code: "parallel_dial_same_server_context_required".to_string(),
+                transport_profile: "direct_only".to_string(),
+                winner_endpoint_id: None,
+                canceled_endpoint_ids: vec![],
+                attempts: vec![],
+                remediation: vec![
+                    "Recipient DM policy is same_server; execution endpoints cannot verify shared-server context yet."
+                        .to_string(),
+                    "Ask recipient to switch DM inbound policy, or retry after same_server execution checks are implemented."
+                        .to_string(),
+                ],
+            }));
+        }
+    }
+
     let unreachable: HashSet<String> = payload
         .unreachable_endpoint_ids
         .unwrap_or_default()
@@ -718,6 +755,31 @@ pub async fn run_dm_active_fanout(
     validate_fanout_dispatch(&payload)?;
 
     let recipient_identity_id = payload.recipient_identity_id.trim();
+    match dm_interaction_policy_decision(&state, &auth.identity_id, recipient_identity_id).await? {
+        DmInteractionPolicyDecision::Allowed => {}
+        DmInteractionPolicyDecision::BlockedFriendsOnly
+        | DmInteractionPolicyDecision::BlockedUnknown => {
+            return Ok(Json(DmFanoutDispatchResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_policy_blocked".to_string(),
+                transport_profile: "direct_only".to_string(),
+                fanout_count: 0,
+                delivered_device_ids: vec![],
+                skipped_device_ids: vec![],
+            }));
+        }
+        DmInteractionPolicyDecision::BlockedSameServer => {
+            return Ok(Json(DmFanoutDispatchResponse {
+                status: "blocked".to_string(),
+                reason_code: "fanout_same_server_context_required".to_string(),
+                transport_profile: "direct_only".to_string(),
+                fanout_count: 0,
+                delivered_device_ids: vec![],
+                skipped_device_ids: vec![],
+            }));
+        }
+    }
+
     let source_device_id = payload
         .source_device_id
         .as_ref()
@@ -1367,6 +1429,40 @@ async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
                 && ((record.requester_identity_id == a && record.target_identity_id == b)
                     || (record.requester_identity_id == b && record.target_identity_id == a))
         }))
+}
+
+enum DmInteractionPolicyDecision {
+    Allowed,
+    BlockedFriendsOnly,
+    BlockedSameServer,
+    BlockedUnknown,
+}
+
+async fn dm_interaction_policy_decision(
+    state: &AppState,
+    sender_identity_id: &str,
+    recipient_identity_id: &str,
+) -> ApiResult<DmInteractionPolicyDecision> {
+    let policy = state
+        .dm_policies
+        .read()
+        .expect("acquire dm policy read lock")
+        .get(recipient_identity_id)
+        .cloned()
+        .unwrap_or_else(default_dm_policy);
+
+    match policy.inbound_policy.as_str() {
+        "anyone" => Ok(DmInteractionPolicyDecision::Allowed),
+        "friends_only" => {
+            if is_friend(state, sender_identity_id, recipient_identity_id).await? {
+                Ok(DmInteractionPolicyDecision::Allowed)
+            } else {
+                Ok(DmInteractionPolicyDecision::BlockedFriendsOnly)
+            }
+        }
+        "same_server" => Ok(DmInteractionPolicyDecision::BlockedSameServer),
+        _ => Ok(DmInteractionPolicyDecision::BlockedUnknown),
+    }
 }
 
 fn has_fresh_lan_peer(state: &AppState, peer_identity_id: &str, now: i64) -> bool {

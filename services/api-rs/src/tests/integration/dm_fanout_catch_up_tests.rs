@@ -1,8 +1,26 @@
 use super::*;
 
+async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
+        .expect("build dm policy update request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(response.status(), StatusCode::OK);
+    app
+}
+
 #[tokio::test]
 async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()
@@ -80,6 +98,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 #[tokio::test]
 async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()
@@ -186,6 +205,7 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
 #[tokio::test]
 async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()

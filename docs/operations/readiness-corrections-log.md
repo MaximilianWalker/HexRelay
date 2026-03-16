@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-16 resolved docs dependency/risk scope drift and fixed DB-backed friendship evaluation for DM friends-only preflight checks.
+- Latest meaningful change: 2026-03-16 hardened DM execution authorization checks and tightened contract/docs guardrail consistency for endpoint hints and CI required-check parity.
 
 ## Purpose
 
@@ -30,6 +30,12 @@
 - For `watch` entries only: `owner=<team-or-role>`, `decision_trigger=<event>`, `exit_criteria=<objective condition>`
 
 ## Entries
+
+- 2026-03-16 | `api-rs` | DM fanout/parallel-dial execution paths accepted unauthorized sender-to-peer operations under default recipient friends-only policy | enforced recipient inbound-policy authorization before fanout/parallel-dial execution in `services/api-rs/src/transport/http/handlers/dm.rs`, added policy-blocked regression coverage in `services/api-rs/src/tests/integration/dm_fanout_tests.rs` and `services/api-rs/src/tests/integration/dm_parallel_dial_tests.rs`, and aligned runtime reason-code enums in `docs/contracts/runtime-rest-v1.openapi.yaml` | DM execution endpoints now apply recipient policy boundaries consistently with preflight guardrails | `closed`
+- 2026-03-16 | `docs` | DM direct-endpoint guardrail schema was not consistently applied across pairing/LAN/endpoint-card response fields | replaced unconstrained endpoint-hint response strings with `DmDirectEndpointHint` references in `docs/contracts/runtime-rest-v1.openapi.yaml` | runtime contract now enforces direct-only endpoint hint constraints across both request and response surfaces | `closed`
+- 2026-03-16 | `docs` | Rust migration baseline required-check list drifted from active CI gates and docs index stub-retention wording used outdated iteration horizon | aligned required checks in `docs/architecture/03-rust-service-migration-baseline.md` with `.github/workflows/ci.yml` and replaced iteration-count stub retention rule in `docs/README.md` with release-window/two-iteration policy | readiness and governance docs now use deterministic CI parity and deprecation-retention language | `closed`
+- 2026-03-16 | `realtime-rs` | Realtime websocket signaling currently routes validated inbound events only to the same socket and does not implement authenticated recipient fanout delivery | deferred in this readiness pass due architectural significance (connection registry, recipient routing, delivery ACK/error semantics) requiring coordinated runtime+contract design | `watch` | owner=realtime-maintainers | decision_trigger=next realtime signaling hardening milestone or multi-user signaling failure report | exit_criteria=recipient-targeted signaling delivery implemented with integration tests for cross-identity offer/answer/candidate propagation
+- 2026-03-16 | `api-rs` | DM thread/message list endpoints remain fixture-backed and can diverge from persisted runtime behavior expectations | deferred in this readiness pass because replacing fixtures requires DM storage/repo design and pagination contract stabilization across API and tests | `watch` | owner=api-maintainers | decision_trigger=DM persistence implementation kickoff or first production-like validation run requiring non-fixture DM history | exit_criteria=thread/message list routes use persistence-backed queries with cursor semantics and fixture code removed from runtime handlers
 
 - 2026-03-16 | `docs` | Risk register mixed voice constrained-network reliability with DM direct-only mitigation language in one row | narrowed `R-002` in `docs/product/04-dependencies-risks.md` to Iteration 3 voice/screen-share TURN/NAT constrained-network mitigation and pass/fail gate semantics | voice constrained-network risk treatment no longer conflicts with DM direct-only policy language | `closed`
 - 2026-03-16 | `docs` | Local parity checklist omitted enforced DM transport policy guard command | added `./scripts/validate-dm-transport-policy.sh` to required local checks and command block in `docs/operations/contributor-guide.md` | local pre-PR parity now includes all enforced policy checks in the CI gate set | `closed`
