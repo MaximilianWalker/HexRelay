@@ -155,7 +155,7 @@ async fn revoke_endpoint_cards_returns_newly_revoked_ids_in_request_order() {
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-jules-p"]
+                tokens[recipient_identity.as_str()]
             ),
         )
         .header("x-csrf-token", "test-csrf")
