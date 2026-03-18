@@ -166,7 +166,7 @@ pub async fn list_dm_threads_for_identity(
             ORDER BY COALESCE(ms.last_message_seq, 0) DESC, t.thread_id ASC
         ),
         ranked AS (
-            SELECT *, ROW_NUMBER() OVER () AS rn
+            SELECT *, ROW_NUMBER() OVER (ORDER BY COALESCE(last_message_seq, 0) DESC, thread_id ASC) AS rn
             FROM filtered
         )
         SELECT thread_id, kind, title, participant_ids,
