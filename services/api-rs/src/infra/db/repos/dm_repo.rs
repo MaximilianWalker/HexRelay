@@ -154,30 +154,36 @@ pub async fn mark_dm_endpoint_cards_revoked(
     identity_id: &str,
     endpoint_ids: &[String],
 ) -> Result<Vec<String>, sqlx::Error> {
-    let mut revoked = Vec::new();
-
-    for endpoint_id in endpoint_ids {
-        let result = sqlx::query(
-            "
-            UPDATE dm_endpoint_cards
-            SET revoked = TRUE,
-                updated_at = NOW()
-            WHERE identity_id = $1
-              AND endpoint_id = $2
-              AND revoked = FALSE
-            ",
-        )
-        .bind(identity_id)
-        .bind(endpoint_id)
-        .execute(pool)
-        .await?;
-
-        if result.rows_affected() > 0 {
-            revoked.push(endpoint_id.clone());
-        }
+    if endpoint_ids.is_empty() {
+        return Ok(Vec::new());
     }
 
-    Ok(revoked)
+    let revoked_rows = sqlx::query(
+        "
+        UPDATE dm_endpoint_cards
+        SET revoked = TRUE,
+            updated_at = NOW()
+        WHERE identity_id = $1
+          AND endpoint_id = ANY($2)
+          AND revoked = FALSE
+        RETURNING endpoint_id
+        ",
+    )
+    .bind(identity_id)
+    .bind(endpoint_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let revoked_lookup = revoked_rows
+        .into_iter()
+        .map(|row| row.try_get::<String, _>("endpoint_id"))
+        .collect::<Result<std::collections::HashSet<_>, _>>()?;
+
+    Ok(endpoint_ids
+        .iter()
+        .filter(|endpoint_id| revoked_lookup.contains(endpoint_id.as_str()))
+        .cloned()
+        .collect())
 }
 
 pub async fn upsert_dm_profile_device(
