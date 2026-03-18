@@ -185,8 +185,8 @@ async fn revoke_endpoint_cards_returns_newly_revoked_ids_in_request_order() {
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"endpoint_ids":["{}","{}","missing-id"]}}"#,
-            endpoint_wan_b, endpoint_lan_a,
+            r#"{{"endpoint_ids":["{}","{}","{}","missing-id"]}}"#,
+            endpoint_wan_b, endpoint_wan_b, endpoint_lan_a,
         )))
         .expect("build endpoint revoke request");
     let revoke_response = app

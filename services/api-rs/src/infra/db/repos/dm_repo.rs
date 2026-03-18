@@ -174,14 +174,14 @@ pub async fn mark_dm_endpoint_cards_revoked(
     .fetch_all(pool)
     .await?;
 
-    let revoked_lookup = revoked_rows
+    let mut revoked_lookup = revoked_rows
         .into_iter()
         .map(|row| row.try_get::<String, _>("endpoint_id"))
         .collect::<Result<std::collections::HashSet<_>, _>>()?;
 
     Ok(endpoint_ids
         .iter()
-        .filter(|endpoint_id| revoked_lookup.contains(endpoint_id.as_str()))
+        .filter(|endpoint_id| revoked_lookup.remove(endpoint_id.as_str()))
         .cloned()
         .collect())
 }
