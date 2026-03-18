@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-18 enforced cookie-auth CSRF parity for DM parallel dial and documented the requirement in the runtime contract and readiness log.
+- Latest meaningful change: 2026-03-18 aligned the runtime REST contract with SQL-backed DM message pagination semantics, including strict `seq` cursor behavior and `next_cursor` paging rules.
 
 ## Purpose
 

@@ -716,7 +716,7 @@ paths:
   /v1/dm/threads/{thread_id}/messages:
     get:
       summary: List encrypted message history for a DM thread
-      description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is persistence-backed in the local runtime store and participant-scoped.
+      description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is persistence-backed in the local runtime store, participant-scoped, ordered by descending `seq`, and paginated directly from SQL storage.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -728,7 +728,7 @@ paths:
             type: string
         - in: query
           name: cursor
-          description: Current runtime uses the last returned message `seq` encoded as a string cursor.
+          description: Current runtime uses the last returned message `seq` encoded as a string cursor and returns only messages with `seq` strictly less than that value.
           schema:
             type: string
         - in: query
@@ -1548,6 +1548,7 @@ components:
         next_cursor:
           type: string
           nullable: true
+          description: Present only when more messages remain; equals the `seq` of the last returned item.
     FriendRequestRecord:
       type: object
       required: [request_id, requester_identity_id, target_identity_id, status, created_at]

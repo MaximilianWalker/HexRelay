@@ -185,10 +185,16 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let first_payload: serde_json::Value =
         serde_json::from_slice(&first_body).expect("decode first dm messages body");
 
-    assert_eq!(first_payload["items"].as_array().map(Vec::len), Some(2));
+    let first_items = first_payload["items"]
+        .as_array()
+        .expect("first page items array");
+    assert_eq!(first_items.len(), 2);
+    assert_eq!(first_items[0]["seq"], 404);
+    assert_eq!(first_items[1]["seq"], 403);
     let next_cursor = first_payload["next_cursor"]
         .as_str()
         .expect("next cursor from first dm message page");
+    assert_eq!(next_cursor, "403");
 
     let second_request = Request::builder()
         .method("GET")
@@ -214,8 +220,129 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let second_payload: serde_json::Value =
         serde_json::from_slice(&second_body).expect("decode second dm messages body");
 
-    assert_eq!(second_payload["items"].as_array().map(Vec::len), Some(2));
+    let second_items = second_payload["items"]
+        .as_array()
+        .expect("second page items array");
+    assert_eq!(second_items.len(), 2);
+    assert_eq!(second_items[0]["seq"], 402);
+    assert_eq!(second_items[1]["seq"], 401);
     assert!(second_payload["next_cursor"].is_null());
+}
+
+#[tokio::test]
+async fn dm_thread_messages_cursor_is_strictly_exclusive() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor=404")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build exclusive cursor request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("exclusive cursor response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read exclusive cursor body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode exclusive cursor body");
+    let items = payload["items"]
+        .as_array()
+        .expect("exclusive cursor items array");
+
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["seq"], 403);
+    assert_eq!(items[1]["seq"], 402);
+    assert_eq!(payload["next_cursor"], "402");
+}
+
+#[tokio::test]
+async fn dm_thread_messages_returns_empty_page_for_member_without_messages() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+
+    let thread_id = format!("dm-thread-empty-{}", Uuid::new_v4().simple());
+    seed_dm_thread(
+        &pool,
+        &thread_id,
+        "dm",
+        "Nora K + Quiet Contact",
+        &[("usr-nora-k", 0), ("usr-quiet-contact", 0)],
+        &[],
+    )
+    .await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build empty thread request");
+
+    let response = app.oneshot(request).await.expect("empty thread response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read empty thread body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode empty thread body");
+
+    assert_eq!(payload["items"].as_array().map(Vec::len), Some(0));
+    assert!(payload["next_cursor"].is_null());
+}
+
+#[tokio::test]
+async fn dm_thread_messages_accept_cursor_larger_than_storage_range() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor={}",
+            u64::MAX
+        ))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build large cursor request");
+
+    let response = app.oneshot(request).await.expect("large cursor response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read large cursor body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode large cursor body");
+    let items = payload["items"]
+        .as_array()
+        .expect("large cursor items array");
+
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["seq"], 404);
+    assert_eq!(items[1]["seq"], 403);
+    assert_eq!(payload["next_cursor"], "403");
 }
 
 #[tokio::test]
