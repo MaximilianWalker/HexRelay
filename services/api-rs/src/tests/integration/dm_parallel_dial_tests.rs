@@ -295,8 +295,12 @@ async fn parallel_dial_allows_when_peer_policy_is_same_server_and_membership_is_
         .uri("/v1/dm/connectivity/parallel-dial")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
         )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"peer_identity_id":"usr-jules-p"}"#))
         .expect("build parallel dial request");
@@ -315,4 +319,107 @@ async fn parallel_dial_allows_when_peer_policy_is_same_server_and_membership_is_
 
     assert_eq!(payload["status"], "ready");
     assert_eq!(payload["reason_code"], "parallel_dial_connected");
+}
+
+#[tokio::test]
+async fn parallel_dial_rejects_cookie_auth_without_matching_csrf_token() {
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-nora-k",
+        false,
+        false,
+        0,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-jules-p",
+        false,
+        false,
+        0,
+    )
+    .await;
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"same_server"}"#))
+        .expect("build dm policy update request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
+
+    let register_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"cards":[{"endpoint_id":"lan-a","endpoint_hint":"udp://192.168.1.20:4040","estimated_rtt_ms":10}]}"#,
+        ))
+        .expect("build endpoint register request");
+    let register_response = app
+        .clone()
+        .oneshot(register_request)
+        .await
+        .expect("endpoint register response");
+    assert_eq!(register_response.status(), StatusCode::OK);
+
+    let dial_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/parallel-dial")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
+        )
+        .header("x-csrf-token", "wrong-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"peer_identity_id":"usr-jules-p"}"#))
+        .expect("build parallel dial request");
+
+    let dial_response = app
+        .oneshot(dial_request)
+        .await
+        .expect("parallel dial response");
+    assert_eq!(dial_response.status(), StatusCode::UNAUTHORIZED);
+
+    let dial_body = to_bytes(dial_response.into_body(), usize::MAX)
+        .await
+        .expect("read parallel dial body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&dial_body).expect("decode parallel dial body");
+
+    assert_eq!(payload["code"], "csrf_invalid");
 }
