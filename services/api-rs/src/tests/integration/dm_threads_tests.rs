@@ -268,7 +268,7 @@ async fn dm_thread_messages_cursor_is_strictly_exclusive() {
 }
 
 #[tokio::test]
-async fn dm_thread_messages_return_empty_page_for_member_without_messages() {
+async fn dm_thread_messages_returns_empty_page_for_member_without_messages() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
