@@ -1273,10 +1273,7 @@ pub async fn list_dm_threads(
         None
     };
 
-    Ok(Json(DmThreadPage {
-        items,
-        next_cursor,
-    }))
+    Ok(Json(DmThreadPage { items, next_cursor }))
 }
 
 pub async fn list_dm_thread_messages(
