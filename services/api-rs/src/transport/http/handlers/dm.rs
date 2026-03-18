@@ -487,6 +487,7 @@ pub async fn register_dm_endpoint_cards(
         cards.clone()
     };
 
+    let mut new_records = Vec::with_capacity(payload.cards.len());
     for card in payload.cards {
         let endpoint_id = card.endpoint_id.trim().to_string();
         let expires_in_seconds = card
@@ -502,17 +503,17 @@ pub async fn register_dm_endpoint_cards(
             expires_at_epoch: now_epoch + expires_in_seconds as i64,
             revoked: false,
         };
-        if let Some(pool) = state.db_pool.as_ref() {
-            dm_repo::upsert_dm_endpoint_card(pool, &identity_id, &record)
-                .await
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to persist endpoint card")
-                })?;
-        }
-        cards.insert(endpoint_id, record);
+        cards.insert(endpoint_id, record.clone());
+        new_records.push(record);
     }
 
-    if state.db_pool.is_none() {
+    if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::upsert_dm_endpoint_cards_batch(pool, &identity_id, &new_records)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to persist endpoint cards")
+            })?;
+    } else {
         state
             .dm_endpoint_cards
             .write()
@@ -1247,39 +1248,33 @@ pub async fn list_dm_threads(
             "dm history requires configured database pool",
         )
     })?;
-    let mut items = dm_history_repo::list_dm_threads_for_identity(pool, &auth.identity_id)
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to list dm threads"))?;
+    let unread_only = query.unread_only.unwrap_or(false);
+    let mut items = dm_history_repo::list_dm_threads_for_identity(
+        pool,
+        &auth.identity_id,
+        query.cursor.as_deref(),
+        limit,
+        unread_only,
+    )
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => bad_request("cursor_invalid", "unknown dm thread cursor"),
+        _ => internal_error("storage_unavailable", "failed to list dm threads"),
+    })?;
 
-    if query.unread_only.unwrap_or(false) {
-        items.retain(|item| item.unread > 0);
+    let has_more = items.len() > limit;
+    if has_more {
+        items.truncate(limit);
     }
 
-    let start = if let Some(cursor) = query.cursor {
-        items
-            .iter()
-            .position(|item| item.thread_id == cursor)
-            .map(|idx| idx + 1)
-            .ok_or_else(|| bad_request("cursor_invalid", "unknown dm thread cursor"))?
-    } else {
-        0
-    };
-
-    let page_items = items
-        .iter()
-        .skip(start)
-        .take(limit)
-        .cloned()
-        .collect::<Vec<_>>();
-    let has_more = start + page_items.len() < items.len();
     let next_cursor = if has_more {
-        page_items.last().map(|item| item.thread_id.clone())
+        items.last().map(|item| item.thread_id.clone())
     } else {
         None
     };
 
     Ok(Json(DmThreadPage {
-        items: page_items,
+        items,
         next_cursor,
     }))
 }
@@ -1594,13 +1589,17 @@ fn verify_pairing_envelope_signature(
         .get(&envelope.key_id)
         .ok_or_else(|| bad_request("pairing_invalid", "unknown pairing signing key"))?;
 
-    let expected = sign_pairing_claims(&envelope.claims, key_secret)?;
-    if expected != envelope.signature {
-        return Err(bad_request(
+    let claims_json = serde_json::to_vec(&envelope.claims)
+        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing claims"))?;
+    let key = hmac::Key::new(hmac::HMAC_SHA256, key_secret.as_bytes());
+    let signature_bytes = hex::decode(&envelope.signature)
+        .map_err(|_| bad_request("pairing_invalid", "signature is not valid hex"))?;
+    hmac::verify(&key, &claims_json, &signature_bytes).map_err(|_| {
+        bad_request(
             "pairing_invalid",
             "pairing envelope signature verification failed",
-        ));
-    }
+        )
+    })?;
 
     Ok(())
 }

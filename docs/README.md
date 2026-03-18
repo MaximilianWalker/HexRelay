@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-18 aligned the runtime REST contract with SQL-backed DM message pagination semantics, including strict `seq` cursor behavior and `next_cursor` paging rules.
+- Latest meaningful change: 2026-03-18 hardened DM thread list pagination into SQL, wrapped endpoint-card registration in a database transaction, and replaced timing-vulnerable HMAC string comparison with constant-time `ring::hmac::verify`.
 
 ## Purpose
 

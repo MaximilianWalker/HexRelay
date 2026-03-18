@@ -127,6 +127,54 @@ pub async fn upsert_dm_endpoint_card(
     Ok(())
 }
 
+pub async fn upsert_dm_endpoint_cards_batch(
+    pool: &PgPool,
+    identity_id: &str,
+    records: &[DmEndpointCardRecord],
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    for record in records {
+        sqlx::query(
+            "
+            INSERT INTO dm_endpoint_cards (
+                identity_id,
+                endpoint_id,
+                endpoint_hint,
+                estimated_rtt_ms,
+                priority,
+                expires_at_epoch,
+                revoked,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (identity_id, endpoint_id) DO UPDATE
+            SET endpoint_hint = EXCLUDED.endpoint_hint,
+                estimated_rtt_ms = EXCLUDED.estimated_rtt_ms,
+                priority = EXCLUDED.priority,
+                expires_at_epoch = EXCLUDED.expires_at_epoch,
+                revoked = EXCLUDED.revoked,
+                updated_at = NOW()
+            ",
+        )
+        .bind(identity_id)
+        .bind(&record.endpoint_id)
+        .bind(&record.endpoint_hint)
+        .bind(
+            i32::try_from(record.estimated_rtt_ms)
+                .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms too large".into()))?,
+        )
+        .bind(i16::from(record.priority))
+        .bind(record.expires_at_epoch)
+        .bind(record.revoked)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
 pub async fn list_dm_endpoint_cards(
     pool: &PgPool,
     identity_id: &str,
