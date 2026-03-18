@@ -180,6 +180,156 @@ print("\n".join(sorted(set(codes))))
 PY
 }
 
+validate_api_semantic_contracts() {
+  "${PYTHON_BIN[@]}" - "$1" <<'PY'
+import pathlib
+import re
+import sys
+
+
+def route_blocks(text: str):
+    needle = '.route('
+    index = 0
+    while True:
+        start = text.find(needle, index)
+        if start == -1:
+            return
+        cursor = start + len(needle)
+        depth = 1
+        while cursor < len(text) and depth > 0:
+            char = text[cursor]
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+            cursor += 1
+        yield text[start:cursor]
+        index = cursor
+
+
+def extract_function_blocks(paths):
+    functions = {}
+    pattern = re.compile(r'pub async fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
+    for path in paths:
+        text = pathlib.Path(path).read_text()
+        for match in pattern.finditer(text):
+            name = match.group(1)
+            params = match.group(2)
+            body_start = text.find('{', match.end())
+            if body_start == -1:
+                continue
+            cursor = body_start + 1
+            depth = 1
+            while cursor < len(text) and depth > 0:
+                char = text[cursor]
+                if char == '{':
+                    depth += 1
+                elif char == '}':
+                    depth -= 1
+                cursor += 1
+            body = text[body_start:cursor]
+            functions[name] = {
+                'has_auth': 'AuthSession' in params,
+                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
+            }
+    return functions
+
+
+def extract_runtime_semantics(router_text: str, function_semantics):
+    semantics = {}
+    for block in route_blocks(router_text):
+        path_match = re.search(r'\.route\(\s*"([^"]+)"', block, re.S)
+        if not path_match:
+            continue
+        path = re.sub(r':([A-Za-z0-9_]+)', r'{\1}', path_match.group(1))
+        for method, handler in re.findall(r'\b(get|post|put|patch|delete)\s*\(\s*(\w+)\s*\)', block):
+            handler_semantics = function_semantics.get(handler, {})
+            semantics[(method.upper(), path)] = {
+                'handler': handler,
+                'has_auth': bool(handler_semantics.get('has_auth')),
+                'has_csrf': bool(handler_semantics.get('has_csrf')),
+            }
+    return semantics
+
+
+def extract_contract_semantics(contract_path: pathlib.Path):
+    lines = contract_path.read_text().splitlines()
+    semantics = {}
+    in_paths = False
+    current_path = None
+    current_method = None
+
+    for line in lines:
+        if not in_paths:
+            if line.strip() == 'paths:':
+                in_paths = True
+            continue
+
+        if re.match(r'^\S', line):
+            break
+
+        path_match = re.match(r'^  (/[^:]+):\s*$', line)
+        if path_match:
+            current_path = path_match.group(1)
+            current_method = None
+            continue
+
+        method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
+        if method_match and current_path:
+            current_method = method_match.group(1).upper()
+            semantics[(current_method, current_path)] = {
+                'has_security': False,
+                'has_401': False,
+                'has_500': False,
+                'has_csrf': False,
+            }
+            continue
+
+        if not current_path or not current_method:
+            continue
+
+        if re.match(r'^      security:\s*$', line):
+            semantics[(current_method, current_path)]['has_security'] = True
+        elif "#/components/parameters/CsrfTokenHeader" in line:
+            semantics[(current_method, current_path)]['has_csrf'] = True
+        elif re.match(r"^        '401':\s*$", line):
+            semantics[(current_method, current_path)]['has_401'] = True
+        elif re.match(r"^        '500':\s*$", line):
+            semantics[(current_method, current_path)]['has_500'] = True
+
+    return semantics
+
+
+contract_path = pathlib.Path(sys.argv[1])
+router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
+handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
+
+function_semantics = extract_function_blocks(handler_paths)
+runtime_semantics = extract_runtime_semantics(router_text, function_semantics)
+contract_semantics = extract_contract_semantics(contract_path)
+
+errors = []
+
+for key, runtime in sorted(runtime_semantics.items()):
+    method, path = key
+    contract = contract_semantics.get(key)
+    if contract is None:
+        continue
+    if runtime['has_auth'] and not contract['has_security']:
+        errors.append(f"::error::{method} {path} uses AuthSession at runtime but is missing security requirements in {contract_path}.")
+    if runtime['has_auth'] and not contract['has_401']:
+        errors.append(f"::error::{method} {path} uses AuthSession at runtime but is missing a 401 response in {contract_path}.")
+    if runtime['has_auth'] and not contract['has_500']:
+        errors.append(f"::error::{method} {path} uses AuthSession-backed runtime auth/storage but is missing a 500 response in {contract_path}.")
+    if runtime['has_csrf'] and not contract['has_csrf']:
+        errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
+
+if errors:
+    print("\n".join(errors))
+    sys.exit(1)
+PY
+}
+
 extract_realtime_runtime_events() {
   "${PYTHON_BIN[@]}" - "$1" <<'PY'
 import pathlib
@@ -352,6 +502,10 @@ compare_inventory "API route inventory" "${api_runtime_inventory}" "${api_contra
 compare_inventory "API error-code inventory" "${api_runtime_error_codes}" "${api_contract_error_codes}"
 compare_inventory "Realtime event inventory" "${realtime_runtime_events}" "${realtime_contract_events}"
 compare_inventory "Realtime error-code inventory" "${realtime_runtime_error_codes}" "${realtime_contract_error_codes}"
+
+if ! validate_api_semantic_contracts "${api_contract}"; then
+  errors=1
+fi
 
 if [ "${errors}" -ne 0 ]; then
   echo "[contract-parity] Update runtime contract docs when API/realtime surface changes."

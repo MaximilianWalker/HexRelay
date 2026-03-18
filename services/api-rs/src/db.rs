@@ -48,6 +48,26 @@ const MIGRATIONS: &[Migration] = &[
         "0011_dm_pairing_nonces",
         include_str!("../migrations/0011_dm_pairing_nonces.sql"),
     ),
+    (
+        "0012_servers_and_memberships",
+        include_str!("../migrations/0012_servers_and_memberships.sql"),
+    ),
+    (
+        "0013_dm_policy_persistence",
+        include_str!("../migrations/0013_dm_policy_persistence.sql"),
+    ),
+    (
+        "0014_dm_endpoint_cards_and_profile_devices",
+        include_str!("../migrations/0014_dm_endpoint_cards_and_profile_devices.sql"),
+    ),
+    (
+        "0015_dm_fanout_cursor_metadata",
+        include_str!("../migrations/0015_dm_fanout_cursor_metadata.sql"),
+    ),
+    (
+        "0016_dm_history_local_store",
+        include_str!("../migrations/0016_dm_history_local_store.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

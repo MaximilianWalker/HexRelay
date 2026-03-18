@@ -88,8 +88,14 @@
 - `T4.1.3`: policy gate report + direct transport integration tests.
 - `T4.1.4`: pairing conformance report (signature/expiry/replay checks) + UX state screenshots.
 - `T4.1.5`: reason-code matrix report and remediation action coverage.
-- `T4.1.6`: LAN discovery/connect benchmarks with local-subnet-only traffic proof.
+- `T4.1.6`: LAN discovery/connect benchmarks with local-subnet-only traffic proof and explicit confirmation that discovery hints stay ephemeral/TTL-scoped rather than DB-persisted.
 - `T4.1.7`: WAN wizard scenario matrix with deterministic result classification.
+- Broad off-LAN discovery is not a separate MVP feature; existing off-LAN bootstrap/pathing is pairing + WAN guidance + endpoint cards + parallel dial. Any future extension should be limited to authorized endpoint-card freshness for already-paired peers.
+- Profile-device convergence is already represented by active-device fanout plus later-active catch-up. Any future extension should be limited to self/profile device-state UX or authorized endpoint-card freshness, not broad device discovery semantics.
+- Contact-aware device discovery is also out of current MVP scope; if revisited, it must remain contact-authorized, pull-based, and limited to endpoint-card freshness metadata rather than friend-visible online/device presence.
+- Broad multi-device DM convergence is already covered by active-device fanout, per-device cursor persistence, and later-active catch-up. The only remaining follow-up is whether replay payload durability should stay memory-bounded, move to peer-only sibling-device sync, or be explicitly approved as bounded encrypted server-side storage.
+- Durable DM history should be treated separately from replay backlog durability: the intended direction is client-local or local-runtime-backed thread/message persistence, while server-side DM state remains metadata-only under the direct-only policy.
+- Recipient-targeted realtime signaling should also stay a separate routing track: it is a narrow authenticated websocket signaling feature for live call setup, not part of broad DM convergence or discovery scope.
 - `T4.1.8`: multi-endpoint race/connect report and endpoint revocation tests.
 - `T4.1.9`: DM active-device fanout matrix for multi-device profiles.
 - `T4.1.10`: late-device replay/catch-up convergence report (offline-then-activate scenarios).

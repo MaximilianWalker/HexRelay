@@ -1,12 +1,49 @@
 use super::*;
 
 #[tokio::test]
-async fn lists_servers_with_filters() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+async fn lists_servers_with_filters_from_persisted_memberships() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        "srv-atlas-core",
+        "Atlas Core",
+        "usr-nora-k",
+        true,
+        false,
+        2,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-relay-lab",
+        "Relay Lab",
+        "usr-nora-k",
+        false,
+        true,
+        0,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-dev-signals",
+        "Dev Signals",
+        "usr-nora-k",
+        true,
+        false,
+        5,
+    )
+    .await;
+
     let request = Request::builder()
         .method("GET")
         .uri("/v1/servers?favorites_only=true&unread_only=true")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build servers list request");
 
@@ -18,23 +55,80 @@ async fn lists_servers_with_filters() {
         .expect("read servers response body");
     let payload: ServerListResponse =
         serde_json::from_slice(&body).expect("decode server list response");
-    assert!(!payload.items.is_empty());
+
+    assert_eq!(payload.items.len(), 2);
+    assert!(payload.items.iter().all(|item| item["favorite"] == true));
+    assert!(payload
+        .items
+        .iter()
+        .all(|item| item["unread"].as_u64().unwrap_or_default() > 0));
 }
 
 #[tokio::test]
 async fn lists_servers_for_authenticated_identity_only() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-alex-r"]);
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-alex-r"]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        "srv-atlas-core",
+        "Atlas Core",
+        "usr-nora-k",
+        true,
+        false,
+        2,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-nora-k",
+        false,
+        false,
+        1,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-alex-r",
+        false,
+        false,
+        0,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-alex-craft",
+        "Alex Craft",
+        "usr-alex-r",
+        true,
+        false,
+        1,
+    )
+    .await;
 
     let nora_request = Request::builder()
         .method("GET")
         .uri("/v1/servers")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build nora servers list request");
     let alex_request = Request::builder()
         .method("GET")
         .uri("/v1/servers")
-        .header("authorization", format!("Bearer {}", tokens["usr-alex-r"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-alex-r"]),
+        )
         .body(Body::empty())
         .expect("build alex servers list request");
 
@@ -44,6 +138,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         .await
         .expect("nora servers response");
     let alex_response = app
+        .clone()
         .oneshot(alex_request)
         .await
         .expect("alex servers response");
@@ -65,10 +160,23 @@ async fn lists_servers_for_authenticated_identity_only() {
         .items
         .iter()
         .any(|item| item["id"] == "srv-atlas-core"));
+    assert!(nora_payload
+        .items
+        .iter()
+        .any(|item| item["id"] == "srv-shared-lab"));
+    assert!(nora_payload
+        .items
+        .iter()
+        .all(|item| item["id"] != "srv-alex-craft"));
+
     assert!(alex_payload
         .items
         .iter()
         .any(|item| item["id"] == "srv-alex-craft"));
+    assert!(alex_payload
+        .items
+        .iter()
+        .any(|item| item["id"] == "srv-shared-lab"));
     assert!(alex_payload
         .items
         .iter()

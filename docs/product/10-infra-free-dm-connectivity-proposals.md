@@ -232,6 +232,43 @@
 - Implement parallel dial orchestration and winner selection.
 - Add profile-device fanout + catch-up rules and endpoint management/revocation handling.
 
+## Scope Clarification: Off-LAN Direct Connect
+
+- The MVP already covers off-LAN direct-connect bootstrap and path selection through signed pairing, WAN setup guidance, endpoint cards, and parallel dial.
+- A broad new "off-LAN discovery" feature is not planned because it risks drifting into forbidden rendezvous semantics.
+- The only plausible future gap to revisit is authorized endpoint-card freshness or rediscovery for already-paired peers when stored endpoint hints drift.
+- Any future design for that gap must stay metadata-only, contact-authorized, and must not introduce STUN/TURN/relay or project-operated discovery infrastructure.
+
+## Scope Clarification: Profile-Device Announcement
+
+- The MVP already covers the required profile-device outcome through active-device fanout and later-active catch-up by cursor.
+- A broad new device-announcement/discovery feature is not planned because it risks drifting into contact presence or rendezvous semantics rather than convergence semantics.
+- The only plausible future extensions are optional self/profile device-state UX or authorized endpoint-card freshness for already-paired peers.
+
+## Scope Clarification: Contact-Aware Device Discovery
+
+- The MVP does not include friend-visible device awareness or online-device discovery as part of DM seamlessness.
+- Privacy-first social-graph boundaries and direct-only DM rules make broad contact-facing device presence too easy to overexpose.
+- If a future extension is needed, it must stay contact-authorized, pull-based, and limited to endpoint-card freshness metadata for already-paired peers.
+
+## Scope Clarification: Multi-Device DM Sync Durability
+
+- The MVP already covers broad multi-device DM convergence through active-device fanout, later-active catch-up, persisted endpoint/profile/cursor metadata, and deterministic dedupe.
+- The only remaining unresolved gap is replay payload durability when the API process restarts or the bounded replay backlog is exhausted.
+- Any future solution must choose explicitly between peer-only sibling-device replay and bounded encrypted server-side replay storage; this is a boundary decision, not a generic convergence feature gap.
+
+## Scope Clarification: Durable DM History
+
+- Durable DM history is still a valid follow-up because the current thread/message list endpoints are fixture-backed.
+- The intended target is user-owned history persisted locally on client devices or via the local desktop runtime service, not server-authoritative DM payload history.
+- Server-side persistence remains limited to DM metadata/control state unless an explicit architecture decision expands that boundary.
+
+## Scope Clarification: Recipient-Targeted Realtime Signaling
+
+- Recipient-targeted websocket signaling is still a valid follow-up for live call/session setup.
+- It should stay narrowly scoped to authenticated offer/answer/ICE routing between currently connected peers.
+- It must not expand into offline signaling queues, device discovery, friend-visible presence, or DM payload relay/storage behavior.
+
 ## Delivery Ownership
 
 - This document is the option catalog and trade-off authority.

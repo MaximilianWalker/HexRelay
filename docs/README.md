@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-03-18
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 isolated DB migration regression tests from shared CI state and hardened temporary test database naming against collisions.
+- Latest meaningful change: 2026-03-18 closed remaining DB-backed DM CI regressions by fixing thread-history SQL, aligning preflight with trusted peer-policy checks, and restoring fanout CSRF test parity.
 
 ## Purpose
 

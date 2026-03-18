@@ -132,6 +132,8 @@ paths:
                 $ref: '#/components/schemas/SessionValidateResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/invites:
     post:
       summary: Create an invite token
@@ -246,7 +248,7 @@ paths:
   /v1/servers:
     get:
       summary: List servers for authenticated identity
-      description: Returns identity-scoped server summaries using current fixture-backed runtime data with deterministic filter/search behavior. Persistence-backed joined-server membership semantics remain an open readiness watch.
+      description: Returns identity-scoped server summaries from persisted server membership records with deterministic filter/search behavior. Joined-server membership authority now backs this surface, while richer guild/channel authz semantics remain future work.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -276,6 +278,8 @@ paths:
                 $ref: '#/components/schemas/ServerListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/contacts:
     get:
       summary: List contacts for authenticated identity
@@ -308,9 +312,12 @@ paths:
                 $ref: '#/components/schemas/ContactListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/privacy-policy:
     get:
       summary: Get DM inbound policy for authenticated identity
+      description: Returns persisted DM inbound-policy authority when configured storage is available; otherwise falls back to in-memory test/runtime state.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -323,8 +330,11 @@ paths:
                 $ref: '#/components/schemas/DmPolicy'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Update DM inbound policy for authenticated identity
+      description: Persists DM inbound-policy authority when configured storage is available and mirrors it into in-process state for active runtime use.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -347,6 +357,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/pairing-envelope:
     post:
       summary: Create signed out-of-band DM pairing envelope
@@ -372,6 +384,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/pairing-envelope/import:
     post:
       summary: Import and verify signed out-of-band DM pairing envelope
@@ -397,10 +411,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/preflight:
     post:
       summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
-      description: Runs direct-connect diagnostics using trusted runtime state only. If the authenticated identity's DM inbound policy is `same_server`, the preflight currently fails closed because trusted shared-server verification is not implemented yet.
+      description: Runs direct-connect diagnostics using trusted runtime state only. If a peer identity is supplied, the preflight evaluates that peer's current DM inbound policy for the authenticated requester; `same_server` authorization is verified from persisted server membership records rather than client-declared context.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -421,9 +437,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/lan-discovery/announce:
     post:
       summary: Announce local-network endpoint hints for DM LAN fast path
+      description: Updates an ephemeral TTL-scoped LAN discovery snapshot for the authenticated identity. These local-subnet hints are intentionally not treated as durable DM convergence state.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -446,10 +465,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/lan-discovery/peers:
     get:
       summary: List recently discovered LAN peers for direct DM fast path
-      description: Returns only recently discovered peer endpoint hints whose current DM inbound policy allows the authenticated requester. Peers using `same_server` remain hidden until authoritative shared-server verification exists for execution/discovery flows.
+      description: Returns only recently discovered peer endpoint hints whose current DM inbound policy allows the authenticated requester. `same_server` visibility is verified from persisted server membership records, and LAN discovery hints remain ephemeral TTL-scoped snapshots rather than durable stored history.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -487,9 +508,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/endpoint-cards:
     post:
       summary: Register DM endpoint cards for multi-endpoint direct dialing
+      description: Persists endpoint-card control state when configured storage is available so direct-dial candidates survive restart without storing DM payload content.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -512,9 +536,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/endpoint-cards/revoke:
     post:
       summary: Revoke previously published DM endpoint cards
+      description: Persists endpoint-card revocation state when configured storage is available.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -537,6 +564,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/connectivity/parallel-dial:
     post:
       summary: Run DM multi-endpoint parallel dial orchestration
@@ -560,9 +589,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/profile-devices/heartbeat:
     post:
       summary: Mark DM profile device activity state for multi-device fanout
+      description: Persists profile-device activity metadata when configured storage is available so active-device control state survives restart without persisting DM payload content.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -585,6 +617,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/fanout/dispatch:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
@@ -611,10 +645,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/fanout/catch-up:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
-      description: Profile-device convergence replay under direct-only DM policy; replays bounded in-memory delivery history and does not permit relay fallback.
+      description: Profile-device convergence replay under direct-only DM policy; per-device cursor checkpoints persist when configured storage is available, while replay payload backlog remains bounded in-memory and relay fallback stays disallowed.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -637,17 +673,19 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
-      description: Returns only threads where the authenticated identity is a participant. Current runtime behavior is fixture-backed and participant-scoped; persistence-backed DM history and stable long-term pagination semantics remain an open readiness watch.
+      description: Returns only threads where the authenticated identity is a participant. Current runtime behavior is persistence-backed in the local runtime store and participant-scoped; cursor pagination still uses the last returned `thread_id` until a more stable long-term contract is introduced.
       security:
         - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: query
           name: cursor
-          description: Current runtime uses the last returned `thread_id` as a provisional page cursor.
+          description: Current runtime uses the last returned `thread_id` as the page cursor.
           schema:
             type: string
         - in: query
@@ -671,10 +709,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/threads/{thread_id}/messages:
     get:
       summary: List encrypted message history for a DM thread
-      description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is fixture-backed and participant-scoped; persistence-backed DM history and stable long-term pagination semantics remain an open readiness watch.
+      description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is persistence-backed in the local runtime store and participant-scoped.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -712,6 +752,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests:
     get:
       summary: List the authenticated identity's inbound/outbound friend requests
@@ -741,6 +783,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create a friend request
       security:
