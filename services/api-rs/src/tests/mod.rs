@@ -18,7 +18,10 @@ pub(super) use ring::{
 };
 pub(super) use serde::Deserialize;
 pub(super) use tower::util::ServiceExt;
+pub(super) use uuid::Uuid;
 
+pub(super) use crate::infra::db::repos::dm_history_repo;
+pub(super) use crate::infra::db::repos::servers_repo;
 pub(super) use crate::{
     app::build_app,
     config::ApiRateLimitConfig,
@@ -27,6 +30,8 @@ pub(super) use crate::{
     models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord},
     state::AppState,
 };
+
+type SeedDmMessage<'a> = (&'a str, &'a str, u64, &'a str, &'a str, Option<&'a str>);
 
 #[derive(Deserialize)]
 struct AuthChallengeResponse {
@@ -172,7 +177,7 @@ fn extract_cookie_from_set_cookie_headers(
     None
 }
 
-async fn app_with_database() -> Option<axum::Router> {
+async fn prepared_database_pool() -> Option<sqlx::PgPool> {
     let database_url = match env::var("API_DATABASE_URL") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
@@ -187,7 +192,7 @@ async fn app_with_database() -> Option<axum::Router> {
         }
     };
 
-    let pool = match connect_and_prepare(&database_url).await {
+    Some(match connect_and_prepare(&database_url).await {
         Ok(value) => value,
         Err(error) => {
             assert!(
@@ -199,8 +204,110 @@ async fn app_with_database() -> Option<axum::Router> {
             );
             return None;
         }
-    };
+    })
+}
+
+async fn app_with_database() -> Option<axum::Router> {
+    let pool = prepared_database_pool().await?;
     Some(build_app(AppState::default().with_db_pool(pool)))
+}
+
+async fn app_with_database_and_sessions(
+    identity_ids: &[&str],
+) -> Option<(axum::Router, HashMap<String, String>, sqlx::PgPool)> {
+    let pool = prepared_database_pool().await?;
+    let app = build_app(AppState::default().with_db_pool(pool.clone()));
+    let mut tokens = HashMap::new();
+    let mut current_app = app;
+
+    for identity_id in identity_ids {
+        let (session_cookie, next_app) = authenticate_identity(current_app, identity_id).await;
+        current_app = next_app;
+        tokens.insert((*identity_id).to_string(), session_cookie);
+    }
+
+    Some((current_app, tokens, pool))
+}
+
+fn unique_identity(prefix: &str) -> String {
+    format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
+
+async fn seed_server_membership(
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    name: &str,
+    identity_id: &str,
+    favorite: bool,
+    muted: bool,
+    unread_count: i32,
+) {
+    servers_repo::insert_server(pool, servers_repo::ServerInsertParams { server_id, name })
+        .await
+        .expect("insert server");
+
+    servers_repo::insert_server_membership(
+        pool,
+        servers_repo::ServerMembershipInsertParams {
+            server_id,
+            identity_id,
+            favorite,
+            muted,
+            unread_count,
+        },
+    )
+    .await
+    .expect("insert server membership");
+}
+
+async fn seed_dm_thread(
+    pool: &sqlx::PgPool,
+    thread_id: &str,
+    kind: &str,
+    title: &str,
+    participants: &[(&str, u64)],
+    messages: &[SeedDmMessage<'_>],
+) {
+    dm_history_repo::insert_dm_thread(
+        pool,
+        dm_history_repo::DmThreadInsertParams {
+            thread_id,
+            kind,
+            title,
+        },
+    )
+    .await
+    .expect("insert dm thread");
+
+    for (identity_id, last_read_seq) in participants {
+        dm_history_repo::insert_dm_thread_participant(
+            pool,
+            dm_history_repo::DmThreadParticipantInsertParams {
+                thread_id,
+                identity_id,
+                last_read_seq: *last_read_seq,
+            },
+        )
+        .await
+        .expect("insert dm thread participant");
+    }
+
+    for (message_id, author_id, seq, ciphertext, created_at, edited_at) in messages {
+        dm_history_repo::insert_dm_message(
+            pool,
+            dm_history_repo::DmMessageInsertParams {
+                message_id,
+                thread_id,
+                author_id,
+                seq: *seq,
+                ciphertext,
+                created_at,
+                edited_at: *edited_at,
+            },
+        )
+        .await
+        .expect("insert dm message");
+    }
 }
 
 fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, String>) {

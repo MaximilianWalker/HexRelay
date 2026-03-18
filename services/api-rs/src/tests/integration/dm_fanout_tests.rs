@@ -233,3 +233,95 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_policy_blocked");
 }
+
+#[tokio::test]
+async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_membership_is_shared() {
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-nora-k",
+        false,
+        false,
+        0,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-jules-p",
+        false,
+        false,
+        0,
+    )
+    .await;
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"same_server"}"#))
+        .expect("build dm policy update request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
+
+    let heartbeat = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .expect("build profile device heartbeat request");
+    let heartbeat_response = app
+        .clone()
+        .oneshot(heartbeat)
+        .await
+        .expect("profile device heartbeat response");
+    assert_eq!(heartbeat_response.status(), StatusCode::OK);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("cookie", format!("hexrelay_session={}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-shared-server","ciphertext":"enc:shared"}"#,
+        ))
+        .expect("build fanout request");
+    let response = app.oneshot(request).await.expect("fanout response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read fanout body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
+    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["reason_code"], "fanout_ok");
+    assert_eq!(payload["fanout_count"], 1);
+}

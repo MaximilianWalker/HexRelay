@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 isolated DB migration regression tests from shared CI state and hardened temporary test database naming against collisions.
+- Latest meaningful change: 2026-03-16 replaced fixture-backed DM thread/message history with local runtime persistence and kept replay-backlog durability as the remaining DM storage watch.
 
 ## Purpose
 

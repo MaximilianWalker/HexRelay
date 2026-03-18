@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-16 clarified that current runtime DM history and server-list endpoints remain provisional/fixture-backed, and that realtime signaling is loopback-only until recipient fanout exists.
+- Latest meaningful change: 2026-03-16 moved DM thread/message history onto the local runtime store while keeping realtime signaling loopback-only.
 
 ## Purpose
 
@@ -24,7 +24,7 @@
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
 - REST legacy alias path (non-authoritative): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
-- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; current DM thread/message listing and `/v1/servers` are fixture-backed, and realtime signaling remains self-targeted loopback only until recipient fanout exists.
+- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; realtime signaling remains self-targeted loopback only until recipient fanout exists.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
 

@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 clarified that current runtime signaling remains self-targeted loopback only until recipient fanout exists and documented provisional fixture-backed runtime list surfaces.
+- Latest meaningful change: 2026-03-16 moved DM thread/message history onto local runtime persistence while keeping realtime signaling loopback-only.
 
 ## Iteration Scope
 
@@ -62,7 +62,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | DM transport rejects STUN/TURN/relay fallback paths and CI policy checks fail on forbidden config/callsites |
 | T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/short-code bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Contact pairing works via signed envelope with replay/expiry checks and without backend rendezvous dependency |
 | T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | E4 / S4.1 | M | Core/Web | T4.1.4 | Failed direct connections map to deterministic reason codes with actionable remediation guidance |
-| T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect through local-only traffic and improved connect latency |
+| T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect through local-only traffic and improved connect latency, while discovery hints remain ephemeral and TTL-scoped rather than durable DB state |
 | T4.1.7 | Implement WAN direct-connect wizard (UPnP/NAT-PMP + manual mapping) | E4 / S4.1 | L | Core/Web | T4.1.5 | Wizard emits deterministic outcomes (`success`, `manual_required`, `network_incompatible`) with verification steps |
 | T4.1.8 | Implement multi-endpoint DM endpoint cards and parallel dial orchestration | E4 / S4.1 | M | Core | T4.1.4, T4.1.6 | Parallel dial improves connect success and deterministically cancels non-winning dials |
 | T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.8 | One incoming DM payload fanouts to all currently active devices linked to recipient profile |
@@ -188,7 +188,13 @@ Week 6:
 - DM direct-connect path is infrastructure-free and policy guardrails block STUN/TURN/relay fallback behavior.
 - DM pairing/bootstrap works through signed out-of-band envelopes (QR/short code) with replay/expiry validation.
 - DM connectivity preflight emits deterministic reason codes and guided remediation for failed direct sessions.
+- Off-LAN direct-connect is already represented by pairing, WAN guidance, endpoint cards, and parallel dial; future work should only revisit authorized endpoint-card freshness rather than generic discovery/rendezvous.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
+- Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.
+- Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
+- Broad multi-device DM convergence is not a remaining MVP gap either; the only unresolved follow-up is replay payload durability across restart/backlog loss, which still needs an explicit architecture decision.
+- Durable DM history is now backed by local/user-owned runtime persistence; replay-backlog durability remains the separate unresolved DM storage follow-up.
+- Recipient-targeted realtime signaling remains a separate realtime routing follow-up for live call signaling; it should not be conflated with DM convergence, presence discovery, or payload delivery semantics.
 - DM/group DM and guild channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.
 - Permission enforcement is server-authoritative and test-covered.

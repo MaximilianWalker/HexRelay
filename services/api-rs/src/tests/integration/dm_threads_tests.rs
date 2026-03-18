@@ -1,13 +1,112 @@
 use super::*;
 
+async fn seed_default_dm_history(pool: &sqlx::PgPool) {
+    seed_dm_thread(
+        pool,
+        "dm-thread-nora-jules",
+        "dm",
+        "Nora K + Jules P",
+        &[("usr-nora-k", 401), ("usr-jules-p", 401)],
+        &[
+            (
+                "msg-401",
+                "usr-nora-k",
+                401,
+                "enc:88f0ab",
+                "2026-03-12T09:05:08Z",
+                None,
+            ),
+            (
+                "msg-402",
+                "usr-jules-p",
+                402,
+                "enc:5c8e73",
+                "2026-03-12T09:12:00Z",
+                Some("2026-03-12T09:12:39Z"),
+            ),
+            (
+                "msg-403",
+                "usr-nora-k",
+                403,
+                "enc:4bf120",
+                "2026-03-12T09:19:24Z",
+                None,
+            ),
+            (
+                "msg-404",
+                "usr-jules-p",
+                404,
+                "enc:95a0f4",
+                "2026-03-12T09:21:11Z",
+                None,
+            ),
+        ],
+    )
+    .await;
+
+    seed_dm_thread(
+        pool,
+        "gdm-thread-atlas",
+        "group_dm",
+        "Atlas Draft Squad",
+        &[
+            ("usr-nora-k", 144),
+            ("usr-mina-s", 145),
+            ("usr-alex-r", 145),
+        ],
+        &[
+            (
+                "msg-144",
+                "usr-nora-k",
+                144,
+                "enc:bada55",
+                "2026-03-12T08:03:19Z",
+                None,
+            ),
+            (
+                "msg-145",
+                "usr-mina-s",
+                145,
+                "enc:10beef",
+                "2026-03-12T08:10:00Z",
+                None,
+            ),
+        ],
+    )
+    .await;
+
+    seed_dm_thread(
+        pool,
+        "dm-thread-nora-alex",
+        "dm",
+        "Nora K + Alex R",
+        &[("usr-nora-k", 220), ("usr-alex-r", 220)],
+        &[(
+            "msg-220",
+            "usr-alex-r",
+            220,
+            "enc:deed01",
+            "2026-03-11T21:45:30Z",
+            None,
+        )],
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn lists_dm_threads_with_unread_filter_and_cursor() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
 
     let first_request = Request::builder()
         .method("GET")
         .uri("/v1/dm/threads?unread_only=true&limit=1")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build first dm thread list request");
 
@@ -34,7 +133,10 @@ async fn lists_dm_threads_with_unread_filter_and_cursor() {
         .uri(format!(
             "/v1/dm/threads?unread_only=true&limit=1&cursor={next_cursor}"
         ))
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build second dm thread list request");
 
@@ -55,12 +157,18 @@ async fn lists_dm_threads_with_unread_filter_and_cursor() {
 
 #[tokio::test]
 async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
 
     let first_request = Request::builder()
         .method("GET")
         .uri("/v1/dm/threads/dm-thread-nora-jules/messages?limit=2")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build first dm messages request");
 
@@ -87,7 +195,10 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
         .uri(format!(
             "/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor={next_cursor}"
         ))
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
         .body(Body::empty())
         .expect("build second dm messages request");
 
@@ -109,12 +220,18 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
 
 #[tokio::test]
 async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
-    let (app, tokens) = app_with_sessions(&["usr-jules-p"]);
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
         .uri("/v1/dm/threads?limit=10")
-        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-jules-p"]),
+        )
         .body(Body::empty())
         .expect("build dm thread list request");
 
@@ -134,12 +251,18 @@ async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
 
 #[tokio::test]
 async fn dm_thread_messages_return_not_found_for_non_members() {
-    let (app, tokens) = app_with_sessions(&["usr-jules-p"]);
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
         .uri("/v1/dm/threads/dm-thread-nora-alex/messages?limit=10")
-        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-jules-p"]),
+        )
         .body(Body::empty())
         .expect("build unauthorized dm messages request");
 

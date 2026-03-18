@@ -45,7 +45,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 ## Getting Started
 
 - Current repository state: active API/realtime/web implementation with baseline infra/CI gates running.
-- Before treating current runtime behavior as fully settled, review open `watch` items in `docs/operations/readiness-corrections-log.md`; current deferred gaps include recipient-targeted realtime signaling delivery and fixture-backed runtime surfaces such as `/v1/servers` and DM history listing endpoints.
+- Before treating current runtime behavior as fully settled, review open `watch` items in `docs/operations/readiness-corrections-log.md`; current deferred gaps include recipient-targeted realtime signaling delivery and replay-backlog durability.
 - If you want project direction and delivery scope first, read:
   - `docs/product/01-mvp-plan.md`
   - `docs/product/02-prd-v1.md`

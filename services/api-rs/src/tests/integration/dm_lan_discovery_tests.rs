@@ -166,3 +166,106 @@ async fn preflight_prefers_lan_fast_path_when_peer_is_discovered() {
     assert_eq!(payload["status"], "ready");
     assert_eq!(payload["reason_code"], "preflight_ok_lan");
 }
+
+#[tokio::test]
+async fn lists_lan_peer_when_same_server_policy_has_trusted_shared_membership() {
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-nora-k",
+        false,
+        false,
+        0,
+    )
+    .await;
+    seed_server_membership(
+        &pool,
+        "srv-shared-lab",
+        "Shared Lab",
+        "usr-jules-p",
+        false,
+        false,
+        0,
+    )
+    .await;
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"inbound_policy":"same_server"}"#))
+        .expect("build dm policy update request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy update response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
+
+    let announce_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/lan-discovery/announce")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"endpoint_hints":["udp://192.168.1.12:4040"]}"#,
+        ))
+        .expect("build lan announce request");
+
+    let announce_response = app
+        .clone()
+        .oneshot(announce_request)
+        .await
+        .expect("lan announce response");
+    assert_eq!(announce_response.status(), StatusCode::OK);
+
+    let peers_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/connectivity/lan-discovery/peers")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build lan peers request");
+
+    let peers_response = app
+        .oneshot(peers_request)
+        .await
+        .expect("lan peers response");
+    assert_eq!(peers_response.status(), StatusCode::OK);
+
+    let peers_body = to_bytes(peers_response.into_body(), usize::MAX)
+        .await
+        .expect("read lan peers body");
+    let peers_payload: serde_json::Value =
+        serde_json::from_slice(&peers_body).expect("decode lan peers body");
+
+    let items = peers_payload["items"]
+        .as_array()
+        .expect("peers items array");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["identity_id"], "usr-jules-p");
+}

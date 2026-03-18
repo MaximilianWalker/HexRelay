@@ -1,10 +1,4 @@
 use super::*;
-use uuid::Uuid;
-
-fn unique_identity(prefix: &str) -> String {
-    format!("{}-{}", prefix, Uuid::new_v4().simple())
-}
-
 #[tokio::test]
 async fn validates_and_revokes_db_backed_session() {
     let Some(app) = app_with_database().await else {

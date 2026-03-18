@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
@@ -9,7 +9,7 @@ use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use crate::infra::db::repos::{dm_repo, friends_repo};
+use crate::infra::db::repos::{dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
@@ -28,12 +28,12 @@ use crate::{
         DmFanoutCatchUpRequest, DmFanoutCatchUpResponse, DmFanoutDeliveryRecord,
         DmFanoutDispatchRequest, DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest,
         DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
-        DmLanPresenceRecord, DmMessagePage, DmMessageRecord, DmPairingEnvelopeCreateRequest,
+        DmLanPresenceRecord, DmMessagePage, DmPairingEnvelopeCreateRequest,
         DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
         DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
         DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse,
         DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery,
-        DmThreadPage, DmThreadSummary, DmWanWizardRequest, DmWanWizardResponse,
+        DmThreadPage, DmWanWizardRequest, DmWanWizardResponse,
     },
     shared::errors::{bad_request, internal_error, ApiResult},
     state::AppState,
@@ -65,7 +65,15 @@ struct SignedPairingEnvelope {
 pub async fn get_dm_policy(
     axum::extract::State(state): axum::extract::State<AppState>,
     auth: AuthSession,
-) -> Json<DmPolicy> {
+) -> ApiResult<Json<DmPolicy>> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        let policy = dm_repo::get_dm_policy(pool, &auth.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))?
+            .unwrap_or_else(default_dm_policy);
+        return Ok(Json(policy));
+    }
+
     let default = default_dm_policy();
     let policy = state
         .dm_policies
@@ -74,7 +82,7 @@ pub async fn get_dm_policy(
         .get(&auth.identity_id)
         .cloned()
         .unwrap_or(default);
-    Json(policy)
+    Ok(Json(policy))
 }
 
 pub async fn update_dm_policy(
@@ -91,6 +99,12 @@ pub async fn update_dm_policy(
         inbound_policy: normalized,
         offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
     };
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::upsert_dm_policy(pool, &auth.identity_id, &policy)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to persist dm policy"))?;
+    }
 
     state
         .dm_policies
@@ -238,13 +252,7 @@ pub async fn dm_connectivity_preflight(
         )));
     }
 
-    let policy = state
-        .dm_policies
-        .read()
-        .expect("acquire dm policy read lock")
-        .get(&auth.identity_id)
-        .cloned()
-        .unwrap_or_else(default_dm_policy);
+    let policy = current_dm_policy(&state, &auth.identity_id).await?;
 
     match policy.inbound_policy.as_str() {
         "friends_only" => {
@@ -472,15 +480,23 @@ pub async fn register_dm_endpoint_cards(
 
     let now = Utc::now();
     let now_epoch = now.timestamp();
-    let mut cards_by_identity = state
-        .dm_endpoint_cards
-        .write()
-        .expect("acquire endpoint cards write lock");
-    let cards = cards_by_identity
-        .entry(auth.identity_id.clone())
-        .or_default();
-
-    cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+    let identity_id = auth.identity_id.clone();
+    let mut cards = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::list_dm_endpoint_cards(pool, &identity_id, now_epoch)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
+            .into_iter()
+            .map(|record| (record.endpoint_id.clone(), record))
+            .collect::<std::collections::HashMap<_, _>>()
+    } else {
+        let mut cards_by_identity = state
+            .dm_endpoint_cards
+            .write()
+            .expect("acquire endpoint cards write lock");
+        let cards = cards_by_identity.entry(identity_id.clone()).or_default();
+        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+        cards.clone()
+    };
 
     for card in payload.cards {
         let endpoint_id = card.endpoint_id.trim().to_string();
@@ -497,12 +513,27 @@ pub async fn register_dm_endpoint_cards(
             expires_at_epoch: now_epoch + expires_in_seconds as i64,
             revoked: false,
         };
+        if let Some(pool) = state.db_pool.as_ref() {
+            dm_repo::upsert_dm_endpoint_card(pool, &identity_id, &record)
+                .await
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to persist endpoint card")
+                })?;
+        }
         cards.insert(endpoint_id, record);
     }
 
+    if state.db_pool.is_none() {
+        state
+            .dm_endpoint_cards
+            .write()
+            .expect("acquire endpoint cards write lock")
+            .insert(identity_id.clone(), cards.clone());
+    }
+
     Ok(Json(DmEndpointCardRegisterResponse {
-        identity_id: auth.identity_id,
-        cards: cards_to_response(cards, now_epoch),
+        identity_id,
+        cards: cards_to_response(&cards, now_epoch),
     }))
 }
 
@@ -516,19 +547,44 @@ pub async fn revoke_dm_endpoint_cards(
     validate_endpoint_card_revoke(&payload)?;
 
     let now_epoch = Utc::now().timestamp();
-    let mut cards_by_identity = state
-        .dm_endpoint_cards
-        .write()
-        .expect("acquire endpoint cards write lock");
-    let cards = cards_by_identity
-        .entry(auth.identity_id.clone())
-        .or_default();
+    let identity_id = auth.identity_id.clone();
+    let endpoint_ids = payload
+        .endpoint_ids
+        .iter()
+        .map(|value| value.trim().to_string())
+        .collect::<Vec<_>>();
 
-    cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+    let mut cards = if let Some(pool) = state.db_pool.as_ref() {
+        let revoked_endpoint_ids =
+            dm_repo::mark_dm_endpoint_cards_revoked(pool, &identity_id, &endpoint_ids)
+                .await
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to revoke endpoint cards")
+                })?;
+        let cards = dm_repo::list_dm_endpoint_cards(pool, &identity_id, now_epoch)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
+            .into_iter()
+            .map(|record| (record.endpoint_id.clone(), record))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        return Ok(Json(DmEndpointCardRevokeResponse {
+            identity_id,
+            revoked_endpoint_ids,
+            remaining_cards: cards_to_response(&cards, now_epoch),
+        }));
+    } else {
+        let mut cards_by_identity = state
+            .dm_endpoint_cards
+            .write()
+            .expect("acquire endpoint cards write lock");
+        let cards = cards_by_identity.entry(identity_id.clone()).or_default();
+        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
+        cards.clone()
+    };
 
     let mut revoked_endpoint_ids = Vec::new();
-    for endpoint_id in payload.endpoint_ids {
-        let normalized_endpoint_id = endpoint_id.trim().to_string();
+    for normalized_endpoint_id in endpoint_ids {
         if let Some(record) = cards.get_mut(&normalized_endpoint_id) {
             if !record.revoked {
                 record.revoked = true;
@@ -537,10 +593,16 @@ pub async fn revoke_dm_endpoint_cards(
         }
     }
 
+    state
+        .dm_endpoint_cards
+        .write()
+        .expect("acquire endpoint cards write lock")
+        .insert(identity_id.clone(), cards.clone());
+
     Ok(Json(DmEndpointCardRevokeResponse {
-        identity_id: auth.identity_id,
+        identity_id,
         revoked_endpoint_ids,
-        remaining_cards: cards_to_response(cards, now_epoch),
+        remaining_cards: cards_to_response(&cards, now_epoch),
     }))
 }
 
@@ -600,7 +662,14 @@ pub async fn run_dm_parallel_dial(
         .map(|value| value.trim().to_string())
         .collect();
 
-    let mut candidates = {
+    let mut candidates = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::list_dm_endpoint_cards(pool, &peer_identity_id, now_epoch)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
+            .into_iter()
+            .filter(|record| !record.revoked)
+            .collect::<Vec<_>>()
+    } else {
         let mut cards_by_identity = state
             .dm_endpoint_cards
             .write()
@@ -620,7 +689,6 @@ pub async fn run_dm_parallel_dial(
             }));
         };
         cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
-
         cards
             .values()
             .filter(|record| !record.revoked)
@@ -734,27 +802,47 @@ pub async fn heartbeat_dm_profile_device(
     validate_profile_device_heartbeat(&payload)?;
 
     let now_epoch = Utc::now().timestamp();
-    let mut devices_by_identity = state
-        .dm_profile_devices
-        .write()
-        .expect("acquire dm profile devices write lock");
-    let devices = devices_by_identity
-        .entry(auth.identity_id.clone())
-        .or_default();
     let device_id = payload.device_id.trim().to_string();
+    let identity_id = auth.identity_id.clone();
+    let record = DmProfileDeviceRecord {
+        device_id: device_id.clone(),
+        active: payload.active,
+        last_seen_epoch: now_epoch,
+    };
 
-    devices.insert(
-        device_id.clone(),
-        DmProfileDeviceRecord {
-            device_id,
-            active: payload.active,
-            last_seen_epoch: now_epoch,
-        },
-    );
+    let devices = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::upsert_dm_profile_device(pool, &identity_id, &record)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to persist profile device")
+            })?;
+        dm_repo::list_dm_profile_devices(pool, &identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
+            .into_iter()
+            .map(|record| (record.device_id.clone(), record))
+            .collect::<std::collections::HashMap<_, _>>()
+    } else {
+        let mut devices_by_identity = state
+            .dm_profile_devices
+            .write()
+            .expect("acquire dm profile devices write lock");
+        let devices = devices_by_identity.entry(identity_id.clone()).or_default();
+        devices.insert(device_id, record);
+        devices.clone()
+    };
+
+    if state.db_pool.is_none() {
+        state
+            .dm_profile_devices
+            .write()
+            .expect("acquire dm profile devices write lock")
+            .insert(identity_id.clone(), devices.clone());
+    }
 
     Ok(Json(DmProfileDeviceHeartbeatResponse {
-        identity_id: auth.identity_id,
-        devices: profile_devices_to_response(devices, now_epoch),
+        identity_id,
+        devices: profile_devices_to_response(&devices, now_epoch),
     }))
 }
 
@@ -798,13 +886,25 @@ pub async fn run_dm_active_fanout(
         .as_ref()
         .map(|value| value.trim().to_string());
 
-    let (mut delivered_device_ids, mut skipped_device_ids) = {
-        let mut devices_by_identity = state
+    let profile_devices = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::list_dm_profile_devices(pool, recipient_identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
+            .into_iter()
+            .map(|record| (record.device_id.clone(), record))
+            .collect::<std::collections::HashMap<_, _>>()
+    } else {
+        state
             .dm_profile_devices
-            .write()
-            .expect("acquire dm profile devices write lock");
+            .read()
+            .expect("acquire dm profile devices read lock")
+            .get(recipient_identity_id)
+            .cloned()
+            .unwrap_or_default()
+    };
 
-        let Some(devices) = devices_by_identity.get_mut(recipient_identity_id) else {
+    let (mut delivered_device_ids, mut skipped_device_ids) = {
+        if profile_devices.is_empty() {
             return Ok(Json(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_no_active_devices".to_string(),
@@ -813,11 +913,11 @@ pub async fn run_dm_active_fanout(
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
             }));
-        };
+        }
 
         let mut delivered = Vec::new();
         let mut skipped = Vec::new();
-        for record in devices.values_mut() {
+        for record in profile_devices.values() {
             if !record.active {
                 skipped.push(record.device_id.clone());
                 continue;
@@ -852,28 +952,52 @@ pub async fn run_dm_active_fanout(
         }));
     }
 
-    let known_device_ids = state
-        .dm_profile_devices
-        .read()
-        .expect("acquire dm profile devices read lock")
-        .get(recipient_identity_id)
-        .map(|devices| devices.keys().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    let min_cursor = state
-        .dm_fanout_device_cursors
-        .read()
-        .expect("acquire dm fanout cursor read lock")
-        .get(recipient_identity_id)
-        .map(|cursors| {
-            known_device_ids
-                .iter()
-                .map(|device_id| cursors.get(device_id).copied().unwrap_or(0))
-                .min()
-                .unwrap_or(0)
-        })
-        .unwrap_or(0);
+    let known_device_ids = profile_devices.keys().cloned().collect::<Vec<_>>();
+    let min_cursor = if let Some(pool) = state.db_pool.as_ref() {
+        let persisted = dm_repo::list_dm_fanout_device_cursors(pool, recipient_identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursors"))?
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+
+        known_device_ids
+            .iter()
+            .map(|device_id| persisted.get(device_id).copied().unwrap_or(0))
+            .min()
+            .unwrap_or(0)
+    } else {
+        state
+            .dm_fanout_device_cursors
+            .read()
+            .expect("acquire dm fanout cursor read lock")
+            .get(recipient_identity_id)
+            .map(|cursors| {
+                known_device_ids
+                    .iter()
+                    .map(|device_id| cursors.get(device_id).copied().unwrap_or(0))
+                    .min()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    };
 
     let message_id = payload.message_id.trim().to_string();
+    let cursor = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::advance_dm_fanout_stream_head(pool, recipient_identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to advance fanout cursor"))?
+    } else {
+        let fanout_delivery_log = state
+            .dm_fanout_delivery_log
+            .read()
+            .expect("acquire dm fanout delivery log read lock");
+        fanout_delivery_log
+            .get(recipient_identity_id)
+            .and_then(|delivery_log| delivery_log.last())
+            .map(|record| record.cursor.saturating_add(1))
+            .unwrap_or(1)
+    };
+
     let mut fanout_delivery_log = state
         .dm_fanout_delivery_log
         .write()
@@ -895,10 +1019,6 @@ pub async fn run_dm_active_fanout(
         }));
     }
 
-    let cursor = delivery_log
-        .last()
-        .map(|record| record.cursor.saturating_add(1))
-        .unwrap_or(1);
     delivery_log.push(DmFanoutDeliveryRecord {
         cursor,
         message_id,
@@ -931,11 +1051,26 @@ pub async fn run_dm_fanout_catch_up(
     let identity_id = auth.identity_id;
 
     {
-        let devices_by_identity = state
-            .dm_profile_devices
-            .read()
-            .expect("acquire dm profile devices read lock");
-        let Some(devices) = devices_by_identity.get(&identity_id) else {
+        let devices = if let Some(pool) = state.db_pool.as_ref() {
+            dm_repo::list_dm_profile_devices(pool, &identity_id)
+                .await
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to load profile devices")
+                })?
+                .into_iter()
+                .map(|record| (record.device_id.clone(), record))
+                .collect::<std::collections::HashMap<_, _>>()
+        } else {
+            state
+                .dm_profile_devices
+                .read()
+                .expect("acquire dm profile devices read lock")
+                .get(&identity_id)
+                .cloned()
+                .unwrap_or_default()
+        };
+
+        if devices.is_empty() {
             return Ok(Json(DmFanoutCatchUpResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_device_unknown".to_string(),
@@ -946,7 +1081,7 @@ pub async fn run_dm_fanout_catch_up(
                 deduped_message_ids: vec![],
                 items: vec![],
             }));
-        };
+        }
 
         let Some(record) = devices.get(&device_id) else {
             return Ok(Json(DmFanoutCatchUpResponse {
@@ -975,28 +1110,39 @@ pub async fn run_dm_fanout_catch_up(
         }
     }
 
-    let (last_cursor, user_cursor) = {
-        let fanout_cursors = state
+    let last_cursor = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::get_dm_fanout_device_cursor(pool, &identity_id, &device_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursor"))?
+    } else {
+        state
             .dm_fanout_device_cursors
             .read()
-            .expect("acquire dm fanout cursor read lock");
-        let last = fanout_cursors
+            .expect("acquire dm fanout cursor read lock")
             .get(&identity_id)
             .and_then(|cursors| cursors.get(&device_id))
             .copied()
-            .unwrap_or(0);
-        (last, request_cursor.unwrap_or(0))
+            .unwrap_or(0)
     };
+    let user_cursor = request_cursor.unwrap_or(0);
 
-    let delivery_log = state
-        .dm_fanout_delivery_log
-        .read()
-        .expect("acquire dm fanout delivery log read lock");
-    let entries = delivery_log
-        .get(&identity_id)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
-    let tail_cursor = entries.last().map(|entry| entry.cursor).unwrap_or(0);
+    let tail_cursor = if let Some(pool) = state.db_pool.as_ref() {
+        dm_repo::get_dm_fanout_stream_head(pool, &identity_id)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to load fanout stream head")
+            })?
+    } else {
+        let delivery_log = state
+            .dm_fanout_delivery_log
+            .read()
+            .expect("acquire dm fanout delivery log read lock");
+        delivery_log
+            .get(&identity_id)
+            .and_then(|entries| entries.last())
+            .map(|entry| entry.cursor)
+            .unwrap_or(0)
+    };
     if user_cursor > tail_cursor {
         return Err(bad_request(
             "cursor_out_of_range",
@@ -1004,13 +1150,21 @@ pub async fn run_dm_fanout_catch_up(
         ));
     }
 
+    let entries = state
+        .dm_fanout_delivery_log
+        .read()
+        .expect("acquire dm fanout delivery log read lock")
+        .get(&identity_id)
+        .cloned()
+        .unwrap_or_default();
+
     let effective_cursor = user_cursor.max(last_cursor);
 
     let mut items = Vec::new();
     let mut deduped_message_ids = Vec::new();
     let mut seen_delivery_keys = HashSet::new();
     let mut scanned_cursor = last_cursor;
-    for entry in entries {
+    for entry in &entries {
         if entry.cursor <= effective_cursor {
             continue;
         }
@@ -1049,14 +1203,27 @@ pub async fn run_dm_fanout_catch_up(
 
     let mut committed_cursor = last_cursor;
     if scanned_cursor > last_cursor {
-        let mut fanout_cursors = state
-            .dm_fanout_device_cursors
-            .write()
-            .expect("acquire dm fanout cursor write lock");
-        let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
-        let current = device_cursors.get(&device_id).copied().unwrap_or(0);
-        committed_cursor = current.max(scanned_cursor);
-        device_cursors.insert(device_id.clone(), committed_cursor);
+        if let Some(pool) = state.db_pool.as_ref() {
+            committed_cursor = dm_repo::upsert_dm_fanout_device_cursor(
+                pool,
+                &identity_id,
+                &device_id,
+                scanned_cursor,
+            )
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to persist fanout cursor")
+            })?;
+        } else {
+            let mut fanout_cursors = state
+                .dm_fanout_device_cursors
+                .write()
+                .expect("acquire dm fanout cursor write lock");
+            let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
+            let current = device_cursors.get(&device_id).copied().unwrap_or(0);
+            committed_cursor = current.max(scanned_cursor);
+            device_cursors.insert(device_id.clone(), committed_cursor);
+        }
     }
 
     let reason_code = if items.is_empty() {
@@ -1078,11 +1245,20 @@ pub async fn run_dm_fanout_catch_up(
 }
 
 pub async fn list_dm_threads(
+    State(state): State<AppState>,
     auth: AuthSession,
     Query(query): Query<DmThreadListQuery>,
 ) -> ApiResult<Json<DmThreadPage>> {
     let limit = parse_limit(query.limit)?;
-    let mut items = dm_thread_fixtures_for_identity(&auth.identity_id);
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "dm history requires configured database pool",
+        )
+    })?;
+    let mut items = dm_history_repo::list_dm_threads_for_identity(pool, &auth.identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to list dm threads"))?;
 
     if query.unread_only.unwrap_or(false) {
         items.retain(|item| item.unread > 0);
@@ -1118,35 +1294,35 @@ pub async fn list_dm_threads(
 }
 
 pub async fn list_dm_thread_messages(
+    State(state): State<AppState>,
     auth: AuthSession,
     Path(thread_id): Path<String>,
     Query(query): Query<DmThreadMessageListQuery>,
 ) -> ApiResult<Json<DmMessagePage>> {
     let limit = parse_limit(query.limit)?;
     let cursor = parse_message_cursor(query.cursor)?;
-
-    let thread_visible = dm_thread_fixtures_for_identity(&auth.identity_id)
-        .iter()
-        .any(|thread| thread.thread_id == thread_id);
-    if !thread_visible {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(ApiError {
-                code: "thread_not_found",
-                message: "dm thread was not found",
-            }),
-        ));
-    }
-
-    let mut items = dm_message_fixtures(&thread_id).ok_or({
-        (
-            StatusCode::NOT_FOUND,
-            Json(ApiError {
-                code: "thread_not_found",
-                message: "dm thread was not found",
-            }),
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "dm history requires configured database pool",
         )
     })?;
+
+    let mut items =
+        dm_history_repo::list_dm_thread_messages_for_identity(pool, &auth.identity_id, &thread_id)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to list dm thread messages")
+            })?
+            .ok_or({
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiError {
+                        code: "thread_not_found",
+                        message: "dm thread was not found",
+                    }),
+                )
+            })?;
 
     if let Some(cursor) = cursor {
         items.retain(|item| item.seq < cursor);
@@ -1225,133 +1401,28 @@ fn parse_message_cursor(value: Option<String>) -> ApiResult<Option<u64>> {
         .map_err(|_| bad_request("cursor_invalid", "message cursor must be numeric"))
 }
 
-fn dm_thread_fixtures() -> Vec<DmThreadSummary> {
-    vec![
-        DmThreadSummary {
-            thread_id: "dm-thread-nora-jules".to_string(),
-            kind: "dm".to_string(),
-            title: "Nora K + Jules P".to_string(),
-            participant_ids: vec!["usr-nora-k".to_string(), "usr-jules-p".to_string()],
-            unread: 3,
-            last_read_seq: 401,
-            last_message_seq: 404,
-            last_message_preview: "See you in the relay standup".to_string(),
-            last_message_at: "2026-03-12T09:21:11Z".to_string(),
-        },
-        DmThreadSummary {
-            thread_id: "gdm-thread-atlas".to_string(),
-            kind: "group_dm".to_string(),
-            title: "Atlas Draft Squad".to_string(),
-            participant_ids: vec![
-                "usr-nora-k".to_string(),
-                "usr-mina-s".to_string(),
-                "usr-alex-r".to_string(),
-            ],
-            unread: 1,
-            last_read_seq: 144,
-            last_message_seq: 145,
-            last_message_preview: "Pushed the draft, review when free".to_string(),
-            last_message_at: "2026-03-12T08:10:00Z".to_string(),
-        },
-        DmThreadSummary {
-            thread_id: "dm-thread-nora-alex".to_string(),
-            kind: "dm".to_string(),
-            title: "Nora K + Alex R".to_string(),
-            participant_ids: vec!["usr-nora-k".to_string(), "usr-alex-r".to_string()],
-            unread: 0,
-            last_read_seq: 220,
-            last_message_seq: 220,
-            last_message_preview: "Thanks for confirming the schedule".to_string(),
-            last_message_at: "2026-03-11T21:45:30Z".to_string(),
-        },
-    ]
-}
-
-fn dm_thread_fixtures_for_identity(identity_id: &str) -> Vec<DmThreadSummary> {
-    dm_thread_fixtures()
-        .into_iter()
-        .filter(|thread| thread.participant_ids.iter().any(|id| id == identity_id))
-        .collect()
-}
-
-fn dm_message_fixtures(thread_id: &str) -> Option<Vec<DmMessageRecord>> {
-    match thread_id {
-        "dm-thread-nora-jules" => Some(vec![
-            DmMessageRecord {
-                message_id: "msg-404".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-jules-p".to_string(),
-                seq: 404,
-                ciphertext: "enc:95a0f4".to_string(),
-                created_at: "2026-03-12T09:21:11Z".to_string(),
-                edited_at: None,
-            },
-            DmMessageRecord {
-                message_id: "msg-403".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-nora-k".to_string(),
-                seq: 403,
-                ciphertext: "enc:4bf120".to_string(),
-                created_at: "2026-03-12T09:19:24Z".to_string(),
-                edited_at: None,
-            },
-            DmMessageRecord {
-                message_id: "msg-402".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-jules-p".to_string(),
-                seq: 402,
-                ciphertext: "enc:5c8e73".to_string(),
-                created_at: "2026-03-12T09:12:00Z".to_string(),
-                edited_at: Some("2026-03-12T09:12:39Z".to_string()),
-            },
-            DmMessageRecord {
-                message_id: "msg-401".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-nora-k".to_string(),
-                seq: 401,
-                ciphertext: "enc:88f0ab".to_string(),
-                created_at: "2026-03-12T09:05:08Z".to_string(),
-                edited_at: None,
-            },
-        ]),
-        "gdm-thread-atlas" => Some(vec![
-            DmMessageRecord {
-                message_id: "msg-145".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-mina-s".to_string(),
-                seq: 145,
-                ciphertext: "enc:10beef".to_string(),
-                created_at: "2026-03-12T08:10:00Z".to_string(),
-                edited_at: None,
-            },
-            DmMessageRecord {
-                message_id: "msg-144".to_string(),
-                thread_id: thread_id.to_string(),
-                author_id: "usr-nora-k".to_string(),
-                seq: 144,
-                ciphertext: "enc:bada55".to_string(),
-                created_at: "2026-03-12T08:03:19Z".to_string(),
-                edited_at: None,
-            },
-        ]),
-        "dm-thread-nora-alex" => Some(vec![DmMessageRecord {
-            message_id: "msg-220".to_string(),
-            thread_id: thread_id.to_string(),
-            author_id: "usr-alex-r".to_string(),
-            seq: 220,
-            ciphertext: "enc:deed01".to_string(),
-            created_at: "2026-03-11T21:45:30Z".to_string(),
-            edited_at: None,
-        }]),
-        _ => None,
-    }
-}
-
 fn default_dm_policy() -> DmPolicy {
     DmPolicy {
         inbound_policy: "friends_only".to_string(),
         offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
     }
+}
+
+async fn current_dm_policy(state: &AppState, identity_id: &str) -> ApiResult<DmPolicy> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return dm_repo::get_dm_policy(pool, identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))
+            .map(|policy| policy.unwrap_or_else(default_dm_policy));
+    }
+
+    Ok(state
+        .dm_policies
+        .read()
+        .expect("acquire dm policy read lock")
+        .get(identity_id)
+        .cloned()
+        .unwrap_or_else(default_dm_policy))
 }
 
 fn preflight_blocked(reason_code: &str, remediation: Vec<&str>) -> DmConnectivityPreflightResponse {
@@ -1456,13 +1527,7 @@ async fn dm_interaction_policy_decision(
     sender_identity_id: &str,
     recipient_identity_id: &str,
 ) -> ApiResult<DmInteractionPolicyDecision> {
-    let policy = state
-        .dm_policies
-        .read()
-        .expect("acquire dm policy read lock")
-        .get(recipient_identity_id)
-        .cloned()
-        .unwrap_or_else(default_dm_policy);
+    let policy = current_dm_policy(state, recipient_identity_id).await?;
 
     match policy.inbound_policy.as_str() {
         "anyone" => Ok(DmInteractionPolicyDecision::Allowed),
@@ -1473,7 +1538,28 @@ async fn dm_interaction_policy_decision(
                 Ok(DmInteractionPolicyDecision::BlockedFriendsOnly)
             }
         }
-        "same_server" => Ok(DmInteractionPolicyDecision::BlockedSameServer),
+        "same_server" => {
+            if let Some(pool) = state.db_pool.as_ref() {
+                if servers_repo::identities_share_server(
+                    pool,
+                    sender_identity_id,
+                    recipient_identity_id,
+                )
+                .await
+                .map_err(|_| {
+                    internal_error(
+                        "storage_unavailable",
+                        "failed to evaluate shared-server DM policy",
+                    )
+                })? {
+                    Ok(DmInteractionPolicyDecision::Allowed)
+                } else {
+                    Ok(DmInteractionPolicyDecision::BlockedSameServer)
+                }
+            } else {
+                Ok(DmInteractionPolicyDecision::BlockedSameServer)
+            }
+        }
         _ => Ok(DmInteractionPolicyDecision::BlockedUnknown),
     }
 }
