@@ -26,7 +26,7 @@ pub(super) use crate::{
     app::build_app,
     config::ApiRateLimitConfig,
     db::connect_and_prepare,
-    infra::crypto::session_token::issue_session_token,
+    infra::{crypto::session_token::issue_session_token, db::repos::auth_repo},
     models::{AuthChallengeRecord, RegisteredIdentityKey, SessionRecord},
     state::AppState,
 };
@@ -216,21 +216,61 @@ async fn app_with_database_and_sessions(
     identity_ids: &[&str],
 ) -> Option<(axum::Router, HashMap<String, String>, sqlx::PgPool)> {
     let pool = prepared_database_pool().await?;
-    let app = build_app(AppState::default().with_db_pool(pool.clone()));
+    let state = AppState::default().with_db_pool(pool.clone());
     let mut tokens = HashMap::new();
-    let mut current_app = app;
 
     for identity_id in identity_ids {
-        let (session_cookie, next_app) = authenticate_identity(current_app, identity_id).await;
-        current_app = next_app;
-        tokens.insert((*identity_id).to_string(), session_cookie);
+        tokens.insert(
+            (*identity_id).to_string(),
+            issue_db_session_cookie(&pool, &state, identity_id).await,
+        );
     }
 
-    Some((current_app, tokens, pool))
+    Some((build_app(state), tokens, pool))
 }
 
 fn unique_identity(prefix: &str) -> String {
     format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
+
+fn test_identity_public_key(identity_id: &str) -> String {
+    hex::encode(digest(&SHA256, identity_id.as_bytes()).as_ref())
+}
+
+async fn ensure_db_identity_key(pool: &sqlx::PgPool, identity_id: &str) {
+    auth_repo::insert_identity_key(
+        pool,
+        identity_id,
+        &test_identity_public_key(identity_id),
+        "ed25519",
+    )
+    .await
+    .expect("ensure test identity key");
+}
+
+async fn issue_db_session_cookie(
+    pool: &sqlx::PgPool,
+    state: &AppState,
+    identity_id: &str,
+) -> String {
+    ensure_db_identity_key(pool, identity_id).await;
+
+    let session_id = format!("sess-{}", Uuid::new_v4().simple());
+    let expires_at = Utc::now() + Duration::hours(1);
+    auth_repo::insert_session(pool, &session_id, identity_id, expires_at)
+        .await
+        .expect("insert test session");
+
+    issue_session_token(
+        &session_id,
+        identity_id,
+        expires_at.timestamp(),
+        &state.active_signing_key_id,
+        state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active signing key for test db session"),
+    )
 }
 
 async fn seed_server_membership(
@@ -242,6 +282,8 @@ async fn seed_server_membership(
     muted: bool,
     unread_count: i32,
 ) {
+    ensure_db_identity_key(pool, identity_id).await;
+
     servers_repo::insert_server(pool, servers_repo::ServerInsertParams { server_id, name })
         .await
         .expect("insert server");
@@ -268,6 +310,14 @@ async fn seed_dm_thread(
     participants: &[(&str, u64)],
     messages: &[SeedDmMessage<'_>],
 ) {
+    for (identity_id, _) in participants {
+        ensure_db_identity_key(pool, identity_id).await;
+    }
+
+    for (_, author_id, _, _, _, _) in messages {
+        ensure_db_identity_key(pool, author_id).await;
+    }
+
     dm_history_repo::insert_dm_thread(
         pool,
         dm_history_repo::DmThreadInsertParams {

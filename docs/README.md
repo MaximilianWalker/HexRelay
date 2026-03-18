@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-03-18
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 replaced fixture-backed DM thread/message history with local runtime persistence and kept replay-backlog durability as the remaining DM storage watch.
+- Latest meaningful change: 2026-03-18 recorded migration evidence for persistence migrations `0012` through `0016` and closed DB-backed test-helper drift in the readiness log after delivery CI revalidation.
 
 ## Purpose
 
