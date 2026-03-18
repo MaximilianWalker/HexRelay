@@ -597,9 +597,11 @@ pub async fn revoke_dm_endpoint_cards(
 
 pub async fn run_dm_parallel_dial(
     axum::extract::State(state): axum::extract::State<AppState>,
+    headers: HeaderMap,
     auth: AuthSession,
     Json(payload): Json<DmParallelDialRequest>,
 ) -> ApiResult<Json<DmParallelDialResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_parallel_dial_request(&payload)?;
 
     let now_epoch = Utc::now().timestamp();

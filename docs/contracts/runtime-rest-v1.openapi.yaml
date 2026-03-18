@@ -572,6 +572,8 @@ paths:
       security:
         - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
