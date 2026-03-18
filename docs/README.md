@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-18 closed remaining DB-backed DM CI regressions by fixing thread-history SQL, aligning preflight with trusted peer-policy checks, and restoring fanout CSRF test parity.
+- Latest meaningful change: 2026-03-18 enforced cookie-auth CSRF parity for DM parallel dial and documented the requirement in the runtime contract and readiness log.
 
 ## Purpose
 

@@ -221,7 +221,11 @@ async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
     let dial_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/connectivity/parallel-dial")
-        .header("cookie", format!("hexrelay_session={session_cookie}"))
+        .header(
+            "cookie",
+            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"peer_identity_id":"{}"}}"#,
