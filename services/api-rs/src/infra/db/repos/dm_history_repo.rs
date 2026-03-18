@@ -152,6 +152,8 @@ pub async fn list_dm_thread_messages_for_identity(
     pool: &PgPool,
     identity_id: &str,
     thread_id: &str,
+    cursor: Option<u64>,
+    limit: usize,
 ) -> Result<Option<Vec<DmMessageRecord>>, sqlx::Error> {
     let visible = sqlx::query_scalar::<_, i64>(
         "
@@ -169,6 +171,19 @@ pub async fn list_dm_thread_messages_for_identity(
         return Ok(None);
     }
 
+    let limit = limit
+        .checked_add(1)
+        .ok_or_else(|| sqlx::Error::Protocol("limit too large for pagination".into()))?;
+    let limit = i64::try_from(limit)
+        .map_err(|_| sqlx::Error::Protocol("limit too large for storage".into()))?;
+    let cursor = match cursor {
+        Some(value) => Some(
+            i64::try_from(value)
+                .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
+        ),
+        None => None,
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT message_id, thread_id, author_id, seq, ciphertext,
@@ -179,10 +194,14 @@ pub async fn list_dm_thread_messages_for_identity(
                END AS edited_at
         FROM dm_messages
         WHERE thread_id = $1
+          AND ($2::BIGINT IS NULL OR seq < $2)
         ORDER BY seq DESC
+        LIMIT $3
         "#,
     )
     .bind(thread_id)
+    .bind(cursor)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
 

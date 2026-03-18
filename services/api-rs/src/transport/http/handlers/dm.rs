@@ -1299,28 +1299,32 @@ pub async fn list_dm_thread_messages(
         )
     })?;
 
-    let mut items =
-        dm_history_repo::list_dm_thread_messages_for_identity(pool, &auth.identity_id, &thread_id)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to list dm thread messages")
-            })?
-            .ok_or({
-                (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiError {
-                        code: "thread_not_found",
-                        message: "dm thread was not found",
-                    }),
-                )
-            })?;
+    let query_cursor = cursor.filter(|value| *value <= i64::MAX as u64);
+    let mut items = dm_history_repo::list_dm_thread_messages_for_identity(
+        pool,
+        &auth.identity_id,
+        &thread_id,
+        query_cursor,
+        limit,
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to list dm thread messages"))?
+    .ok_or({
+        (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "thread_not_found",
+                message: "dm thread was not found",
+            }),
+        )
+    })?;
 
-    if let Some(cursor) = cursor {
-        items.retain(|item| item.seq < cursor);
+    let has_more = items.len() > limit;
+    if has_more {
+        items.truncate(limit);
     }
 
-    let page_items = items.iter().take(limit).cloned().collect::<Vec<_>>();
-    let has_more = page_items.len() < items.len();
+    let page_items = items;
     let next_cursor = if has_more {
         page_items.last().map(|item| item.seq.to_string())
     } else {
