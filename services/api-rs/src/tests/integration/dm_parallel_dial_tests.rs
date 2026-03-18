@@ -133,6 +133,117 @@ async fn parallel_dial_ignores_revoked_endpoint_cards() {
 }
 
 #[tokio::test]
+async fn revoke_endpoint_cards_returns_newly_revoked_ids_in_request_order() {
+    let sender_identity = unique_identity("db-bulk-revoke-sender");
+    let recipient_identity = unique_identity("db-bulk-revoke-recipient");
+    let endpoint_wan_a = format!("wan-a-{}", uuid::Uuid::new_v4().simple());
+    let endpoint_lan_a = format!("lan-a-{}", uuid::Uuid::new_v4().simple());
+    let endpoint_wan_b = format!("wan-b-{}", uuid::Uuid::new_v4().simple());
+
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender_identity.as_str(), recipient_identity.as_str()])
+            .await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient_identity.as_str()]).await;
+
+    let register_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens[recipient_identity.as_str()]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"cards":[{{"endpoint_id":"{}","endpoint_hint":"tcp://198.51.100.20:4041","estimated_rtt_ms":30}},{{"endpoint_id":"{}","endpoint_hint":"udp://192.168.1.20:4040","estimated_rtt_ms":10}},{{"endpoint_id":"{}","endpoint_hint":"udp://203.0.113.20:4040","estimated_rtt_ms":40}}]}}"#,
+            endpoint_wan_a, endpoint_lan_a, endpoint_wan_b,
+        )))
+        .expect("build endpoint register request");
+    let register_response = app
+        .clone()
+        .oneshot(register_request)
+        .await
+        .expect("endpoint register response");
+    assert_eq!(register_response.status(), StatusCode::OK);
+
+    let revoke_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards/revoke")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens[recipient_identity.as_str()]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"endpoint_ids":["{}","{}","{}","missing-id"]}}"#,
+            endpoint_wan_b, endpoint_wan_b, endpoint_lan_a,
+        )))
+        .expect("build endpoint revoke request");
+    let revoke_response = app
+        .clone()
+        .oneshot(revoke_request)
+        .await
+        .expect("endpoint revoke response");
+    assert_eq!(revoke_response.status(), StatusCode::OK);
+
+    let revoke_body = to_bytes(revoke_response.into_body(), usize::MAX)
+        .await
+        .expect("read endpoint revoke body");
+    let revoke_payload: serde_json::Value =
+        serde_json::from_slice(&revoke_body).expect("decode endpoint revoke body");
+
+    assert_eq!(
+        revoke_payload["revoked_endpoint_ids"],
+        serde_json::json!([endpoint_wan_b, endpoint_lan_a])
+    );
+
+    let idempotent_revoke_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards/revoke")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens[recipient_identity.as_str()]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"endpoint_ids":["{}","{}"]}}"#,
+            endpoint_wan_b, endpoint_lan_a,
+        )))
+        .expect("build idempotent endpoint revoke request");
+    let idempotent_revoke_response = app
+        .oneshot(idempotent_revoke_request)
+        .await
+        .expect("idempotent endpoint revoke response");
+    assert_eq!(idempotent_revoke_response.status(), StatusCode::OK);
+
+    let idempotent_revoke_body = to_bytes(idempotent_revoke_response.into_body(), usize::MAX)
+        .await
+        .expect("read idempotent endpoint revoke body");
+    let idempotent_revoke_payload: serde_json::Value =
+        serde_json::from_slice(&idempotent_revoke_body)
+            .expect("decode idempotent endpoint revoke body");
+
+    assert_eq!(
+        idempotent_revoke_payload["revoked_endpoint_ids"],
+        serde_json::json!([])
+    );
+}
+
+#[tokio::test]
 async fn parallel_dial_returns_blocked_when_all_attempts_fail() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
     let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
