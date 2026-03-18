@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-18 recorded migration evidence for persistence migrations `0012` through `0016` and closed DB-backed test-helper drift in the readiness log after delivery CI revalidation.
+- Latest meaningful change: 2026-03-18 closed remaining DB-backed DM CI regressions by fixing thread-history SQL, aligning preflight with trusted peer-policy checks, and restoring fanout CSRF test parity.
 
 ## Purpose
 

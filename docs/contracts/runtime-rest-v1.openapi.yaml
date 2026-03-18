@@ -416,7 +416,7 @@ paths:
   /v1/dm/connectivity/preflight:
     post:
       summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
-      description: Runs direct-connect diagnostics using trusted runtime state only. If the authenticated identity's DM inbound policy is `same_server`, the preflight verifies shared membership from persisted server membership records.
+      description: Runs direct-connect diagnostics using trusted runtime state only. If a peer identity is supplied, the preflight evaluates that peer's current DM inbound policy for the authenticated requester; `same_server` authorization is verified from persisted server membership records rather than client-declared context.
       security:
         - CookieAuth: []
         - BearerAuth: []

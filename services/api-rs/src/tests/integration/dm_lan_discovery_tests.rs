@@ -115,7 +115,7 @@ async fn preflight_prefers_lan_fast_path_when_peer_is_discovered() {
     let policy_update = Request::builder()
         .method("POST")
         .uri("/v1/dm/privacy-policy")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .header("content-type", "application/json")
         .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
         .expect("build dm policy update request");

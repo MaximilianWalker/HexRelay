@@ -308,7 +308,14 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
     let request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("cookie", format!("hexrelay_session={}", tokens["usr-nora-k"]))
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-shared-server","ciphertext":"enc:shared"}"#,

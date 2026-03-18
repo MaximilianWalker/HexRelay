@@ -114,8 +114,8 @@ pub async fn list_dm_threads_for_identity(
             SELECT
                 m.thread_id,
                 MAX(m.seq) AS last_message_seq,
-                ARRAY_AGG(m.ciphertext ORDER BY m.seq DESC)[1] AS last_message_preview,
-                ARRAY_AGG(TO_CHAR(m.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') ORDER BY m.seq DESC)[1] AS last_message_at
+                (ARRAY_AGG(m.ciphertext ORDER BY m.seq DESC))[1] AS last_message_preview,
+                (ARRAY_AGG(TO_CHAR(m.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') ORDER BY m.seq DESC))[1] AS last_message_at
             FROM dm_messages m
             GROUP BY m.thread_id
         ),

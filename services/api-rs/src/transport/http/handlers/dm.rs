@@ -252,40 +252,29 @@ pub async fn dm_connectivity_preflight(
         )));
     }
 
-    let policy = current_dm_policy(&state, &auth.identity_id).await?;
-
-    match policy.inbound_policy.as_str() {
-        "friends_only" => {
-            let Some(peer_identity_id) = payload.peer_identity_id.as_deref() else {
-                return Ok(Json(preflight_blocked(
-                    "policy_blocked",
-                    vec![
-                        "Select a peer identity before running DM preflight.",
-                        "Your DM policy currently allows only friends.",
-                    ],
-                )));
-            };
-
-            if !is_friend(&state, &auth.identity_id, peer_identity_id).await? {
+    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
+        match dm_interaction_policy_decision(&state, &auth.identity_id, peer_identity_id).await? {
+            DmInteractionPolicyDecision::Allowed => {}
+            DmInteractionPolicyDecision::BlockedFriendsOnly
+            | DmInteractionPolicyDecision::BlockedUnknown => {
                 return Ok(Json(preflight_blocked(
                     "policy_blocked",
                     vec![
                         "Send and accept a friend request before starting this DM.",
-                        "Or change your DM inbound policy from friends_only.",
+                        "Or ask your contact to change their DM inbound policy.",
+                    ],
+                )));
+            }
+            DmInteractionPolicyDecision::BlockedSameServer => {
+                return Ok(Json(preflight_blocked(
+                    "policy_blocked",
+                    vec![
+                        "Join a shared server with your contact before starting this DM.",
+                        "Or ask your contact to change their DM inbound policy from same_server.",
                     ],
                 )));
             }
         }
-        "same_server" => {
-            return Ok(Json(preflight_blocked(
-                "policy_blocked",
-                vec![
-                    "Your DM inbound policy is same_server, but trusted shared-server verification is not implemented yet.",
-                    "Change your DM inbound policy, or retry after same_server execution checks are implemented.",
-                ],
-            )));
-        }
-        _ => {}
     }
 
     if !payload.peer_reachable_hint.unwrap_or(true) {

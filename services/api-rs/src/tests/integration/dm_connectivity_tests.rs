@@ -52,12 +52,12 @@ async fn preflight_blocks_when_policy_requires_friend_and_peer_not_friend() {
 
 #[tokio::test]
 async fn preflight_ready_when_policy_allows_and_direct_hints_present() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
     let policy_update = Request::builder()
         .method("POST")
         .uri("/v1/dm/privacy-policy")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .header("content-type", "application/json")
         .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
         .expect("build dm policy update request");
@@ -97,12 +97,12 @@ async fn preflight_ready_when_policy_allows_and_direct_hints_present() {
 
 #[tokio::test]
 async fn preflight_blocks_when_policy_is_same_server_even_if_client_claims_context() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
     let policy_update = Request::builder()
         .method("POST")
         .uri("/v1/dm/privacy-policy")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .header("content-type", "application/json")
         .body(Body::from(r#"{"inbound_policy":"same_server"}"#))
         .expect("build dm policy update request");
