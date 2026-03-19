@@ -102,7 +102,30 @@ pub async fn insert_dm_message(
 pub async fn list_dm_threads_for_identity(
     pool: &PgPool,
     identity_id: &str,
+    cursor: Option<&str>,
+    limit: usize,
+    unread_only: bool,
 ) -> Result<Vec<DmThreadSummary>, sqlx::Error> {
+    let fetch_limit = limit
+        .checked_add(1)
+        .ok_or_else(|| sqlx::Error::Protocol("limit too large for pagination".into()))?;
+    let fetch_limit = i64::try_from(fetch_limit)
+        .map_err(|_| sqlx::Error::Protocol("limit too large for storage".into()))?;
+
+    if let Some(cursor_thread_id) = cursor {
+        let exists = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM dm_thread_participants WHERE identity_id = $1 AND thread_id = $2",
+        )
+        .bind(identity_id)
+        .bind(cursor_thread_id)
+        .fetch_one(pool)
+        .await?;
+
+        if exists == 0 {
+            return Err(sqlx::Error::RowNotFound);
+        }
+    }
+
     let rows = sqlx::query(
         r#"
         WITH participant_threads AS (
@@ -123,25 +146,45 @@ pub async fn list_dm_threads_for_identity(
             SELECT thread_id, ARRAY_AGG(identity_id ORDER BY identity_id) AS participant_ids
             FROM dm_thread_participants
             GROUP BY thread_id
+        ),
+        filtered AS (
+            SELECT
+                t.thread_id,
+                t.kind,
+                t.title,
+                pl.participant_ids,
+                COALESCE(ms.last_message_seq, 0) AS last_message_seq,
+                pt.last_read_seq,
+                GREATEST(COALESCE(ms.last_message_seq, 0) - pt.last_read_seq, 0) AS unread,
+                COALESCE(ms.last_message_preview, '') AS last_message_preview,
+                COALESCE(ms.last_message_at, TO_CHAR(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS last_message_at
+            FROM participant_threads pt
+            INNER JOIN dm_threads t ON t.thread_id = pt.thread_id
+            INNER JOIN participant_lists pl ON pl.thread_id = t.thread_id
+            LEFT JOIN message_stats ms ON ms.thread_id = t.thread_id
+            WHERE (NOT $4) OR GREATEST(COALESCE(ms.last_message_seq, 0) - pt.last_read_seq, 0) > 0
+            ORDER BY COALESCE(ms.last_message_seq, 0) DESC, t.thread_id ASC
+        ),
+        ranked AS (
+            SELECT *, ROW_NUMBER() OVER (ORDER BY COALESCE(last_message_seq, 0) DESC, thread_id ASC) AS rn
+            FROM filtered
         )
-        SELECT
-            t.thread_id,
-            t.kind,
-            t.title,
-            pl.participant_ids,
-            COALESCE(ms.last_message_seq, 0) AS last_message_seq,
-            pt.last_read_seq,
-            GREATEST(COALESCE(ms.last_message_seq, 0) - pt.last_read_seq, 0) AS unread,
-            COALESCE(ms.last_message_preview, '') AS last_message_preview,
-            COALESCE(ms.last_message_at, TO_CHAR(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS last_message_at
-        FROM participant_threads pt
-        INNER JOIN dm_threads t ON t.thread_id = pt.thread_id
-        INNER JOIN participant_lists pl ON pl.thread_id = t.thread_id
-        LEFT JOIN message_stats ms ON ms.thread_id = t.thread_id
-        ORDER BY COALESCE(ms.last_message_seq, 0) DESC, t.thread_id ASC
+        SELECT thread_id, kind, title, participant_ids,
+               last_message_seq, last_read_seq, unread,
+               last_message_preview, last_message_at
+        FROM ranked
+        WHERE rn > COALESCE(
+            (SELECT r2.rn FROM ranked r2 WHERE r2.thread_id = $2::TEXT),
+            0
+        )
+        ORDER BY last_message_seq DESC, thread_id ASC
+        LIMIT $3
         "#,
     )
     .bind(identity_id)
+    .bind(cursor)
+    .bind(fetch_limit)
+    .bind(unread_only)
     .fetch_all(pool)
     .await?;
 

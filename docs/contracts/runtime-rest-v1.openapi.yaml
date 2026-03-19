@@ -388,7 +388,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /v1/dm/pairing-envelope/import:
     post:
-      summary: Import and verify signed out-of-band DM pairing envelope
+      summary: Import and verify signed out-of-band DM pairing envelope (constant-time HMAC)
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -513,7 +513,7 @@ paths:
   /v1/dm/connectivity/endpoint-cards:
     post:
       summary: Register DM endpoint cards for multi-endpoint direct dialing
-      description: Persists endpoint-card control state when configured storage is available so direct-dial candidates survive restart without storing DM payload content.
+      description: Persists endpoint-card control state when configured storage is available so direct-dial candidates survive restart without storing DM payload content. All cards in a single request are upserted within one database transaction to guarantee atomic registration.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -680,7 +680,7 @@ paths:
   /v1/dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
-      description: Returns only threads where the authenticated identity is a participant. Current runtime behavior is persistence-backed in the local runtime store and participant-scoped; cursor pagination still uses the last returned `thread_id` until a more stable long-term contract is introduced.
+      description: Returns only threads where the authenticated identity is a participant. Filtering (unread_only), cursor positioning, and limit are evaluated in SQL; cursor pagination uses the last returned `thread_id`.
       security:
         - CookieAuth: []
         - BearerAuth: []
