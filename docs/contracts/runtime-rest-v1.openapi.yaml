@@ -756,6 +756,44 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/dm/threads/{thread_id}/read:
+    post:
+      summary: Mark a DM thread as read up to a given sequence number
+      description: Monotonically advances the authenticated identity's `last_read_seq` for the specified thread. The server uses `GREATEST(current, requested)` so stale or duplicate requests are safe no-ops. Returns the effective `last_read_seq` and remaining `unread` count.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: thread_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmThreadMarkReadRequest'
+      responses:
+        '200':
+          description: Mark-read acknowledgement with updated read position and unread count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadMarkReadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Thread not found or identity is not a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests:
     get:
       summary: List the authenticated identity's inbound/outbound friend requests
@@ -1549,6 +1587,28 @@ components:
           type: string
           nullable: true
           description: Present only when more messages remain; equals the `seq` of the last returned item.
+    DmThreadMarkReadRequest:
+      type: object
+      required: [last_read_seq]
+      properties:
+        last_read_seq:
+          type: integer
+          minimum: 0
+          description: The message sequence number the client has read up to. The server applies `GREATEST(current, requested)` so stale values are harmless.
+    DmThreadMarkReadResponse:
+      type: object
+      required: [thread_id, last_read_seq, unread]
+      properties:
+        thread_id:
+          type: string
+        last_read_seq:
+          type: integer
+          minimum: 0
+          description: The effective read position after the monotonic advance.
+        unread:
+          type: integer
+          minimum: 0
+          description: Remaining unread message count (max(seq) - last_read_seq, clamped to 0).
     FriendRequestRecord:
       type: object
       required: [request_id, requester_identity_id, target_identity_id, status, created_at]

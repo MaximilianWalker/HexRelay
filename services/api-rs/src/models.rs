@@ -437,6 +437,18 @@ pub struct DmThreadMessageListQuery {
     pub limit: Option<u32>,
 }
 
+#[derive(Deserialize)]
+pub struct DmThreadMarkReadRequest {
+    pub last_read_seq: u64,
+}
+
+#[derive(Serialize)]
+pub struct DmThreadMarkReadResponse {
+    pub thread_id: String,
+    pub last_read_seq: u64,
+    pub unread: u32,
+}
+
 #[derive(Clone, Serialize)]
 pub struct DmMessageRecord {
     pub message_id: String,

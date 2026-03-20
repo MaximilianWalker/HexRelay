@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-18
+- last_updated: 2026-03-20
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-03-18 pushed DM thread-list filtering/pagination into SQL, transaction-wrapped endpoint-card registration, and replaced timing-vulnerable HMAC comparison with constant-time `ring::hmac::verify`.
+- Latest meaningful change: 2026-03-20 removed dead single-upsert endpoint-card function, added mark-as-read endpoint, documented cursor+unread_only pagination restart edge case.
 
 ## Purpose
 
@@ -151,3 +151,6 @@
 - 2026-03-12 | `realtime-rs` | Websocket connection slot could leak if upgrade failed after slot acquisition, causing false connection-cap lockouts | added failed-upgrade slot release path in `services/realtime-rs/src/transport/ws/handlers/gateway.rs` via `on_failed_upgrade` callback and added regression coverage (`failed_upgrade_release_removes_connection_slot`, reconnect-after-release integration) | identity connection-cap accounting now releases slots on both successful and failed upgrade lifecycles | `closed`
 - 2026-03-12 | `api-rs` | Distributed limiter cleanup cadence could starve under sparse traffic because cleanup depended on specific modulo windows | replaced modulo cleanup trigger in `services/api-rs/src/transport/http/middleware/rate_limit.rs` with elapsed-window interval gating and added cleanup-interval unit coverage | stale distributed counters now prune on elapsed cleanup intervals even with irregular traffic patterns | `closed`
 - 2026-03-12 | `docs` | Canonical doc structure parity gap remained in migration baseline authority (`Quick Context` missing) | added `Quick Context` and refreshed metadata in `docs/architecture/03-rust-service-migration-baseline.md` | canonical docs structure now consistently includes metadata + quick-context contract for readiness-critical architecture docs | `closed`
+- 2026-03-20 | `api-rs` | Dead code: `upsert_dm_endpoint_card` (single) in `dm_repo.rs` was defined but never called after batch upsert was introduced in PR #46 | removed the dead function from `services/api-rs/src/infra/db/repos/dm_repo.rs` | dead code eliminated; only the batch path `upsert_dm_endpoint_cards_batch` remains | `closed`
+- 2026-03-20 | `api-rs` | `last_read_seq` in `dm_thread_participants` was write-once (DEFAULT 0, never updated), making unread counts grow-only with no client path to mark messages as read | added `POST /v1/dm/threads/{thread_id}/read` endpoint with monotonic `GREATEST`-based advance in `dm_history_repo.rs`, handler in `dm.rs`, route in `router.rs`, models in `models.rs`; updated runtime contract in `docs/contracts/runtime-rest-v1.openapi.yaml`; added integration tests for advance, monotonicity, and non-member rejection | DM read position can now be advanced by clients; unread counts decrease correctly; stale/duplicate requests are safe no-ops | `closed`
+- 2026-03-20 | `api-rs` | Cursor+unread_only pagination edge case: when the cursor thread's unread drops to 0 between page requests, pagination restarts from page 1 instead of continuing | added documenting integration test `unread_only_cursor_restarts_when_cursor_thread_becomes_fully_read` in `dm_threads_tests.rs` | behavior is graceful degradation (restart, not error); fixing would couple cursor validation to ephemeral read-state; documented as accepted behavior | `closed`

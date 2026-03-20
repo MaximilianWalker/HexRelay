@@ -16,7 +16,7 @@ use crate::{
         dm::{
             announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
             get_dm_policy, heartbeat_dm_profile_device, import_dm_pairing_envelope,
-            list_dm_lan_peers, list_dm_thread_messages, list_dm_threads,
+            list_dm_lan_peers, list_dm_thread_messages, list_dm_threads, mark_dm_thread_read,
             register_dm_endpoint_cards, revoke_dm_endpoint_cards, run_dm_active_fanout,
             run_dm_fanout_catch_up, run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
         },
@@ -104,6 +104,7 @@ pub fn build_app(state: AppState) -> Router {
             "/v1/dm/threads/:thread_id/messages",
             get(list_dm_thread_messages),
         )
+        .route("/v1/dm/threads/:thread_id/read", post(mark_dm_thread_read))
         .route(
             "/v1/friends/requests",
             post(create_friend_request).get(list_friend_requests),
