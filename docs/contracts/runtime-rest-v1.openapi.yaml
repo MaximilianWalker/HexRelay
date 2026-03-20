@@ -764,6 +764,7 @@ paths:
         - CookieAuth: []
         - BearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
         - in: path
           name: thread_id
           required: true
@@ -1804,6 +1805,7 @@ components:
             - profile_device_invalid
             - fanout_invalid
             - friendship_lookup_failed
+            - last_read_seq_invalid
         message:
           type: string
   parameters:

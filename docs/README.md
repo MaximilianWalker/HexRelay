@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 removed dead single-upsert endpoint-card function, added `POST /v1/dm/threads/{thread_id}/read` mark-as-read endpoint with monotonic `last_read_seq` advance, and documented unread_only+cursor pagination restart edge case.
+- Latest meaningful change: 2026-03-20 added CSRF enforcement and `last_read_seq` overflow validation to mark-as-read handler; added `last_read_seq_invalid` error code to contract.
 
 ## Purpose
 
