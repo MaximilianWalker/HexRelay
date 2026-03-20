@@ -270,8 +270,8 @@ pub async fn dm_connectivity_preflight(
                 return Ok(Json(preflight_blocked(
                     "policy_blocked",
                     vec![
-                        "Join a shared server with your contact before starting this DM.",
-                        "Or ask your contact to change their DM inbound policy from same_server.",
+                        "No shared server membership could be confirmed for this contact.",
+                        "Join a shared server with your contact, or ask them to change their DM inbound policy.",
                     ],
                 )));
             }
@@ -639,9 +639,9 @@ pub async fn run_dm_parallel_dial(
                 canceled_endpoint_ids: vec![],
                 attempts: vec![],
                 remediation: vec![
-                    "Recipient DM policy is same_server; execution endpoints cannot verify shared-server context yet."
+                    "Recipient DM policy is same_server but no shared server membership could be confirmed."
                         .to_string(),
-                    "Ask recipient to switch DM inbound policy, or retry after same_server execution checks are implemented."
+                    "Join a shared server with the recipient, or ask them to change their DM inbound policy."
                         .to_string(),
                 ],
             }));
@@ -1332,8 +1332,8 @@ pub async fn list_dm_thread_messages(
 
 pub async fn mark_dm_thread_read(
     State(state): State<AppState>,
-    headers: HeaderMap,
     auth: AuthSession,
+    headers: HeaderMap,
     Path(thread_id): Path<String>,
     Json(body): Json<DmThreadMarkReadRequest>,
 ) -> ApiResult<Json<DmThreadMarkReadResponse>> {

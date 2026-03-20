@@ -1350,6 +1350,7 @@ components:
             $ref: '#/components/schemas/DmParallelDialAttempt'
         remediation:
           type: array
+          description: Human-readable guidance strings explaining why the dial was blocked and what actions the user can take. Message content may change across versions; clients should not match on exact text.
           items:
             type: string
     DmProfileDeviceHeartbeatRequest:
