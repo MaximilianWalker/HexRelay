@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   acceptFriendRequest,
+  createContactInvite,
   createFriendRequest,
-  createInvite,
   declineFriendRequest,
   fetchContacts,
   fetchFriendRequests,
-  redeemInvite,
+  redeemContactInvite,
 } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
@@ -46,9 +47,21 @@ export default function ContactsPage() {
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
   const [inviteMode, setInviteMode] = useState<"one_time" | "multi_use">("one_time");
   const [inviteMaxUses, setInviteMaxUses] = useState("3");
-  const [inviteToken, setInviteToken] = useState("");
+  const [createdInvite, setCreatedInvite] = useState<{
+    token: string;
+    mode: string;
+    expires_at?: string;
+    max_uses?: number;
+  } | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
   const [redeemToken, setRedeemToken] = useState("");
-  const [redeemFingerprint, setRedeemFingerprint] = useState("hexrelay-local-fingerprint");
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [redeemResult, setRedeemResult] = useState<{
+    request_id: string;
+    requester_identity_id: string;
+    status: string;
+  } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const identityId = useMemo(() => {
     const active = readActivePersonaId();
@@ -236,47 +249,86 @@ export default function ContactsPage() {
     await refreshRequests();
   }
 
-  async function handleCreateInvite(): Promise<void> {
+  async function handleCreateContactInvite(): Promise<void> {
     if (!hasSession) {
       return;
     }
 
     setActionMessage(null);
+    setCreatedInvite(null);
+    setInviteBusy(true);
+    setLinkCopied(false);
 
     const maxUses = Number.parseInt(inviteMaxUses, 10);
-    const result = await createInvite({
+    const result = await createContactInvite({
       mode: inviteMode,
       maxUses: inviteMode === "multi_use" && Number.isFinite(maxUses) ? maxUses : undefined,
     });
 
+    setInviteBusy(false);
+
     if (!result.ok) {
       setActionMessage(`${result.code}: ${result.message}`);
       return;
     }
 
-    setInviteToken(result.data.token);
-    setActionMessage("invite_created");
+    setCreatedInvite({
+      token: result.data.token,
+      mode: result.data.mode,
+      expires_at: result.data.expires_at,
+      max_uses: result.data.max_uses,
+    });
+    setActionMessage("contact_invite_created");
   }
 
-  async function handleRedeemInvite(): Promise<void> {
+  async function handleRedeemContactInvite(): Promise<void> {
     setActionMessage(null);
-    if (!redeemToken.trim()) {
+    setRedeemResult(null);
+
+    const rawToken = redeemToken.trim();
+    if (!rawToken) {
       setActionMessage("invite_invalid: token is required");
       return;
     }
 
-    const result = await redeemInvite({
-      token: redeemToken.trim(),
-      nodeFingerprint: redeemFingerprint.trim(),
-    });
+    // Extract token from link format if pasted as full link
+    const tokenValue = rawToken.includes("/")
+      ? rawToken.split("/").pop() ?? rawToken
+      : rawToken;
+
+    setRedeemBusy(true);
+    const result = await redeemContactInvite({ token: tokenValue });
+    setRedeemBusy(false);
 
     if (!result.ok) {
       setActionMessage(`${result.code}: ${result.message}`);
       return;
     }
 
-    setActionMessage("invite_redeemed");
+    setRedeemResult({
+      request_id: result.data.request_id,
+      requester_identity_id: result.data.requester_identity_id,
+      status: result.data.status,
+    });
     setRedeemToken("");
+    setActionMessage("contact_invite_redeemed");
+  }
+
+  function buildInviteLink(token: string): string {
+    return `hexrelay://contact-invite/${token}`;
+  }
+
+  async function handleCopyLink(): Promise<void> {
+    if (!createdInvite) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildInviteLink(createdInvite.token));
+      setLinkCopied(true);
+    } catch {
+      setActionMessage("clipboard_error: failed to copy link");
+    }
   }
 
   const inboundPending = friendRequests.filter(
@@ -403,7 +455,7 @@ export default function ContactsPage() {
         ) : null}
 
         <div className={styles.state}>
-          <p>invite tools</p>
+          <p>contact invite — share</p>
           <div className={styles.row}>
             <button
               className={styles.pill}
@@ -428,26 +480,74 @@ export default function ContactsPage() {
               value={inviteMaxUses}
             />
           ) : null}
-          <button className={styles.pill} onClick={() => void handleCreateInvite()} type="button">
-            create invite
+          <button
+            className={styles.pill}
+            disabled={inviteBusy}
+            onClick={() => void handleCreateContactInvite()}
+            type="button"
+          >
+            {inviteBusy ? "creating..." : "create contact invite"}
           </button>
-          {inviteToken ? <p className={styles.meta}>token: {inviteToken}</p> : null}
 
+          {createdInvite ? (
+            <div className={styles.card} style={{ marginTop: 12 }}>
+              <p className={styles.title}>invite ready</p>
+              <p className={styles.meta}>
+                mode: {createdInvite.mode}
+                {createdInvite.max_uses != null ? ` · max uses: ${createdInvite.max_uses}` : ""}
+                {createdInvite.expires_at ? ` · expires: ${createdInvite.expires_at}` : ""}
+              </p>
+              <p className={styles.meta} style={{ wordBreak: "break-all", marginTop: 6 }}>
+                {buildInviteLink(createdInvite.token)}
+              </p>
+              <div className={styles.row} style={{ marginTop: 8 }}>
+                <button
+                  className={styles.pill}
+                  onClick={() => void handleCopyLink()}
+                  type="button"
+                >
+                  {linkCopied ? "copied" : "copy link"}
+                </button>
+              </div>
+              <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
+                <QRCodeSVG
+                  value={buildInviteLink(createdInvite.token)}
+                  size={160}
+                  level="M"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className={styles.state}>
+          <p>contact invite — redeem</p>
           <input
             className={styles.search}
             onChange={(event) => setRedeemToken(event.target.value)}
-            placeholder="Redeem token"
+            placeholder="Paste invite token or link"
             value={redeemToken}
           />
-          <input
-            className={styles.search}
-            onChange={(event) => setRedeemFingerprint(event.target.value)}
-            placeholder="Node fingerprint"
-            value={redeemFingerprint}
-          />
-          <button className={styles.pill} onClick={() => void handleRedeemInvite()} type="button">
-            redeem invite
+          <button
+            className={styles.pill}
+            disabled={redeemBusy}
+            onClick={() => void handleRedeemContactInvite()}
+            type="button"
+          >
+            {redeemBusy ? "redeeming..." : "redeem contact invite"}
           </button>
+
+          {redeemResult ? (
+            <div className={styles.card} style={{ marginTop: 12 }}>
+              <p className={styles.title}>friend request created</p>
+              <p className={styles.meta}>
+                request: {redeemResult.request_id} · status: {redeemResult.status}
+              </p>
+              <p className={styles.meta}>
+                inviter: {redeemResult.requester_identity_id}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {actionMessage ? <p className={styles.state}>{actionMessage}</p> : null}

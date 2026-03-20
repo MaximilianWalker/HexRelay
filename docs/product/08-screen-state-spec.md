@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-03-20
 - Source of truth: `docs/product/08-screen-state-spec.md`
 
 ## Quick Context
 
 - Purpose: define screen-level states so Web/API/Core teams implement the same behavior.
 - Primary edit location: update when a screen flow or failure mode changes.
-- Latest meaningful change: 2026-03-04 execution-hardening pass added MVP-wide state coverage.
+- Latest meaningful change: 2026-03-20 added Contact Invite Share and Contact Invite Redeem screen states for T3.1.4.
 
 ## Core Screens
 
@@ -33,6 +33,8 @@
 |---|---|
 | Identity Create/Import | loading, success, invalid_key, storage_failed |
 | Server Join | loading, fingerprint_mismatch, invite_invalid, invite_expired, invite_exhausted, success |
+| Contact Invite Share | idle, creating, created (link + QR visible), error |
+| Contact Invite Redeem | idle, redeeming, success (friend request created), invite_invalid, invite_expired, invite_exhausted, self_invite |
 | Contacts Hub | loading, empty, search_no_results, friend_request_pending, friend_request_inbound, error |
 | DM Workspace | loading, empty, blocked, policy_denied, send_failed_retryable, reconnecting |
 | Servers Hub | loading, empty, search_no_results, permission_denied, error |

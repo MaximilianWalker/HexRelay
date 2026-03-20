@@ -321,3 +321,56 @@ export async function redeemInvite(input: {
 
   return parseResponse<{ accepted: boolean }>(response);
 }
+
+export async function createContactInvite(input: {
+  mode: "one_time" | "multi_use";
+  maxUses?: number;
+  expiresAt?: string;
+}): Promise<
+  ApiResult<{
+    invite_id: string;
+    token: string;
+    mode: string;
+    expires_at?: string;
+    max_uses?: number;
+    created_at: string;
+  }>
+> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/contact-invites`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      mode: input.mode,
+      max_uses: input.maxUses,
+      expires_at: input.expiresAt,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
+export async function redeemContactInvite(input: {
+  token: string;
+}): Promise<
+  ApiResult<{
+    request_id: string;
+    requester_identity_id: string;
+    target_identity_id: string;
+    status: string;
+    created_at: string;
+  }>
+> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/contact-invites/redeem`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      token: input.token,
+    }),
+  });
+
+  return parseResponse(response);
+}

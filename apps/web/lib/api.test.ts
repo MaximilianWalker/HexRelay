@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   acceptFriendRequest,
+  createContactInvite,
   createFriendRequest,
   createInvite,
   declineFriendRequest,
@@ -9,6 +10,7 @@ import {
   fetchFriendRequests,
   fetchServers,
   issueAuthChallenge,
+  redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
   revokeSession,
@@ -217,5 +219,84 @@ describe("api auth transport", () => {
     expect(list.ok).toBe(true);
     expect(accept.ok).toBe(true);
     expect(decline.ok).toBe(true);
+  });
+
+  it("sends csrf and correct URL for contact invite creation", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            invite_id: "ci-1",
+            token: "contact-token-abc",
+            mode: "one_time",
+            created_at: "2026-03-20T00:00:00Z",
+          }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const result = await createContactInvite({ mode: "one_time" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.token).toBe("contact-token-abc");
+      expect(result.data.invite_id).toBe("ci-1");
+    }
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/v1/contact-invites");
+    expect(String(url)).not.toContain("/redeem");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(headers.get("content-type")).toBe("application/json");
+    expect(init?.body).toContain('"mode":"one_time"');
+  });
+
+  it("sends csrf and correct URL for contact invite redeem", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            request_id: "fr-99",
+            requester_identity_id: "usr-inviter",
+            target_identity_id: "usr-redeemer",
+            status: "pending",
+            created_at: "2026-03-20T00:00:00Z",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const result = await redeemContactInvite({ token: "contact-token-abc" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.request_id).toBe("fr-99");
+      expect(result.data.status).toBe("pending");
+      expect(result.data.requester_identity_id).toBe("usr-inviter");
+    }
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/v1/contact-invites/redeem");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(init?.body).toBe('{"token":"contact-token-abc"}');
+  });
+
+  it("returns error codes for failed contact invite redeem", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: "invite_expired", message: "Invite has expired" }),
+        { status: 400, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await redeemContactInvite({ token: "expired-token" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("invite_expired");
+      expect(result.message).toBe("Invite has expired");
+    }
   });
 });
