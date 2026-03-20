@@ -549,8 +549,12 @@ async fn mark_dm_thread_read_advances_last_read_seq_and_returns_unread() {
         .uri("/v1/dm/threads/dm-mark-advance/read")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
         )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"last_read_seq": 403}"#))
         .expect("build mark-read request");
@@ -628,8 +632,12 @@ async fn mark_dm_thread_read_is_monotonic() {
         .uri("/v1/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
         )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"last_read_seq": 403}"#))
         .expect("build advance request");
@@ -647,8 +655,12 @@ async fn mark_dm_thread_read_is_monotonic() {
         .uri("/v1/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
         )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"last_read_seq": 401}"#))
         .expect("build regress request");
@@ -698,8 +710,12 @@ async fn mark_dm_thread_read_returns_not_found_for_non_member() {
         .uri("/v1/dm/threads/dm-mark-nomember/read")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-jules-p"]),
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
         )
+        .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"last_read_seq": 100}"#))
         .expect("build non-member mark-read request");

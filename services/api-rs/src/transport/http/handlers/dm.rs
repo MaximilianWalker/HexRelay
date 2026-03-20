@@ -1332,10 +1332,20 @@ pub async fn list_dm_thread_messages(
 
 pub async fn mark_dm_thread_read(
     State(state): State<AppState>,
+    headers: HeaderMap,
     auth: AuthSession,
     Path(thread_id): Path<String>,
     Json(body): Json<DmThreadMarkReadRequest>,
 ) -> ApiResult<Json<DmThreadMarkReadResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+
+    if body.last_read_seq > i64::MAX as u64 {
+        return Err(bad_request(
+            "last_read_seq_invalid",
+            "last_read_seq is out of range",
+        ));
+    }
+
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
             "storage_unavailable",
