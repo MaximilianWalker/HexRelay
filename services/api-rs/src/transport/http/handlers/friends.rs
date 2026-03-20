@@ -556,7 +556,7 @@ fn get_friend_request_bootstrap_in_memory(
                     estimated_rtt_ms: card.estimated_rtt_ms,
                     priority: card.priority,
                     expires_at: chrono::DateTime::from_timestamp(card.expires_at_epoch, 0)
-                        .unwrap_or_else(|| chrono::Utc::now())
+                        .unwrap_or_else(chrono::Utc::now)
                         .to_rfc3339(),
                     revoked: false,
                 })
@@ -577,7 +577,7 @@ fn get_friend_request_bootstrap_in_memory(
                     device_id: device.device_id.clone(),
                     active: device.active,
                     last_seen_at: chrono::DateTime::from_timestamp(device.last_seen_epoch, 0)
-                        .unwrap_or_else(|| chrono::Utc::now())
+                        .unwrap_or_else(chrono::Utc::now)
                         .to_rfc3339(),
                 })
                 .collect()
