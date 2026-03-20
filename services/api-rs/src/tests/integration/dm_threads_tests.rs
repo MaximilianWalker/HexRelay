@@ -497,13 +497,56 @@ async fn mark_dm_thread_read_advances_last_read_seq_and_returns_unread() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
 
-    // Initially last_read_seq=401 for usr-nora-k in dm-thread-nora-jules (4 messages: 401-404).
+    // Isolated thread to avoid parallel test interference on shared rows.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-advance",
+        "dm",
+        "Mark Advance Test",
+        &[("usr-nora-k", 401), ("usr-jules-p", 401)],
+        &[
+            (
+                "msg-ma-401",
+                "usr-nora-k",
+                401,
+                "enc:aa01",
+                "2026-03-12T09:05:08Z",
+                None,
+            ),
+            (
+                "msg-ma-402",
+                "usr-jules-p",
+                402,
+                "enc:aa02",
+                "2026-03-12T09:12:00Z",
+                None,
+            ),
+            (
+                "msg-ma-403",
+                "usr-nora-k",
+                403,
+                "enc:aa03",
+                "2026-03-12T09:19:24Z",
+                None,
+            ),
+            (
+                "msg-ma-404",
+                "usr-jules-p",
+                404,
+                "enc:aa04",
+                "2026-03-12T09:21:11Z",
+                None,
+            ),
+        ],
+    )
+    .await;
+
+    // Initially last_read_seq=401 for usr-nora-k (4 messages: 401-404).
     // Mark read up to seq 403, expect unread=1 (seq 404 remains unread).
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-thread-nora-jules/read")
+        .uri("/v1/dm/threads/dm-mark-advance/read")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -524,7 +567,7 @@ async fn mark_dm_thread_read_advances_last_read_seq_and_returns_unread() {
         .expect("read mark-read body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode mark-read body");
 
-    assert_eq!(payload["thread_id"], "dm-thread-nora-jules");
+    assert_eq!(payload["thread_id"], "dm-mark-advance");
     assert_eq!(payload["last_read_seq"], 403);
     assert_eq!(payload["unread"], 1);
 }
@@ -534,12 +577,55 @@ async fn mark_dm_thread_read_is_monotonic() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+
+    // Isolated thread to avoid parallel test interference on shared rows.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-mono",
+        "dm",
+        "Mark Mono Test",
+        &[("usr-nora-k", 401), ("usr-jules-p", 401)],
+        &[
+            (
+                "msg-mm-401",
+                "usr-nora-k",
+                401,
+                "enc:bb01",
+                "2026-03-12T09:05:08Z",
+                None,
+            ),
+            (
+                "msg-mm-402",
+                "usr-jules-p",
+                402,
+                "enc:bb02",
+                "2026-03-12T09:12:00Z",
+                None,
+            ),
+            (
+                "msg-mm-403",
+                "usr-nora-k",
+                403,
+                "enc:bb03",
+                "2026-03-12T09:19:24Z",
+                None,
+            ),
+            (
+                "msg-mm-404",
+                "usr-jules-p",
+                404,
+                "enc:bb04",
+                "2026-03-12T09:21:11Z",
+                None,
+            ),
+        ],
+    )
+    .await;
 
     // First advance to 403
     let advance_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-thread-nora-jules/read")
+        .uri("/v1/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -558,7 +644,7 @@ async fn mark_dm_thread_read_is_monotonic() {
     // Try to regress to 401 — should be a no-op, seq stays at 403
     let regress_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-thread-nora-jules/read")
+        .uri("/v1/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -587,12 +673,29 @@ async fn mark_dm_thread_read_returns_not_found_for_non_member() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
 
-    // usr-jules-p is not a participant in dm-thread-nora-alex
+    // Isolated thread — usr-jules-p is NOT a participant.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-nomember",
+        "dm",
+        "Mark Non-Member Test",
+        &[("usr-nora-k", 100), ("usr-alex-r", 100)],
+        &[(
+            "msg-mn-100",
+            "usr-nora-k",
+            100,
+            "enc:cc01",
+            "2026-03-11T21:45:30Z",
+            None,
+        )],
+    )
+    .await;
+
+    // usr-jules-p is not a participant in dm-mark-nomember
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-thread-nora-alex/read")
+        .uri("/v1/dm/threads/dm-mark-nomember/read")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-jules-p"]),
