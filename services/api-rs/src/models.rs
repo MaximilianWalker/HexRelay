@@ -475,6 +475,15 @@ pub struct FriendRequestRecord {
     pub created_at: String,
 }
 
+#[derive(Clone, Serialize)]
+pub struct IdentityBootstrapBundle {
+    pub identity_id: String,
+    pub public_key: String,
+    pub algorithm: String,
+    pub endpoint_cards: Vec<DmEndpointCard>,
+    pub devices: Vec<DmProfileDeviceSummary>,
+}
+
 #[derive(Deserialize)]
 pub struct FriendRequestCreate {
     pub requester_identity_id: String,

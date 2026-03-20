@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 corrected stale BlockedSameServer remediation text in parallel-dial response and documented remediation field as human-readable in OpenAPI contract.
+- Latest meaningful change: 2026-03-20 added GET /v1/friends/requests/{request_id}/bootstrap endpoint, IdentityBootstrapBundle schema, and Forbidden response component to OpenAPI contract (T3.1.5).
 
 ## Purpose
 

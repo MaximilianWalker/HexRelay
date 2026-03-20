@@ -940,6 +940,37 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/friends/requests/{request_id}/bootstrap:
+    get:
+      summary: Fetch peer identity bootstrap material after friend request acceptance
+      description: >-
+        Returns the other party's identity bundle (public key, endpoint cards,
+        profile devices). Only accessible to the requester or target of an
+        accepted friend request.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Peer identity bootstrap bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityBootstrapBundle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   schemas:
     HealthResponse:
@@ -1642,6 +1673,25 @@ components:
           type: string
         target_identity_id:
           type: string
+    IdentityBootstrapBundle:
+      type: object
+      required: [identity_id, public_key, algorithm, endpoint_cards, devices]
+      properties:
+        identity_id:
+          type: string
+        public_key:
+          type: string
+        algorithm:
+          type: string
+          enum: [ed25519]
+        endpoint_cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmEndpointCard'
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmProfileDeviceSummary'
     IdentityKeyRegistrationRequest:
       type: object
       required: [identity_id, public_key, algorithm]
@@ -1841,6 +1891,12 @@ components:
             $ref: '#/components/schemas/ApiError'
     Conflict:
       description: Request conflicts with existing resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Request understood but not permitted in current state
       content:
         application/json:
           schema:

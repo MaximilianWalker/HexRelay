@@ -22,7 +22,7 @@ use crate::{
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
-            decline_friend_request, list_friend_requests,
+            decline_friend_request, get_friend_request_bootstrap, list_friend_requests,
         },
         health::health,
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
@@ -120,6 +120,10 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/v1/friends/requests/:request_id/cancel",
             post(cancel_friend_request),
+        )
+        .route(
+            "/v1/friends/requests/:request_id/bootstrap",
+            get(get_friend_request_bootstrap),
         )
         .layer(cors)
         .layer(TraceLayer::new_for_http())

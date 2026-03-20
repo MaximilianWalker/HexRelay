@@ -12,6 +12,10 @@ pub fn unauthorized(code: &'static str, message: &'static str) -> (StatusCode, J
     (StatusCode::UNAUTHORIZED, Json(ApiError { code, message }))
 }
 
+pub fn forbidden(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
+    (StatusCode::FORBIDDEN, Json(ApiError { code, message }))
+}
+
 pub fn conflict(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
     (StatusCode::CONFLICT, Json(ApiError { code, message }))
 }

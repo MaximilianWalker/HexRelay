@@ -73,6 +73,16 @@ struct FriendRequestPage {
     items: Vec<serde_json::Value>,
 }
 
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct IdentityBootstrapBundle {
+    identity_id: String,
+    public_key: String,
+    algorithm: String,
+    endpoint_cards: Vec<serde_json::Value>,
+    devices: Vec<serde_json::Value>,
+}
+
 async fn register_identity(
     app: axum::Router,
     identity_id: &str,
