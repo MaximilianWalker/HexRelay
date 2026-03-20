@@ -259,29 +259,37 @@ export default function ContactsPage() {
     setInviteBusy(true);
     setLinkCopied(false);
 
-    const maxUses = Number.parseInt(inviteMaxUses, 10);
-    const result = await createContactInvite({
-      mode: inviteMode,
-      maxUses: inviteMode === "multi_use" && Number.isFinite(maxUses) ? maxUses : undefined,
-    });
+    try {
+      const maxUses = Number.parseInt(inviteMaxUses, 10);
+      const result = await createContactInvite({
+        mode: inviteMode,
+        maxUses: inviteMode === "multi_use" && Number.isFinite(maxUses) ? maxUses : undefined,
+      });
 
-    setInviteBusy(false);
+      if (!result.ok) {
+        setActionMessage(`${result.code}: ${result.message}`);
+        return;
+      }
 
-    if (!result.ok) {
-      setActionMessage(`${result.code}: ${result.message}`);
-      return;
+      setCreatedInvite({
+        token: result.data.token,
+        mode: result.data.mode,
+        expires_at: result.data.expires_at,
+        max_uses: result.data.max_uses,
+      });
+      setActionMessage("contact_invite_created");
+    } catch {
+      setActionMessage("network_error: failed to create contact invite");
+    } finally {
+      setInviteBusy(false);
     }
-
-    setCreatedInvite({
-      token: result.data.token,
-      mode: result.data.mode,
-      expires_at: result.data.expires_at,
-      max_uses: result.data.max_uses,
-    });
-    setActionMessage("contact_invite_created");
   }
 
   async function handleRedeemContactInvite(): Promise<void> {
+    if (!hasSession) {
+      return;
+    }
+
     setActionMessage(null);
     setRedeemResult(null);
 
@@ -291,27 +299,57 @@ export default function ContactsPage() {
       return;
     }
 
-    // Extract token from link format if pasted as full link
-    const tokenValue = rawToken.includes("/")
-      ? rawToken.split("/").pop() ?? rawToken
-      : rawToken;
+    // Extract token from link format if pasted as full link.
+    // Handles hexrelay://contact-invite/<token>[?query][#fragment] and
+    // falls back to using the last non-empty path segment or the raw token.
+    let tokenValue: string | null = null;
 
-    setRedeemBusy(true);
-    const result = await redeemContactInvite({ token: tokenValue });
-    setRedeemBusy(false);
+    try {
+      const maybeUrl = new URL(rawToken);
+      if (maybeUrl.protocol === "hexrelay:" && maybeUrl.hostname === "contact-invite") {
+        const pathSegment = maybeUrl.pathname.replace(/^\/+/, "").split("/").filter(Boolean)[0];
+        tokenValue = pathSegment ?? null;
+      }
+    } catch {
+      // Not a valid URL; fall through to non-URL handling below.
+    }
 
-    if (!result.ok) {
-      setActionMessage(`${result.code}: ${result.message}`);
+    if (!tokenValue) {
+      const withoutQueryOrFragment = rawToken.split(/[?#]/)[0];
+      if (withoutQueryOrFragment.includes("/")) {
+        const segments = withoutQueryOrFragment.split("/").filter(Boolean);
+        tokenValue = segments.length > 0 ? segments[segments.length - 1] : null;
+      } else {
+        tokenValue = withoutQueryOrFragment || null;
+      }
+    }
+
+    if (!tokenValue) {
+      setActionMessage("invite_invalid: token is required");
       return;
     }
 
-    setRedeemResult({
-      request_id: result.data.request_id,
-      requester_identity_id: result.data.requester_identity_id,
-      status: result.data.status,
-    });
-    setRedeemToken("");
-    setActionMessage("contact_invite_redeemed");
+    setRedeemBusy(true);
+    try {
+      const result = await redeemContactInvite({ token: tokenValue });
+
+      if (!result.ok) {
+        setActionMessage(`${result.code}: ${result.message}`);
+        return;
+      }
+
+      setRedeemResult({
+        request_id: result.data.request_id,
+        requester_identity_id: result.data.requester_identity_id,
+        status: result.data.status,
+      });
+      setRedeemToken("");
+      setActionMessage("contact_invite_redeemed");
+    } catch {
+      setActionMessage("network_error: failed to redeem contact invite");
+    } finally {
+      setRedeemBusy(false);
+    }
   }
 
   function buildInviteLink(token: string): string {
