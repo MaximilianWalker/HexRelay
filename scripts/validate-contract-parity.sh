@@ -134,7 +134,7 @@ for pattern in sys.argv[1:]:
     for path in pathlib.Path('.').glob(pattern):
         if path.is_file():
             text = path.read_text()
-            codes.update(re.findall(r'\b(?:bad_request|unauthorized|conflict|too_many_requests|internal_error)\(\s*"([^"]+)"', text, re.S))
+            codes.update(re.findall(r'\b(?:bad_request|unauthorized|forbidden|conflict|too_many_requests|internal_error)\(\s*"([^"]+)"', text, re.S))
             codes.update(re.findall(r'ApiError\s*\{\s*code:\s*"([^"]+)"', text, re.S))
 
 print("\n".join(sorted(codes)))
