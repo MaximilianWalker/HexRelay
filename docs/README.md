@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 added CSRF enforcement and `last_read_seq` overflow validation to mark-as-read handler; added `last_read_seq_invalid` error code to contract.
+- Latest meaningful change: 2026-03-20 corrected stale BlockedSameServer remediation text in parallel-dial response and documented remediation field as human-readable in OpenAPI contract.
 
 ## Purpose
 
