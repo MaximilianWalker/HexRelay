@@ -599,8 +599,8 @@ pub async fn revoke_dm_endpoint_cards(
 
 pub async fn run_dm_parallel_dial(
     axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
     headers: HeaderMap,
+    auth: AuthSession,
     Json(payload): Json<DmParallelDialRequest>,
 ) -> ApiResult<Json<DmParallelDialResponse>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
@@ -639,9 +639,9 @@ pub async fn run_dm_parallel_dial(
                 canceled_endpoint_ids: vec![],
                 attempts: vec![],
                 remediation: vec![
-                    "Recipient DM policy is same_server; execution endpoints cannot verify shared-server context yet."
+                    "Recipient DM policy is same_server but no shared server membership was found."
                         .to_string(),
-                    "Ask recipient to switch DM inbound policy, or retry after same_server execution checks are implemented."
+                    "Join a shared server with the recipient, or ask them to change their DM inbound policy."
                         .to_string(),
                 ],
             }));
