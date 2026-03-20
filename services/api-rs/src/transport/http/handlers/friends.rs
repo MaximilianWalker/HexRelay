@@ -4,8 +4,11 @@ use crate::{
         validation::{validate_friend_request_create, validate_friend_request_list_query},
     },
     infra::db::repos::friends_repo::{self, FriendRequestRepoError},
-    models::{FriendRequestCreate, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord},
-    shared::errors::{bad_request, conflict, unauthorized, ApiResult},
+    models::{
+        DmEndpointCard, DmProfileDeviceSummary, FriendRequestCreate, FriendRequestListQuery,
+        FriendRequestPage, FriendRequestRecord, IdentityBootstrapBundle,
+    },
+    shared::errors::{bad_request, conflict, forbidden, unauthorized, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -16,6 +19,8 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
+
+use crate::infra::db::repos::{auth_repo, dm_repo};
 
 #[cfg(test)]
 use crate::domain::friends::service::apply_friend_request_transition;
@@ -352,6 +357,240 @@ fn cancel_friend_request_in_memory(
     apply_friend_request_transition(request, "cancelled", &actor_identity, ActorRole::Requester)?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn get_friend_request_bootstrap(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::extract::Path(request_id): axum::extract::Path<String>,
+) -> ApiResult<Json<IdentityBootstrapBundle>> {
+    let actor_identity = auth.identity_id;
+
+    let Some(pool) = state.db_pool.as_ref() else {
+        #[cfg(not(test))]
+        {
+            return Err(internal_error(
+                "storage_unavailable",
+                "bootstrap requires configured database pool",
+            ));
+        }
+
+        #[cfg(test)]
+        {
+            return get_friend_request_bootstrap_in_memory(state, request_id, actor_identity);
+        }
+    };
+
+    let request = friends_repo::get_friend_request_by_id(pool, &request_id)
+        .await
+        .map_err(map_friend_request_db_error)?
+        .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+    let is_requester = request.requester_identity_id == actor_identity;
+    let is_target = request.target_identity_id == actor_identity;
+    if !is_requester && !is_target {
+        return Err(unauthorized(
+            "identity_invalid",
+            "friend request cannot be accessed by this session",
+        ));
+    }
+
+    if request.status != "accepted" {
+        return Err(forbidden(
+            "bootstrap_not_available",
+            "identity bootstrap material is only available after friend request acceptance",
+        ));
+    }
+
+    let peer_identity_id = if is_requester {
+        &request.target_identity_id
+    } else {
+        &request.requester_identity_id
+    };
+
+    let identity_key = auth_repo::get_identity_key(pool, peer_identity_id)
+        .await
+        .map_err(|_| {
+            internal_error(
+                "storage_failure",
+                "failed to retrieve peer identity key material",
+            )
+        })?
+        .ok_or_else(|| {
+            internal_error(
+                "bootstrap_incomplete",
+                "peer identity key is not registered",
+            )
+        })?;
+
+    let now_epoch = chrono::Utc::now().timestamp();
+    let card_records = dm_repo::list_dm_endpoint_cards(pool, peer_identity_id, now_epoch)
+        .await
+        .map_err(|_| internal_error("storage_failure", "failed to retrieve peer endpoint cards"))?;
+
+    let endpoint_cards: Vec<DmEndpointCard> = card_records
+        .into_iter()
+        .filter(|card| !card.revoked)
+        .map(|card| {
+            let expires_at = chrono::DateTime::from_timestamp(card.expires_at_epoch, 0)
+                .unwrap_or_else(|| {
+                    tracing::warn!(
+                        expires_at_epoch = card.expires_at_epoch,
+                        endpoint_id = %card.endpoint_id,
+                        "invalid expires_at_epoch in endpoint card, falling back to now"
+                    );
+                    chrono::Utc::now()
+                });
+            DmEndpointCard {
+                endpoint_id: card.endpoint_id,
+                endpoint_hint: card.endpoint_hint,
+                estimated_rtt_ms: card.estimated_rtt_ms,
+                priority: card.priority,
+                expires_at: expires_at.to_rfc3339(),
+                revoked: false,
+            }
+        })
+        .collect();
+
+    let device_records = dm_repo::list_dm_profile_devices(pool, peer_identity_id)
+        .await
+        .map_err(|_| {
+            internal_error("storage_failure", "failed to retrieve peer profile devices")
+        })?;
+
+    let devices: Vec<DmProfileDeviceSummary> = device_records
+        .into_iter()
+        .map(|device| {
+            let last_seen_at = chrono::DateTime::from_timestamp(device.last_seen_epoch, 0)
+                .unwrap_or_else(|| {
+                    tracing::warn!(
+                        last_seen_epoch = device.last_seen_epoch,
+                        device_id = %device.device_id,
+                        "invalid last_seen_epoch in profile device, falling back to now"
+                    );
+                    chrono::Utc::now()
+                });
+            DmProfileDeviceSummary {
+                device_id: device.device_id,
+                active: device.active,
+                last_seen_at: last_seen_at.to_rfc3339(),
+            }
+        })
+        .collect();
+
+    Ok(Json(IdentityBootstrapBundle {
+        identity_id: peer_identity_id.to_string(),
+        public_key: identity_key.public_key,
+        algorithm: identity_key.algorithm,
+        endpoint_cards,
+        devices,
+    }))
+}
+
+#[cfg(test)]
+fn get_friend_request_bootstrap_in_memory(
+    state: AppState,
+    request_id: String,
+    actor_identity: String,
+) -> ApiResult<Json<IdentityBootstrapBundle>> {
+    let (peer_identity_id, _status) = {
+        let guard = state
+            .friend_requests
+            .read()
+            .expect("acquire friend request read lock");
+
+        let request = guard
+            .get(&request_id)
+            .ok_or_else(|| bad_request("identity_invalid", "friend request not found"))?;
+
+        let is_requester = request.requester_identity_id == actor_identity;
+        let is_target = request.target_identity_id == actor_identity;
+        if !is_requester && !is_target {
+            return Err(unauthorized(
+                "identity_invalid",
+                "friend request cannot be accessed by this session",
+            ));
+        }
+
+        if request.status != "accepted" {
+            return Err(forbidden(
+                "bootstrap_not_available",
+                "identity bootstrap material is only available after friend request acceptance",
+            ));
+        }
+
+        let peer_identity_id = if is_requester {
+            request.target_identity_id.clone()
+        } else {
+            request.requester_identity_id.clone()
+        };
+
+        (peer_identity_id, request.status.clone())
+    }; // guard dropped here
+
+    let keys_guard = state
+        .identity_keys
+        .read()
+        .expect("acquire identity keys read lock");
+    let identity_key = keys_guard.get(&peer_identity_id).ok_or_else(|| {
+        internal_error(
+            "bootstrap_incomplete",
+            "peer identity key is not registered",
+        )
+    })?;
+
+    let cards_guard = state
+        .dm_endpoint_cards
+        .read()
+        .expect("acquire endpoint cards read lock");
+    let now_epoch = chrono::Utc::now().timestamp();
+    let endpoint_cards: Vec<DmEndpointCard> = cards_guard
+        .get(&peer_identity_id)
+        .map(|cards| {
+            cards
+                .values()
+                .filter(|card| !card.revoked && card.expires_at_epoch >= now_epoch)
+                .map(|card| DmEndpointCard {
+                    endpoint_id: card.endpoint_id.clone(),
+                    endpoint_hint: card.endpoint_hint.clone(),
+                    estimated_rtt_ms: card.estimated_rtt_ms,
+                    priority: card.priority,
+                    expires_at: chrono::DateTime::from_timestamp(card.expires_at_epoch, 0)
+                        .unwrap_or_else(chrono::Utc::now)
+                        .to_rfc3339(),
+                    revoked: false,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let devices_guard = state
+        .dm_profile_devices
+        .read()
+        .expect("acquire profile devices read lock");
+    let devices: Vec<DmProfileDeviceSummary> = devices_guard
+        .get(&peer_identity_id)
+        .map(|devices| {
+            devices
+                .values()
+                .map(|device| DmProfileDeviceSummary {
+                    device_id: device.device_id.clone(),
+                    active: device.active,
+                    last_seen_at: chrono::DateTime::from_timestamp(device.last_seen_epoch, 0)
+                        .unwrap_or_else(chrono::Utc::now)
+                        .to_rfc3339(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(Json(IdentityBootstrapBundle {
+        identity_id: peer_identity_id,
+        public_key: identity_key.public_key.clone(),
+        algorithm: identity_key.algorithm.clone(),
+        endpoint_cards,
+        devices,
+    }))
 }
 
 fn map_friend_request_db_error(

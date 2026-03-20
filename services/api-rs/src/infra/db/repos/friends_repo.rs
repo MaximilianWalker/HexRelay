@@ -85,6 +85,26 @@ pub async fn create_friend_request_in_tx(
     Ok(map_friend_request_row(row)?)
 }
 
+pub async fn get_friend_request_by_id(
+    pool: &PgPool,
+    request_id: &str,
+) -> Result<Option<FriendRequestRecord>, FriendRequestRepoError> {
+    let row = sqlx::query(
+        "
+        SELECT request_id, requester_identity_id, target_identity_id, status, created_at
+        FROM friend_requests
+        WHERE request_id = $1
+        ",
+    )
+    .bind(request_id)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(map_friend_request_row)
+        .transpose()
+        .map_err(FriendRequestRepoError::Sql)
+}
+
 pub async fn find_pending_friend_request_by_pair(
     pool: &PgPool,
     requester_identity_id: &str,
