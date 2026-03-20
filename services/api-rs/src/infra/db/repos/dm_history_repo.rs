@@ -254,6 +254,52 @@ pub async fn list_dm_thread_messages_for_identity(
         .map(Some)
 }
 
+pub async fn mark_dm_thread_read(
+    pool: &PgPool,
+    identity_id: &str,
+    thread_id: &str,
+    last_read_seq: u64,
+) -> Result<Option<(u64, u32)>, sqlx::Error> {
+    let seq = i64::try_from(last_read_seq)
+        .map_err(|_| sqlx::Error::Protocol("last_read_seq too large for storage".into()))?;
+
+    // Monotonic advance: only update if the new value exceeds the current one.
+    // Returns NULL when the identity is not a participant (membership check).
+    let row = sqlx::query(
+        r#"
+        UPDATE dm_thread_participants
+        SET last_read_seq = GREATEST(last_read_seq, $3)
+        WHERE thread_id = $1 AND identity_id = $2
+        RETURNING last_read_seq,
+                  GREATEST(
+                      (SELECT COALESCE(MAX(seq), 0) FROM dm_messages WHERE thread_id = $1)
+                      - last_read_seq,
+                      0
+                  ) AS unread
+        "#,
+    )
+    .bind(thread_id)
+    .bind(identity_id)
+    .bind(seq)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some(r) => {
+            let new_seq = r.try_get::<i64, _>("last_read_seq")?;
+            let unread = r.try_get::<i64, _>("unread")?;
+            Ok(Some((
+                u64::try_from(new_seq).map_err(|_| {
+                    sqlx::Error::Protocol("last_read_seq must be non-negative".into())
+                })?,
+                u32::try_from(unread)
+                    .map_err(|_| sqlx::Error::Protocol("unread must be non-negative".into()))?,
+            )))
+        }
+        None => Ok(None),
+    }
+}
+
 fn map_dm_thread_row(row: sqlx::postgres::PgRow) -> Result<DmThreadSummary, sqlx::Error> {
     let unread = row.try_get::<i64, _>("unread")?;
     let last_read_seq = row.try_get::<i64, _>("last_read_seq")?;

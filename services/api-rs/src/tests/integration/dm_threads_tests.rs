@@ -406,3 +406,330 @@ async fn dm_thread_messages_return_not_found_for_non_members() {
         serde_json::from_slice(&body).expect("decode unauthorized dm messages body");
     assert_eq!(payload["code"], "thread_not_found");
 }
+
+#[tokio::test]
+async fn unread_only_cursor_restarts_when_cursor_thread_becomes_fully_read() {
+    // Documents edge-case: when unread_only=true and the cursor thread's unread
+    // count drops to 0 between page requests, the cursor thread is excluded from
+    // the filtered CTE. The COALESCE fallback resets pagination to the beginning.
+    // This is graceful degradation (restart from page 1), not an error.
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+    seed_default_dm_history(&pool).await;
+
+    // Page 1: get first thread with unread_only=true, limit=1
+    let first_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/threads?unread_only=true&limit=1")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build first unread page request");
+
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first unread page response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+
+    let first_body = to_bytes(first_response.into_body(), usize::MAX)
+        .await
+        .expect("read first unread page body");
+    let first_payload: serde_json::Value =
+        serde_json::from_slice(&first_body).expect("decode first unread page body");
+
+    let cursor = first_payload["next_cursor"]
+        .as_str()
+        .expect("cursor from first unread page");
+
+    // Mark the cursor thread as fully read so its unread drops to 0
+    sqlx::query(
+        "UPDATE dm_thread_participants SET last_read_seq = (SELECT COALESCE(MAX(seq), 0) FROM dm_messages WHERE thread_id = $1) WHERE thread_id = $1 AND identity_id = 'usr-nora-k'",
+    )
+    .bind(cursor)
+    .execute(&pool)
+    .await
+    .expect("mark cursor thread fully read");
+
+    // Page 2: cursor thread now has unread=0, filtered CTE excludes it,
+    // pagination restarts from the beginning (graceful degradation).
+    let second_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/dm/threads?unread_only=true&limit=10&cursor={cursor}"
+        ))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+        )
+        .body(Body::empty())
+        .expect("build second unread page request after mark-read");
+
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second unread page response after mark-read");
+    assert_eq!(second_response.status(), StatusCode::OK);
+
+    let second_body = to_bytes(second_response.into_body(), usize::MAX)
+        .await
+        .expect("read second unread page body");
+    let second_payload: serde_json::Value =
+        serde_json::from_slice(&second_body).expect("decode second unread page body");
+
+    // The response succeeds (no error) — items restart from the beginning of
+    // the filtered set rather than continuing past the now-excluded cursor.
+    let items = second_payload["items"]
+        .as_array()
+        .expect("items array from restart page");
+    assert!(
+        !items.is_empty(),
+        "restart page should contain remaining unread threads"
+    );
+}
+
+#[tokio::test]
+async fn mark_dm_thread_read_advances_last_read_seq_and_returns_unread() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+
+    // Isolated thread to avoid parallel test interference on shared rows.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-advance",
+        "dm",
+        "Mark Advance Test",
+        &[("usr-nora-k", 401), ("usr-jules-p", 401)],
+        &[
+            (
+                "msg-ma-401",
+                "usr-nora-k",
+                401,
+                "enc:aa01",
+                "2026-03-12T09:05:08Z",
+                None,
+            ),
+            (
+                "msg-ma-402",
+                "usr-jules-p",
+                402,
+                "enc:aa02",
+                "2026-03-12T09:12:00Z",
+                None,
+            ),
+            (
+                "msg-ma-403",
+                "usr-nora-k",
+                403,
+                "enc:aa03",
+                "2026-03-12T09:19:24Z",
+                None,
+            ),
+            (
+                "msg-ma-404",
+                "usr-jules-p",
+                404,
+                "enc:aa04",
+                "2026-03-12T09:21:11Z",
+                None,
+            ),
+        ],
+    )
+    .await;
+
+    // Initially last_read_seq=401 for usr-nora-k (4 messages: 401-404).
+    // Mark read up to seq 403, expect unread=1 (seq 404 remains unread).
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/threads/dm-mark-advance/read")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"last_read_seq": 403}"#))
+        .expect("build mark-read request");
+
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("mark-read response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read mark-read body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode mark-read body");
+
+    assert_eq!(payload["thread_id"], "dm-mark-advance");
+    assert_eq!(payload["last_read_seq"], 403);
+    assert_eq!(payload["unread"], 1);
+}
+
+#[tokio::test]
+async fn mark_dm_thread_read_is_monotonic() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+        return;
+    };
+
+    // Isolated thread to avoid parallel test interference on shared rows.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-mono",
+        "dm",
+        "Mark Mono Test",
+        &[("usr-nora-k", 401), ("usr-jules-p", 401)],
+        &[
+            (
+                "msg-mm-401",
+                "usr-nora-k",
+                401,
+                "enc:bb01",
+                "2026-03-12T09:05:08Z",
+                None,
+            ),
+            (
+                "msg-mm-402",
+                "usr-jules-p",
+                402,
+                "enc:bb02",
+                "2026-03-12T09:12:00Z",
+                None,
+            ),
+            (
+                "msg-mm-403",
+                "usr-nora-k",
+                403,
+                "enc:bb03",
+                "2026-03-12T09:19:24Z",
+                None,
+            ),
+            (
+                "msg-mm-404",
+                "usr-jules-p",
+                404,
+                "enc:bb04",
+                "2026-03-12T09:21:11Z",
+                None,
+            ),
+        ],
+    )
+    .await;
+
+    // First advance to 403
+    let advance_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/threads/dm-mark-mono/read")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"last_read_seq": 403}"#))
+        .expect("build advance request");
+
+    let advance_response = app
+        .clone()
+        .oneshot(advance_request)
+        .await
+        .expect("advance response");
+    assert_eq!(advance_response.status(), StatusCode::OK);
+
+    // Try to regress to 401 — should be a no-op, seq stays at 403
+    let regress_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/threads/dm-mark-mono/read")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-nora-k"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"last_read_seq": 401}"#))
+        .expect("build regress request");
+
+    let regress_response = app
+        .oneshot(regress_request)
+        .await
+        .expect("regress response");
+    assert_eq!(regress_response.status(), StatusCode::OK);
+
+    let body = to_bytes(regress_response.into_body(), usize::MAX)
+        .await
+        .expect("read regress body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode regress body");
+
+    assert_eq!(payload["last_read_seq"], 403);
+    assert_eq!(payload["unread"], 1);
+}
+
+#[tokio::test]
+async fn mark_dm_thread_read_returns_not_found_for_non_member() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
+        return;
+    };
+
+    // Isolated thread — usr-jules-p is NOT a participant.
+    seed_dm_thread(
+        &pool,
+        "dm-mark-nomember",
+        "dm",
+        "Mark Non-Member Test",
+        &[("usr-nora-k", 100), ("usr-alex-r", 100)],
+        &[(
+            "msg-mn-100",
+            "usr-nora-k",
+            100,
+            "enc:cc01",
+            "2026-03-11T21:45:30Z",
+            None,
+        )],
+    )
+    .await;
+
+    // usr-jules-p is not a participant in dm-mark-nomember
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/threads/dm-mark-nomember/read")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-jules-p"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"last_read_seq": 100}"#))
+        .expect("build non-member mark-read request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("non-member mark-read response");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read non-member mark-read body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode non-member mark-read body");
+    assert_eq!(payload["code"], "thread_not_found");
+}

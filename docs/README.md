@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-18
+- last_updated: 2026-03-20
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-18 hardened DM thread list pagination into SQL, wrapped endpoint-card registration in a database transaction, and replaced timing-vulnerable HMAC string comparison with constant-time `ring::hmac::verify`.
+- Latest meaningful change: 2026-03-20 added CSRF enforcement and `last_read_seq` overflow validation to mark-as-read handler; added `last_read_seq_invalid` error code to contract.
 
 ## Purpose
 

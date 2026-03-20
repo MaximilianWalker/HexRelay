@@ -32,8 +32,9 @@ use crate::{
         DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
         DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
         DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse,
-        DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMessageListQuery,
-        DmThreadPage, DmWanWizardRequest, DmWanWizardResponse,
+        DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMarkReadRequest,
+        DmThreadMarkReadResponse, DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest,
+        DmWanWizardResponse,
     },
     shared::errors::{bad_request, internal_error, ApiResult},
     state::AppState,
@@ -1326,6 +1327,52 @@ pub async fn list_dm_thread_messages(
     Ok(Json(DmMessagePage {
         items: page_items,
         next_cursor,
+    }))
+}
+
+pub async fn mark_dm_thread_read(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    auth: AuthSession,
+    Path(thread_id): Path<String>,
+    Json(body): Json<DmThreadMarkReadRequest>,
+) -> ApiResult<Json<DmThreadMarkReadResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+
+    if body.last_read_seq > i64::MAX as u64 {
+        return Err(bad_request(
+            "last_read_seq_invalid",
+            "last_read_seq is out of range",
+        ));
+    }
+
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "dm history requires configured database pool",
+        )
+    })?;
+
+    let (new_seq, unread) = dm_history_repo::mark_dm_thread_read(
+        pool,
+        &auth.identity_id,
+        &thread_id,
+        body.last_read_seq,
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to mark dm thread as read"))?
+    .ok_or((
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            code: "thread_not_found",
+            message: "dm thread was not found or identity is not a participant",
+        }),
+    ))?;
+
+    Ok(Json(DmThreadMarkReadResponse {
+        thread_id,
+        last_read_seq: new_seq,
+        unread,
     }))
 }
 
