@@ -36,6 +36,12 @@ struct DmPreflightResp {
     reason_code: String,
 }
 
+#[derive(Deserialize)]
+struct DmParallelDialResp {
+    status: String,
+    reason_code: String,
+}
+
 // ── Block CRUD ────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -433,4 +439,82 @@ async fn block_prevents_dm_connectivity_preflight() {
     let preflight: DmPreflightResp = serde_json::from_slice(&body).expect("decode preflight");
     assert_eq!(preflight.status, "blocked");
     assert_eq!(preflight.reason_code, "preflight_blocked_user");
+}
+
+// ── Parallel dial block check ─────────────────────────────────────────
+
+#[tokio::test]
+async fn block_prevents_dm_parallel_dial() {
+    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+
+    // Block usr-b
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
+        .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
+        .expect("build block request");
+    let resp = app.clone().oneshot(req).await.expect("block response");
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Attempt parallel dial to blocked user
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/parallel-dial")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
+        .body(Body::from(r#"{"peer_identity_id":"usr-b"}"#))
+        .expect("build parallel dial request");
+    let resp = app
+        .clone()
+        .oneshot(req)
+        .await
+        .expect("parallel dial response");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .expect("read parallel dial body");
+    let dial: DmParallelDialResp = serde_json::from_slice(&body).expect("decode parallel dial");
+    assert_eq!(dial.status, "blocked");
+    assert_eq!(dial.reason_code, "parallel_dial_blocked_user");
+}
+
+#[tokio::test]
+async fn reverse_block_prevents_dm_parallel_dial() {
+    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+
+    // usr-b blocks usr-a (reverse direction)
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-b"]))
+        .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
+        .expect("build block request");
+    let resp = app.clone().oneshot(req).await.expect("block response");
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // usr-a tries parallel dial to usr-b (who blocked them)
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/parallel-dial")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
+        .body(Body::from(r#"{"peer_identity_id":"usr-b"}"#))
+        .expect("build parallel dial request");
+    let resp = app
+        .clone()
+        .oneshot(req)
+        .await
+        .expect("parallel dial response");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .expect("read parallel dial body");
+    let dial: DmParallelDialResp = serde_json::from_slice(&body).expect("decode parallel dial");
+    assert_eq!(dial.status, "blocked");
+    assert_eq!(dial.reason_code, "parallel_dial_blocked_user");
 }

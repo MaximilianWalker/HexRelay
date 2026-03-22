@@ -16,7 +16,7 @@ pub fn validate_block_request(
     }
 
     if payload.target_identity_id == actor_identity_id {
-        return Err(bad_request("identity_invalid", "cannot block yourself"));
+        return Err(bad_request("identity_invalid", "cannot target yourself"));
     }
 
     Ok(())
@@ -31,7 +31,7 @@ pub fn validate_mute_request(payload: &MuteUserRequest, actor_identity_id: &str)
     }
 
     if payload.target_identity_id == actor_identity_id {
-        return Err(bad_request("identity_invalid", "cannot mute yourself"));
+        return Err(bad_request("identity_invalid", "cannot target yourself"));
     }
 
     Ok(())

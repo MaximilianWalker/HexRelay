@@ -633,7 +633,7 @@ pub async fn run_dm_parallel_dial(
             attempts: vec![],
             remediation: vec![
                 "Cannot dial this user — a block relationship exists.".to_string(),
-                "Remove the block to re-enable direct connectivity.".to_string(),
+                "If you blocked them, remove the block; if they blocked you, ask them to remove it.".to_string(),
             ],
         }));
     }
