@@ -13,7 +13,7 @@ use crate::{
     },
     shared::errors::{bad_request, internal_error, too_many_requests, ApiResult},
     state::AppState,
-    transport::http::middleware::auth::AuthSession,
+    transport::http::{middleware::auth::AuthSession, middleware::rate_limit::allow_distributed},
 };
 
 pub async fn list_discovery_users(
@@ -24,13 +24,36 @@ pub async fn list_discovery_users(
     let scope = normalize_scope(query.scope.as_deref())?;
     let search = normalize_search(query.query.as_deref());
     let limit = normalize_limit(query.limit);
-
-    let allowed = state.rate_limiter.allow(
-        "discovery_query",
+    let blocked = in_memory_blocked_peers(&state, &auth.identity_id);
+    let excluded_identity_ids = discovery_exclusions(
         &auth.identity_id,
-        state.rate_limits.discovery_query_per_window,
-        state.rate_limits.window_seconds,
+        &blocked,
+        state.discovery_denylist.as_ref(),
     );
+
+    let allowed = if let Some(pool) = state.db_pool.as_ref() {
+        allow_distributed(
+            pool,
+            "discovery_query",
+            &auth.identity_id,
+            state.rate_limits.discovery_query_per_window,
+            state.rate_limits.window_seconds,
+        )
+        .await
+        .map_err(|_| {
+            internal_error(
+                "rate_limiter_unavailable",
+                "failed to enforce distributed rate limit",
+            )
+        })?
+    } else {
+        state.rate_limiter.allow(
+            "discovery_query",
+            &auth.identity_id,
+            state.rate_limits.discovery_query_per_window,
+            state.rate_limits.window_seconds,
+        )
+    };
     if !allowed {
         return Err(too_many_requests(
             "rate_limited",
@@ -41,11 +64,24 @@ pub async fn list_discovery_users(
     if let Some(pool) = state.db_pool.as_ref() {
         let candidates = match scope {
             "global" => {
-                discovery_repo::list_global_discovery_candidates(pool, &auth.identity_id).await
+                discovery_repo::list_global_discovery_candidates(
+                    pool,
+                    &auth.identity_id,
+                    search.as_deref(),
+                    limit,
+                    &excluded_identity_ids,
+                )
+                .await
             }
             _ => {
-                discovery_repo::list_shared_server_discovery_candidates(pool, &auth.identity_id)
-                    .await
+                discovery_repo::list_shared_server_discovery_candidates(
+                    pool,
+                    &auth.identity_id,
+                    search.as_deref(),
+                    limit,
+                    &excluded_identity_ids,
+                )
+                .await
             }
         }
         .map_err(|_| internal_error("storage_unavailable", "failed to list discovery users"))?;
@@ -64,8 +100,6 @@ pub async fn list_discovery_users(
             .map_err(|_| {
                 internal_error("storage_unavailable", "failed to list shared-server counts")
             })?;
-
-        let blocked = in_memory_blocked_peers(&state, &auth.identity_id);
 
         let items = build_discovery_items(DiscoveryBuildInput {
             actor_identity_id: &auth.identity_id,
@@ -136,7 +170,7 @@ struct DiscoveryBuildInput<'a> {
     relationships: Vec<discovery_repo::DiscoveryRelationshipRow>,
     shared_counts: HashMap<String, u32>,
     blocked: HashSet<String>,
-    denylist: &'a [String],
+    denylist: &'a HashSet<String>,
     search: Option<&'a str>,
     scope: &'a str,
     limit: usize,
@@ -155,13 +189,25 @@ fn build_discovery_items(input: DiscoveryBuildInput<'_>) -> Vec<DiscoveryUserSum
         limit,
     } = input;
 
-    let denylist = denylist.iter().cloned().collect::<HashSet<_>>();
     let mut relationship_index = HashMap::new();
 
     for row in relationships {
-        relationship_index
+        let candidate = relationship_index
             .entry(row.peer_identity_id)
-            .or_insert((row.status, row.requester_is_self));
+            .or_insert_with(|| {
+                (
+                    row.status.clone(),
+                    row.requester_is_self,
+                    row.created_at.clone(),
+                )
+            });
+
+        if relationship_rank(&row.status) > relationship_rank(&candidate.0)
+            || (relationship_rank(&row.status) == relationship_rank(&candidate.0)
+                && row.created_at > candidate.2)
+        {
+            *candidate = (row.status, row.requester_is_self, row.created_at);
+        }
     }
 
     let mut items = candidates
@@ -192,14 +238,15 @@ fn build_discovery_items(input: DiscoveryBuildInput<'_>) -> Vec<DiscoveryUserSum
                 .get(&candidate.identity_id)
                 .copied()
                 .unwrap_or_default();
-            let (relationship_state, requester_is_self) = relationship_index
+            let (relationship_state, requester_is_self, _) = relationship_index
                 .get(&candidate.identity_id)
                 .cloned()
-                .unwrap_or_else(|| ("none".to_string(), false));
+                .unwrap_or_else(|| ("none".to_string(), false, String::new()));
 
             let has_pending_inbound_request = relationship_state == "pending" && !requester_is_self;
             let has_pending_outbound_request = relationship_state == "pending" && requester_is_self;
-            let can_send_friend_request = relationship_state == "none";
+            let can_send_friend_request =
+                !matches!(relationship_state.as_str(), "pending" | "accepted");
 
             DiscoveryUserSummary {
                 identity_id: candidate.identity_id,
@@ -222,6 +269,27 @@ fn build_discovery_items(input: DiscoveryBuildInput<'_>) -> Vec<DiscoveryUserSum
     });
     items.truncate(limit);
     items
+}
+
+fn discovery_exclusions(
+    actor_identity_id: &str,
+    blocked: &HashSet<String>,
+    denylist: &HashSet<String>,
+) -> Vec<String> {
+    let mut excluded = HashSet::with_capacity(blocked.len() + denylist.len() + 1);
+    excluded.insert(actor_identity_id.to_string());
+    excluded.extend(blocked.iter().cloned());
+    excluded.extend(denylist.iter().cloned());
+    excluded.into_iter().collect()
+}
+
+fn relationship_rank(status: &str) -> u8 {
+    match status {
+        "accepted" => 3,
+        "pending" => 2,
+        "declined" | "cancelled" => 1,
+        _ => 0,
+    }
 }
 
 #[cfg(test)]
@@ -291,12 +359,14 @@ fn relationship_from_request(
             peer_identity_id: request.target_identity_id.clone(),
             status: request.status.clone(),
             requester_is_self: true,
+            created_at: request.created_at.clone(),
         })
     } else if request.target_identity_id == actor_identity_id {
         Some(discovery_repo::DiscoveryRelationshipRow {
             peer_identity_id: request.requester_identity_id.clone(),
             status: request.status.clone(),
             requester_is_self: false,
+            created_at: request.created_at.clone(),
         })
     } else {
         None

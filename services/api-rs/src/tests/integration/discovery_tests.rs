@@ -406,3 +406,169 @@ async fn discovery_excludes_configured_denylist() {
     assert_eq!(payload.items.len(), 1);
     assert_eq!(payload.items[0].identity_id, "usr-allowed");
 }
+
+#[tokio::test]
+async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclusions() {
+    let actor = unique_identity("usr-discovery-actor");
+    let blocked = unique_identity("usr-discovery-blocked");
+    let denied = unique_identity("usr-discovery-denied");
+    let allowed = unique_identity("usr-discovery-allowed");
+
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        vec![denied.clone()],
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &blocked).await;
+    ensure_db_identity_key(&pool, &denied).await;
+    ensure_db_identity_key(&pool, &allowed).await;
+
+    state
+        .blocked_users
+        .write()
+        .expect("blocked users write lock")
+        .insert(
+            actor.clone(),
+            HashMap::from([(blocked.clone(), Utc::now().timestamp())]),
+        );
+
+    let token = issue_db_session_cookie(&pool, &state, &actor).await;
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=global&limit=1")
+        .header("cookie", format!("hexrelay_session={token}"))
+        .body(Body::empty())
+        .expect("build discovery request");
+
+    let response = app.oneshot(request).await.expect("discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read discovery response body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode discovery payload");
+
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0].identity_id, allowed);
+}
+
+#[tokio::test]
+async fn discovery_prefers_accepted_relationship_over_newer_terminal_state() {
+    let state = AppState::default();
+    let expires_at = Utc::now() + Duration::hours(1);
+    state.sessions.write().expect("session write lock").insert(
+        "sess-main".to_string(),
+        SessionRecord {
+            identity_id: "usr-main".to_string(),
+            expires_at,
+        },
+    );
+
+    state
+        .identity_keys
+        .write()
+        .expect("identity key write lock")
+        .extend([
+            (
+                "usr-main".to_string(),
+                RegisteredIdentityKey {
+                    public_key: "aa".repeat(32),
+                    algorithm: "ed25519".to_string(),
+                },
+            ),
+            (
+                "usr-peer".to_string(),
+                RegisteredIdentityKey {
+                    public_key: "bb".repeat(32),
+                    algorithm: "ed25519".to_string(),
+                },
+            ),
+        ]);
+
+    {
+        let mut requests = state
+            .friend_requests
+            .write()
+            .expect("friend request write lock");
+        requests.insert(
+            "req-accepted".to_string(),
+            api_models::FriendRequestRecord {
+                request_id: "req-accepted".to_string(),
+                requester_identity_id: "usr-main".to_string(),
+                target_identity_id: "usr-peer".to_string(),
+                status: "accepted".to_string(),
+                created_at: (Utc::now() - Duration::minutes(5)).to_rfc3339(),
+            },
+        );
+        requests.insert(
+            "req-cancelled".to_string(),
+            api_models::FriendRequestRecord {
+                request_id: "req-cancelled".to_string(),
+                requester_identity_id: "usr-main".to_string(),
+                target_identity_id: "usr-peer".to_string(),
+                status: "cancelled".to_string(),
+                created_at: Utc::now().to_rfc3339(),
+            },
+        );
+    }
+
+    let token = issue_session_token(
+        "sess-main",
+        "usr-main",
+        expires_at.timestamp(),
+        &state.active_signing_key_id,
+        state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active signing key"),
+    );
+
+    let app = build_app(state);
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=global")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .expect("build discovery request");
+
+    let response = app.oneshot(request).await.expect("discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read discovery response body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode discovery payload");
+
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0].identity_id, "usr-peer");
+    assert_eq!(payload.items[0].relationship_state, "accepted");
+    assert!(!payload.items[0].can_send_friend_request);
+}

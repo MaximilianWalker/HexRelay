@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     collections::HashMap,
+    collections::HashSet,
     sync::{Arc, RwLock},
 };
 
@@ -23,7 +24,7 @@ pub struct AppState {
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub blocked_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
     pub db_pool: Option<PgPool>,
-    pub discovery_denylist: Arc<Vec<String>>,
+    pub discovery_denylist: Arc<HashSet<String>>,
     pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
     pub dm_fanout_delivery_log: Arc<RwLock<HashMap<String, Vec<DmFanoutDeliveryRecord>>>>,
     pub dm_fanout_device_cursors: Arc<RwLock<HashMap<String, HashMap<String, u64>>>>,
@@ -66,7 +67,7 @@ impl AppState {
             auth_challenges: Arc::default(),
             blocked_users: Arc::default(),
             db_pool: None,
-            discovery_denylist: Arc::new(discovery_denylist),
+            discovery_denylist: Arc::new(discovery_denylist.into_iter().collect()),
             dm_endpoint_cards: Arc::default(),
             dm_fanout_delivery_log: Arc::default(),
             dm_fanout_device_cursors: Arc::default(),
