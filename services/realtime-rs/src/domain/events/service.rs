@@ -153,6 +153,33 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
     }
 }
 
+pub fn build_presence_updated_event(
+    user_id: &str,
+    status: &str,
+    updated_at: &str,
+    presence_seq: u64,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "presence.updated".to_string(),
+        event_version: 1,
+        occurred_at: updated_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-presence".to_string(),
+        data: serde_json::json!({
+            "user_id": user_id,
+            "status": status,
+            "updated_at": updated_at,
+            "presence_seq": presence_seq,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
 fn build_event<T: Serialize>(event_type: &str, correlation_id: Option<String>, data: T) -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),

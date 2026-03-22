@@ -283,6 +283,7 @@ paths:
   /v1/contacts:
     get:
       summary: List contacts for authenticated identity
+      description: Returns accepted and pending contact relationships for the authenticated identity. When Redis-backed presence snapshots are configured, accepted contacts surface the current `online` or `offline` presence snapshot from the realtime presence service.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -310,6 +311,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/internal/presence/watchers/{identity_id}:
+    get:
+      summary: Resolve authorized presence watchers for an identity
+      description: Internal service-to-service endpoint used by `services/realtime-rs` to resolve which identities may receive presence updates for the subject identity.
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: identity_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Authorized presence watchers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceWatcherListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1192,6 +1219,7 @@ components:
           type: string
         status:
           type: string
+          enum: [online, offline, away]
         unread:
           type: integer
           minimum: 0
@@ -1209,6 +1237,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactSummary'
+    PresenceWatcherListResponse:
+      type: object
+      required: [watchers]
+      properties:
+        watchers:
+          type: array
+          items:
+            type: string
     DiscoveryUserSummary:
       type: object
       required:
@@ -2093,6 +2129,7 @@ components:
             - bootstrap_incomplete
             - bootstrap_not_available
             - invite_invalid
+            - internal_token_invalid
             - invite_expired
             - invite_exhausted
             - fingerprint_mismatch

@@ -29,12 +29,25 @@ async fn main() {
         }
     };
 
+    let presence_redis_client = match config.presence_redis_url.as_ref() {
+        Some(url) => match redis::Client::open(url.as_str()) {
+            Ok(value) => Some(value),
+            Err(err) => {
+                error!(error = %err, "api startup aborted due to invalid presence Redis configuration");
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
+
     let app = build_app(
         AppState::new(
             config.node_fingerprint.clone(),
             config.allowed_origins.clone(),
             config.active_signing_key_id.clone(),
             config.discovery_denylist.clone(),
+            config.presence_internal_token.clone(),
+            presence_redis_client,
             config.session_signing_keys.clone().into_iter().collect(),
             config.session_cookie_domain.clone(),
             config.session_cookie_secure,

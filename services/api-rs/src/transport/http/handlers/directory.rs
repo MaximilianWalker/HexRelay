@@ -6,7 +6,10 @@ use axum::{
 };
 
 use crate::{
-    infra::db::repos::{directory_repo, servers_repo},
+    infra::{
+        db::repos::{directory_repo, servers_repo},
+        presence::redis_presence,
+    },
     models::{
         ContactListQuery, ContactListResponse, ContactSummary, ServerListQuery, ServerListResponse,
     },
@@ -110,6 +113,23 @@ pub async fn list_contacts(
                 pending_request: outbound_pending.contains(&id),
             })
             .collect::<Vec<_>>();
+
+        if let Some(redis_client) = state.presence_redis_client.as_ref() {
+            let contact_ids = items
+                .iter()
+                .filter(|item| !item.inbound_request && !item.pending_request)
+                .map(|item| item.id.clone())
+                .collect::<Vec<_>>();
+            if let Ok(statuses) =
+                redis_presence::list_presence_statuses(redis_client, &contact_ids).await
+            {
+                for item in &mut items {
+                    if let Some(status) = statuses.get(&item.id) {
+                        item.status = status.clone();
+                    }
+                }
+            }
+        }
 
         apply_contact_filters(&mut items, &query);
         return Ok(Json(ContactListResponse { items }));

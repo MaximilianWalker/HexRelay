@@ -30,6 +30,7 @@ use crate::{
         },
         health::health,
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
+        presence::list_presence_watchers,
     },
 };
 
@@ -63,6 +64,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
         .route("/v1/contacts", get(list_contacts))
+        .route(
+            "/v1/internal/presence/watchers/:identity_id",
+            get(list_presence_watchers),
+        )
         .route("/v1/discovery/users", get(list_discovery_users))
         .route(
             "/v1/dm/privacy-policy",

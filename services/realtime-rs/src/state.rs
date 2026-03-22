@@ -1,9 +1,11 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc::Sender, Mutex};
 
 use crate::transport::ws::middleware::rate_limit::RateLimiter;
+
+pub type ConnectionSenderMap = HashMap<String, HashMap<String, Sender<String>>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -11,6 +13,8 @@ pub struct AppState {
     pub allowed_origins: Vec<String>,
     pub trust_proxy_headers: bool,
     pub http_client: reqwest::Client,
+    pub presence_internal_token: String,
+    pub presence_redis_client: Option<redis::Client>,
     pub rate_limiter: RateLimiter,
     pub ws_connect_rate_limit: usize,
     pub ws_rate_limit_window_seconds: u64,
@@ -21,6 +25,7 @@ pub struct AppState {
     pub ws_auth_grace_seconds: u64,
     pub ws_auth_cache_max_entries: usize,
     pub active_connections: Arc<Mutex<HashMap<String, usize>>>,
+    pub connection_senders: Arc<Mutex<ConnectionSenderMap>>,
     pub validated_session_cache: Arc<Mutex<HashMap<String, CachedSession>>>,
 }
 
@@ -36,6 +41,8 @@ impl AppState {
     pub fn new(
         api_base_url: String,
         allowed_origins: Vec<String>,
+        presence_internal_token: String,
+        presence_redis_client: Option<redis::Client>,
         trust_proxy_headers: bool,
         ws_connect_rate_limit: usize,
         ws_rate_limit_window_seconds: u64,
@@ -57,6 +64,8 @@ impl AppState {
             allowed_origins,
             trust_proxy_headers,
             http_client,
+            presence_internal_token,
+            presence_redis_client,
             rate_limiter: RateLimiter::default(),
             ws_connect_rate_limit,
             ws_rate_limit_window_seconds,
@@ -67,6 +76,7 @@ impl AppState {
             ws_auth_grace_seconds,
             ws_auth_cache_max_entries,
             active_connections: Arc::new(Mutex::new(HashMap::new())),
+            connection_senders: Arc::new(Mutex::new(HashMap::new())),
             validated_session_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }

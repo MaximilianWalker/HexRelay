@@ -276,6 +276,8 @@ async fn rate_limits_auth_challenge_requests() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -342,6 +344,8 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -410,6 +414,8 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -478,6 +484,8 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -533,6 +541,8 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),

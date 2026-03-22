@@ -183,6 +183,8 @@ async fn rate_limits_invite_redeem_requests() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
