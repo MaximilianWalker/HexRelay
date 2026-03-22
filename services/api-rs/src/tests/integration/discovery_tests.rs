@@ -461,7 +461,7 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global&limit=1")
+        .uri("/v1/discovery/users?scope=global&query=usr-discovery-&limit=1")
         .header("cookie", format!("hexrelay_session={token}"))
         .body(Body::empty())
         .expect("build discovery request");
