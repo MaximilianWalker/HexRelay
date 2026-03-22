@@ -65,9 +65,7 @@ pub async fn list_discovery_users(
                 internal_error("storage_unavailable", "failed to list shared-server counts")
             })?;
 
-        let blocked = discovery_repo::blocked_peers(pool, &auth.identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to list blocked peers"))?;
+        let blocked = in_memory_blocked_peers(&state, &auth.identity_id);
 
         let items = build_discovery_items(DiscoveryBuildInput {
             actor_identity_id: &auth.identity_id,
@@ -310,7 +308,6 @@ fn in_memory_shared_counts(_state: &AppState, _actor_identity_id: &str) -> HashM
     HashMap::new()
 }
 
-#[cfg(test)]
 fn in_memory_blocked_peers(state: &AppState, actor_identity_id: &str) -> HashSet<String> {
     let guard = state
         .blocked_users
