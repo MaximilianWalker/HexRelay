@@ -850,6 +850,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -969,6 +971,144 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/block:
+    post:
+      summary: Block a user
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockUserRequest'
+      responses:
+        '201':
+          description: User blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/unblock:
+    post:
+      summary: Unblock a user
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockUserRequest'
+      responses:
+        '204':
+          description: User unblocked
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/blocked:
+    get:
+      summary: List blocked users
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of blocked users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/mute:
+    post:
+      summary: Mute a user
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MuteUserRequest'
+      responses:
+        '201':
+          description: User muted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MuteRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/unmute:
+    post:
+      summary: Unmute a user
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MuteUserRequest'
+      responses:
+        '204':
+          description: User unmuted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/users/muted:
+    get:
+      summary: List muted users
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of muted users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MuteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -1132,6 +1272,7 @@ components:
           enum:
             - preflight_ok
             - preflight_ok_lan
+            - preflight_blocked_user
             - pairing_missing
             - port_unavailable
             - policy_blocked
@@ -1364,7 +1505,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [parallel_dial_connected, parallel_dial_exhausted, endpoint_cards_missing, parallel_dial_policy_blocked, parallel_dial_same_server_context_required]
+          enum: [parallel_dial_connected, parallel_dial_exhausted, endpoint_cards_missing, parallel_dial_policy_blocked, parallel_dial_same_server_context_required, parallel_dial_blocked_user]
         transport_profile:
           type: string
           enum: [direct_only]
@@ -1449,7 +1590,7 @@ components:
           enum: [ready, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full, fanout_policy_blocked, fanout_same_server_context_required]
+          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
         transport_profile:
           type: string
           enum: [direct_only]
@@ -1813,6 +1954,56 @@ components:
       properties:
         accepted:
           type: boolean
+    BlockUserRequest:
+      type: object
+      required: [target_identity_id]
+      properties:
+        target_identity_id:
+          type: string
+    MuteUserRequest:
+      type: object
+      required: [target_identity_id]
+      properties:
+        target_identity_id:
+          type: string
+    BlockRecord:
+      type: object
+      required: [blocker_identity_id, blocked_identity_id, created_at]
+      properties:
+        blocker_identity_id:
+          type: string
+        blocked_identity_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    MuteRecord:
+      type: object
+      required: [muter_identity_id, muted_identity_id, created_at]
+      properties:
+        muter_identity_id:
+          type: string
+        muted_identity_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    BlockListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockRecord'
+    MuteListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MuteRecord'
     ApiError:
       type: object
       required: [code, message]
@@ -1820,6 +2011,9 @@ components:
         code:
           type: string
           enum:
+            - already_blocked
+            - already_muted
+            - blocked_user
             - bootstrap_incomplete
             - bootstrap_not_available
             - invite_invalid

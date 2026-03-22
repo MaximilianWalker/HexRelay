@@ -12,6 +12,9 @@ use crate::{
             issue_auth_challenge, register_identity_key, revoke_session, validate_session,
             verify_auth_challenge,
         },
+        block_mute::{
+            block_user, list_blocked_users, list_muted_users, mute_user, unblock_user, unmute_user,
+        },
         directory::{list_contacts, list_servers},
         dm::{
             announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
@@ -125,6 +128,12 @@ pub fn build_app(state: AppState) -> Router {
             "/v1/friends/requests/:request_id/bootstrap",
             get(get_friend_request_bootstrap),
         )
+        .route("/v1/users/block", post(block_user))
+        .route("/v1/users/unblock", post(unblock_user))
+        .route("/v1/users/blocked", get(list_blocked_users))
+        .route("/v1/users/mute", post(mute_user))
+        .route("/v1/users/unmute", post(unmute_user))
+        .route("/v1/users/muted", get(list_muted_users))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

@@ -520,6 +520,40 @@ pub struct IdentityKeyRegistrationRequest {
     pub algorithm: String,
 }
 
+#[derive(Deserialize)]
+pub struct BlockUserRequest {
+    pub target_identity_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct MuteUserRequest {
+    pub target_identity_id: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct BlockRecord {
+    pub blocker_identity_id: String,
+    pub blocked_identity_id: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct MuteRecord {
+    pub muter_identity_id: String,
+    pub muted_identity_id: String,
+    pub created_at: String,
+}
+
+#[derive(Serialize)]
+pub struct BlockListResponse {
+    pub items: Vec<BlockRecord>,
+}
+
+#[derive(Serialize)]
+pub struct MuteListResponse {
+    pub items: Vec<MuteRecord>,
+}
+
 #[derive(Serialize)]
 pub struct ApiError {
     pub code: &'static str,

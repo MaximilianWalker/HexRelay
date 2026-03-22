@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod block_mute;
 pub mod directory;
 pub mod dm;
 pub mod friends;

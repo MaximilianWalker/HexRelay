@@ -9,6 +9,7 @@ use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
     domain::dm::validation::{
@@ -254,6 +255,16 @@ pub async fn dm_connectivity_preflight(
     }
 
     if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
+        if is_blocked_bidirectional(&state, &auth.identity_id, peer_identity_id)? {
+            return Ok(Json(preflight_blocked(
+                "preflight_blocked_user",
+                vec![
+                    "Cannot establish DM connectivity with this user.",
+                    "A block relationship exists between you and this contact.",
+                ],
+            )));
+        }
+
         match dm_interaction_policy_decision(&state, &auth.identity_id, peer_identity_id).await? {
             DmInteractionPolicyDecision::Allowed => {}
             DmInteractionPolicyDecision::BlockedFriendsOnly
@@ -611,6 +622,22 @@ pub async fn run_dm_parallel_dial(
         .max_parallel_attempts
         .unwrap_or(DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS) as usize;
     let peer_identity_id = payload.peer_identity_id.trim().to_string();
+
+    if is_blocked_bidirectional(&state, &auth.identity_id, &peer_identity_id)? {
+        return Ok(Json(DmParallelDialResponse {
+            status: "blocked".to_string(),
+            reason_code: "parallel_dial_blocked_user".to_string(),
+            transport_profile: "direct_only".to_string(),
+            winner_endpoint_id: None,
+            canceled_endpoint_ids: vec![],
+            attempts: vec![],
+            remediation: vec![
+                "Cannot dial this user — a block relationship exists.".to_string(),
+                "If you blocked them, remove the block; if they blocked you, ask them to remove it.".to_string(),
+            ],
+        }));
+    }
+
     match dm_interaction_policy_decision(&state, &auth.identity_id, &peer_identity_id).await? {
         DmInteractionPolicyDecision::Allowed => {}
         DmInteractionPolicyDecision::BlockedFriendsOnly
@@ -849,6 +876,18 @@ pub async fn run_dm_active_fanout(
     validate_fanout_dispatch(&payload)?;
 
     let recipient_identity_id = payload.recipient_identity_id.trim();
+
+    if is_blocked_bidirectional(&state, &auth.identity_id, recipient_identity_id)? {
+        return Ok(Json(DmFanoutDispatchResponse {
+            status: "blocked".to_string(),
+            reason_code: "fanout_blocked_user".to_string(),
+            transport_profile: "direct_only".to_string(),
+            fanout_count: 0,
+            delivered_device_ids: vec![],
+            skipped_device_ids: vec![],
+        }));
+    }
+
     match dm_interaction_policy_decision(&state, &auth.identity_id, recipient_identity_id).await? {
         DmInteractionPolicyDecision::Allowed => {}
         DmInteractionPolicyDecision::BlockedFriendsOnly

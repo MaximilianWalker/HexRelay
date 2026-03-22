@@ -1,4 +1,5 @@
 use crate::{
+    domain::block_mute::service::is_blocked_bidirectional,
     domain::friends::{
         service::ActorRole,
         validation::{validate_friend_request_create, validate_friend_request_list_query},
@@ -45,6 +46,13 @@ pub async fn create_friend_request(
         return Err(unauthorized(
             "identity_invalid",
             "requester_identity_id must match authenticated session",
+        ));
+    }
+
+    if is_blocked_bidirectional(&state, &actor_identity, &payload.target_identity_id)? {
+        return Err(forbidden(
+            "blocked_user",
+            "cannot send friend request — a block relationship exists between these users",
         ));
     }
 

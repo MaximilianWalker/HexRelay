@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 T3.1.5 complete; T3.1.1-T3.1.3 moved to Done; starting T3.1.4 contact invite share/scan UX.
+- Latest meaningful change: 2026-03-20 T3.1.4 complete (PR #50); all T3.1.x tasks done; starting T3.2.1 block/mute logic.
 
 ## Iteration Scope
 
@@ -138,7 +138,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T3.1.4 | Implement contact invite share/scan UX (link + QR) | In progress | Starting implementation |
+| T3.2.1 | Implement block/mute logic and fanout filters | In progress | Starting implementation |
 
 ## Done
 
@@ -148,6 +148,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.2 | Build friends list UI and request actions | PRs #42-#48 | Contacts hub with send/accept/decline actions, optimistic transition/rollback, busy-state guards, explicit screen states; HttpOnly cookie auth + CSRF header transport |
 | T3.1.3 | Implement user contact invite token create/redeem APIs | PRs #42-#48 | DB-backed invite persistence, Contacts hub create/redeem controls, cross-service smoke validation |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | PR #49 | `GET /v1/friends/requests/:request_id/bootstrap` endpoint; bootstrap material shared only after acceptance; 5 integration tests; OpenAPI spec updated |
+| T3.1.4 | Implement contact invite share/scan UX (link + QR) | PR #50 | API client functions, QR code generation, robust link/token parsing, copy-to-clipboard, busy/error states; 3 unit tests |
 
 ## Suggested Sprint Sequencing
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 T3.1.4 contact invite share/scan UX; added Contact Invite Share/Redeem screen states to screen-state-spec; sprint board updated with T3.1.1-T3.1.5 completion.
+- Latest meaningful change: 2026-03-20 T3.2.1 block/mute CRUD endpoints, bidirectional block checks on DM fanout/preflight/parallel-dial and friend request creation; OpenAPI spec updated with 6 new endpoints and new reason codes.
 
 ## Purpose
 

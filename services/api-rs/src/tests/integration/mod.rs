@@ -1,6 +1,7 @@
 pub(super) use super::*;
 
 mod auth_tests;
+mod block_mute_tests;
 mod db_persistence_tests;
 mod directory_tests;
 mod dm_connectivity_tests;
