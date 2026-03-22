@@ -4,6 +4,7 @@ mod auth_tests;
 mod block_mute_tests;
 mod db_persistence_tests;
 mod directory_tests;
+mod discovery_tests;
 mod dm_connectivity_tests;
 mod dm_fanout_catch_up_tests;
 mod dm_fanout_tests;

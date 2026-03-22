@@ -275,6 +275,7 @@ async fn rate_limits_auth_challenge_requests() {
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -285,6 +286,7 @@ async fn rate_limits_auth_challenge_requests() {
         ApiRateLimitConfig {
             auth_challenge_per_window: 1,
             auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
             window_seconds: 60,
@@ -339,6 +341,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -349,6 +352,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
         ApiRateLimitConfig {
             auth_challenge_per_window: 1,
             auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
             window_seconds: 60,
@@ -405,6 +409,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -415,6 +420,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
         ApiRateLimitConfig {
             auth_challenge_per_window: 1,
             auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
             window_seconds: 60,
@@ -471,6 +477,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -481,6 +488,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
         ApiRateLimitConfig {
             auth_challenge_per_window: 1,
             auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
             window_seconds: 60,
@@ -524,6 +532,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -534,6 +543,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
         ApiRateLimitConfig {
             auth_challenge_per_window: 30,
             auth_verify_per_window: 1,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
             window_seconds: 60,

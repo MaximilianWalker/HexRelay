@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-20
+- last_updated: 2026-03-22
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 T3.1.4 complete (PR #50); all T3.1.x tasks done; starting T3.2.1 block/mute logic.
+- Latest meaningful change: 2026-03-22 T3.4.1 discovery query slice landed with `global` and `shared_server` scopes, blocked/denylisted-user filtering, and rate-limit policy coverage.
 
 ## Iteration Scope
 
@@ -138,7 +138,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T3.2.1 | Implement block/mute logic and fanout filters | In progress | Starting implementation |
+| T3.4.1 | Implement global user discovery index and shared-server query | In progress | `/v1/discovery/users` landed for current-environment global/shared-server discovery with policy filtering; remaining work is delivery/merge bookkeeping |
 
 ## Done
 
@@ -149,6 +149,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.3 | Implement user contact invite token create/redeem APIs | PRs #42-#48 | DB-backed invite persistence, Contacts hub create/redeem controls, cross-service smoke validation |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | PR #49 | `GET /v1/friends/requests/:request_id/bootstrap` endpoint; bootstrap material shared only after acceptance; 5 integration tests; OpenAPI spec updated |
 | T3.1.4 | Implement contact invite share/scan UX (link + QR) | PR #50 | API client functions, QR code generation, robust link/token parsing, copy-to-clipboard, busy/error states; 3 unit tests |
+| T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout/preflight/parallel dial and friend request creation; policy tests and OpenAPI updated |
 
 ## Suggested Sprint Sequencing
 

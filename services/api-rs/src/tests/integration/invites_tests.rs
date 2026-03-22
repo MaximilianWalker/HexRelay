@@ -182,6 +182,7 @@ async fn rate_limits_invite_redeem_requests() {
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
+        Vec::new(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -192,6 +193,7 @@ async fn rate_limits_invite_redeem_requests() {
         ApiRateLimitConfig {
             auth_challenge_per_window: 30,
             auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 1,
             window_seconds: 60,
