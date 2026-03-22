@@ -6,6 +6,8 @@ use reqwest::Url;
 pub struct RealtimeConfig {
     pub api_base_url: String,
     pub require_api_health_on_start: bool,
+    pub presence_internal_token: String,
+    pub presence_redis_url: Option<String>,
     pub trust_proxy_headers: bool,
     pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
@@ -21,6 +23,7 @@ pub struct RealtimeConfig {
 
 impl RealtimeConfig {
     pub fn from_env() -> Result<Self, String> {
+        const DEFAULT_PRESENCE_INTERNAL_TOKEN: &str = "hexrelay-dev-presence-token-change-me";
         let bind_raw = env::var("REALTIME_BIND").unwrap_or_else(|_| "127.0.0.1:8081".to_string());
         let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
             format!(
@@ -40,6 +43,12 @@ impl RealtimeConfig {
             .collect::<Vec<_>>();
         let require_api_health_on_start =
             parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
+        let presence_internal_token = env::var("REALTIME_PRESENCE_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_PRESENCE_INTERNAL_TOKEN.to_string());
+        let presence_redis_url = env::var("REALTIME_PRESENCE_REDIS_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
@@ -61,6 +70,13 @@ impl RealtimeConfig {
         if allowed_origins.is_empty() {
             return Err(
                 "Invalid REALTIME_ALLOWED_ORIGINS. Must contain at least one origin".to_string(),
+            );
+        }
+
+        if presence_internal_token.trim().len() < 16 {
+            return Err(
+                "Invalid REALTIME_PRESENCE_INTERNAL_TOKEN. Expected at least 16 characters"
+                    .to_string(),
             );
         }
 
@@ -138,6 +154,8 @@ impl RealtimeConfig {
         Ok(Self {
             api_base_url,
             require_api_health_on_start,
+            presence_internal_token,
+            presence_redis_url,
             trust_proxy_headers,
             allowed_origins,
             bind_addr,

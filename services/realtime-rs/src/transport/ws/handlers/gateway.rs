@@ -7,12 +7,14 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use futures::stream::StreamExt;
+use futures::{stream::StreamExt, SinkExt};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tracing::warn;
+use uuid::Uuid;
 
 use crate::state::AppState;
 
@@ -76,6 +78,7 @@ pub async fn ws_handler(
     }
 
     let identity_id = session.identity_id;
+    let connection_id = Uuid::new_v4().to_string();
     let state_for_upgrade = state.clone();
     let state_for_failed_upgrade = state.clone();
     let identity_for_failed_upgrade = identity_id.clone();
@@ -92,13 +95,38 @@ pub async fn ws_handler(
             release_connection_slot_after_failed_upgrade(state, identity_id).await;
         });
     })
-    .on_upgrade(move |socket| handle_socket(state_for_upgrade, socket, identity_id))
+    .on_upgrade(move |socket| handle_socket(state_for_upgrade, socket, identity_id, connection_id))
 }
 
-async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_id: String) {
-    let _ = socket.send(Message::Text(connection_ready_banner())).await;
+async fn handle_socket(
+    state: AppState,
+    socket: WebSocket,
+    session_identity_id: String,
+    connection_id: String,
+) {
+    let (mut sender, mut receiver) = socket.split();
+    let (outbound_tx, mut outbound_rx) = mpsc::unbounded_channel::<String>();
 
-    while let Some(message) = socket.next().await {
+    register_connection_sender(
+        &state,
+        &session_identity_id,
+        &connection_id,
+        outbound_tx.clone(),
+    )
+    .await;
+
+    let writer = tokio::spawn(async move {
+        while let Some(payload) = outbound_rx.recv().await {
+            if sender.send(Message::Text(payload)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let _ = outbound_tx.send(connection_ready_banner());
+    crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
+
+    while let Some(message) = receiver.next().await {
         match message {
             Ok(Message::Text(text)) => {
                 if text.len() > state.ws_max_inbound_message_bytes {
@@ -106,12 +134,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                         identity_id = %session_identity_id,
                         "closed websocket due to oversized text payload"
                     );
-                    let _ = socket
-                        .send(Message::Text(build_error_event(
-                            "event_too_large",
-                            "inbound message exceeds max size",
-                        )))
-                        .await;
+                    let _ = outbound_tx.send(build_error_event(
+                        "event_too_large",
+                        "inbound message exceeds max size",
+                    ));
                     break;
                 }
 
@@ -126,17 +152,15 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                         identity_id = %session_identity_id,
                         "closed websocket due to message rate limit"
                     );
-                    let _ = socket
-                        .send(Message::Text(build_error_event(
-                            "event_rate_limited",
-                            "too many websocket messages",
-                        )))
-                        .await;
+                    let _ = outbound_tx.send(build_error_event(
+                        "event_rate_limited",
+                        "too many websocket messages",
+                    ));
                     break;
                 }
 
                 let response = route_inbound_event(&text, &session_identity_id);
-                let _ = socket.send(Message::Text(response)).await;
+                let _ = outbound_tx.send(response);
             }
             Ok(Message::Binary(bytes)) => {
                 let allowed = state.rate_limiter.allow(
@@ -150,12 +174,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                         identity_id = %session_identity_id,
                         "closed websocket due to message rate limit"
                     );
-                    let _ = socket
-                        .send(Message::Text(build_error_event(
-                            "event_rate_limited",
-                            "too many websocket messages",
-                        )))
-                        .await;
+                    let _ = outbound_tx.send(build_error_event(
+                        "event_rate_limited",
+                        "too many websocket messages",
+                    ));
                     break;
                 }
 
@@ -164,12 +186,10 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
                         identity_id = %session_identity_id,
                         "closed websocket due to oversized binary payload"
                     );
-                    let _ = socket
-                        .send(Message::Text(build_error_event(
-                            "event_too_large",
-                            "inbound message exceeds max size",
-                        )))
-                        .await;
+                    let _ = outbound_tx.send(build_error_event(
+                        "event_too_large",
+                        "inbound message exceeds max size",
+                    ));
                     break;
                 }
             }
@@ -179,7 +199,11 @@ async fn handle_socket(state: AppState, mut socket: WebSocket, session_identity_
         }
     }
 
+    unregister_connection_sender(&state, &session_identity_id, &connection_id).await;
+    crate::domain::presence::publish_offline_if_needed(&state, &session_identity_id).await;
     release_connection_slot(&state, &session_identity_id).await;
+    drop(outbound_tx);
+    let _ = writer.await;
 }
 
 #[derive(Deserialize)]
@@ -507,6 +531,29 @@ async fn try_acquire_connection_slot(state: &AppState, identity_id: &str) -> boo
     true
 }
 
+async fn register_connection_sender(
+    state: &AppState,
+    identity_id: &str,
+    connection_id: &str,
+    sender: mpsc::UnboundedSender<String>,
+) {
+    let mut guard = state.connection_senders.lock().await;
+    guard
+        .entry(identity_id.to_string())
+        .or_default()
+        .insert(connection_id.to_string(), sender);
+}
+
+async fn unregister_connection_sender(state: &AppState, identity_id: &str, connection_id: &str) {
+    let mut guard = state.connection_senders.lock().await;
+    if let Some(connections) = guard.get_mut(identity_id) {
+        connections.remove(connection_id);
+        if connections.is_empty() {
+            guard.remove(identity_id);
+        }
+    }
+}
+
 async fn release_connection_slot(state: &AppState, identity_id: &str) {
     let mut guard = state.active_connections.lock().await;
     if let Some(current) = guard.get_mut(identity_id) {
@@ -541,6 +588,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
             false,
             60,
             60,
@@ -580,6 +629,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
             false,
             60,
             60,

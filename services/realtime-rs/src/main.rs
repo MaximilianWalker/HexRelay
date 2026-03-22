@@ -1,4 +1,5 @@
 use realtime_rs::app::{build_app, AppState, RealtimeConfig};
+use realtime_rs::domain::presence::spawn_presence_subscriber;
 use std::env;
 use tracing::{error, info};
 
@@ -25,9 +26,22 @@ async fn main() {
         }
     }
 
+    let presence_redis_client = match config.presence_redis_url.as_ref() {
+        Some(url) => match redis::Client::open(url.as_str()) {
+            Ok(value) => Some(value),
+            Err(err) => {
+                error!(error = %err, "realtime startup aborted due to invalid presence Redis configuration");
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
+
     let state = match AppState::new(
         config.api_base_url.clone(),
         config.allowed_origins.clone(),
+        config.presence_internal_token.clone(),
+        presence_redis_client,
         config.trust_proxy_headers,
         config.ws_connect_rate_limit,
         config.rate_limit_window_seconds,
@@ -44,6 +58,8 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    spawn_presence_subscriber(state.clone());
 
     let app = build_app(state);
 

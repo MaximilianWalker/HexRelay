@@ -39,6 +39,11 @@ channels:
     messages:
       realtimeConnectedV1:
         $ref: '#/components/messages/RealtimeConnectedV1'
+  presenceUpdated:
+    address: presence.updated
+    messages:
+      presenceUpdatedV1:
+        $ref: '#/components/messages/PresenceUpdatedV1'
   error:
     address: error
     messages:
@@ -69,6 +74,12 @@ operations:
       $ref: '#/channels/realtimeConnected'
     messages:
       - $ref: '#/channels/realtimeConnected/messages/realtimeConnectedV1'
+  receivePresenceUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/presenceUpdated'
+    messages:
+      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
   receiveError:
     action: receive
     channel:
@@ -89,6 +100,9 @@ components:
     RealtimeConnectedV1:
       payload:
         $ref: '#/components/schemas/RealtimeConnectedEventV1'
+    PresenceUpdatedV1:
+      payload:
+        $ref: '#/components/schemas/PresenceUpdatedEventV1'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -103,7 +117,7 @@ components:
         event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway] }
+        producer: { type: string, enum: [realtime-gateway, realtime-presence] }
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
@@ -180,6 +194,17 @@ components:
             - event_too_large
             - event_rate_limited
         message: { type: string }
+    PresenceUpdatedDataV1:
+      type: object
+      additionalProperties: false
+      required: [user_id, status, updated_at, presence_seq]
+      properties:
+        user_id: { type: string }
+        status: { type: string, enum: [online, offline] }
+        updated_at: { type: string, format: date-time }
+        presence_seq:
+          type: integer
+          minimum: 1
     RealtimeConnectedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -194,3 +219,10 @@ components:
           properties:
             event_type: { const: error }
             data: { $ref: '#/components/schemas/ErrorDataV1' }
+    PresenceUpdatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: presence.updated }
+            data: { $ref: '#/components/schemas/PresenceUpdatedDataV1' }

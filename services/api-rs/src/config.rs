@@ -16,6 +16,8 @@ pub struct ApiConfig {
     pub database_url: String,
     pub node_fingerprint: String,
     pub discovery_denylist: Vec<String>,
+    pub presence_internal_token: String,
+    pub presence_redis_url: Option<String>,
     pub session_signing_keys: HashMap<String, String>,
     pub active_signing_key_id: String,
     pub session_cookie_domain: Option<String>,
@@ -30,6 +32,7 @@ impl ApiConfig {
         const DEFAULT_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
         const DEFAULT_DATABASE_URL: &str =
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay";
+        const DEFAULT_PRESENCE_INTERNAL_TOKEN: &str = "hexrelay-dev-presence-token-change-me";
 
         let bind_raw = env::var("API_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
@@ -56,6 +59,12 @@ impl ApiConfig {
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
+        let presence_internal_token = env::var("API_PRESENCE_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_PRESENCE_INTERNAL_TOKEN.to_string());
+        let presence_redis_url = env::var("API_PRESENCE_REDIS_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys()?;
         let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
             .ok()
@@ -92,6 +101,12 @@ impl ApiConfig {
 
         if database_url.trim().is_empty() {
             return Err("Invalid API_DATABASE_URL. Value must not be empty".to_string());
+        }
+
+        if presence_internal_token.trim().len() < 16 {
+            return Err(
+                "Invalid API_PRESENCE_INTERNAL_TOKEN. Expected at least 16 characters".to_string(),
+            );
         }
 
         if allowed_origins.is_empty() {
@@ -161,6 +176,13 @@ impl ApiConfig {
                         .to_string(),
                 );
             }
+
+            if presence_internal_token == DEFAULT_PRESENCE_INTERNAL_TOKEN {
+                return Err(
+                    "Invalid API_PRESENCE_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                        .to_string(),
+                );
+            }
         }
 
         Ok(Self {
@@ -169,6 +191,8 @@ impl ApiConfig {
             database_url,
             node_fingerprint,
             discovery_denylist,
+            presence_internal_token,
+            presence_redis_url,
             session_signing_keys,
             active_signing_key_id,
             session_cookie_domain,

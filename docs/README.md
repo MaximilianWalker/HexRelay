@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.4.1 added `/v1/discovery/users` with `global` and `shared_server` scopes, privacy-safe discovery cards, blocked/denylisted-user filtering, and discovery query rate limiting; runtime OpenAPI updated.
+- Latest meaningful change: 2026-03-22 T3.3.1 started Redis-backed presence groundwork: realtime now emits `presence.updated` envelopes on websocket lifecycle edges, API internal watcher resolution landed, and `/v1/contacts` can read Redis presence snapshots; runtime REST/AsyncAPI docs updated.
 
 ## Purpose
 
