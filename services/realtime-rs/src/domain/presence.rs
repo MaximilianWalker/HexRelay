@@ -293,3 +293,154 @@ async fn dispatch_presence_event_locally(state: &AppState, payload: &str, watche
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{routing::get, Json, Router};
+    use serde_json::json;
+    use tokio::{net::TcpListener, sync::mpsc};
+
+    async fn start_watcher_server(
+        status: axum::http::StatusCode,
+        body: serde_json::Value,
+    ) -> String {
+        let app = Router::new().route(
+            "/v1/internal/presence/watchers/usr-main",
+            get(move || {
+                let body = body.clone();
+                async move { (status, Json(body)) }
+            }),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind watcher server");
+        let addr = listener.local_addr().expect("watcher server addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve watcher app");
+        });
+        format!("http://{}", addr)
+    }
+
+    #[tokio::test]
+    async fn publish_presence_edge_is_noop_without_redis() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+
+        publish_online_if_needed(&state, "usr-main").await;
+        publish_offline_if_needed(&state, "usr-main").await;
+    }
+
+    #[tokio::test]
+    async fn resolve_watchers_returns_self_when_lookup_fails() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+
+        let watchers = resolve_watchers(&state, "usr-main").await;
+
+        assert_eq!(watchers, vec!["usr-main".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn resolve_watchers_merges_remote_watchers() {
+        let api_base_url = start_watcher_server(
+            axum::http::StatusCode::OK,
+            json!({"watchers": ["usr-friend", "usr-main", "usr-other"]}),
+        )
+        .await;
+        let state = AppState::new(
+            api_base_url,
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+
+        let watchers = resolve_watchers(&state, "usr-main").await;
+
+        assert_eq!(
+            watchers,
+            vec![
+                "usr-friend".to_string(),
+                "usr-main".to_string(),
+                "usr-other".to_string(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_presence_event_locally_sends_payload_and_removes_stale_connections() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-presence-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+        let (open_tx, mut open_rx) = mpsc::unbounded_channel::<String>();
+        let (stale_tx, stale_rx) = mpsc::unbounded_channel::<String>();
+        drop(stale_rx);
+
+        state.connection_senders.lock().await.insert(
+            "usr-main".to_string(),
+            std::collections::HashMap::from([
+                ("conn-open".to_string(), open_tx),
+                ("conn-stale".to_string(), stale_tx),
+            ]),
+        );
+
+        dispatch_presence_event_locally(&state, "payload-1", &["usr-main".to_string()]).await;
+
+        assert_eq!(open_rx.recv().await.as_deref(), Some("payload-1"));
+        let guard = state.connection_senders.lock().await;
+        let connections = guard.get("usr-main").expect("remaining connections");
+        assert!(connections.contains_key("conn-open"));
+        assert!(!connections.contains_key("conn-stale"));
+    }
+}
