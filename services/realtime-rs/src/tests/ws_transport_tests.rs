@@ -1,4 +1,5 @@
 use axum::{
+    extract::Path,
     extract::State,
     http::{HeaderMap, HeaderValue, StatusCode},
     routing::get,
@@ -9,8 +10,9 @@ use futures::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::time::Duration;
+use std::{collections::HashMap, env, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message as WsMessage},
@@ -52,6 +54,12 @@ enum ValidateMode {
     Authorized,
     Denied,
     Unavailable,
+}
+
+#[derive(Clone)]
+struct PresenceApiStubState {
+    sessions: Arc<RwLock<HashMap<String, String>>>,
+    watchers: Arc<RwLock<HashMap<String, Vec<String>>>>,
 }
 
 async fn start_validate_server(mode: ValidateMode) -> String {
@@ -106,6 +114,193 @@ async fn start_validate_server(mode: ValidateMode) -> String {
     });
 
     format!("http://{}", address)
+}
+
+async fn start_presence_api_stub(
+    sessions: HashMap<String, String>,
+    watchers: HashMap<String, Vec<String>>,
+) -> String {
+    async fn validate_endpoint(
+        State(state): State<PresenceApiStubState>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<ValidatePayload>) {
+        let Some(authorization) = headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+        else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(ValidatePayload {
+                    session_id: String::new(),
+                    identity_id: String::new(),
+                    expires_at: String::new(),
+                }),
+            );
+        };
+
+        let identity_id = state.sessions.read().await.get(authorization).cloned();
+        match identity_id {
+            Some(identity_id) => (
+                StatusCode::OK,
+                Json(ValidatePayload {
+                    session_id: format!("sess-{identity_id}"),
+                    identity_id,
+                    expires_at: "2030-01-01T00:00:00Z".to_string(),
+                }),
+            ),
+            None => (
+                StatusCode::UNAUTHORIZED,
+                Json(ValidatePayload {
+                    session_id: String::new(),
+                    identity_id: String::new(),
+                    expires_at: String::new(),
+                }),
+            ),
+        }
+    }
+
+    async fn watchers_endpoint(
+        Path(identity_id): Path<String>,
+        State(state): State<PresenceApiStubState>,
+    ) -> Json<Value> {
+        let watchers = state
+            .watchers
+            .read()
+            .await
+            .get(&identity_id)
+            .cloned()
+            .unwrap_or_default();
+        Json(serde_json::json!({ "watchers": watchers }))
+    }
+
+    let state = PresenceApiStubState {
+        sessions: Arc::new(RwLock::new(sessions)),
+        watchers: Arc::new(RwLock::new(watchers)),
+    };
+    let app = Router::new()
+        .route("/v1/auth/sessions/validate", get(validate_endpoint))
+        .route(
+            "/v1/internal/presence/watchers/:identity_id",
+            get(watchers_endpoint),
+        )
+        .with_state(state);
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind presence stub listener");
+    let address = listener.local_addr().expect("read presence stub address");
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("serve presence stub API");
+    });
+
+    format!("http://{}", address)
+}
+
+async fn prepared_redis_client() -> Option<redis::Client> {
+    let redis_url = match env::var("REALTIME_PRESENCE_REDIS_URL") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => {
+            assert!(
+                env::var("CI").is_err(),
+                "REALTIME_PRESENCE_REDIS_URL must be set in CI"
+            );
+            eprintln!(
+                "[realtime-rs test] skipping Redis-backed presence test because REALTIME_PRESENCE_REDIS_URL is not configured"
+            );
+            return None;
+        }
+    };
+
+    let client = match redis::Client::open(redis_url.as_str()) {
+        Ok(value) => value,
+        Err(error) => {
+            assert!(env::var("CI").is_err(), "invalid Redis URL in CI: {error}");
+            eprintln!("[realtime-rs test] skipping Redis-backed presence test because Redis URL is invalid: {error}");
+            return None;
+        }
+    };
+
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            assert!(
+                env::var("CI").is_err(),
+                "failed to connect to Redis in CI: {error}"
+            );
+            eprintln!("[realtime-rs test] skipping Redis-backed presence test because Redis is unavailable: {error}");
+            return None;
+        }
+    };
+
+    let _: String = redis::cmd("PING")
+        .query_async(&mut connection)
+        .await
+        .expect("ping Redis");
+
+    Some(client)
+}
+
+async fn clear_presence_keys(client: &redis::Client, identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection");
+    let _: () = redis::cmd("DEL")
+        .arg(format!("presence:v1:count:{identity_id}"))
+        .arg(format!("presence:v1:seq:{identity_id}"))
+        .arg(format!("presence:v1:snapshot:{identity_id}"))
+        .query_async(&mut connection)
+        .await
+        .expect("clear presence keys");
+}
+
+async fn connect_ws_with_token(
+    ws_url: &str,
+    token: &str,
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {token}")).expect("authorization header"),
+    );
+    set_allowed_origin(&mut request);
+
+    let (socket, _) = connect_async(request)
+        .await
+        .expect("websocket connect response");
+    socket
+}
+
+async fn recv_presence_event(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_user_id: &str,
+    expected_status: &str,
+) -> Value {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let message = tokio::time::timeout(remaining, socket.next())
+            .await
+            .expect("presence event timeout")
+            .expect("socket message")
+            .expect("ws frame");
+        let text = match message {
+            WsMessage::Text(value) => value,
+            _ => continue,
+        };
+        let payload: Value = serde_json::from_str(&text).expect("decode websocket payload");
+        if payload["event_type"] == "presence.updated"
+            && payload["data"]["user_id"] == expected_user_id
+            && payload["data"]["status"] == expected_status
+        {
+            return payload;
+        }
+    }
 }
 
 #[tokio::test]
@@ -361,6 +556,96 @@ async fn websocket_upgrade_accepts_valid_authorization() {
         .expect("websocket connect response");
 
     assert_eq!(connection.1.status(), StatusCode::SWITCHING_PROTOCOLS);
+}
+
+#[tokio::test]
+async fn websocket_presence_updates_propagate_and_recover_after_reconnect() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    clear_presence_keys(&redis_client, "usr-subject").await;
+    clear_presence_keys(&redis_client, "usr-watcher").await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([
+            (
+                "Bearer subject-token".to_string(),
+                "usr-subject".to_string(),
+            ),
+            (
+                "Bearer watcher-token".to_string(),
+                "usr-watcher".to_string(),
+            ),
+        ]),
+        HashMap::from([
+            (
+                "usr-subject".to_string(),
+                vec!["usr-subject".to_string(), "usr-watcher".to_string()],
+            ),
+            ("usr-watcher".to_string(), vec!["usr-watcher".to_string()]),
+        ]),
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut watcher_socket = connect_ws_with_token(&ws_url, "watcher-token").await;
+    let _ = watcher_socket.next().await;
+    let _ = recv_presence_event(&mut watcher_socket, "usr-watcher", "online").await;
+
+    let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
+    let _ = subject_socket.next().await;
+
+    let online_payload = recv_presence_event(&mut watcher_socket, "usr-subject", "online").await;
+    let first_seq = online_payload["data"]["presence_seq"]
+        .as_u64()
+        .expect("online seq");
+
+    subject_socket
+        .close(None)
+        .await
+        .expect("close subject socket");
+    let offline_payload = recv_presence_event(&mut watcher_socket, "usr-subject", "offline").await;
+    let second_seq = offline_payload["data"]["presence_seq"]
+        .as_u64()
+        .expect("offline seq");
+    assert!(second_seq > first_seq);
+
+    let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
+    let _ = subject_socket.next().await;
+    let reconnect_payload = recv_presence_event(&mut watcher_socket, "usr-subject", "online").await;
+    let third_seq = reconnect_payload["data"]["presence_seq"]
+        .as_u64()
+        .expect("reconnect seq");
+    assert!(third_seq > second_seq);
+
+    subject_socket
+        .close(None)
+        .await
+        .expect("close reconnected subject socket");
+    watcher_socket
+        .close(None)
+        .await
+        .expect("close watcher socket");
+    clear_presence_keys(&redis_client, "usr-subject").await;
+    clear_presence_keys(&redis_client, "usr-watcher").await;
 }
 
 #[tokio::test]

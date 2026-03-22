@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 presence groundwork started with Redis-backed realtime presence edges, internal watcher resolution, and contact-list presence snapshot wiring.
+- Latest meaningful change: 2026-03-22 T3.3.1 gained Redis-backed websocket propagation/reconnect integration coverage plus CI Redis wiring for presence validation.
 
 ## Iteration Scope
 

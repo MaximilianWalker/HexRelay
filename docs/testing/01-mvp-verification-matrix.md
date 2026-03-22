@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-03-22
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-16 added profile-device eventual-sync evidence requirements for DM and server communication paths.
+- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed realtime presence propagation/reconnect integration coverage and CI Redis service wiring for presence validation.
 
 ## Requirement to Evidence Matrix
 

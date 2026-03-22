@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-20
+- last_updated: 2026-03-22
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 started Redis-backed presence groundwork: realtime now emits `presence.updated` envelopes on websocket lifecycle edges, API internal watcher resolution landed, and `/v1/contacts` can read Redis presence snapshots; runtime REST/AsyncAPI docs updated.
+- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed presence propagation/reconnect integration coverage, hardened realtime presence delivery, and wired CI Redis services for presence validation.
 
 ## Purpose
 
