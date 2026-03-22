@@ -115,7 +115,11 @@ pub async fn list_contacts(
             .collect::<Vec<_>>();
 
         if let Some(redis_client) = state.presence_redis_client.as_ref() {
-            let contact_ids = items.iter().map(|item| item.id.clone()).collect::<Vec<_>>();
+            let contact_ids = items
+                .iter()
+                .filter(|item| !item.inbound_request && !item.pending_request)
+                .map(|item| item.id.clone())
+                .collect::<Vec<_>>();
             if let Ok(statuses) =
                 redis_presence::list_presence_statuses(redis_client, &contact_ids).await
             {

@@ -320,6 +320,11 @@ paths:
       summary: Resolve authorized presence watchers for an identity
       description: Internal service-to-service endpoint used by `services/realtime-rs` to resolve which identities may receive presence updates for the subject identity.
       parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
         - in: path
           name: identity_id
           required: true

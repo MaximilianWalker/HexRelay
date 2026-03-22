@@ -105,7 +105,7 @@ async fn handle_socket(
     connection_id: String,
 ) {
     let (mut sender, mut receiver) = socket.split();
-    let (outbound_tx, mut outbound_rx) = mpsc::unbounded_channel::<String>();
+    let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
 
     register_connection_sender(
         &state,
@@ -123,7 +123,7 @@ async fn handle_socket(
         }
     });
 
-    let _ = outbound_tx.send(connection_ready_banner());
+    let _ = outbound_tx.try_send(connection_ready_banner());
     crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
 
     while let Some(message) = receiver.next().await {
@@ -134,7 +134,7 @@ async fn handle_socket(
                         identity_id = %session_identity_id,
                         "closed websocket due to oversized text payload"
                     );
-                    let _ = outbound_tx.send(build_error_event(
+                    let _ = outbound_tx.try_send(build_error_event(
                         "event_too_large",
                         "inbound message exceeds max size",
                     ));
@@ -152,7 +152,7 @@ async fn handle_socket(
                         identity_id = %session_identity_id,
                         "closed websocket due to message rate limit"
                     );
-                    let _ = outbound_tx.send(build_error_event(
+                    let _ = outbound_tx.try_send(build_error_event(
                         "event_rate_limited",
                         "too many websocket messages",
                     ));
@@ -160,7 +160,7 @@ async fn handle_socket(
                 }
 
                 let response = route_inbound_event(&text, &session_identity_id);
-                let _ = outbound_tx.send(response);
+                let _ = outbound_tx.try_send(response);
             }
             Ok(Message::Binary(bytes)) => {
                 let allowed = state.rate_limiter.allow(
@@ -174,7 +174,7 @@ async fn handle_socket(
                         identity_id = %session_identity_id,
                         "closed websocket due to message rate limit"
                     );
-                    let _ = outbound_tx.send(build_error_event(
+                    let _ = outbound_tx.try_send(build_error_event(
                         "event_rate_limited",
                         "too many websocket messages",
                     ));
@@ -186,7 +186,7 @@ async fn handle_socket(
                         identity_id = %session_identity_id,
                         "closed websocket due to oversized binary payload"
                     );
-                    let _ = outbound_tx.send(build_error_event(
+                    let _ = outbound_tx.try_send(build_error_event(
                         "event_too_large",
                         "inbound message exceeds max size",
                     ));
@@ -535,7 +535,7 @@ async fn register_connection_sender(
     state: &AppState,
     identity_id: &str,
     connection_id: &str,
-    sender: mpsc::UnboundedSender<String>,
+    sender: mpsc::Sender<String>,
 ) {
     let mut guard = state.connection_senders.lock().await;
     guard

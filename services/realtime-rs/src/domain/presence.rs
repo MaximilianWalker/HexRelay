@@ -4,9 +4,14 @@ use crate::state::AppState;
 use chrono::Utc;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
+use tokio::{
+    sync::mpsc::error::TrySendError,
+    time::{sleep, Duration},
+};
 use tracing::warn;
 
 const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
+const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct PresenceUpdatedData {
@@ -46,50 +51,57 @@ pub fn spawn_presence_subscriber(state: AppState) {
     }
 
     tokio::spawn(async move {
-        let Some(client) = state.presence_redis_client.clone() else {
-            return;
-        };
-
-        let mut pubsub = match client.get_async_pubsub().await {
-            Ok(value) => value,
-            Err(error) => {
-                warn!(error = %error, "failed to open presence pubsub connection");
+        loop {
+            let Some(client) = state.presence_redis_client.clone() else {
                 return;
+            };
+
+            let mut pubsub = match client.get_async_pubsub().await {
+                Ok(value) => value,
+                Err(error) => {
+                    warn!(error = %error, "failed to open presence pubsub connection");
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+
+            if let Err(error) = pubsub.subscribe(PRESENCE_EVENTS_CHANNEL).await {
+                warn!(error = %error, "failed to subscribe to presence channel");
+                sleep(Duration::from_secs(1)).await;
+                continue;
             }
-        };
 
-        if let Err(error) = pubsub.subscribe(PRESENCE_EVENTS_CHANNEL).await {
-            warn!(error = %error, "failed to subscribe to presence channel");
-            return;
-        }
+            let mut messages = pubsub.on_message();
+            while let Some(message) = messages.next().await {
+                let payload = match message.get_payload::<String>() {
+                    Ok(value) => value,
+                    Err(error) => {
+                        warn!(error = %error, "failed to decode presence pubsub payload");
+                        continue;
+                    }
+                };
 
-        let mut messages = pubsub.on_message();
-        while let Some(message) = messages.next().await {
-            let payload = match message.get_payload::<String>() {
-                Ok(value) => value,
-                Err(error) => {
-                    warn!(error = %error, "failed to decode presence pubsub payload");
-                    continue;
-                }
-            };
+                let event = match serde_json::from_str::<PresenceUpdatedEnvelope>(&payload) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        warn!(error = %error, "failed to parse presence pubsub payload");
+                        continue;
+                    }
+                };
 
-            let event = match serde_json::from_str::<PresenceUpdatedEnvelope>(&payload) {
-                Ok(value) => value,
-                Err(error) => {
-                    warn!(error = %error, "failed to parse presence pubsub payload");
-                    continue;
-                }
-            };
+                let client_payload = crate::domain::events::service::build_presence_updated_event(
+                    &event.data.user_id,
+                    &event.data.status,
+                    &event.data.updated_at,
+                    event.data.presence_seq,
+                    Some(event.correlation_id.clone()),
+                );
 
-            let client_payload = crate::domain::events::service::build_presence_updated_event(
-                &event.data.user_id,
-                &event.data.status,
-                &event.data.updated_at,
-                event.data.presence_seq,
-                Some(event.correlation_id.clone()),
-            );
+                dispatch_presence_event_locally(&state, &client_payload, &event.watchers).await;
+            }
 
-            dispatch_presence_event_locally(&state, &client_payload, &event.watchers).await;
+            warn!("presence pubsub stream ended; retrying subscription");
+            sleep(Duration::from_secs(1)).await;
         }
     });
 }
@@ -128,17 +140,36 @@ async fn publish_presence_edge(
             .await
             .map_err(|error| format!("increment presence count: {error}"))?
     } else {
-        let decremented: i64 = redis::cmd("DECR")
+        let decremented: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+                local key = KEYS[1]
+                local val = redis.call('GET', key)
+                if not val then
+                  return -1
+                end
+                local num = tonumber(val)
+                if not num or num <= 0 then
+                  redis.call('DEL', key)
+                  return 0
+                end
+                num = num - 1
+                if num <= 0 then
+                  redis.call('DEL', key)
+                  return 0
+                end
+                redis.call('SET', key, num)
+                return num
+                "#,
+            )
+            .arg(1)
             .arg(&count_key)
             .query_async(&mut connection)
             .await
             .map_err(|error| format!("decrement presence count: {error}"))?;
-        if decremented <= 0 {
-            let _: () = redis::cmd("DEL")
-                .arg(&count_key)
-                .query_async(&mut connection)
-                .await
-                .map_err(|error| format!("clear presence count: {error}"))?;
+        if decremented < 0 {
+            return Ok(());
+        } else if decremented == 0 {
             0
         } else {
             decremented
@@ -172,6 +203,8 @@ async fn publish_presence_edge(
     let _: () = redis::cmd("SET")
         .arg(snapshot_key)
         .arg(snapshot_json)
+        .arg("EX")
+        .arg(PRESENCE_SNAPSHOT_TTL_SECONDS)
         .query_async(&mut connection)
         .await
         .map_err(|error| format!("persist presence snapshot: {error}"))?;
@@ -278,8 +311,11 @@ async fn dispatch_presence_event_locally(state: &AppState, payload: &str, watche
         };
 
         for (connection_id, sender) in connections.iter() {
-            if sender.send(payload.to_string()).is_err() {
-                stale_connections.push((watcher_identity_id.clone(), connection_id.clone()));
+            match sender.try_send(payload.to_string()) {
+                Ok(()) => {}
+                Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
+                    stale_connections.push((watcher_identity_id.clone(), connection_id.clone()));
+                }
             }
         }
     }
@@ -423,8 +459,8 @@ mod tests {
             2048,
         )
         .expect("build app state");
-        let (open_tx, mut open_rx) = mpsc::unbounded_channel::<String>();
-        let (stale_tx, stale_rx) = mpsc::unbounded_channel::<String>();
+        let (open_tx, mut open_rx) = mpsc::channel::<String>(4);
+        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
         drop(stale_rx);
 
         state.connection_senders.lock().await.insert(

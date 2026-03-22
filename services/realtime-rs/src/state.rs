@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use tokio::sync::{mpsc::UnboundedSender, Mutex};
+use tokio::sync::{mpsc::Sender, Mutex};
 
 use crate::transport::ws::middleware::rate_limit::RateLimiter;
 
-pub type ConnectionSenderMap = HashMap<String, HashMap<String, UnboundedSender<String>>>;
+pub type ConnectionSenderMap = HashMap<String, HashMap<String, Sender<String>>>;
 
 #[derive(Clone)]
 pub struct AppState {

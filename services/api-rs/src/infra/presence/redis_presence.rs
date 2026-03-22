@@ -43,10 +43,21 @@ fn parse_presence_statuses(
             continue;
         };
 
-        statuses.insert(identity_id.clone(), snapshot.status);
+        if let Some(status) = normalize_presence_status(&snapshot.status) {
+            statuses.insert(identity_id.clone(), status.to_string());
+        }
     }
 
     statuses
+}
+
+fn normalize_presence_status(status: &str) -> Option<&'static str> {
+    match status {
+        "online" => Some("online"),
+        "offline" => Some("offline"),
+        "away" => Some("away"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -72,5 +83,15 @@ mod tests {
         assert_eq!(statuses.get("usr-a"), Some(&"online".to_string()));
         assert!(!statuses.contains_key("usr-b"));
         assert!(!statuses.contains_key("usr-c"));
+    }
+
+    #[test]
+    fn parse_presence_statuses_ignores_unknown_status_values() {
+        let identities = vec!["usr-a".to_string()];
+        let values = vec![Some(r#"{"status":"busy"}"#.to_string())];
+
+        let statuses = parse_presence_statuses(&identities, values);
+
+        assert!(statuses.is_empty());
     }
 }
