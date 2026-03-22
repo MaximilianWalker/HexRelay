@@ -314,6 +314,44 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/discovery/users:
+    get:
+      summary: List discoverable users for authenticated identity
+      description: Returns privacy-safe discovery cards for users known in the current HexRelay environment. Supports `global` scope (all known discoverable users) and `shared_server` scope (only trusted shared-membership peers), excludes blocked and denylisted users, and enforces authenticated query rate limiting.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: scope
+          schema:
+            type: string
+            enum: [global, shared_server]
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Discovery list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryUserListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/dm/privacy-policy:
     get:
       summary: Get DM inbound policy for authenticated identity
@@ -1171,6 +1209,44 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactSummary'
+    DiscoveryUserSummary:
+      type: object
+      required:
+        - identity_id
+        - display_name
+        - relationship_state
+        - shared_server_count
+        - can_send_friend_request
+        - has_pending_inbound_request
+        - has_pending_outbound_request
+      properties:
+        identity_id:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        relationship_state:
+          type: string
+          enum: [none, pending, accepted, declined, cancelled]
+        shared_server_count:
+          type: integer
+          minimum: 0
+        can_send_friend_request:
+          type: boolean
+        has_pending_inbound_request:
+          type: boolean
+        has_pending_outbound_request:
+          type: boolean
+    DiscoveryUserListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryUserSummary'
     DmPolicy:
       type: object
       required: [inbound_policy, offline_delivery_mode]
@@ -2038,6 +2114,7 @@ components:
             - cursor_invalid
             - cursor_out_of_range
             - limit_invalid
+            - scope_invalid
             - thread_not_found
             - dm_policy_invalid
             - pairing_invalid

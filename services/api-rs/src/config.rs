@@ -4,6 +4,7 @@ use std::{collections::HashMap, env, net::SocketAddr};
 pub struct ApiRateLimitConfig {
     pub auth_challenge_per_window: usize,
     pub auth_verify_per_window: usize,
+    pub discovery_query_per_window: usize,
     pub invite_create_per_window: usize,
     pub invite_redeem_per_window: usize,
     pub window_seconds: u64,
@@ -14,6 +15,7 @@ pub struct ApiConfig {
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
+    pub discovery_denylist: Vec<String>,
     pub session_signing_keys: HashMap<String, String>,
     pub active_signing_key_id: String,
     pub session_cookie_domain: Option<String>,
@@ -53,6 +55,7 @@ impl ApiConfig {
             .unwrap_or_else(|_| "http://localhost:3002,http://127.0.0.1:3002".to_string());
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
+        let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
         let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys()?;
         let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
             .ok()
@@ -68,6 +71,10 @@ impl ApiConfig {
                 30,
             )?,
             auth_verify_per_window: parse_positive_usize_env("API_AUTH_VERIFY_RATE_LIMIT", 30)?,
+            discovery_query_per_window: parse_positive_usize_env(
+                "API_DISCOVERY_QUERY_RATE_LIMIT",
+                30,
+            )?,
             invite_create_per_window: parse_positive_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
             invite_redeem_per_window: parse_positive_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
             window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60)?,
@@ -161,6 +168,7 @@ impl ApiConfig {
             allowed_origins,
             database_url,
             node_fingerprint,
+            discovery_denylist,
             session_signing_keys,
             active_signing_key_id,
             session_cookie_domain,
@@ -170,6 +178,15 @@ impl ApiConfig {
             rate_limits,
         })
     }
+}
+
+fn parse_csv_env(key: &str) -> Vec<String> {
+    env::var(key)
+        .unwrap_or_default()
+        .split(',')
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
 }
 
 fn parse_session_signing_keys() -> Result<(String, HashMap<String, String>), String> {

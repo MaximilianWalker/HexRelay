@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-20 T3.2.1 block/mute CRUD endpoints, bidirectional block checks on DM fanout/preflight/parallel-dial and friend request creation; OpenAPI spec updated with 6 new endpoints and new reason codes.
+- Latest meaningful change: 2026-03-22 T3.4.1 added `/v1/discovery/users` with `global` and `shared_server` scopes, privacy-safe discovery cards, blocked/denylisted-user filtering, and discovery query rate limiting; runtime OpenAPI updated.
 
 ## Purpose
 

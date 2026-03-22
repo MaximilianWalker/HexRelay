@@ -142,6 +142,30 @@ pub struct ContactListResponse {
 }
 
 #[derive(Deserialize)]
+pub struct DiscoveryUserListQuery {
+    pub scope: Option<String>,
+    pub query: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DiscoveryUserSummary {
+    pub identity_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub relationship_state: String,
+    pub shared_server_count: u32,
+    pub can_send_friend_request: bool,
+    pub has_pending_inbound_request: bool,
+    pub has_pending_outbound_request: bool,
+}
+
+#[derive(Serialize)]
+pub struct DiscoveryUserListResponse {
+    pub items: Vec<DiscoveryUserSummary>,
+}
+
+#[derive(Deserialize)]
 pub struct DmThreadListQuery {
     pub cursor: Option<String>,
     pub limit: Option<u32>,
@@ -511,6 +535,13 @@ pub struct HealthResponse {
 pub struct RegisteredIdentityKey {
     pub public_key: String,
     pub algorithm: String,
+}
+
+#[derive(Clone)]
+pub struct DiscoveryUserRecord {
+    pub identity_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Deserialize)]

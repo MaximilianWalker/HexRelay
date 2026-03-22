@@ -34,6 +34,7 @@ async fn main() {
             config.node_fingerprint.clone(),
             config.allowed_origins.clone(),
             config.active_signing_key_id.clone(),
+            config.discovery_denylist.clone(),
             config.session_signing_keys.clone().into_iter().collect(),
             config.session_cookie_domain.clone(),
             config.session_cookie_secure,
