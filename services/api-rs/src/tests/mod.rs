@@ -217,6 +217,57 @@ async fn prepared_database_pool() -> Option<sqlx::PgPool> {
     })
 }
 
+async fn prepared_presence_redis_client() -> Option<redis::Client> {
+    let redis_url = match env::var("API_PRESENCE_REDIS_URL") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => {
+            assert!(
+                env::var("GITHUB_ACTIONS").is_err(),
+                "API_PRESENCE_REDIS_URL must be set in GitHub Actions"
+            );
+            eprintln!(
+                "[api-rs test] skipping Redis-backed presence test because API_PRESENCE_REDIS_URL is not configured"
+            );
+            return None;
+        }
+    };
+
+    let client = match redis::Client::open(redis_url.as_str()) {
+        Ok(value) => value,
+        Err(error) => {
+            assert!(
+                env::var("GITHUB_ACTIONS").is_err(),
+                "invalid Redis URL in GitHub Actions: {error}"
+            );
+            eprintln!(
+                "[api-rs test] skipping Redis-backed presence test because Redis URL is invalid: {error}"
+            );
+            return None;
+        }
+    };
+
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            assert!(
+                env::var("GITHUB_ACTIONS").is_err(),
+                "failed to connect to Redis in GitHub Actions: {error}"
+            );
+            eprintln!(
+                "[api-rs test] skipping Redis-backed presence test because Redis is unavailable: {error}"
+            );
+            return None;
+        }
+    };
+
+    let _: String = redis::cmd("PING")
+        .query_async(&mut connection)
+        .await
+        .expect("ping Redis");
+
+    Some(client)
+}
+
 async fn app_with_database() -> Option<axum::Router> {
     let pool = prepared_database_pool().await?;
     Some(build_app(AppState::default().with_db_pool(pool)))

@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::state::{AppState, ConnectionSenderEntry};
 
 pub async fn health() -> &'static str {
     "ok"
@@ -65,6 +65,8 @@ pub async fn ws_handler(
         }
     };
 
+    let device_id = websocket_device_id(&headers);
+
     if !try_acquire_connection_slot(&state, &session.identity_id).await {
         warn!(
             identity_id = %session.identity_id,
@@ -95,7 +97,15 @@ pub async fn ws_handler(
             release_connection_slot_after_failed_upgrade(state, identity_id).await;
         });
     })
-    .on_upgrade(move |socket| handle_socket(state_for_upgrade, socket, identity_id, connection_id))
+    .on_upgrade(move |socket| {
+        handle_socket(
+            state_for_upgrade,
+            socket,
+            identity_id,
+            connection_id,
+            device_id,
+        )
+    })
 }
 
 async fn handle_socket(
@@ -103,6 +113,7 @@ async fn handle_socket(
     socket: WebSocket,
     session_identity_id: String,
     connection_id: String,
+    device_id: Option<String>,
 ) {
     let (mut sender, mut receiver) = socket.split();
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
@@ -112,6 +123,7 @@ async fn handle_socket(
         &session_identity_id,
         &connection_id,
         outbound_tx.clone(),
+        device_id.clone(),
     )
     .await;
 
@@ -124,6 +136,13 @@ async fn handle_socket(
     });
 
     let _ = outbound_tx.try_send(connection_ready_banner());
+    crate::domain::presence::hydrate_presence_backlog_if_needed(
+        &state,
+        &session_identity_id,
+        device_id.as_deref(),
+        &outbound_tx,
+    )
+    .await;
     crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
 
     while let Some(message) = receiver.next().await {
@@ -232,6 +251,15 @@ fn connection_ready_banner() -> String {
 
 fn build_error_event(code: &str, message: &str) -> String {
     crate::domain::events::service::build_error_event(code, message)
+}
+
+fn websocket_device_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-hexrelay-device-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 #[cfg(test)]
@@ -536,12 +564,13 @@ async fn register_connection_sender(
     identity_id: &str,
     connection_id: &str,
     sender: mpsc::Sender<String>,
+    device_id: Option<String>,
 ) {
     let mut guard = state.connection_senders.lock().await;
-    guard
-        .entry(identity_id.to_string())
-        .or_default()
-        .insert(connection_id.to_string(), sender);
+    guard.entry(identity_id.to_string()).or_default().insert(
+        connection_id.to_string(),
+        ConnectionSenderEntry { sender, device_id },
+    );
 }
 
 async fn unregister_connection_sender(state: &AppState, identity_id: &str, connection_id: &str) {

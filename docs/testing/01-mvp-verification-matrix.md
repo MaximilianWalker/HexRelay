@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed realtime presence propagation/reconnect integration coverage and CI Redis service wiring for presence validation.
+- Latest meaningful change: 2026-03-22 T3.3.1 added end-to-end Redis-backed contact hydration coverage, and T3.3.2 added late-device presence convergence verification for websocket profile devices.
 
 ## Requirement to Evidence Matrix
 

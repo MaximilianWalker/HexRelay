@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 gained Redis-backed websocket propagation/reconnect integration coverage plus CI Redis wiring for presence validation.
+- Latest meaningful change: 2026-03-22 T3.3.1 gained end-to-end contact hydration coverage, and T3.3.2 started per-device presence replay/hydration with late-device websocket convergence coverage.
 
 ## Iteration Scope
 
