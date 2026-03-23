@@ -60,6 +60,7 @@ enum ValidateMode {
 struct PresenceApiStubState {
     sessions: Arc<RwLock<HashMap<String, String>>>,
     watchers: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    internal_token: String,
 }
 
 async fn start_validate_server(mode: ValidateMode) -> String {
@@ -119,6 +120,7 @@ async fn start_validate_server(mode: ValidateMode) -> String {
 async fn start_presence_api_stub(
     sessions: HashMap<String, String>,
     watchers: HashMap<String, Vec<String>>,
+    internal_token: &str,
 ) -> String {
     async fn validate_endpoint(
         State(state): State<PresenceApiStubState>,
@@ -162,7 +164,20 @@ async fn start_presence_api_stub(
     async fn watchers_endpoint(
         Path(identity_id): Path<String>,
         State(state): State<PresenceApiStubState>,
-    ) -> Json<Value> {
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<Value>) {
+        let token_valid = headers
+            .get("x-hexrelay-internal-token")
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value == state.internal_token)
+            .unwrap_or(false);
+        if !token_valid {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "watchers": [] })),
+            );
+        }
+
         let watchers = state
             .watchers
             .read()
@@ -170,12 +185,16 @@ async fn start_presence_api_stub(
             .get(&identity_id)
             .cloned()
             .unwrap_or_default();
-        Json(serde_json::json!({ "watchers": watchers }))
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({ "watchers": watchers })),
+        )
     }
 
     let state = PresenceApiStubState {
         sessions: Arc::new(RwLock::new(sessions)),
         watchers: Arc::new(RwLock::new(watchers)),
+        internal_token: internal_token.to_string(),
     };
     let app = Router::new()
         .route("/v1/auth/sessions/validate", get(validate_endpoint))
@@ -202,8 +221,8 @@ async fn prepared_redis_client() -> Option<redis::Client> {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
             assert!(
-                env::var("CI").is_err(),
-                "REALTIME_PRESENCE_REDIS_URL must be set in CI"
+                env::var("GITHUB_ACTIONS").is_err(),
+                "REALTIME_PRESENCE_REDIS_URL must be set in GitHub Actions"
             );
             eprintln!(
                 "[realtime-rs test] skipping Redis-backed presence test because REALTIME_PRESENCE_REDIS_URL is not configured"
@@ -215,7 +234,10 @@ async fn prepared_redis_client() -> Option<redis::Client> {
     let client = match redis::Client::open(redis_url.as_str()) {
         Ok(value) => value,
         Err(error) => {
-            assert!(env::var("CI").is_err(), "invalid Redis URL in CI: {error}");
+            assert!(
+                env::var("GITHUB_ACTIONS").is_err(),
+                "invalid Redis URL in GitHub Actions: {error}"
+            );
             eprintln!("[realtime-rs test] skipping Redis-backed presence test because Redis URL is invalid: {error}");
             return None;
         }
@@ -225,8 +247,8 @@ async fn prepared_redis_client() -> Option<redis::Client> {
         Ok(value) => value,
         Err(error) => {
             assert!(
-                env::var("CI").is_err(),
-                "failed to connect to Redis in CI: {error}"
+                env::var("GITHUB_ACTIONS").is_err(),
+                "failed to connect to Redis in GitHub Actions: {error}"
             );
             eprintln!("[realtime-rs test] skipping Redis-backed presence test because Redis is unavailable: {error}");
             return None;
@@ -585,6 +607,7 @@ async fn websocket_presence_updates_propagate_and_recover_after_reconnect() {
             ),
             ("usr-watcher".to_string(), vec!["usr-watcher".to_string()]),
         ]),
+        "hexrelay-dev-presence-token-change-me",
     )
     .await;
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed presence propagation/reconnect integration coverage, hardened realtime presence delivery, and wired CI Redis services for presence validation.
+- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed presence propagation/reconnect integration coverage and wired CI Redis services for presence validation (no production runtime logic changes in this PR).
 
 ## Purpose
 
