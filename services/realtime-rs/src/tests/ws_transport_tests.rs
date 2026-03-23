@@ -1142,7 +1142,12 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         live_payload["data"]["created_at"]
     );
 
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
     close_socket_and_wait_for_disconnect(&mut late_device).await;
+    drop(late_device);
     let mut second_reconnect_late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = second_reconnect_late_device.next().await;
