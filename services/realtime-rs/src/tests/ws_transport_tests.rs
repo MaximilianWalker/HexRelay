@@ -432,6 +432,43 @@ async fn assert_no_presence_event(
     }
 }
 
+async fn assert_no_channel_message_created_event(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_message_id: &str,
+    timeout: Duration,
+) {
+    let wait_result = tokio::time::timeout(timeout, async {
+        while let Some(message) = socket.next().await {
+            let message = match message {
+                Ok(value) => value,
+                Err(_) => return,
+            };
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if payload["event_type"] == "channel.message.created"
+                && payload["data"]["message_id"] == expected_message_id
+            {
+                panic!(
+                    "unexpected duplicate channel message event for message_id={expected_message_id}: {text}"
+                );
+            }
+        }
+    })
+    .await;
+
+    if let Ok(()) = wait_result {
+        panic!("socket closed before channel absence assertion completed");
+    }
+}
+
 #[tokio::test]
 async fn rejects_missing_authorization_header() {
     let state = AppState::new(
@@ -1105,11 +1142,25 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         live_payload["data"]["created_at"]
     );
 
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+    let mut second_reconnect_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = second_reconnect_late_device.next().await;
+    assert_no_channel_message_created_event(
+        &mut second_reconnect_late_device,
+        "msg-1",
+        Duration::from_secs(2),
+    )
+    .await;
+
     primary_device
         .close(None)
         .await
         .expect("close primary device");
-    late_device.close(None).await.expect("close late device");
+    second_reconnect_late_device
+        .close(None)
+        .await
+        .expect("close second reconnected late device");
     clear_channel_keys(&redis_client, "usr-channel-viewer").await;
 }
 
