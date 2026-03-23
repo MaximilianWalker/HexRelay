@@ -357,6 +357,19 @@ async fn recv_presence_event(
     }
 }
 
+async fn close_socket_and_wait_for_disconnect(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) {
+    while let Some(message) = socket.next().await {
+        match message {
+            Ok(WsMessage::Close(_)) | Err(_) => break,
+            _ => continue,
+        }
+    }
+}
+
 #[tokio::test]
 async fn rejects_missing_authorization_header() {
     let state = AppState::new(
@@ -868,6 +881,8 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
         .close(None)
         .await
         .expect("close late device before offline transition");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+    drop(late_device);
 
     subject_socket
         .close(None)
