@@ -598,7 +598,7 @@ async fn start_ws_server(api_base_url: String, ws_connect_rate_limit: usize) -> 
 async fn start_ws_server_with_state(state: AppState) -> String {
     spawn_presence_subscriber(state.clone());
     spawn_channel_subscriber(state.clone());
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
     let app = build_app(state);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -899,6 +899,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
     let _ = subject_socket.next().await;
@@ -995,6 +996,7 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
