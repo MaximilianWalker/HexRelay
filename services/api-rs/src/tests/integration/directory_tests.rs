@@ -1,4 +1,6 @@
 use super::*;
+use realtime_rs::{domain::presence::publish_online_if_needed, state::ConnectionSenderEntry};
+use tokio::{net::TcpListener, sync::mpsc};
 
 #[tokio::test]
 async fn lists_servers_with_filters_from_persisted_memberships() {
@@ -427,4 +429,188 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
         .query_async(&mut redis)
         .await
         .expect("clear converged presence snapshot");
+}
+
+#[tokio::test]
+async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let Some(redis_client) = prepared_presence_redis_client().await else {
+        return;
+    };
+
+    let actor = unique_identity("usr-contacts-actor-cross-service");
+    let accepted = unique_identity("usr-contacts-accepted-cross-service");
+
+    let api_state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &accepted).await;
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+    )
+    .bind(format!("fr-{}", Uuid::new_v4().simple()))
+    .bind(&actor)
+    .bind(&accepted)
+    .execute(&pool)
+    .await
+    .expect("insert accepted friend request");
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind api test server");
+    let api_addr = listener.local_addr().expect("api test server addr");
+    let api_app = build_app(api_state.clone());
+    tokio::spawn(async move {
+        axum::serve(listener, api_app)
+            .await
+            .expect("serve api test app");
+    });
+    let api_base_url = format!("http://{}", api_addr);
+
+    let realtime_state = realtime_rs::state::AppState::new(
+        api_base_url.clone(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16_384,
+        120,
+        60,
+        3,
+        0,
+        10_000,
+    )
+    .expect("build realtime state");
+    let (sender, _receiver) = mpsc::channel::<String>(4);
+    realtime_state.connection_senders.lock().await.insert(
+        actor.clone(),
+        HashMap::from([(
+            "conn-primary".to_string(),
+            ConnectionSenderEntry {
+                sender,
+                device_id: Some("device-primary".to_string()),
+            },
+        )]),
+    );
+
+    let mut redis = redis_client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("redis connection");
+    let _: () = redis::cmd("DEL")
+        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
+        .arg(format!("presence:v1:watcher_stream_head:{actor}"))
+        .arg(format!(
+            "presence:v1:watcher_device_cursor:{actor}:device-primary"
+        ))
+        .arg(format!("presence:v1:count:{accepted}"))
+        .arg(format!("presence:v1:seq:{accepted}"))
+        .query_async(&mut redis)
+        .await
+        .expect("clear cross-service presence keys");
+
+    publish_online_if_needed(&realtime_state, &accepted).await;
+
+    let snapshot_raw: String = redis::cmd("GET")
+        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .query_async(&mut redis)
+        .await
+        .expect("read realtime-written snapshot");
+    let replay_entries: Vec<String> = redis::cmd("LRANGE")
+        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
+        .arg(0)
+        .arg(-1)
+        .query_async(&mut redis)
+        .await
+        .expect("read watcher replay log");
+    assert_eq!(replay_entries.len(), 1);
+
+    let snapshot_json: serde_json::Value =
+        serde_json::from_str(&snapshot_raw).expect("decode realtime snapshot json");
+    let replay_entry_json: serde_json::Value =
+        serde_json::from_str(&replay_entries[0]).expect("decode replay entry json");
+    let replay_payload_json: serde_json::Value = serde_json::from_str(
+        replay_entry_json["payload"]
+            .as_str()
+            .expect("payload string"),
+    )
+    .expect("decode replay payload json");
+
+    assert_eq!(
+        snapshot_json["status"],
+        replay_payload_json["data"]["status"]
+    );
+    assert_eq!(
+        snapshot_json["presence_seq"],
+        replay_payload_json["data"]["presence_seq"]
+    );
+    assert_eq!(
+        snapshot_json["updated_at"],
+        replay_payload_json["data"]["updated_at"]
+    );
+
+    let token = issue_db_session_cookie(&pool, &api_state, &actor).await;
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("build api test client");
+    let response = client
+        .get(format!("{api_base_url}/v1/contacts"))
+        .header(reqwest::header::COOKIE, format!("hexrelay_session={token}"))
+        .send()
+        .await
+        .expect("request contacts from api server");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let payload: ContactListResponse = response
+        .json()
+        .await
+        .expect("decode contacts payload from api server");
+    let accepted_item = payload
+        .items
+        .iter()
+        .find(|item| item["id"] == accepted)
+        .expect("accepted contact present");
+    assert_eq!(accepted_item["status"], "online");
+
+    let _: () = redis::cmd("DEL")
+        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
+        .arg(format!("presence:v1:watcher_stream_head:{actor}"))
+        .arg(format!(
+            "presence:v1:watcher_device_cursor:{actor}:device-primary"
+        ))
+        .arg(format!("presence:v1:count:{accepted}"))
+        .arg(format!("presence:v1:seq:{accepted}"))
+        .query_async(&mut redis)
+        .await
+        .expect("clear cross-service presence keys");
 }
