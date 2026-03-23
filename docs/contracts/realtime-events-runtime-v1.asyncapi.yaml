@@ -18,8 +18,9 @@ info:
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
     Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
-    per-device presence replay/hydration; when present, late-joining profile devices receive
-    missed `presence.updated` events before new live transitions.
+    per-device replay/hydration for `presence.updated` and `channel.message.created`.
+    When present, late-joining profile devices receive missed supported events before new
+    live transitions.
 defaultContentType: application/json
 channels:
   callSignalOffer:
@@ -47,6 +48,11 @@ channels:
     messages:
       presenceUpdatedV1:
         $ref: '#/components/messages/PresenceUpdatedV1'
+  channelMessageCreated:
+    address: channel.message.created
+    messages:
+      channelMessageCreatedV1:
+        $ref: '#/components/messages/ChannelMessageCreatedV1'
   error:
     address: error
     messages:
@@ -83,6 +89,12 @@ operations:
       $ref: '#/channels/presenceUpdated'
     messages:
       - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
+  receiveChannelMessageCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageCreated'
+    messages:
+      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
   receiveError:
     action: receive
     channel:
@@ -106,6 +118,9 @@ components:
     PresenceUpdatedV1:
       payload:
         $ref: '#/components/schemas/PresenceUpdatedEventV1'
+    ChannelMessageCreatedV1:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -120,7 +135,7 @@ components:
         event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway, realtime-presence] }
+        producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel] }
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
@@ -208,6 +223,19 @@ components:
         presence_seq:
           type: integer
           minimum: 1
+    ChannelMessageCreatedDataV1:
+      type: object
+      additionalProperties: false
+      required: [message_id, guild_id, channel_id, sender_id, created_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        guild_id: { type: string }
+        channel_id: { type: string }
+        sender_id: { type: string }
+        created_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
     RealtimeConnectedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -229,3 +257,10 @@ components:
           properties:
             event_type: { const: presence.updated }
             data: { $ref: '#/components/schemas/PresenceUpdatedDataV1' }
+    ChannelMessageCreatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: channel.message.created }
+            data: { $ref: '#/components/schemas/ChannelMessageCreatedDataV1' }

@@ -1,4 +1,5 @@
 use realtime_rs::app::{build_app, AppState, RealtimeConfig};
+use realtime_rs::domain::channels::spawn_channel_subscriber;
 use realtime_rs::domain::presence::spawn_presence_subscriber;
 use std::env;
 use tracing::{error, info};
@@ -60,6 +61,7 @@ async fn main() {
     };
 
     spawn_presence_subscriber(state.clone());
+    spawn_channel_subscriber(state.clone());
 
     let app = build_app(state);
 

@@ -19,6 +19,7 @@ use tokio_tungstenite::{
 };
 
 use crate::app::{build_app, AppState};
+use crate::domain::channels::{publish_channel_message_created, PublishChannelMessageCreatedInput};
 use crate::domain::presence::spawn_presence_subscriber;
 
 use crate::transport::ws::handlers::gateway::{is_session_valid, route_inbound_event};
@@ -283,6 +284,25 @@ async fn clear_presence_keys(client: &redis::Client, identity_id: &str) {
         .query_async(&mut connection)
         .await
         .expect("clear presence keys");
+}
+
+async fn clear_channel_keys(client: &redis::Client, identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection");
+    let _: () = redis::cmd("DEL")
+        .arg(format!("channels:v1:recipient_stream_head:{identity_id}"))
+        .arg(format!("channels:v1:recipient_stream_log:{identity_id}"))
+        .arg(format!(
+            "channels:v1:recipient_device_cursor:{identity_id}:device-primary"
+        ))
+        .arg(format!(
+            "channels:v1:recipient_device_cursor:{identity_id}:device-late"
+        ))
+        .query_async(&mut connection)
+        .await
+        .expect("clear channel keys");
 }
 
 async fn connect_ws_with_token(
@@ -971,6 +991,125 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
         .expect("close second reconnected late device");
     clear_presence_keys(&redis_client, "usr-offline-subject").await;
     clear_presence_keys(&redis_client, "usr-offline-viewer").await;
+}
+
+#[tokio::test]
+async fn websocket_channel_message_created_hydrates_late_profile_device() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([(
+            "Bearer viewer-token".to_string(),
+            "usr-channel-viewer".to_string(),
+        )]),
+        HashMap::new(),
+        "hexrelay-dev-presence-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state.clone()).await;
+
+    let mut primary_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
+    let _ = primary_device.next().await;
+
+    publish_channel_message_created(
+        &state,
+        PublishChannelMessageCreatedInput {
+            message_id: "msg-1".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            sender_id: "usr-sender".to_string(),
+            created_at: Some("2026-03-23T05:00:00Z".to_string()),
+            channel_seq: 7,
+            recipients: vec!["usr-channel-viewer".to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message created");
+
+    let live_payload = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let message = primary_device
+                .next()
+                .await
+                .expect("live channel event")
+                .expect("ws frame");
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: Value = serde_json::from_str(&text).expect("decode channel payload");
+            if payload["event_type"] == "channel.message.created"
+                && payload["data"]["message_id"] == "msg-1"
+            {
+                break payload;
+            }
+        }
+    })
+    .await
+    .expect("channel live timeout");
+    assert_eq!(live_payload["data"]["channel_seq"], 7);
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+    let hydrated_payload = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let message = late_device
+                .next()
+                .await
+                .expect("hydrated channel event")
+                .expect("ws frame");
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: Value = serde_json::from_str(&text).expect("decode hydrated payload");
+            if payload["event_type"] == "channel.message.created"
+                && payload["data"]["message_id"] == "msg-1"
+            {
+                break payload;
+            }
+        }
+    })
+    .await
+    .expect("channel hydration timeout");
+    assert_eq!(
+        hydrated_payload["data"]["channel_seq"],
+        live_payload["data"]["channel_seq"]
+    );
+    assert_eq!(
+        hydrated_payload["data"]["created_at"],
+        live_payload["data"]["created_at"]
+    );
+
+    primary_device
+        .close(None)
+        .await
+        .expect("close primary device");
+    late_device.close(None).await.expect("close late device");
+    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
 }
 
 #[tokio::test]
