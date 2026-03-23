@@ -5,7 +5,13 @@ use tokio::sync::{mpsc::Sender, Mutex};
 
 use crate::transport::ws::middleware::rate_limit::RateLimiter;
 
-pub type ConnectionSenderMap = HashMap<String, HashMap<String, Sender<String>>>;
+#[derive(Clone)]
+pub struct ConnectionSenderEntry {
+    pub sender: Sender<String>,
+    pub device_id: Option<String>,
+}
+
+pub type ConnectionSenderMap = HashMap<String, HashMap<String, ConnectionSenderEntry>>;
 
 #[derive(Clone)]
 pub struct AppState {

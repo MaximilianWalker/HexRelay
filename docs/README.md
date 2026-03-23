@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 added Redis-backed presence propagation/reconnect integration coverage and wired CI Redis services for presence validation (no production runtime logic changes in this PR).
+- Latest meaningful change: 2026-03-22 T3.3.1 added end-to-end `/v1/contacts` Redis presence hydration coverage, and T3.3.2 started per-device presence replay/hydration groundwork with late-device websocket convergence tests.
 
 ## Purpose
 

@@ -203,3 +203,124 @@ async fn lists_contacts_with_search_filter() {
         serde_json::from_slice(&body).expect("decode contacts list response");
     assert_eq!(payload.items.len(), 1);
 }
+
+#[tokio::test]
+async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let Some(redis_client) = prepared_presence_redis_client().await else {
+        return;
+    };
+
+    let actor = unique_identity("usr-contacts-actor");
+    let accepted = unique_identity("usr-contacts-accepted");
+    let pending = unique_identity("usr-contacts-pending");
+
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &accepted).await;
+    ensure_db_identity_key(&pool, &pending).await;
+
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+    )
+    .bind(format!("fr-{}", Uuid::new_v4().simple()))
+    .bind(&actor)
+    .bind(&accepted)
+    .execute(&pool)
+    .await
+    .expect("insert accepted friend request");
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'pending')",
+    )
+    .bind(format!("fr-{}", Uuid::new_v4().simple()))
+    .bind(&actor)
+    .bind(&pending)
+    .execute(&pool)
+    .await
+    .expect("insert pending friend request");
+
+    let mut redis = redis_client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("redis connection");
+    let _: () = redis::cmd("SET")
+        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(r#"{"status":"online"}"#)
+        .query_async(&mut redis)
+        .await
+        .expect("set accepted presence snapshot");
+    let _: () = redis::cmd("SET")
+        .arg(format!("presence:v1:snapshot:{pending}"))
+        .arg(r#"{"status":"online"}"#)
+        .query_async(&mut redis)
+        .await
+        .expect("set pending presence snapshot");
+
+    let token = issue_db_session_cookie(&pool, &state, &actor).await;
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/contacts")
+        .header("cookie", format!("hexrelay_session={token}"))
+        .body(Body::empty())
+        .expect("build contacts request");
+
+    let response = app.oneshot(request).await.expect("contacts response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read contacts response body");
+    let payload: ContactListResponse =
+        serde_json::from_slice(&body).expect("decode contacts payload");
+
+    let accepted_item = payload
+        .items
+        .iter()
+        .find(|item| item["id"] == accepted)
+        .expect("accepted contact present");
+    let pending_item = payload
+        .items
+        .iter()
+        .find(|item| item["id"] == pending)
+        .expect("pending contact present");
+
+    assert_eq!(accepted_item["status"], "online");
+    assert_eq!(pending_item["status"], "offline");
+    assert_eq!(pending_item["pending_request"], true);
+
+    let _: () = redis::cmd("DEL")
+        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(format!("presence:v1:snapshot:{pending}"))
+        .query_async(&mut redis)
+        .await
+        .expect("clear presence snapshots");
+}

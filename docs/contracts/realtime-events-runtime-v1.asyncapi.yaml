@@ -17,6 +17,9 @@ info:
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
+    Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
+    per-device presence replay/hydration; when present, late-joining profile devices receive
+    missed `presence.updated` events before new live transitions.
 defaultContentType: application/json
 channels:
   callSignalOffer:
