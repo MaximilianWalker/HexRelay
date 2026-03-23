@@ -528,6 +528,48 @@ async fn recv_channel_event(
     .expect("channel event timeout")
 }
 
+async fn wait_for_channel_replay_event(
+    client: &redis::Client,
+    recipient_identity_id: &str,
+    expected_event_type: &str,
+    expected_message_id: &str,
+) -> Value {
+    let replay_log_key = format!("channels:v1:recipient_stream_log:{recipient_identity_id}");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+
+    loop {
+        let mut connection = client
+            .get_multiplexed_tokio_connection()
+            .await
+            .expect("open redis connection for replay wait");
+        let values: Vec<String> = redis::cmd("LRANGE")
+            .arg(&replay_log_key)
+            .arg(0)
+            .arg(-1)
+            .query_async(&mut connection)
+            .await
+            .expect("read channel replay log");
+
+        for raw_entry in values {
+            let replay_entry: Value =
+                serde_json::from_str(&raw_entry).expect("decode replay entry");
+            let payload_raw = replay_entry["payload"].as_str().expect("payload string");
+            let payload: Value = serde_json::from_str(payload_raw).expect("decode replay payload");
+            if payload["event_type"] == expected_event_type
+                && payload["data"]["message_id"] == expected_message_id
+            {
+                return payload;
+            }
+        }
+
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for channel replay event {expected_event_type}:{expected_message_id}"
+        );
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_missing_authorization_header() {
     let state = AppState::new(
@@ -1148,28 +1190,14 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     .await
     .expect("publish channel message created");
 
-    let live_payload = tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let message = primary_device
-                .next()
-                .await
-                .expect("live channel event")
-                .expect("ws frame");
-            let text = match message {
-                WsMessage::Text(value) => value,
-                _ => continue,
-            };
-            let payload: Value = serde_json::from_str(&text).expect("decode channel payload");
-            if payload["event_type"] == "channel.message.created"
-                && payload["data"]["message_id"] == "msg-1"
-            {
-                break payload;
-            }
-        }
-    })
-    .await
-    .expect("channel live timeout");
-    assert_eq!(live_payload["data"]["channel_seq"], 7);
+    let replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        "usr-channel-viewer",
+        "channel.message.created",
+        "msg-1",
+    )
+    .await;
+    assert_eq!(replay_payload["data"]["channel_seq"], 7);
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1198,11 +1226,11 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     .expect("channel hydration timeout");
     assert_eq!(
         hydrated_payload["data"]["channel_seq"],
-        live_payload["data"]["channel_seq"]
+        replay_payload["data"]["channel_seq"]
     );
     assert_eq!(
         hydrated_payload["data"]["created_at"],
-        live_payload["data"]["created_at"]
+        replay_payload["data"]["created_at"]
     );
 
     late_device
@@ -1287,9 +1315,14 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     .await
     .expect("publish channel message updated");
 
-    let live_payload =
-        recv_channel_event(&mut primary_device, "channel.message.updated", "msg-2").await;
-    assert_eq!(live_payload["data"]["channel_seq"], 8);
+    let replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        "usr-channel-viewer",
+        "channel.message.updated",
+        "msg-2",
+    )
+    .await;
+    assert_eq!(replay_payload["data"]["channel_seq"], 8);
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1299,11 +1332,11 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         recv_channel_event(&mut late_device, "channel.message.updated", "msg-2").await;
     assert_eq!(
         hydrated_payload["data"]["channel_seq"],
-        live_payload["data"]["channel_seq"]
+        replay_payload["data"]["channel_seq"]
     );
     assert_eq!(
         hydrated_payload["data"]["edited_at"],
-        live_payload["data"]["edited_at"]
+        replay_payload["data"]["edited_at"]
     );
 
     primary_device
