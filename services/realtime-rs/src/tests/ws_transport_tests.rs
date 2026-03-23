@@ -800,6 +800,111 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
 }
 
 #[tokio::test]
+async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnecting_device() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    clear_presence_keys(&redis_client, "usr-offline-subject").await;
+    clear_presence_keys(&redis_client, "usr-offline-viewer").await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([
+            (
+                "Bearer subject-token".to_string(),
+                "usr-offline-subject".to_string(),
+            ),
+            (
+                "Bearer viewer-token".to_string(),
+                "usr-offline-viewer".to_string(),
+            ),
+        ]),
+        HashMap::from([(
+            "usr-offline-subject".to_string(),
+            vec!["usr-offline-viewer".to_string()],
+        )]),
+        "hexrelay-dev-presence-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut primary_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
+    let _ = primary_device.next().await;
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+
+    let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
+    let _ = subject_socket.next().await;
+
+    let online_primary =
+        recv_presence_event(&mut primary_device, "usr-offline-subject", "online").await;
+    let online_late = recv_presence_event(&mut late_device, "usr-offline-subject", "online").await;
+    assert_eq!(
+        online_primary["data"]["presence_seq"],
+        online_late["data"]["presence_seq"]
+    );
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before offline transition");
+
+    subject_socket
+        .close(None)
+        .await
+        .expect("close subject socket");
+
+    let offline_primary =
+        recv_presence_event(&mut primary_device, "usr-offline-subject", "offline").await;
+
+    let mut reconnected_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = reconnected_late_device.next().await;
+
+    let offline_rehydrated = recv_presence_event(
+        &mut reconnected_late_device,
+        "usr-offline-subject",
+        "offline",
+    )
+    .await;
+    assert_eq!(
+        offline_primary["data"]["presence_seq"],
+        offline_rehydrated["data"]["presence_seq"]
+    );
+
+    primary_device
+        .close(None)
+        .await
+        .expect("close primary device");
+    reconnected_late_device
+        .close(None)
+        .await
+        .expect("close reconnected late device");
+    clear_presence_keys(&redis_client, "usr-offline-subject").await;
+    clear_presence_keys(&redis_client, "usr-offline-viewer").await;
+}
+
+#[tokio::test]
 async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_signal_offer() {
     let api_base = start_validate_server(ValidateMode::Authorized).await;
     let ws_url = start_ws_server(api_base, 60).await;
