@@ -1174,6 +1174,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
+    wait_for_registered_device(&state, "usr-channel-viewer", "device-late").await;
     let hydrated_payload = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let message = late_device
@@ -1293,6 +1294,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
+    wait_for_registered_device(&state, "usr-channel-viewer", "device-late").await;
     let hydrated_payload =
         recv_channel_event(&mut late_device, "channel.message.updated", "msg-2").await;
     assert_eq!(
