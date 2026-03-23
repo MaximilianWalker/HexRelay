@@ -362,12 +362,15 @@ async fn close_socket_and_wait_for_disconnect(
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
 ) {
-    while let Some(message) = socket.next().await {
-        match message {
-            Ok(WsMessage::Close(_)) | Err(_) => break,
-            _ => continue,
+    let _ = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(message) = socket.next().await {
+            match message {
+                Ok(WsMessage::Close(_)) | Err(_) => break,
+                _ => continue,
+            }
         }
-    }
+    })
+    .await;
 }
 
 async fn assert_no_presence_event(
