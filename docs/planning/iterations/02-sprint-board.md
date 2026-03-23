@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 started runtime `channel.message.created` active-device fanout plus late-device hydration coverage on top of the T3.3.2 presence replay baseline.
+- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay coverage from `channel.message.created` to `channel.message.updated`, preserving the same late-device hydration model.
 
 ## Iteration Scope
 
