@@ -925,7 +925,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
-    wait_for_registered_device(&state, "usr-channel-viewer", "device-primary").await;
+    wait_for_registered_device(&state, "usr-presence-viewer", "device-primary").await;
 
     let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
     let _ = subject_socket.next().await;
@@ -1022,7 +1022,7 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
-    wait_for_registered_device(&state, "usr-channel-viewer", "device-primary").await;
+    wait_for_registered_device(&state, "usr-offline-viewer", "device-primary").await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
