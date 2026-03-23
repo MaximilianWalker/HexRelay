@@ -20,7 +20,7 @@ use tokio_tungstenite::{
 
 use crate::app::{build_app, AppState};
 use crate::domain::channels::{publish_channel_message_created, PublishChannelMessageCreatedInput};
-use crate::domain::presence::spawn_presence_subscriber;
+use crate::domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber};
 
 use crate::transport::ws::handlers::gateway::{is_session_valid, route_inbound_event};
 
@@ -527,6 +527,7 @@ async fn start_ws_server(api_base_url: String, ws_connect_rate_limit: usize) -> 
 
 async fn start_ws_server_with_state(state: AppState) -> String {
     spawn_presence_subscriber(state.clone());
+    spawn_channel_subscriber(state.clone());
     let app = build_app(state);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await

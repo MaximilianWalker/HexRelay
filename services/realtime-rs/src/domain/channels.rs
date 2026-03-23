@@ -203,6 +203,9 @@ pub async fn publish_channel_message_created(
     if recipients.is_empty() {
         return Ok(());
     }
+    if input.channel_seq == 0 {
+        return Err("channel_seq must be greater than zero".to_string());
+    }
 
     let mut connection = client
         .get_multiplexed_tokio_connection()
