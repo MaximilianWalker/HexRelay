@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-22
+- last_updated: 2026-03-23
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 gained end-to-end contact hydration coverage, and T3.3.2 started per-device presence replay/hydration with late-device websocket convergence coverage.
+- Latest meaningful change: 2026-03-23 T4.3.4 started runtime `channel.message.created` active-device fanout plus late-device hydration coverage on top of the T3.3.2 presence replay baseline.
 
 ## Iteration Scope
 

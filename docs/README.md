@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-22
+- last_updated: 2026-03-23
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 added end-to-end `/v1/contacts` Redis presence hydration coverage, and T3.3.2 started per-device presence replay/hydration groundwork with late-device websocket convergence tests.
+- Latest meaningful change: 2026-03-23 T4.3.4 started runtime support for `channel.message.created` active-device fanout plus late-device hydration, with runtime AsyncAPI updated to reflect the new replay-capable websocket event.
 
 ## Purpose
 

@@ -145,6 +145,13 @@ async fn handle_socket(
         &outbound_tx,
     )
     .await;
+    crate::domain::channels::hydrate_channel_backlog_if_needed(
+        &state,
+        &session_identity_id,
+        device_id.as_deref(),
+        &outbound_tx,
+    )
+    .await;
     crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
 
     while let Some(message) = receiver.next().await {

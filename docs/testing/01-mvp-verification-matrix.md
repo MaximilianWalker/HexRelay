@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-22
+- last_updated: 2026-03-23
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-22 T3.3.1 added end-to-end Redis-backed contact hydration coverage, and T3.3.2 added late-device presence convergence verification for websocket profile devices.
+- Latest meaningful change: 2026-03-23 T4.3.4 added websocket verification for `channel.message.created` active-device fanout and late-device hydration using the shared Redis-backed profile-device replay model.
 
 ## Requirement to Evidence Matrix
 
