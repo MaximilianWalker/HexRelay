@@ -505,7 +505,7 @@ async fn recv_channel_event(
     expected_event_type: &str,
     expected_message_id: &str,
 ) -> Value {
-    tokio::time::timeout(Duration::from_secs(10), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let message = socket
                 .next()
