@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay coverage from `channel.message.created` to `channel.message.updated`, preserving the same late-device hydration model.
+- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay coverage from `channel.message.created` to `channel.message.updated`, including late-device dedupe proof on second reconnect for both channel event types.
 
 ## Iteration Scope
 
