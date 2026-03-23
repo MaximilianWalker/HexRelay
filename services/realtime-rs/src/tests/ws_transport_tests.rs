@@ -1141,12 +1141,14 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         return;
     };
 
-    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
+    let viewer_identity_id = "usr-channel-created-viewer";
+
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
 
     let api_base = start_presence_api_stub(
         HashMap::from([(
             "Bearer viewer-token".to_string(),
-            "usr-channel-viewer".to_string(),
+            viewer_identity_id.to_string(),
         )]),
         HashMap::new(),
         "hexrelay-dev-presence-token-change-me",
@@ -1184,7 +1186,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
             sender_id: "usr-sender".to_string(),
             created_at: Some("2026-03-23T05:00:00Z".to_string()),
             channel_seq: 7,
-            recipients: vec!["usr-channel-viewer".to_string()],
+            recipients: vec![viewer_identity_id.to_string()],
         },
     )
     .await
@@ -1192,7 +1194,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
 
     let replay_payload = wait_for_channel_replay_event(
         &redis_client,
-        "usr-channel-viewer",
+        viewer_identity_id,
         "channel.message.created",
         "msg-1",
     )
@@ -1202,7 +1204,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
-    wait_for_registered_device(&state, "usr-channel-viewer", "device-late").await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
     let hydrated_payload =
         recv_channel_event(&mut late_device, "channel.message.created", "msg-1").await;
     assert_eq!(
@@ -1238,7 +1240,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         .close(None)
         .await
         .expect("close second reconnected late device");
-    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
 }
 
 #[tokio::test]
@@ -1247,12 +1249,14 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         return;
     };
 
-    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
+    let viewer_identity_id = "usr-channel-updated-viewer";
+
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
 
     let api_base = start_presence_api_stub(
         HashMap::from([(
             "Bearer viewer-token".to_string(),
-            "usr-channel-viewer".to_string(),
+            viewer_identity_id.to_string(),
         )]),
         HashMap::new(),
         "hexrelay-dev-presence-token-change-me",
@@ -1290,7 +1294,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
             editor_id: "usr-editor".to_string(),
             edited_at: Some("2026-03-23T05:05:00Z".to_string()),
             channel_seq: 8,
-            recipients: vec!["usr-channel-viewer".to_string()],
+            recipients: vec![viewer_identity_id.to_string()],
         },
     )
     .await
@@ -1298,7 +1302,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
 
     let replay_payload = wait_for_channel_replay_event(
         &redis_client,
-        "usr-channel-viewer",
+        viewer_identity_id,
         "channel.message.updated",
         "msg-2",
     )
@@ -1308,7 +1312,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
-    wait_for_registered_device(&state, "usr-channel-viewer", "device-late").await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
     let hydrated_payload =
         recv_channel_event(&mut late_device, "channel.message.updated", "msg-2").await;
     assert_eq!(
@@ -1325,7 +1329,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         .await
         .expect("close primary device");
     late_device.close(None).await.expect("close late device");
-    clear_channel_keys(&redis_client, "usr-channel-viewer").await;
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
 }
 
 #[tokio::test]
