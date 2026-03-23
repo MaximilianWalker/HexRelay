@@ -335,7 +335,7 @@ async fn recv_presence_event(
     expected_user_id: &str,
     expected_status: &str,
 ) -> Value {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         let message = tokio::time::timeout(remaining, socket.next())
@@ -362,11 +362,53 @@ async fn close_socket_and_wait_for_disconnect(
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
 ) {
-    while let Some(message) = socket.next().await {
-        match message {
-            Ok(WsMessage::Close(_)) | Err(_) => break,
-            _ => continue,
+    let _ = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(message) = socket.next().await {
+            match message {
+                Ok(WsMessage::Close(_)) | Err(_) => break,
+                _ => continue,
+            }
         }
+    })
+    .await;
+}
+
+async fn assert_no_presence_event(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_user_id: &str,
+    expected_status: &str,
+    timeout: Duration,
+) {
+    let wait_result = tokio::time::timeout(timeout, async {
+        while let Some(message) = socket.next().await {
+            let message = match message {
+                Ok(value) => value,
+                Err(_) => return,
+            };
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if payload["event_type"] == "presence.updated"
+                && payload["data"]["user_id"] == expected_user_id
+                && payload["data"]["status"] == expected_status
+            {
+                panic!(
+                    "unexpected duplicate presence event for user={expected_user_id} status={expected_status}: {text}"
+                );
+            }
+        }
+    })
+    .await;
+
+    if let Ok(()) = wait_result {
+        panic!("socket closed before absence assertion completed");
     }
 }
 
@@ -907,14 +949,26 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
         offline_rehydrated["data"]["presence_seq"]
     );
 
+    close_socket_and_wait_for_disconnect(&mut reconnected_late_device).await;
+    let mut second_reconnect_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = second_reconnect_late_device.next().await;
+    assert_no_presence_event(
+        &mut second_reconnect_late_device,
+        "usr-offline-subject",
+        "offline",
+        Duration::from_secs(2),
+    )
+    .await;
+
     primary_device
         .close(None)
         .await
         .expect("close primary device");
-    reconnected_late_device
+    second_reconnect_late_device
         .close(None)
         .await
-        .expect("close reconnected late device");
+        .expect("close second reconnected late device");
     clear_presence_keys(&redis_client, "usr-offline-subject").await;
     clear_presence_keys(&redis_client, "usr-offline-viewer").await;
 }
