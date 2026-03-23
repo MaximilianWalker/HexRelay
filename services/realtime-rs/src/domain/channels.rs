@@ -69,6 +69,16 @@ pub struct ChannelMessageUpdatedEnvelope {
     pub data: ChannelMessageUpdatedData,
 }
 
+#[derive(Deserialize)]
+struct ChannelPubsubEnvelope {
+    event_type: String,
+    correlation_id: String,
+    recipients: Vec<String>,
+    #[serde(default)]
+    recipient_cursors: Vec<ChannelRecipientCursor>,
+    data: serde_json::Value,
+}
+
 #[derive(Clone)]
 pub struct PublishChannelMessageCreatedInput {
     pub message_id: String,
@@ -133,35 +143,34 @@ pub fn spawn_channel_subscriber(state: AppState) {
                     }
                 };
 
-                let event_type = serde_json::from_str::<serde_json::Value>(&payload)
-                    .ok()
-                    .and_then(|value| {
-                        value
-                            .get("event_type")
-                            .and_then(|event_type| event_type.as_str())
-                            .map(str::to_owned)
-                    });
+                let event = match serde_json::from_str::<ChannelPubsubEnvelope>(&payload) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        warn!(error = %error, "failed to parse channel pubsub envelope");
+                        continue;
+                    }
+                };
 
-                match event_type.as_deref() {
-                    Some("channel.message.created") => {
-                        let event = match serde_json::from_str::<ChannelMessageCreatedEnvelope>(
-                            &payload,
+                match event.event_type.as_str() {
+                    "channel.message.created" => {
+                        let data = match serde_json::from_value::<ChannelMessageCreatedData>(
+                            event.data,
                         ) {
                             Ok(value) => value,
                             Err(error) => {
-                                warn!(error = %error, "failed to parse created channel pubsub payload");
+                                warn!(error = %error, "failed to parse channel.message.created data");
                                 continue;
                             }
                         };
 
                         let client_payload =
                             crate::domain::events::service::build_channel_message_created_event(
-                                &event.data.message_id,
-                                &event.data.guild_id,
-                                &event.data.channel_id,
-                                &event.data.sender_id,
-                                &event.data.created_at,
-                                event.data.channel_seq,
+                                &data.message_id,
+                                &data.guild_id,
+                                &data.channel_id,
+                                &data.sender_id,
+                                &data.created_at,
+                                data.channel_seq,
                                 Some(event.correlation_id.clone()),
                             );
 
@@ -173,25 +182,25 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         )
                         .await;
                     }
-                    Some("channel.message.updated") => {
-                        let event = match serde_json::from_str::<ChannelMessageUpdatedEnvelope>(
-                            &payload,
+                    "channel.message.updated" => {
+                        let data = match serde_json::from_value::<ChannelMessageUpdatedData>(
+                            event.data,
                         ) {
                             Ok(value) => value,
                             Err(error) => {
-                                warn!(error = %error, "failed to parse updated channel pubsub payload");
+                                warn!(error = %error, "failed to parse channel.message.updated data");
                                 continue;
                             }
                         };
 
                         let client_payload =
                             crate::domain::events::service::build_channel_message_updated_event(
-                                &event.data.message_id,
-                                &event.data.guild_id,
-                                &event.data.channel_id,
-                                &event.data.editor_id,
-                                &event.data.edited_at,
-                                event.data.channel_seq,
+                                &data.message_id,
+                                &data.guild_id,
+                                &data.channel_id,
+                                &data.editor_id,
+                                &data.edited_at,
+                                data.channel_seq,
                                 Some(event.correlation_id.clone()),
                             );
 
@@ -203,8 +212,8 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         )
                         .await;
                     }
-                    _ => {
-                        warn!("failed to parse channel pubsub payload event type");
+                    other => {
+                        warn!(event_type = %other, "unsupported channel pubsub event type");
                         continue;
                     }
                 }

@@ -1203,27 +1203,8 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
     wait_for_registered_device(&state, "usr-channel-viewer", "device-late").await;
-    let hydrated_payload = tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let message = late_device
-                .next()
-                .await
-                .expect("hydrated channel event")
-                .expect("ws frame");
-            let text = match message {
-                WsMessage::Text(value) => value,
-                _ => continue,
-            };
-            let payload: Value = serde_json::from_str(&text).expect("decode hydrated payload");
-            if payload["event_type"] == "channel.message.created"
-                && payload["data"]["message_id"] == "msg-1"
-            {
-                break payload;
-            }
-        }
-    })
-    .await
-    .expect("channel hydration timeout");
+    let hydrated_payload =
+        recv_channel_event(&mut late_device, "channel.message.created", "msg-1").await;
     assert_eq!(
         hydrated_payload["data"]["channel_seq"],
         replay_payload["data"]["channel_seq"]
