@@ -326,7 +326,7 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
 }
 
 #[tokio::test]
-async fn lists_contacts_return_latest_converged_presence_snapshot_after_reconnect_sequence() {
+async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconnect_sequence() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
@@ -394,34 +394,33 @@ async fn lists_contacts_return_latest_converged_presence_snapshot_after_reconnec
             .query_async(&mut redis)
             .await
             .expect("set converged presence snapshot");
+        let token = issue_db_session_cookie(&pool, &state, &actor).await;
+        let app = build_app(state.clone());
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/contacts")
+            .header("cookie", format!("hexrelay_session={token}"))
+            .body(Body::empty())
+            .expect("build contacts request");
+
+        let response = app.oneshot(request).await.expect("contacts response");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read contacts response body");
+        let payload: ContactListResponse =
+            serde_json::from_slice(&body).expect("decode contacts payload");
+
+        let accepted_item = payload
+            .items
+            .iter()
+            .find(|item| item["id"] == accepted)
+            .expect("accepted contact present");
+
+        assert_eq!(accepted_item["status"], status);
     }
-
-    let token = issue_db_session_cookie(&pool, &state, &actor).await;
-    let app = build_app(state);
-
-    let request = Request::builder()
-        .method("GET")
-        .uri("/v1/contacts")
-        .header("cookie", format!("hexrelay_session={token}"))
-        .body(Body::empty())
-        .expect("build contacts request");
-
-    let response = app.oneshot(request).await.expect("contacts response");
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = to_bytes(response.into_body(), usize::MAX)
-        .await
-        .expect("read contacts response body");
-    let payload: ContactListResponse =
-        serde_json::from_slice(&body).expect("decode contacts payload");
-
-    let accepted_item = payload
-        .items
-        .iter()
-        .find(|item| item["id"] == accepted)
-        .expect("accepted contact present");
-
-    assert_eq!(accepted_item["status"], "online");
 
     let _: () = redis::cmd("DEL")
         .arg(&presence_key)
