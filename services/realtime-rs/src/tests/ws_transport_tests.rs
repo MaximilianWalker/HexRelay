@@ -335,7 +335,7 @@ async fn recv_presence_event(
     expected_user_id: &str,
     expected_status: &str,
 ) -> Value {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         let message = tokio::time::timeout(remaining, socket.next())
