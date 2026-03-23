@@ -18,6 +18,8 @@ use uuid::Uuid;
 
 use crate::state::{AppState, ConnectionSenderEntry};
 
+const MAX_DEVICE_ID_LEN: usize = 64;
+
 pub async fn health() -> &'static str {
     "ok"
 }
@@ -257,9 +259,23 @@ fn websocket_device_id(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-hexrelay-device-id")
         .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .and_then(validate_device_id)
+}
+
+fn validate_device_id(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.len() > MAX_DEVICE_ID_LEN {
+        return None;
+    }
+
+    if !trimmed
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return None;
+    }
+
+    Some(trimmed.to_owned())
 }
 
 #[cfg(test)]

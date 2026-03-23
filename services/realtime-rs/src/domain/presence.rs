@@ -13,6 +13,7 @@ use tracing::warn;
 
 const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
 const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
+const PRESENCE_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
 const PRESENCE_REPLAY_LOG_MAX_ENTRIES: usize = 128;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -32,6 +33,7 @@ pub struct PresenceUpdatedEnvelope {
     pub correlation_id: String,
     pub producer: String,
     pub watchers: Vec<String>,
+    #[serde(default)]
     pub watcher_cursors: Vec<PresenceWatcherCursor>,
     pub data: PresenceUpdatedData,
 }
@@ -112,8 +114,13 @@ pub fn spawn_presence_subscriber(state: AppState) {
                     Some(event.correlation_id.clone()),
                 );
 
-                dispatch_presence_event_locally(&state, &client_payload, &event.watcher_cursors)
-                    .await;
+                dispatch_presence_event_locally(
+                    &state,
+                    &client_payload,
+                    &event.watchers,
+                    &event.watcher_cursors,
+                )
+                .await;
             }
 
             warn!("presence pubsub stream ended; retrying subscription");
@@ -183,7 +190,7 @@ pub async fn hydrate_presence_backlog_if_needed(
                 latest_cursor = latest_cursor.max(entry.cursor);
             }
             Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
-                return;
+                break;
             }
         }
     }
@@ -298,8 +305,9 @@ async fn publish_presence_edge(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode client presence event: {error}"))?;
+    let replay_watchers = active_replay_watchers(state, &watchers).await;
     let watcher_cursors =
-        persist_presence_replay_entries(&mut connection, &watchers, &client_payload)
+        persist_presence_replay_entries(&mut connection, &replay_watchers, &client_payload)
             .await
             .map_err(|error| format!("persist presence replay entries: {error}"))?;
     let event = PresenceUpdatedEnvelope {
@@ -388,6 +396,24 @@ async fn persist_presence_replay_entries(
     Ok(cursors)
 }
 
+async fn active_replay_watchers(state: &AppState, watchers: &[String]) -> Vec<String> {
+    let guard = state.connection_senders.lock().await;
+    watchers
+        .iter()
+        .filter(|watcher_identity_id| {
+            guard
+                .get(watcher_identity_id.as_str())
+                .map(|connections| {
+                    connections
+                        .values()
+                        .any(|entry| entry.device_id.as_ref().is_some())
+                })
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect()
+}
+
 async fn advance_presence_stream_head(
     connection: &mut redis::aio::MultiplexedConnection,
     identity_id: &str,
@@ -435,9 +461,24 @@ async fn set_presence_device_cursor(
     device_id: &str,
     cursor: u64,
 ) -> Result<(), redis::RedisError> {
-    let _: () = redis::cmd("SET")
+    let _: () = redis::cmd("EVAL")
+        .arg(
+            r#"
+            local key = KEYS[1]
+            local incoming = tonumber(ARGV[1])
+            local ttl = tonumber(ARGV[2])
+            local current = tonumber(redis.call('GET', key) or '0')
+            if incoming > current then
+              current = incoming
+            end
+            redis.call('SET', key, current, 'EX', ttl)
+            return current
+            "#,
+        )
+        .arg(1)
         .arg(presence_device_cursor_key(identity_id, device_id))
         .arg(cursor)
+        .arg(PRESENCE_DEVICE_CURSOR_TTL_SECONDS)
         .query_async(connection)
         .await?;
     Ok(())
@@ -497,33 +538,40 @@ async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {
 async fn dispatch_presence_event_locally(
     state: &AppState,
     payload: &str,
+    watchers: &[String],
     watcher_cursors: &[PresenceWatcherCursor],
 ) {
     let mut stale_connections = Vec::new();
     let mut guard = state.connection_senders.lock().await;
     let mut delivered_device_cursors = BTreeSet::new();
+    let watcher_cursor_map = watcher_cursors
+        .iter()
+        .map(|entry| (entry.watcher_identity_id.as_str(), entry.cursor))
+        .collect::<std::collections::HashMap<_, _>>();
 
-    for watcher_cursor in watcher_cursors {
-        let Some(connections) = guard.get_mut(&watcher_cursor.watcher_identity_id) else {
+    for watcher_identity_id in watchers {
+        let Some(connections) = guard.get_mut(watcher_identity_id) else {
             continue;
         };
+        let watcher_cursor = watcher_cursor_map
+            .get(watcher_identity_id.as_str())
+            .copied();
 
         for (connection_id, entry) in connections.iter() {
             match entry.sender.try_send(payload.to_string()) {
                 Ok(()) => {
-                    if let Some(device_id) = entry.device_id.as_ref() {
+                    if let (Some(device_id), Some(cursor)) =
+                        (entry.device_id.as_ref(), watcher_cursor)
+                    {
                         delivered_device_cursors.insert((
-                            watcher_cursor.watcher_identity_id.clone(),
+                            watcher_identity_id.clone(),
                             device_id.clone(),
-                            watcher_cursor.cursor,
+                            cursor,
                         ));
                     }
                 }
                 Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
-                    stale_connections.push((
-                        watcher_cursor.watcher_identity_id.clone(),
-                        connection_id.clone(),
-                    ));
+                    stale_connections.push((watcher_identity_id.clone(), connection_id.clone()));
                 }
             }
         }
@@ -720,6 +768,7 @@ mod tests {
         dispatch_presence_event_locally(
             &state,
             "payload-1",
+            &["usr-main".to_string()],
             &[PresenceWatcherCursor {
                 watcher_identity_id: "usr-main".to_string(),
                 cursor: 4,
