@@ -598,6 +598,7 @@ async fn start_ws_server(api_base_url: String, ws_connect_rate_limit: usize) -> 
 async fn start_ws_server_with_state(state: AppState) -> String {
     spawn_presence_subscriber(state.clone());
     spawn_channel_subscriber(state.clone());
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let app = build_app(state);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
