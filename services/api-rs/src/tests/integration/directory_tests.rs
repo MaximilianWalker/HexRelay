@@ -324,3 +324,108 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
         .await
         .expect("clear presence snapshots");
 }
+
+#[tokio::test]
+async fn lists_contacts_return_latest_converged_presence_snapshot_after_reconnect_sequence() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let Some(redis_client) = prepared_presence_redis_client().await else {
+        return;
+    };
+
+    let actor = unique_identity("usr-contacts-actor-converged");
+    let accepted = unique_identity("usr-contacts-accepted-converged");
+
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &accepted).await;
+
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+    )
+    .bind(format!("fr-{}", Uuid::new_v4().simple()))
+    .bind(&actor)
+    .bind(&accepted)
+    .execute(&pool)
+    .await
+    .expect("insert accepted friend request");
+
+    let mut redis = redis_client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("redis connection");
+    let presence_key = format!("presence:v1:snapshot:{accepted}");
+    for (status, seq) in [("online", 1_u64), ("offline", 2_u64), ("online", 3_u64)] {
+        let payload = serde_json::json!({
+            "status": status,
+            "updated_at": format!("2026-03-23T00:00:0{seq}Z"),
+            "presence_seq": seq,
+        })
+        .to_string();
+        let _: () = redis::cmd("SET")
+            .arg(&presence_key)
+            .arg(payload)
+            .query_async(&mut redis)
+            .await
+            .expect("set converged presence snapshot");
+    }
+
+    let token = issue_db_session_cookie(&pool, &state, &actor).await;
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/contacts")
+        .header("cookie", format!("hexrelay_session={token}"))
+        .body(Body::empty())
+        .expect("build contacts request");
+
+    let response = app.oneshot(request).await.expect("contacts response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read contacts response body");
+    let payload: ContactListResponse =
+        serde_json::from_slice(&body).expect("decode contacts payload");
+
+    let accepted_item = payload
+        .items
+        .iter()
+        .find(|item| item["id"] == accepted)
+        .expect("accepted contact present");
+
+    assert_eq!(accepted_item["status"], "online");
+
+    let _: () = redis::cmd("DEL")
+        .arg(&presence_key)
+        .query_async(&mut redis)
+        .await
+        .expect("clear converged presence snapshot");
+}
