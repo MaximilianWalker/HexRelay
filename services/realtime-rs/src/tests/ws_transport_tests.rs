@@ -472,6 +472,32 @@ async fn assert_no_channel_message_created_event(
     }
 }
 
+async fn wait_for_registered_device(state: &AppState, identity_id: &str, device_id: &str) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        {
+            let guard = state.connection_senders.lock().await;
+            let registered = guard
+                .get(identity_id)
+                .map(|connections| {
+                    connections
+                        .values()
+                        .any(|entry| entry.device_id.as_deref() == Some(device_id))
+                })
+                .unwrap_or(false);
+            if registered {
+                return;
+            }
+        }
+
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for registered device {identity_id}:{device_id}"
+        );
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
 async fn recv_channel_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -806,7 +832,7 @@ async fn websocket_presence_updates_propagate_and_recover_after_reconnect() {
         10000,
     )
     .expect("build app state");
-    let ws_url = start_ws_server_with_state(state).await;
+    let ws_url = start_ws_server_with_state(state.clone()).await;
 
     let mut watcher_socket = connect_ws_with_token(&ws_url, "watcher-token").await;
     let _ = watcher_socket.next().await;
@@ -894,12 +920,12 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
         10000,
     )
     .expect("build app state");
-    let ws_url = start_ws_server_with_state(state).await;
+    let ws_url = start_ws_server_with_state(state.clone()).await;
 
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    wait_for_registered_device(&state, "usr-channel-viewer", "device-primary").await;
 
     let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
     let _ = subject_socket.next().await;
@@ -991,12 +1017,12 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
         10000,
     )
     .expect("build app state");
-    let ws_url = start_ws_server_with_state(state).await;
+    let ws_url = start_ws_server_with_state(state.clone()).await;
 
     let mut primary_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
     let _ = primary_device.next().await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    wait_for_registered_device(&state, "usr-channel-viewer", "device-primary").await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
