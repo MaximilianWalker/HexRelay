@@ -18,7 +18,8 @@ info:
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
     Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
-    per-device replay/hydration for `presence.updated` and `channel.message.created`.
+    per-device replay/hydration for `presence.updated`, `channel.message.created`, and
+    `channel.message.updated`.
     When present, late-joining profile devices receive missed supported events before new
     live transitions.
 defaultContentType: application/json
@@ -53,6 +54,11 @@ channels:
     messages:
       channelMessageCreatedV1:
         $ref: '#/components/messages/ChannelMessageCreatedV1'
+  channelMessageUpdated:
+    address: channel.message.updated
+    messages:
+      channelMessageUpdatedV1:
+        $ref: '#/components/messages/ChannelMessageUpdatedV1'
   error:
     address: error
     messages:
@@ -95,6 +101,12 @@ operations:
       $ref: '#/channels/channelMessageCreated'
     messages:
       - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+  receiveChannelMessageUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageUpdated'
+    messages:
+      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
   receiveError:
     action: receive
     channel:
@@ -121,6 +133,9 @@ components:
     ChannelMessageCreatedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
+    ChannelMessageUpdatedV1:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -236,6 +251,19 @@ components:
         channel_seq:
           type: integer
           minimum: 1
+    ChannelMessageUpdatedDataV1:
+      type: object
+      additionalProperties: false
+      required: [message_id, guild_id, channel_id, editor_id, edited_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        guild_id: { type: string }
+        channel_id: { type: string }
+        editor_id: { type: string }
+        edited_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
     RealtimeConnectedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -264,3 +292,10 @@ components:
           properties:
             event_type: { const: channel.message.created }
             data: { $ref: '#/components/schemas/ChannelMessageCreatedDataV1' }
+    ChannelMessageUpdatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: channel.message.updated }
+            data: { $ref: '#/components/schemas/ChannelMessageUpdatedDataV1' }

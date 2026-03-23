@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 added websocket verification for `channel.message.created` active-device fanout and late-device hydration using the shared Redis-backed profile-device replay model.
+- Latest meaningful change: 2026-03-23 T4.3.4 added websocket verification for both `channel.message.created` and `channel.message.updated` active-device fanout and late-device hydration using the shared Redis-backed profile-device replay model.
 
 ## Requirement to Evidence Matrix
 

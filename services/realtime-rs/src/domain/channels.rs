@@ -26,6 +26,16 @@ pub struct ChannelMessageCreatedData {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
+pub struct ChannelMessageUpdatedData {
+    pub message_id: String,
+    pub guild_id: String,
+    pub channel_id: String,
+    pub editor_id: String,
+    pub edited_at: String,
+    pub channel_seq: u64,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ChannelRecipientCursor {
     pub recipient_identity_id: String,
     pub cursor: u64,
@@ -45,6 +55,30 @@ pub struct ChannelMessageCreatedEnvelope {
     pub data: ChannelMessageCreatedData,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct ChannelMessageUpdatedEnvelope {
+    pub event_id: String,
+    pub event_type: String,
+    pub event_version: u8,
+    pub occurred_at: String,
+    pub correlation_id: String,
+    pub producer: String,
+    pub recipients: Vec<String>,
+    #[serde(default)]
+    pub recipient_cursors: Vec<ChannelRecipientCursor>,
+    pub data: ChannelMessageUpdatedData,
+}
+
+#[derive(Deserialize)]
+struct ChannelPubsubEnvelope {
+    event_type: String,
+    correlation_id: String,
+    recipients: Vec<String>,
+    #[serde(default)]
+    recipient_cursors: Vec<ChannelRecipientCursor>,
+    data: serde_json::Value,
+}
+
 #[derive(Clone)]
 pub struct PublishChannelMessageCreatedInput {
     pub message_id: String,
@@ -52,6 +86,17 @@ pub struct PublishChannelMessageCreatedInput {
     pub channel_id: String,
     pub sender_id: String,
     pub created_at: Option<String>,
+    pub channel_seq: u64,
+    pub recipients: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct PublishChannelMessageUpdatedInput {
+    pub message_id: String,
+    pub guild_id: String,
+    pub channel_id: String,
+    pub editor_id: String,
+    pub edited_at: Option<String>,
     pub channel_seq: u64,
     pub recipients: Vec<String>,
 }
@@ -98,32 +143,80 @@ pub fn spawn_channel_subscriber(state: AppState) {
                     }
                 };
 
-                let event = match serde_json::from_str::<ChannelMessageCreatedEnvelope>(&payload) {
+                let event = match serde_json::from_str::<ChannelPubsubEnvelope>(&payload) {
                     Ok(value) => value,
                     Err(error) => {
-                        warn!(error = %error, "failed to parse channel pubsub payload");
+                        warn!(error = %error, "failed to parse channel pubsub envelope");
                         continue;
                     }
                 };
 
-                let client_payload =
-                    crate::domain::events::service::build_channel_message_created_event(
-                        &event.data.message_id,
-                        &event.data.guild_id,
-                        &event.data.channel_id,
-                        &event.data.sender_id,
-                        &event.data.created_at,
-                        event.data.channel_seq,
-                        Some(event.correlation_id.clone()),
-                    );
+                match event.event_type.as_str() {
+                    "channel.message.created" => {
+                        let data = match serde_json::from_value::<ChannelMessageCreatedData>(
+                            event.data,
+                        ) {
+                            Ok(value) => value,
+                            Err(error) => {
+                                warn!(error = %error, "failed to parse channel.message.created data");
+                                continue;
+                            }
+                        };
 
-                dispatch_channel_event_locally(
-                    &state,
-                    &client_payload,
-                    &event.recipients,
-                    &event.recipient_cursors,
-                )
-                .await;
+                        let client_payload =
+                            crate::domain::events::service::build_channel_message_created_event(
+                                &data.message_id,
+                                &data.guild_id,
+                                &data.channel_id,
+                                &data.sender_id,
+                                &data.created_at,
+                                data.channel_seq,
+                                Some(event.correlation_id.clone()),
+                            );
+
+                        dispatch_channel_event_locally(
+                            &state,
+                            &client_payload,
+                            &event.recipients,
+                            &event.recipient_cursors,
+                        )
+                        .await;
+                    }
+                    "channel.message.updated" => {
+                        let data = match serde_json::from_value::<ChannelMessageUpdatedData>(
+                            event.data,
+                        ) {
+                            Ok(value) => value,
+                            Err(error) => {
+                                warn!(error = %error, "failed to parse channel.message.updated data");
+                                continue;
+                            }
+                        };
+
+                        let client_payload =
+                            crate::domain::events::service::build_channel_message_updated_event(
+                                &data.message_id,
+                                &data.guild_id,
+                                &data.channel_id,
+                                &data.editor_id,
+                                &data.edited_at,
+                                data.channel_seq,
+                                Some(event.correlation_id.clone()),
+                            );
+
+                        dispatch_channel_event_locally(
+                            &state,
+                            &client_payload,
+                            &event.recipients,
+                            &event.recipient_cursors,
+                        )
+                        .await;
+                    }
+                    other => {
+                        warn!(event_type = %other, "unsupported channel pubsub event type");
+                        continue;
+                    }
+                }
             }
 
             warn!("channel pubsub stream ended; retrying subscription");
@@ -272,6 +365,91 @@ pub async fn publish_channel_message_created(
         .query_async(&mut connection)
         .await
         .map_err(|error| format!("publish channel event: {error}"))?;
+
+    Ok(())
+}
+
+pub async fn publish_channel_message_updated(
+    state: &AppState,
+    input: PublishChannelMessageUpdatedInput,
+) -> Result<(), String> {
+    let Some(client) = state.presence_redis_client.as_ref() else {
+        return Ok(());
+    };
+
+    let recipients = normalize_recipients(&input.recipients);
+    if recipients.is_empty() {
+        return Ok(());
+    }
+    if input.channel_seq == 0 {
+        return Err("channel_seq must be greater than zero".to_string());
+    }
+
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .map_err(|error| format!("open Redis connection: {error}"))?;
+
+    let edited_at = input.edited_at.unwrap_or_else(|| Utc::now().to_rfc3339());
+    let client_payload = crate::domain::events::service::build_channel_message_updated_event(
+        &input.message_id,
+        &input.guild_id,
+        &input.channel_id,
+        &input.editor_id,
+        &edited_at,
+        input.channel_seq,
+        None,
+    );
+    let client_event: serde_json::Value = serde_json::from_str(&client_payload)
+        .map_err(|error| format!("decode channel update event: {error}"))?;
+    let replay_recipients = active_replay_recipients(state, &recipients).await;
+    let recipient_cursors =
+        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+            .await
+            .map_err(|error| format!("persist channel replay entries: {error}"))?;
+
+    let event = ChannelMessageUpdatedEnvelope {
+        event_id: client_event["event_id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        event_type: client_event["event_type"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        event_version: client_event["event_version"].as_u64().unwrap_or(1) as u8,
+        occurred_at: client_event["occurred_at"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        correlation_id: client_event["correlation_id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        producer: client_event["producer"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        recipients,
+        recipient_cursors,
+        data: ChannelMessageUpdatedData {
+            message_id: input.message_id,
+            guild_id: input.guild_id,
+            channel_id: input.channel_id,
+            editor_id: input.editor_id,
+            edited_at,
+            channel_seq: input.channel_seq,
+        },
+    };
+    let event_json = serde_json::to_string(&event)
+        .map_err(|error| format!("serialize channel update event: {error}"))?;
+
+    let _: () = redis::cmd("PUBLISH")
+        .arg(CHANNEL_EVENTS_CHANNEL)
+        .arg(event_json)
+        .query_async(&mut connection)
+        .await
+        .map_err(|error| format!("publish channel update event: {error}"))?;
 
     Ok(())
 }

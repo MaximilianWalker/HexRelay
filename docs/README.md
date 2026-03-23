@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 started runtime support for `channel.message.created` active-device fanout plus late-device hydration, with runtime AsyncAPI updated to reflect the new replay-capable websocket event.
+- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay support to `channel.message.updated`, including late-device hydration coverage and runtime AsyncAPI updates for both create/update events.
 
 ## Purpose
 
