@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay support to `channel.message.updated`, including late-device hydration and second-reconnect dedupe coverage for both create/update events.
+- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay support to `channel.message.deleted`, preserving late-device hydration and second-reconnect dedupe coverage across create/update/delete events.
 
 ## Purpose
 

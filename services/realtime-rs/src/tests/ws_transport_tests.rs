@@ -20,8 +20,9 @@ use tokio_tungstenite::{
 
 use crate::app::{build_app, AppState};
 use crate::domain::channels::{
-    publish_channel_message_created, publish_channel_message_updated,
-    PublishChannelMessageCreatedInput, PublishChannelMessageUpdatedInput,
+    publish_channel_message_created, publish_channel_message_deleted,
+    publish_channel_message_updated, PublishChannelMessageCreatedInput,
+    PublishChannelMessageDeletedInput, PublishChannelMessageUpdatedInput,
 };
 use crate::domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber};
 
@@ -1339,6 +1340,115 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         &mut second_reconnect_late_device,
         "channel.message.updated",
         "msg-2",
+        Duration::from_secs(2),
+    )
+    .await;
+
+    primary_device
+        .close(None)
+        .await
+        .expect("close primary device");
+    second_reconnect_late_device
+        .close(None)
+        .await
+        .expect("close second reconnected late device");
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+}
+
+#[tokio::test]
+async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    let viewer_identity_id = "usr-channel-deleted-viewer";
+
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([(
+            "Bearer viewer-token".to_string(),
+            viewer_identity_id.to_string(),
+        )]),
+        HashMap::new(),
+        "hexrelay-dev-presence-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state.clone()).await;
+
+    let mut primary_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-primary").await;
+    let _ = primary_device.next().await;
+
+    publish_channel_message_deleted(
+        &state,
+        PublishChannelMessageDeletedInput {
+            message_id: "msg-3".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            deleted_by: "usr-moderator".to_string(),
+            deleted_at: Some("2026-03-23T05:10:00Z".to_string()),
+            channel_seq: 9,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message deleted");
+
+    let replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.deleted",
+        "msg-3",
+    )
+    .await;
+    assert_eq!(replay_payload["data"]["channel_seq"], 9);
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
+    let hydrated_payload =
+        recv_channel_event(&mut late_device, "channel.message.deleted", "msg-3").await;
+    assert_eq!(
+        hydrated_payload["data"]["channel_seq"],
+        replay_payload["data"]["channel_seq"]
+    );
+    assert_eq!(
+        hydrated_payload["data"]["deleted_at"],
+        replay_payload["data"]["deleted_at"]
+    );
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+    drop(late_device);
+    let mut second_reconnect_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = second_reconnect_late_device.next().await;
+    assert_no_channel_event(
+        &mut second_reconnect_late_device,
+        "channel.message.deleted",
+        "msg-3",
         Duration::from_secs(2),
     )
     .await;

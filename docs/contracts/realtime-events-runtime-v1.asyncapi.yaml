@@ -18,8 +18,8 @@ info:
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
     Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
-    per-device replay/hydration for `presence.updated`, `channel.message.created`, and
-    `channel.message.updated`.
+    per-device replay/hydration for `presence.updated`, `channel.message.created`,
+    `channel.message.updated`, and `channel.message.deleted`.
     When present, late-joining profile devices receive missed supported events before new
     live transitions.
 defaultContentType: application/json
@@ -59,6 +59,11 @@ channels:
     messages:
       channelMessageUpdatedV1:
         $ref: '#/components/messages/ChannelMessageUpdatedV1'
+  channelMessageDeleted:
+    address: channel.message.deleted
+    messages:
+      channelMessageDeletedV1:
+        $ref: '#/components/messages/ChannelMessageDeletedV1'
   error:
     address: error
     messages:
@@ -107,6 +112,12 @@ operations:
       $ref: '#/channels/channelMessageUpdated'
     messages:
       - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
+  receiveChannelMessageDeleted:
+    action: receive
+    channel:
+      $ref: '#/channels/channelMessageDeleted'
+    messages:
+      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
   receiveError:
     action: receive
     channel:
@@ -136,6 +147,9 @@ components:
     ChannelMessageUpdatedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
+    ChannelMessageDeletedV1:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -264,6 +278,19 @@ components:
         channel_seq:
           type: integer
           minimum: 1
+    ChannelMessageDeletedDataV1:
+      type: object
+      additionalProperties: false
+      required: [message_id, guild_id, channel_id, deleted_by, deleted_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        guild_id: { type: string }
+        channel_id: { type: string }
+        deleted_by: { type: string }
+        deleted_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
     RealtimeConnectedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -299,3 +326,10 @@ components:
           properties:
             event_type: { const: channel.message.updated }
             data: { $ref: '#/components/schemas/ChannelMessageUpdatedDataV1' }
+    ChannelMessageDeletedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: channel.message.deleted }
+            data: { $ref: '#/components/schemas/ChannelMessageDeletedDataV1' }
