@@ -1,6 +1,6 @@
 use axum::{
     http::{header, HeaderName, HeaderValue, Method},
-    routing::{get, post},
+    routing::{get, patch, post},
     Router,
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -31,7 +31,10 @@ use crate::{
         health::health,
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
         presence::list_presence_watchers,
-        server_channels::{create_server_channel_message, list_server_channel_messages},
+        server_channels::{
+            create_server_channel_message, edit_server_channel_message,
+            list_server_channel_messages, soft_delete_server_channel_message,
+        },
     },
 };
 
@@ -44,7 +47,7 @@ pub fn build_app(state: AppState) -> Router {
 
     let cors = CorsLayer::new()
         .allow_origin(allowed_origins)
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,
@@ -68,6 +71,10 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/v1/servers/:server_id/channels/:channel_id/messages",
             get(list_server_channel_messages).post(create_server_channel_message),
+        )
+        .route(
+            "/v1/servers/:server_id/channels/:channel_id/messages/:message_id",
+            patch(edit_server_channel_message).delete(soft_delete_server_channel_message),
         )
         .route("/v1/contacts", get(list_contacts))
         .route(

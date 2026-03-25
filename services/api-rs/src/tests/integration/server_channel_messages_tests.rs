@@ -517,3 +517,339 @@ async fn normalizes_blank_reply_target_to_none_on_server_channel_create() {
         serde_json::from_slice(&body).expect("decode blank reply target body");
     assert!(payload["reply_to_message_id"].is_null());
 }
+
+#[tokio::test]
+async fn author_can_edit_server_channel_message_and_replace_mentions() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) =
+        app_with_database_and_sessions(&[&fixture.member_id, &fixture.teammate_id]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens[&fixture.member_id]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"content":"edited content","mention_identity_ids":["{}"]}}"#,
+            fixture.teammate_id
+        )))
+        .expect("build edit request");
+
+    let response = app.oneshot(request).await.expect("edit response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read edit body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode edit body");
+    assert_eq!(payload["content"], "edited content");
+    assert_eq!(
+        payload["mentions"],
+        serde_json::json!([fixture.teammate_id])
+    );
+    assert_eq!(payload["reply_to_message_id"], serde_json::Value::Null);
+    assert_eq!(payload["channel_seq"], 1);
+    assert!(payload["edited_at"].is_string());
+}
+
+#[tokio::test]
+async fn no_op_server_channel_edit_preserves_null_edited_at() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) =
+        app_with_database_and_sessions(&[&fixture.teammate_id, &fixture.member_id]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.second_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.teammate_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"content":"welcome aboard","mention_identity_ids":["{}"]}}"#,
+            fixture.member_id
+        )))
+        .expect("build no-op edit request");
+
+    let response = app.oneshot(request).await.expect("no-op edit response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read no-op edit body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode no-op edit");
+    assert!(payload["edited_at"].is_null());
+}
+
+#[tokio::test]
+async fn rejects_server_channel_edit_for_non_author_member() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) =
+        app_with_database_and_sessions(&[&fixture.member_id, &fixture.teammate_id]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.second_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"content":"not allowed","mention_identity_ids":[]}"#,
+        ))
+        .expect("build forbidden edit request");
+
+    let response = app.oneshot(request).await.expect("forbidden edit response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read forbidden edit body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode forbidden edit body");
+    assert_eq!(payload["code"], "message_edit_forbidden");
+}
+
+#[tokio::test]
+async fn rejects_server_channel_edit_for_deleted_message() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build delete request");
+    let delete_response = app
+        .clone()
+        .oneshot(delete_request)
+        .await
+        .expect("delete response");
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    let edit_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"content":"cannot revive","mention_identity_ids":[]}"#,
+        ))
+        .expect("build edit deleted request");
+
+    let response = app
+        .oneshot(edit_request)
+        .await
+        .expect("edit deleted response");
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read edit deleted body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode edit deleted body");
+    assert_eq!(payload["code"], "message_deleted");
+}
+
+#[tokio::test]
+async fn soft_delete_server_channel_message_returns_tombstone_and_is_idempotent() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build delete request");
+
+    let response = app.clone().oneshot(request).await.expect("delete response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read delete body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode delete body");
+    assert_eq!(payload["content"], "");
+    assert_eq!(payload["mentions"], serde_json::json!([]));
+    assert!(payload["deleted_at"].is_string());
+
+    let repeat_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build repeat delete request");
+
+    let repeat_response = app
+        .oneshot(repeat_request)
+        .await
+        .expect("repeat delete response");
+    assert_eq!(repeat_response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn rejects_server_channel_delete_for_non_author_member() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) =
+        app_with_database_and_sessions(&[&fixture.member_id, &fixture.teammate_id]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.second_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build forbidden delete request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("forbidden delete response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read forbidden delete body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode forbidden delete body");
+    assert_eq!(payload["code"], "message_delete_forbidden");
+}
+
+#[tokio::test]
+async fn deleted_server_channel_messages_remain_visible_as_tombstones() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build delete request");
+    let delete_response = app
+        .clone()
+        .oneshot(delete_request)
+        .await
+        .expect("delete response");
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    let list_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages?limit=2",
+            fixture.server_id, fixture.channel_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build list request");
+
+    let list_response = app.oneshot(list_request).await.expect("list response");
+    assert_eq!(list_response.status(), StatusCode::OK);
+
+    let body = to_bytes(list_response.into_body(), usize::MAX)
+        .await
+        .expect("read list body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode list body");
+    let items = payload["items"].as_array().expect("items array");
+    assert_eq!(items[1]["message_id"], fixture.first_message_id);
+    assert_eq!(items[1]["content"], "");
+    assert_eq!(items[1]["mentions"], serde_json::json!([]));
+    assert!(items[1]["deleted_at"].is_string());
+}

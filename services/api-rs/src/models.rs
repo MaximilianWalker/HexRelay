@@ -136,6 +136,12 @@ pub struct ServerChannelMessageCreateRequest {
     pub mention_identity_ids: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct ServerChannelMessageEditRequest {
+    pub content: String,
+    pub mention_identity_ids: Vec<String>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct ServerChannelMessageRecord {
     pub message_id: String,

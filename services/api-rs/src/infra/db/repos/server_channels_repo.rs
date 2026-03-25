@@ -1,4 +1,4 @@
-use sqlx::{Executor, PgPool, Postgres, Row};
+use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 
 use crate::models::ServerChannelMessageRecord;
 
@@ -32,6 +32,16 @@ pub struct CreateServerChannelMessageParams {
     pub created_at: String,
 }
 
+pub struct UpdateServerChannelMessageParams {
+    pub server_id: String,
+    pub channel_id: String,
+    pub message_id: String,
+    pub author_id: String,
+    pub content: String,
+    pub mention_identity_ids: Vec<String>,
+    pub edited_at: String,
+}
+
 pub enum CreateServerChannelMessageError {
     ChannelNotFound,
     ReplyTargetInvalid,
@@ -39,7 +49,35 @@ pub enum CreateServerChannelMessageError {
     Storage(sqlx::Error),
 }
 
+pub enum UpdateServerChannelMessageError {
+    ChannelNotFound,
+    MessageNotFound,
+    EditForbidden,
+    MessageDeleted,
+    MentionTargetInvalid,
+    Storage(sqlx::Error),
+}
+
+pub enum SoftDeleteServerChannelMessageError {
+    ChannelNotFound,
+    MessageNotFound,
+    DeleteForbidden,
+    Storage(sqlx::Error),
+}
+
 impl From<sqlx::Error> for CreateServerChannelMessageError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Storage(value)
+    }
+}
+
+impl From<sqlx::Error> for UpdateServerChannelMessageError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Storage(value)
+    }
+}
+
+impl From<sqlx::Error> for SoftDeleteServerChannelMessageError {
     fn from(value: sqlx::Error) -> Self {
         Self::Storage(value)
     }
@@ -381,6 +419,266 @@ pub async fn create_server_channel_message(
     tx.commit().await?;
 
     map_server_channel_message_row(row).map_err(CreateServerChannelMessageError::Storage)
+}
+
+pub async fn update_server_channel_message(
+    pool: &PgPool,
+    params: UpdateServerChannelMessageParams,
+) -> Result<ServerChannelMessageRecord, UpdateServerChannelMessageError> {
+    let mut tx = pool.begin().await?;
+
+    let message = get_message_for_mutation(
+        &mut tx,
+        &params.server_id,
+        &params.channel_id,
+        &params.message_id,
+    )
+    .await?;
+
+    let message = match message {
+        Some(message) => message,
+        None => {
+            if channel_exists(&mut tx, &params.server_id, &params.channel_id).await? {
+                return Err(UpdateServerChannelMessageError::MessageNotFound);
+            }
+            return Err(UpdateServerChannelMessageError::ChannelNotFound);
+        }
+    };
+
+    if message.author_id != params.author_id {
+        return Err(UpdateServerChannelMessageError::EditForbidden);
+    }
+
+    if message.deleted_at.is_some() {
+        return Err(UpdateServerChannelMessageError::MessageDeleted);
+    }
+
+    if !params.mention_identity_ids.is_empty() {
+        let mention_count = sqlx::query_scalar::<_, i64>(
+            "
+            SELECT COUNT(*)
+            FROM server_memberships
+            WHERE server_id = $1 AND identity_id = ANY($2)
+            ",
+        )
+        .bind(&params.server_id)
+        .bind(&params.mention_identity_ids)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if mention_count != params.mention_identity_ids.len() as i64 {
+            return Err(UpdateServerChannelMessageError::MentionTargetInvalid);
+        }
+    }
+
+    let is_noop =
+        message.content == params.content && message.mentions == params.mention_identity_ids;
+    if !is_noop {
+        sqlx::query(
+            "
+            UPDATE server_channel_messages
+            SET content = $1,
+                edited_at = $2::timestamptz
+            WHERE message_id = $3
+            ",
+        )
+        .bind(&params.content)
+        .bind(&params.edited_at)
+        .bind(&params.message_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("DELETE FROM server_channel_message_mentions WHERE message_id = $1")
+            .bind(&params.message_id)
+            .execute(&mut *tx)
+            .await?;
+
+        for mentioned_identity_id in &params.mention_identity_ids {
+            sqlx::query(
+                "
+                INSERT INTO server_channel_message_mentions (message_id, mentioned_identity_id)
+                VALUES ($1, $2)
+                ",
+            )
+            .bind(&params.message_id)
+            .bind(mentioned_identity_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    let row = fetch_message_row(&mut tx, &params.message_id).await?;
+    tx.commit().await?;
+    map_server_channel_message_row(row).map_err(UpdateServerChannelMessageError::Storage)
+}
+
+pub async fn soft_delete_server_channel_message(
+    pool: &PgPool,
+    server_id: &str,
+    channel_id: &str,
+    message_id: &str,
+    author_id: &str,
+    deleted_at: &str,
+) -> Result<ServerChannelMessageRecord, SoftDeleteServerChannelMessageError> {
+    let mut tx = pool.begin().await?;
+
+    let message = get_message_for_mutation(&mut tx, server_id, channel_id, message_id).await?;
+
+    let message = match message {
+        Some(message) => message,
+        None => {
+            if channel_exists(&mut tx, server_id, channel_id).await? {
+                return Err(SoftDeleteServerChannelMessageError::MessageNotFound);
+            }
+            return Err(SoftDeleteServerChannelMessageError::ChannelNotFound);
+        }
+    };
+
+    if message.author_id != author_id {
+        return Err(SoftDeleteServerChannelMessageError::DeleteForbidden);
+    }
+
+    if message.deleted_at.is_none() {
+        sqlx::query(
+            "
+            UPDATE server_channel_messages
+            SET content = '',
+                deleted_at = $1::timestamptz
+            WHERE message_id = $2
+            ",
+        )
+        .bind(deleted_at)
+        .bind(message_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("DELETE FROM server_channel_message_mentions WHERE message_id = $1")
+            .bind(message_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    let row = fetch_message_row(&mut tx, message_id).await?;
+    tx.commit().await?;
+    map_server_channel_message_row(row).map_err(SoftDeleteServerChannelMessageError::Storage)
+}
+
+struct MutationMessageState {
+    author_id: String,
+    content: String,
+    mentions: Vec<String>,
+    deleted_at: Option<String>,
+}
+
+async fn channel_exists(
+    tx: &mut Transaction<'_, Postgres>,
+    server_id: &str,
+    channel_id: &str,
+) -> Result<bool, sqlx::Error> {
+    let exists = sqlx::query_scalar::<_, i64>(
+        "
+        SELECT COUNT(*)
+        FROM server_channels
+        WHERE server_id = $1 AND channel_id = $2
+        ",
+    )
+    .bind(server_id)
+    .bind(channel_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(exists > 0)
+}
+
+async fn get_message_for_mutation(
+    tx: &mut Transaction<'_, Postgres>,
+    server_id: &str,
+    channel_id: &str,
+    message_id: &str,
+) -> Result<Option<MutationMessageState>, sqlx::Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+            m.author_id,
+            m.content,
+            COALESCE(
+                ARRAY_AGG(scm.mentioned_identity_id ORDER BY scm.mentioned_identity_id)
+                    FILTER (WHERE scm.mentioned_identity_id IS NOT NULL),
+                ARRAY[]::TEXT[]
+            ) AS mentions,
+            CASE
+                WHEN m.deleted_at IS NULL THEN NULL
+                ELSE TO_CHAR(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            END AS deleted_at
+        FROM server_channel_messages m
+        INNER JOIN server_channels c ON c.channel_id = m.channel_id
+        LEFT JOIN server_channel_message_mentions scm ON scm.message_id = m.message_id
+        WHERE c.server_id = $1 AND m.channel_id = $2 AND m.message_id = $3
+        GROUP BY m.author_id, m.content, m.deleted_at
+        "#,
+    )
+    .bind(server_id)
+    .bind(channel_id)
+    .bind(message_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    row.map(|row| {
+        Ok(MutationMessageState {
+            author_id: row.try_get::<String, _>("author_id")?,
+            content: row.try_get::<String, _>("content")?,
+            mentions: row.try_get::<Vec<String>, _>("mentions")?,
+            deleted_at: row.try_get::<Option<String>, _>("deleted_at")?,
+        })
+    })
+    .transpose()
+}
+
+async fn fetch_message_row(
+    tx: &mut Transaction<'_, Postgres>,
+    message_id: &str,
+) -> Result<sqlx::postgres::PgRow, sqlx::Error> {
+    sqlx::query(
+        r#"
+        SELECT
+            m.message_id,
+            m.channel_id,
+            m.author_id,
+            m.channel_seq,
+            m.content,
+            m.reply_to_message_id,
+            COALESCE(
+                ARRAY_AGG(scm.mentioned_identity_id ORDER BY scm.mentioned_identity_id)
+                    FILTER (WHERE scm.mentioned_identity_id IS NOT NULL),
+                ARRAY[]::TEXT[]
+            ) AS mentions,
+            TO_CHAR(m.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+            CASE
+                WHEN m.edited_at IS NULL THEN NULL
+                ELSE TO_CHAR(m.edited_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            END AS edited_at,
+            CASE
+                WHEN m.deleted_at IS NULL THEN NULL
+                ELSE TO_CHAR(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            END AS deleted_at
+        FROM server_channel_messages m
+        LEFT JOIN server_channel_message_mentions scm ON scm.message_id = m.message_id
+        WHERE m.message_id = $1
+        GROUP BY
+            m.message_id,
+            m.channel_id,
+            m.author_id,
+            m.channel_seq,
+            m.content,
+            m.reply_to_message_id,
+            m.created_at,
+            m.edited_at,
+            m.deleted_at
+        "#,
+    )
+    .bind(message_id)
+    .fetch_one(&mut **tx)
+    .await
 }
 
 fn map_server_channel_message_row(
