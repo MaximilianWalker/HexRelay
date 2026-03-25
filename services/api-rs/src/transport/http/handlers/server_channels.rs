@@ -6,6 +6,7 @@ use axum::{
 use chrono::Utc;
 
 use crate::{
+    domain::auth::validation::is_valid_identity_id,
     infra::db::repos::server_channels_repo::{self, CreateServerChannelMessageError},
     models::{
         ApiError, ServerChannelMessageCreateRequest, ServerChannelMessageListQuery,
@@ -38,12 +39,11 @@ pub async fn list_server_channel_messages(
         )
     })?;
 
-    let query_cursor = cursor.filter(|value| *value <= i64::MAX as u64);
     let mut items = server_channels_repo::list_server_channel_messages(
         pool,
         &membership.server_id,
         &channel_id,
-        query_cursor,
+        cursor,
         limit,
     )
     .await
@@ -102,6 +102,7 @@ pub async fn create_server_channel_message(
     }
 
     let mention_identity_ids = normalize_mentions(payload.mention_identity_ids)?;
+    let reply_to_message_id = normalize_reply_to_message_id(payload.reply_to_message_id)?;
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
             "storage_unavailable",
@@ -118,7 +119,7 @@ pub async fn create_server_channel_message(
             message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
             author_id: membership.identity_id,
             content: content.to_string(),
-            reply_to_message_id: payload.reply_to_message_id,
+            reply_to_message_id,
             mention_identity_ids,
             created_at,
         },
@@ -156,6 +157,29 @@ fn parse_channel_message_cursor(value: Option<String>) -> ApiResult<Option<u64>>
         .parse::<u64>()
         .map(Some)
         .map_err(|_| bad_request("cursor_invalid", "message cursor must be numeric"))
+        .and_then(|parsed| {
+            if parsed.is_some_and(|value| value > i64::MAX as u64) {
+                Err(bad_request(
+                    "cursor_out_of_range",
+                    "message cursor exceeds storage range",
+                ))
+            } else {
+                Ok(parsed)
+            }
+        })
+}
+
+fn normalize_reply_to_message_id(value: Option<String>) -> ApiResult<Option<String>> {
+    let Some(reply_to_message_id) = value else {
+        return Ok(None);
+    };
+
+    let trimmed = reply_to_message_id.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(trimmed.to_string()))
 }
 
 fn normalize_mentions(mut mention_identity_ids: Vec<String>) -> ApiResult<Vec<String>> {
@@ -165,6 +189,12 @@ fn normalize_mentions(mut mention_identity_ids: Vec<String>) -> ApiResult<Vec<St
             return Err(bad_request(
                 "mention_invalid",
                 "mentioned identity ids must not be empty",
+            ));
+        }
+        if !is_valid_identity_id(identity_id) {
+            return Err(bad_request(
+                "mention_invalid",
+                "mentioned identity ids must be valid identity ids",
             ));
         }
     }

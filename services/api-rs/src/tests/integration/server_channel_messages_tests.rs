@@ -248,6 +248,44 @@ async fn paginates_server_channel_messages_by_channel_seq_cursor() {
 }
 
 #[tokio::test]
+async fn rejects_server_channel_message_cursor_outside_storage_range() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages?limit=1&cursor={}",
+            fixture.server_id,
+            fixture.channel_id,
+            u64::MAX
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .body(Body::empty())
+        .expect("build out-of-range cursor request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("out-of-range cursor response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read out-of-range cursor body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode cursor body");
+    assert_eq!(payload["code"], "cursor_out_of_range");
+}
+
+#[tokio::test]
 async fn creates_server_channel_message_with_reply_and_mentions() {
     let Some(pool) = prepared_database_pool().await else {
         return;
@@ -398,4 +436,84 @@ async fn rejects_server_channel_message_with_non_member_mention() {
         .expect("read invalid mention body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode mention body");
     assert_eq!(payload["code"], "mention_invalid");
+}
+
+#[tokio::test]
+async fn rejects_server_channel_message_with_invalid_mention_identity_format() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages",
+            fixture.server_id, fixture.channel_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"content":"bad mention format","mention_identity_ids":[" bad-id "]}"#,
+        ))
+        .expect("build invalid mention format request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid mention format response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid mention format body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid mention format body");
+    assert_eq!(payload["code"], "mention_invalid");
+}
+
+#[tokio::test]
+async fn normalizes_blank_reply_target_to_none_on_server_channel_create() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages",
+            fixture.server_id, fixture.channel_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.member_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"content":"blank reply target","reply_to_message_id":"   "}"#,
+        ))
+        .expect("build blank reply target request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("blank reply target response");
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read blank reply target body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode blank reply target body");
+    assert!(payload["reply_to_message_id"].is_null());
 }
