@@ -69,7 +69,12 @@ pub async fn get_server(
         servers_repo::get_server_for_identity(pool, &membership.identity_id, &membership.server_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to load server"))?
-            .expect("authorized membership must resolve server");
+            .ok_or_else(|| {
+                internal_error(
+                    "storage_unavailable",
+                    "authorized membership did not resolve a server",
+                )
+            })?;
 
     Ok(Json(ServerDetailResponse { item }))
 }

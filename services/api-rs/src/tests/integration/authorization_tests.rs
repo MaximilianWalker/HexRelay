@@ -2,27 +2,27 @@ use super::*;
 
 #[tokio::test]
 async fn gets_server_detail_for_authenticated_member_only() {
+    let member_id = unique_identity("usr-auth-member");
+    let outsider_id = unique_identity("usr-auth-outsider");
+    let server_id = format!("srv-authz-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-member", "usr-outsider"]).await
+        app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
         return;
     };
 
-    seed_server_membership(&pool, "srv-authz", "Authz", "usr-member", true, false, 3).await;
+    seed_server_membership(&pool, &server_id, "Authz", &member_id, true, false, 3).await;
 
     let member_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-authz")
-        .header("authorization", format!("Bearer {}", tokens["usr-member"]))
+        .uri(format!("/v1/servers/{server_id}"))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build member request");
     let outsider_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-authz")
-        .header(
-            "authorization",
-            format!("Bearer {}", tokens["usr-outsider"]),
-        )
+        .uri(format!("/v1/servers/{server_id}"))
+        .header("authorization", format!("Bearer {}", tokens[&outsider_id]))
         .body(Body::empty())
         .expect("build outsider request");
 
@@ -45,7 +45,7 @@ async fn gets_server_detail_for_authenticated_member_only() {
         .expect("read member response body");
     let member_payload: serde_json::Value =
         serde_json::from_slice(&member_body).expect("decode member response");
-    assert_eq!(member_payload["item"]["id"], "srv-authz");
+    assert_eq!(member_payload["item"]["id"], server_id);
     assert_eq!(member_payload["item"]["favorite"], true);
 
     let outsider_body = to_bytes(outsider_response.into_body(), usize::MAX)
@@ -58,17 +58,20 @@ async fn gets_server_detail_for_authenticated_member_only() {
 
 #[tokio::test]
 async fn gets_server_detail_for_cookie_authenticated_member_only() {
+    let member_id = unique_identity("usr-cookie-member");
+    let outsider_id = unique_identity("usr-cookie-outsider");
+    let server_id = format!("srv-cookie-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-member", "usr-outsider"]).await
+        app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
         return;
     };
 
     seed_server_membership(
         &pool,
-        "srv-cookie",
+        &server_id,
         "Cookie Auth",
-        "usr-member",
+        &member_id,
         false,
         false,
         2,
@@ -77,19 +80,16 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
 
     let member_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-cookie")
-        .header(
-            "cookie",
-            format!("hexrelay_session={}", tokens["usr-member"]),
-        )
+        .uri(format!("/v1/servers/{server_id}"))
+        .header("cookie", format!("hexrelay_session={}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build member cookie request");
     let outsider_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-cookie")
+        .uri(format!("/v1/servers/{server_id}"))
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-outsider"]),
+            format!("hexrelay_session={}", tokens[&outsider_id]),
         )
         .body(Body::empty())
         .expect("build outsider cookie request");
@@ -111,17 +111,21 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
 
 #[tokio::test]
 async fn forbids_server_detail_bypass_via_path_switch() {
+    let member_id = unique_identity("usr-bypass-member");
+    let outsider_id = unique_identity("usr-bypass-outsider");
+    let member_server_id = format!("srv-member-only-{}", uuid::Uuid::new_v4().simple());
+    let outsider_server_id = format!("srv-outsider-only-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-member", "usr-outsider"]).await
+        app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
         return;
     };
 
     seed_server_membership(
         &pool,
-        "srv-member-only",
+        &member_server_id,
         "Member Only",
-        "usr-member",
+        &member_id,
         false,
         false,
         1,
@@ -129,9 +133,9 @@ async fn forbids_server_detail_bypass_via_path_switch() {
     .await;
     seed_server_membership(
         &pool,
-        "srv-outsider-only",
+        &outsider_server_id,
         "Outsider Only",
-        "usr-outsider",
+        &outsider_id,
         false,
         false,
         0,
@@ -140,11 +144,8 @@ async fn forbids_server_detail_bypass_via_path_switch() {
 
     let bypass_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-member-only")
-        .header(
-            "authorization",
-            format!("Bearer {}", tokens["usr-outsider"]),
-        )
+        .uri(format!("/v1/servers/{member_server_id}"))
+        .header("authorization", format!("Bearer {}", tokens[&outsider_id]))
         .body(Body::empty())
         .expect("build bypass request");
 
@@ -160,25 +161,18 @@ async fn forbids_server_detail_bypass_via_path_switch() {
 
 #[tokio::test]
 async fn server_detail_authorization_survives_auth_reuse_in_handler() {
-    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-member"]).await else {
+    let member_id = unique_identity("usr-authz-reuse");
+    let server_id = format!("srv-authz-reuse-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        "srv-authz-reuse",
-        "Authz Reuse",
-        "usr-member",
-        false,
-        true,
-        4,
-    )
-    .await;
+    seed_server_membership(&pool, &server_id, "Authz Reuse", &member_id, false, true, 4).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-authz-reuse")
-        .header("authorization", format!("Bearer {}", tokens["usr-member"]))
+        .uri(format!("/v1/servers/{server_id}"))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build request");
 
@@ -189,50 +183,32 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
         .await
         .expect("read response body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
-    assert_eq!(payload["item"]["id"], "srv-authz-reuse");
+    assert_eq!(payload["item"]["id"], server_id);
     assert_eq!(payload["item"]["muted"], true);
 }
 
 #[tokio::test]
 async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
-    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-member"]).await else {
+    let member_id = unique_identity("usr-list-scope");
+    let server_a = format!("srv-scope-a-{}", uuid::Uuid::new_v4().simple());
+    let server_b = format!("srv-scope-b-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        "srv-scope-a",
-        "Scope A",
-        "usr-member",
-        true,
-        false,
-        1,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-scope-b",
-        "Scope B",
-        "usr-member",
-        false,
-        true,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, &server_a, "Scope A", &member_id, true, false, 1).await;
+    seed_server_membership(&pool, &server_b, "Scope B", &member_id, false, true, 0).await;
 
     let bearer_request = Request::builder()
         .method("GET")
         .uri("/v1/servers")
-        .header("authorization", format!("Bearer {}", tokens["usr-member"]))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build bearer request");
     let cookie_request = Request::builder()
         .method("GET")
         .uri("/v1/servers")
-        .header(
-            "cookie",
-            format!("hexrelay_session={}", tokens["usr-member"]),
-        )
+        .header("cookie", format!("hexrelay_session={}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build cookie request");
 
@@ -262,25 +238,26 @@ async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
         serde_json::from_slice(&cookie_body).expect("decode cookie payload");
 
     assert_eq!(bearer_payload, cookie_payload);
-    assert_eq!(bearer_payload["items"].as_array().map(Vec::len), Some(2));
+    let ids = bearer_payload["items"]
+        .as_array()
+        .expect("server items array")
+        .iter()
+        .filter_map(|item| item["id"].as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(server_a.as_str()));
+    assert!(ids.contains(server_b.as_str()));
 }
 
 #[tokio::test]
 async fn rejects_server_list_without_authentication() {
-    let Some((app, _, pool)) = app_with_database_and_sessions(&["usr-member"]).await else {
+    let member_id = unique_identity("usr-list-unauth");
+    let server_id = format!("srv-list-authz-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, _, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        "srv-list-authz",
-        "List Authz",
-        "usr-member",
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, &server_id, "List Authz", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -294,15 +271,17 @@ async fn rejects_server_list_without_authentication() {
 
 #[tokio::test]
 async fn rejects_server_detail_without_authentication() {
-    let Some((app, _, pool)) = app_with_database_and_sessions(&["usr-member"]).await else {
+    let member_id = unique_identity("usr-detail-unauth");
+    let server_id = format!("srv-authz-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, _, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(&pool, "srv-authz", "Authz", "usr-member", false, false, 0).await;
+    seed_server_membership(&pool, &server_id, "Authz", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/servers/srv-authz")
+        .uri(format!("/v1/servers/{server_id}"))
         .body(Body::empty())
         .expect("build unauthenticated request");
 

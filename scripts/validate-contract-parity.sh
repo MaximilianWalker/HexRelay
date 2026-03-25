@@ -28,6 +28,7 @@ api_surface_files=(
   'services/api-rs/src/domain/**/*.rs'
   'services/api-rs/src/shared/errors.rs'
   'services/api-rs/src/transport/http/middleware/auth.rs'
+  'services/api-rs/src/transport/http/middleware/authorization.rs'
   'services/api-rs/src/transport/http/middleware/rate_limit.rs'
   'services/api-rs/src/transport/http/handlers/*.rs'
 )
@@ -464,6 +465,7 @@ api_runtime_error_codes="$(extract_api_runtime_error_codes \
   'services/api-rs/src/domain/**/*.rs' \
   'services/api-rs/src/shared/errors.rs' \
   'services/api-rs/src/transport/http/middleware/auth.rs' \
+  'services/api-rs/src/transport/http/middleware/authorization.rs' \
   'services/api-rs/src/transport/http/middleware/rate_limit.rs' \
   'services/api-rs/src/transport/http/handlers/*.rs')"
 api_contract_error_codes="$(extract_openapi_contract_error_codes "${api_contract}")"

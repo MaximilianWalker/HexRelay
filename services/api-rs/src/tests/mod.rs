@@ -379,6 +379,12 @@ async fn seed_dm_thread(
         ensure_db_identity_key(pool, author_id).await;
     }
 
+    sqlx::query("DELETE FROM dm_threads WHERE thread_id = $1")
+        .bind(thread_id)
+        .execute(pool)
+        .await
+        .expect("clear existing dm thread seed state");
+
     dm_history_repo::insert_dm_thread(
         pool,
         dm_history_repo::DmThreadInsertParams {
