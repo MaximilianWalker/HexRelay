@@ -280,6 +280,32 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/servers/{server_id}:
+    get:
+      summary: Get a single joined server for authenticated identity
+      description: Returns the requested server summary only when the authenticated identity has persisted membership for that server. Non-members receive deterministic `403 server_access_denied` without exposing extra membership state.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: server_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Server detail response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/contacts:
     get:
       summary: List contacts for authenticated identity
@@ -1209,6 +1235,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ServerSummary'
+    ServerDetailResponse:
+      type: object
+      required: [item]
+      properties:
+        item:
+          $ref: '#/components/schemas/ServerSummary'
     ContactSummary:
       type: object
       required: [id, name, status, unread, favorite, inbound_request, pending_request]
@@ -2167,6 +2199,7 @@ components:
             - fanout_invalid
             - friendship_lookup_failed
             - last_read_seq_invalid
+            - server_access_denied
         message:
           type: string
   parameters:
