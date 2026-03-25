@@ -9,9 +9,8 @@ use sqlx::Row;
 
 use crate::{
     infra::crypto::session_token::validate_session_token,
-    infra::db::repos::servers_repo,
     models::ApiError,
-    shared::errors::{forbidden, internal_error, unauthorized},
+    shared::errors::{internal_error, unauthorized},
     state::AppState,
 };
 
@@ -42,6 +41,10 @@ where
     type Rejection = (StatusCode, Json<ApiError>);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        if let Some(existing) = parts.extensions.get::<Self>().cloned() {
+            return Ok(existing);
+        }
+
         let app_state = AppState::from_ref(state);
 
         let cookie_token = cookie_value(&parts.headers, SESSION_COOKIE_NAME);
@@ -133,35 +136,6 @@ pub fn enforce_csrf_for_cookie_auth(
             "missing or invalid csrf token",
         )),
     }
-}
-
-pub async fn require_server_membership(
-    state: &AppState,
-    auth: &AuthSession,
-    server_id: &str,
-) -> Result<(), (StatusCode, Json<ApiError>)> {
-    let pool = state.db_pool.as_ref().ok_or_else(|| {
-        internal_error(
-            "storage_unavailable",
-            "server authorization requires configured database pool",
-        )
-    })?;
-
-    let is_member =
-        servers_repo::identity_has_server_membership(pool, &auth.identity_id, server_id)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to verify server membership")
-            })?;
-
-    if !is_member {
-        return Err(forbidden(
-            "server_access_denied",
-            "server membership required",
-        ));
-    }
-
-    Ok(())
 }
 
 struct AuthInput {
@@ -372,21 +346,13 @@ fn resolve_memory_session(
 #[cfg(test)]
 mod tests {
     use super::{
-        cookie_value, enforce_csrf_for_cookie_auth, parse_bearer_token, require_server_membership,
-        resolve_memory_session, select_auth_token, AuthInput, AuthSession, AuthTransport,
+        cookie_value, enforce_csrf_for_cookie_auth, parse_bearer_token, resolve_memory_session,
+        select_auth_token, AuthInput, AuthSession, AuthTransport,
     };
     use crate::{
-        infra::{
-            crypto::session_token::issue_session_token,
-            db::repos::servers_repo::{
-                insert_server, insert_server_membership, ServerInsertParams,
-                ServerMembershipInsertParams,
-            },
-        },
-        models::SessionRecord,
-        state::AppState,
+        infra::crypto::session_token::issue_session_token, models::SessionRecord, state::AppState,
     };
-    use axum::http::{HeaderMap, StatusCode};
+    use axum::http::HeaderMap;
     use chrono::{Duration, Utc};
 
     #[test]
@@ -571,59 +537,5 @@ mod tests {
 
         assert_eq!(claims.session_id, "sess-issued");
         assert_eq!(claims.identity_id, "usr-issued");
-    }
-
-    #[tokio::test]
-    async fn require_server_membership_allows_member_and_rejects_non_member() {
-        let database_url = match std::env::var("API_DATABASE_URL") {
-            Ok(value) if !value.trim().is_empty() => value,
-            _ => return,
-        };
-
-        let pool = match crate::db::connect_and_prepare(&database_url).await {
-            Ok(value) => value,
-            Err(_) => return,
-        };
-
-        let state = AppState::default().with_db_pool(pool.clone());
-        insert_server(
-            &pool,
-            ServerInsertParams {
-                server_id: "srv-authz",
-                name: "Authz",
-            },
-        )
-        .await
-        .expect("insert server");
-        insert_server_membership(
-            &pool,
-            ServerMembershipInsertParams {
-                server_id: "srv-authz",
-                identity_id: "usr-member",
-                favorite: false,
-                muted: false,
-                unread_count: 0,
-            },
-        )
-        .await
-        .expect("insert membership");
-
-        let member_auth = AuthSession {
-            session_id: "sess-1".to_string(),
-            identity_id: "usr-member".to_string(),
-            expires_at: Utc::now().to_rfc3339(),
-            transport: AuthTransport::Bearer,
-        };
-        let member_result = require_server_membership(&state, &member_auth, "srv-authz").await;
-        assert!(member_result.is_ok(), "member allowed");
-
-        let non_member_auth = AuthSession {
-            identity_id: "usr-outsider".to_string(),
-            ..member_auth
-        };
-        let rejection = require_server_membership(&state, &non_member_auth, "srv-authz")
-            .await
-            .expect_err("non-member rejected");
-        assert_eq!(rejection.0, StatusCode::FORBIDDEN);
     }
 }
