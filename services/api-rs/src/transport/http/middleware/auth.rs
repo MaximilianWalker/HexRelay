@@ -41,6 +41,10 @@ where
     type Rejection = (StatusCode, Json<ApiError>);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        if let Some(existing) = parts.extensions.get::<Self>().cloned() {
+            return Ok(existing);
+        }
+
         let app_state = AppState::from_ref(state);
 
         let cookie_token = cookie_value(&parts.headers, SESSION_COOKIE_NAME);

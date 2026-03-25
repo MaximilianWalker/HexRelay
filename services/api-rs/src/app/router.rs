@@ -15,7 +15,7 @@ use crate::{
         block_mute::{
             block_user, list_blocked_users, list_muted_users, mute_user, unblock_user, unmute_user,
         },
-        directory::{list_contacts, list_servers},
+        directory::{get_server, list_contacts, list_servers},
         discovery::list_discovery_users,
         dm::{
             announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
@@ -63,6 +63,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/contact-invites", post(create_contact_invite))
         .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
+        .route("/v1/servers/:server_id", get(get_server))
         .route("/v1/contacts", get(list_contacts))
         .route(
             "/v1/internal/presence/watchers/:identity_id",

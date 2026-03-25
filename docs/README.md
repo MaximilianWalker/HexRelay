@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-23
+- last_updated: 2026-03-25
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay support to `channel.message.deleted`, preserving late-device hydration and second-reconnect dedupe coverage across create/update/delete events.
+- Latest meaningful change: 2026-03-25 T4.4.1 added server-membership authorization coverage and documented the runtime `GET /v1/servers/{server_id}` contract.
 
 ## Purpose
 
