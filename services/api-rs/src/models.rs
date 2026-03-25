@@ -117,6 +117,11 @@ pub struct ServerListResponse {
     pub items: Vec<ServerSummary>,
 }
 
+#[derive(Serialize)]
+pub struct ServerDetailResponse {
+    pub item: ServerSummary,
+}
+
 #[derive(Deserialize)]
 pub struct ContactListQuery {
     pub search: Option<String>,

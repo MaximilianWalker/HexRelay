@@ -103,6 +103,49 @@ pub async fn list_servers_for_identity(
     rows.into_iter().map(map_server_summary_row).collect()
 }
 
+pub async fn identity_has_server_membership(
+    pool: &PgPool,
+    identity_id: &str,
+    server_id: &str,
+) -> Result<bool, sqlx::Error> {
+    let count = sqlx::query_scalar::<_, i64>(
+        "
+        SELECT COUNT(*)
+        FROM server_memberships
+        WHERE identity_id = $1
+          AND server_id = $2
+        ",
+    )
+    .bind(identity_id)
+    .bind(server_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(count > 0)
+}
+
+pub async fn get_server_for_identity(
+    pool: &PgPool,
+    identity_id: &str,
+    server_id: &str,
+) -> Result<Option<ServerSummary>, sqlx::Error> {
+    let row = sqlx::query(
+        "
+        SELECT s.server_id, s.name, m.unread_count, m.favorite, m.muted
+        FROM server_memberships m
+        INNER JOIN servers s ON s.server_id = m.server_id
+        WHERE m.identity_id = $1
+          AND m.server_id = $2
+        ",
+    )
+    .bind(identity_id)
+    .bind(server_id)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(map_server_summary_row).transpose()
+}
+
 fn map_server_summary_row(row: sqlx::postgres::PgRow) -> Result<ServerSummary, sqlx::Error> {
     let unread_count = row.try_get::<i32, _>("unread_count")?;
     let unread = u32::try_from(unread_count)

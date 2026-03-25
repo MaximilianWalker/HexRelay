@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 
@@ -11,11 +11,12 @@ use crate::{
         presence::redis_presence,
     },
     models::{
-        ContactListQuery, ContactListResponse, ContactSummary, ServerListQuery, ServerListResponse,
+        ContactListQuery, ContactListResponse, ContactSummary, ServerDetailResponse,
+        ServerListQuery, ServerListResponse,
     },
-    shared::errors::{internal_error, ApiResult},
+    shared::errors::{forbidden, internal_error, ApiResult},
     state::AppState,
-    transport::http::middleware::auth::AuthSession,
+    transport::http::middleware::auth::{require_server_membership, AuthSession},
 };
 
 pub async fn list_servers(
@@ -51,6 +52,28 @@ pub async fn list_servers(
     }
 
     Ok(Json(ServerListResponse { items }))
+}
+
+pub async fn get_server(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(server_id): Path<String>,
+) -> ApiResult<Json<ServerDetailResponse>> {
+    require_server_membership(&state, &auth, &server_id).await?;
+
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "server lookup requires configured database pool",
+        )
+    })?;
+
+    let item = servers_repo::get_server_for_identity(pool, &auth.identity_id, &server_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load server"))?
+        .ok_or_else(|| forbidden("server_access_denied", "server membership required"))?;
+
+    Ok(Json(ServerDetailResponse { item }))
 }
 
 pub async fn list_contacts(
