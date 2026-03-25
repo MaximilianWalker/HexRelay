@@ -608,24 +608,28 @@ async fn get_message_for_mutation(
 ) -> Result<Option<MutationMessageState>, sqlx::Error> {
     let row = sqlx::query(
         r#"
+        WITH locked_message AS (
+            SELECT m.message_id, m.author_id, m.content, m.deleted_at
+            FROM server_channel_messages m
+            INNER JOIN server_channels c ON c.channel_id = m.channel_id
+            WHERE c.server_id = $1 AND m.channel_id = $2 AND m.message_id = $3
+            FOR UPDATE OF m
+        )
         SELECT
-            m.author_id,
-            m.content,
+            lm.author_id,
+            lm.content,
             COALESCE(
                 ARRAY_AGG(scm.mentioned_identity_id ORDER BY scm.mentioned_identity_id)
                     FILTER (WHERE scm.mentioned_identity_id IS NOT NULL),
                 ARRAY[]::TEXT[]
             ) AS mentions,
             CASE
-                WHEN m.deleted_at IS NULL THEN NULL
-                ELSE TO_CHAR(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                WHEN lm.deleted_at IS NULL THEN NULL
+                ELSE TO_CHAR(lm.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             END AS deleted_at
-        FROM server_channel_messages m
-        INNER JOIN server_channels c ON c.channel_id = m.channel_id
-        LEFT JOIN server_channel_message_mentions scm ON scm.message_id = m.message_id
-        WHERE c.server_id = $1 AND m.channel_id = $2 AND m.message_id = $3
-        GROUP BY m.author_id, m.content, m.deleted_at
-        FOR UPDATE OF m
+        FROM locked_message lm
+        LEFT JOIN server_channel_message_mentions scm ON scm.message_id = lm.message_id
+        GROUP BY lm.author_id, lm.content, lm.deleted_at
         "#,
     )
     .bind(server_id)
