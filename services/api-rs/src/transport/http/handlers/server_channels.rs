@@ -7,12 +7,15 @@ use chrono::Utc;
 
 use crate::{
     domain::auth::validation::is_valid_identity_id,
-    infra::db::repos::server_channels_repo::{self, CreateServerChannelMessageError},
-    models::{
-        ApiError, ServerChannelMessageCreateRequest, ServerChannelMessageListQuery,
-        ServerChannelMessagePage,
+    infra::db::repos::server_channels_repo::{
+        self, CreateServerChannelMessageError, SoftDeleteServerChannelMessageError,
+        UpdateServerChannelMessageError,
     },
-    shared::errors::{bad_request, internal_error, ApiResult},
+    models::{
+        ApiError, ServerChannelMessageCreateRequest, ServerChannelMessageEditRequest,
+        ServerChannelMessageListQuery, ServerChannelMessagePage, ServerChannelMessageRecord,
+    },
+    shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::{
         auth::{enforce_csrf_for_cookie_auth, AuthSession},
@@ -87,19 +90,7 @@ pub async fn create_server_channel_message(
 ) -> ApiResult<(StatusCode, Json<crate::models::ServerChannelMessageRecord>)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
 
-    let content = payload.content.trim();
-    if content.is_empty() {
-        return Err(bad_request(
-            "message_content_invalid",
-            "message content must not be empty",
-        ));
-    }
-    if content.len() > MAX_MESSAGE_CONTENT_LENGTH {
-        return Err(bad_request(
-            "message_content_invalid",
-            "message content exceeds maximum length",
-        ));
-    }
+    let content = normalize_message_content(&payload.content)?;
 
     let mention_identity_ids = normalize_mentions(payload.mention_identity_ids)?;
     let reply_to_message_id = normalize_reply_to_message_id(payload.reply_to_message_id)?;
@@ -118,7 +109,7 @@ pub async fn create_server_channel_message(
             channel_id,
             message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
             author_id: membership.identity_id,
-            content: content.to_string(),
+            content,
             reply_to_message_id,
             mention_identity_ids,
             created_at,
@@ -128,6 +119,93 @@ pub async fn create_server_channel_message(
     .map_err(map_create_message_error)?;
 
     Ok((StatusCode::CREATED, Json(message)))
+}
+
+pub async fn edit_server_channel_message(
+    State(state): State<AppState>,
+    membership: AuthorizedServerMembership,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path((_, channel_id, message_id)): Path<(String, String, String)>,
+    Json(payload): Json<ServerChannelMessageEditRequest>,
+) -> ApiResult<Json<ServerChannelMessageRecord>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+
+    let content = normalize_message_content(&payload.content)?;
+    let mention_identity_ids = normalize_mentions(payload.mention_identity_ids)?;
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "server channel history requires configured database pool",
+        )
+    })?;
+
+    let edited_at = Utc::now().to_rfc3339();
+    let message = server_channels_repo::update_server_channel_message(
+        pool,
+        server_channels_repo::UpdateServerChannelMessageParams {
+            server_id: membership.server_id,
+            channel_id,
+            message_id,
+            author_id: membership.identity_id,
+            content,
+            mention_identity_ids,
+            edited_at,
+        },
+    )
+    .await
+    .map_err(map_update_message_error)?;
+
+    Ok(Json(message))
+}
+
+pub async fn soft_delete_server_channel_message(
+    State(state): State<AppState>,
+    membership: AuthorizedServerMembership,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path((_, channel_id, message_id)): Path<(String, String, String)>,
+) -> ApiResult<Json<ServerChannelMessageRecord>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "server channel history requires configured database pool",
+        )
+    })?;
+
+    let deleted_at = Utc::now().to_rfc3339();
+    let message = server_channels_repo::soft_delete_server_channel_message(
+        pool,
+        &membership.server_id,
+        &channel_id,
+        &message_id,
+        &membership.identity_id,
+        &deleted_at,
+    )
+    .await
+    .map_err(map_soft_delete_message_error)?;
+
+    Ok(Json(message))
+}
+
+fn normalize_message_content(value: &str) -> ApiResult<String> {
+    let content = value.trim();
+    if content.is_empty() {
+        return Err(bad_request(
+            "message_content_invalid",
+            "message content must not be empty",
+        ));
+    }
+    if content.len() > MAX_MESSAGE_CONTENT_LENGTH {
+        return Err(bad_request(
+            "message_content_invalid",
+            "message content exceeds maximum length",
+        ));
+    }
+
+    Ok(content.to_string())
 }
 
 fn parse_limit(value: Option<u32>) -> ApiResult<usize> {
@@ -226,6 +304,72 @@ fn map_create_message_error(
         CreateServerChannelMessageError::Storage(_) => internal_error(
             "storage_unavailable",
             "failed to create server channel message",
+        ),
+    }
+}
+
+fn map_update_message_error(
+    error: UpdateServerChannelMessageError,
+) -> (StatusCode, Json<ApiError>) {
+    match error {
+        UpdateServerChannelMessageError::ChannelNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "channel_not_found",
+                message: "server channel was not found",
+            }),
+        ),
+        UpdateServerChannelMessageError::MessageNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "message_not_found",
+                message: "server channel message was not found",
+            }),
+        ),
+        UpdateServerChannelMessageError::EditForbidden => forbidden(
+            "message_edit_forbidden",
+            "only the author may edit this server channel message",
+        ),
+        UpdateServerChannelMessageError::MessageDeleted => conflict(
+            "message_deleted",
+            "deleted server channel messages cannot be edited",
+        ),
+        UpdateServerChannelMessageError::MentionTargetInvalid => bad_request(
+            "mention_invalid",
+            "mentioned identities must be members of the same server",
+        ),
+        UpdateServerChannelMessageError::Storage(_) => internal_error(
+            "storage_unavailable",
+            "failed to update server channel message",
+        ),
+    }
+}
+
+fn map_soft_delete_message_error(
+    error: SoftDeleteServerChannelMessageError,
+) -> (StatusCode, Json<ApiError>) {
+    match error {
+        SoftDeleteServerChannelMessageError::ChannelNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "channel_not_found",
+                message: "server channel was not found",
+            }),
+        ),
+        SoftDeleteServerChannelMessageError::MessageNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "message_not_found",
+                message: "server channel message was not found",
+            }),
+        ),
+        SoftDeleteServerChannelMessageError::DeleteForbidden => forbidden(
+            "message_delete_forbidden",
+            "only the author may delete this server channel message",
+        ),
+        SoftDeleteServerChannelMessageError::Storage(_) => internal_error(
+            "storage_unavailable",
+            "failed to delete server channel message",
         ),
     }
 }

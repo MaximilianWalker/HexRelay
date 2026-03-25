@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-25
+- last_updated: 2026-03-26
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-25 T4.3.1 added the runtime server-channel message read/create baseline under `/v1/servers/{server_id}/channels/{channel_id}/messages`, including reply and mention metadata.
+- Latest meaningful change: 2026-03-25 T4.3.1 added runtime server-channel author mutation endpoints for nested message edit and soft-delete, including tombstone visibility semantics.
 
 ## Purpose
 
