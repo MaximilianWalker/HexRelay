@@ -480,11 +480,16 @@ pub async fn update_server_channel_message(
             SET content = $1,
                 edited_at = $2::timestamptz
             WHERE message_id = $3
+              AND channel_id = $4
+              AND author_id = $5
+              AND deleted_at IS NULL
             ",
         )
         .bind(&params.content)
         .bind(&params.edited_at)
         .bind(&params.message_id)
+        .bind(&params.channel_id)
+        .bind(&params.author_id)
         .execute(&mut *tx)
         .await?;
 
@@ -545,10 +550,15 @@ pub async fn soft_delete_server_channel_message(
             SET content = '',
                 deleted_at = $1::timestamptz
             WHERE message_id = $2
+              AND channel_id = $3
+              AND author_id = $4
+              AND deleted_at IS NULL
             ",
         )
         .bind(deleted_at)
         .bind(message_id)
+        .bind(channel_id)
+        .bind(author_id)
         .execute(&mut *tx)
         .await?;
 
@@ -615,6 +625,7 @@ async fn get_message_for_mutation(
         LEFT JOIN server_channel_message_mentions scm ON scm.message_id = m.message_id
         WHERE c.server_id = $1 AND m.channel_id = $2 AND m.message_id = $3
         GROUP BY m.author_id, m.content, m.deleted_at
+        FOR UPDATE OF m
         "#,
     )
     .bind(server_id)
