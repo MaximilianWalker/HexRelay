@@ -1,15 +1,25 @@
 use super::*;
 
-async fn seed_default_dm_history(pool: &sqlx::PgPool) {
+struct SeededDmHistory {
+    nora_jules_thread_id: String,
+    nora_alex_thread_id: String,
+}
+
+async fn seed_default_dm_history(pool: &sqlx::PgPool) -> SeededDmHistory {
+    let suffix = Uuid::new_v4().simple().to_string();
+    let nora_jules_thread_id = format!("dm-thread-nora-jules-{suffix}");
+    let atlas_thread_id = format!("gdm-thread-atlas-{suffix}");
+    let nora_alex_thread_id = format!("dm-thread-nora-alex-{suffix}");
+
     seed_dm_thread(
         pool,
-        "dm-thread-nora-jules",
+        &nora_jules_thread_id,
         "dm",
         "Nora K + Jules P",
         &[("usr-nora-k", 401), ("usr-jules-p", 401)],
         &[
             (
-                "msg-401",
+                &format!("msg-401-{suffix}"),
                 "usr-nora-k",
                 401,
                 "enc:88f0ab",
@@ -17,7 +27,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
                 None,
             ),
             (
-                "msg-402",
+                &format!("msg-402-{suffix}"),
                 "usr-jules-p",
                 402,
                 "enc:5c8e73",
@@ -25,7 +35,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
                 Some("2026-03-12T09:12:39Z"),
             ),
             (
-                "msg-403",
+                &format!("msg-403-{suffix}"),
                 "usr-nora-k",
                 403,
                 "enc:4bf120",
@@ -33,7 +43,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
                 None,
             ),
             (
-                "msg-404",
+                &format!("msg-404-{suffix}"),
                 "usr-jules-p",
                 404,
                 "enc:95a0f4",
@@ -46,7 +56,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
 
     seed_dm_thread(
         pool,
-        "gdm-thread-atlas",
+        &atlas_thread_id,
         "group_dm",
         "Atlas Draft Squad",
         &[
@@ -56,7 +66,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
         ],
         &[
             (
-                "msg-144",
+                &format!("msg-144-{suffix}"),
                 "usr-nora-k",
                 144,
                 "enc:bada55",
@@ -64,7 +74,7 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
                 None,
             ),
             (
-                "msg-145",
+                &format!("msg-145-{suffix}"),
                 "usr-mina-s",
                 145,
                 "enc:10beef",
@@ -77,12 +87,12 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
 
     seed_dm_thread(
         pool,
-        "dm-thread-nora-alex",
+        &nora_alex_thread_id,
         "dm",
         "Nora K + Alex R",
         &[("usr-nora-k", 220), ("usr-alex-r", 220)],
         &[(
-            "msg-220",
+            &format!("msg-220-{suffix}"),
             "usr-alex-r",
             220,
             "enc:deed01",
@@ -91,6 +101,11 @@ async fn seed_default_dm_history(pool: &sqlx::PgPool) {
         )],
     )
     .await;
+
+    SeededDmHistory {
+        nora_jules_thread_id,
+        nora_alex_thread_id,
+    }
 }
 
 #[tokio::test]
@@ -160,11 +175,14 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+    let history = seed_default_dm_history(&pool).await;
 
     let first_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads/dm-thread-nora-jules/messages?limit=2")
+        .uri(format!(
+            "/v1/dm/threads/{}/messages?limit=2",
+            history.nora_jules_thread_id
+        ))
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -199,7 +217,8 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let second_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor={next_cursor}"
+            "/v1/dm/threads/{}/messages?limit=2&cursor={next_cursor}",
+            history.nora_jules_thread_id
         ))
         .header(
             "cookie",
@@ -234,11 +253,14 @@ async fn dm_thread_messages_cursor_is_strictly_exclusive() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+    let history = seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor=404")
+        .uri(format!(
+            "/v1/dm/threads/{}/messages?limit=2&cursor=404",
+            history.nora_jules_thread_id
+        ))
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -312,12 +334,13 @@ async fn dm_thread_messages_accept_cursor_larger_than_storage_range() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+    let history = seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/dm-thread-nora-jules/messages?limit=2&cursor={}",
+            "/v1/dm/threads/{}/messages?limit=2&cursor={}",
+            history.nora_jules_thread_id,
             u64::MAX
         ))
         .header(
@@ -350,7 +373,7 @@ async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+    let history = seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
@@ -373,7 +396,7 @@ async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
     let items = payload["items"].as_array().expect("thread items array");
 
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0]["thread_id"], "dm-thread-nora-jules");
+    assert_eq!(items[0]["thread_id"], history.nora_jules_thread_id);
 }
 
 #[tokio::test]
@@ -381,11 +404,14 @@ async fn dm_thread_messages_return_not_found_for_non_members() {
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-jules-p"]).await else {
         return;
     };
-    seed_default_dm_history(&pool).await;
+    let history = seed_default_dm_history(&pool).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads/dm-thread-nora-alex/messages?limit=10")
+        .uri(format!(
+            "/v1/dm/threads/{}/messages?limit=10",
+            history.nora_alex_thread_id
+        ))
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-jules-p"]),
