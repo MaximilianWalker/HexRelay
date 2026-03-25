@@ -21,6 +21,7 @@ pub(super) use tower::util::ServiceExt;
 pub(super) use uuid::Uuid;
 
 pub(super) use crate::infra::db::repos::dm_history_repo;
+pub(super) use crate::infra::db::repos::server_channels_repo;
 pub(super) use crate::infra::db::repos::servers_repo;
 pub(super) use crate::{
     app::build_app,
@@ -32,6 +33,17 @@ pub(super) use crate::{
 };
 
 type SeedDmMessage<'a> = (&'a str, &'a str, u64, &'a str, &'a str, Option<&'a str>);
+type SeedServerChannelMessage<'a> = (
+    &'a str,
+    &'a str,
+    u64,
+    &'a str,
+    Option<&'a str>,
+    &'a [&'a str],
+    &'a str,
+    Option<&'a str>,
+    Option<&'a str>,
+);
 
 #[derive(Deserialize)]
 struct AuthChallengeResponse {
@@ -418,6 +430,68 @@ async fn seed_dm_thread(
         )
         .await
         .expect("insert dm message");
+    }
+}
+
+async fn seed_server_channel(
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    server_name: &str,
+    channel_id: &str,
+    channel_name: &str,
+    member_identity_ids: &[&str],
+    messages: &[SeedServerChannelMessage<'_>],
+) {
+    for identity_id in member_identity_ids {
+        seed_server_membership(pool, server_id, server_name, identity_id, false, false, 0).await;
+    }
+
+    server_channels_repo::insert_server_channel(
+        pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id,
+            server_id,
+            name: channel_name,
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server channel");
+
+    for (
+        message_id,
+        author_id,
+        channel_seq,
+        content,
+        reply_to_message_id,
+        mention_identity_ids,
+        created_at,
+        edited_at,
+        deleted_at,
+    ) in messages
+    {
+        ensure_db_identity_key(pool, author_id).await;
+        for mentioned_identity_id in *mention_identity_ids {
+            ensure_db_identity_key(pool, mentioned_identity_id).await;
+        }
+
+        server_channels_repo::insert_server_channel_message(
+            pool,
+            server_channels_repo::ServerChannelMessageInsertParams {
+                message_id,
+                channel_id,
+                author_id,
+                channel_seq: *channel_seq,
+                content,
+                reply_to_message_id: *reply_to_message_id,
+                created_at,
+                edited_at: *edited_at,
+                deleted_at: *deleted_at,
+            },
+            mention_identity_ids,
+        )
+        .await
+        .expect("insert server channel message");
     }
 }
 

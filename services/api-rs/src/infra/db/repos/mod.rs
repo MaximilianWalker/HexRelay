@@ -5,4 +5,5 @@ pub mod dm_history_repo;
 pub mod dm_repo;
 pub mod friends_repo;
 pub mod invites_repo;
+pub mod server_channels_repo;
 pub mod servers_repo;

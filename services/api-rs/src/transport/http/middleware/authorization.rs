@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts, Path},
@@ -28,9 +30,13 @@ where
     type Rejection = (StatusCode, Json<ApiError>);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(server_id) = Path::<String>::from_request_parts(parts, state)
+        let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
             .await
             .map_err(|_| forbidden("server_access_denied", "server membership required"))?;
+        let server_id = params
+            .get("server_id")
+            .cloned()
+            .ok_or_else(|| forbidden("server_access_denied", "server membership required"))?;
         let auth = AuthSession::from_request_parts(parts, state).await?;
         let app_state = AppState::from_ref(state);
         let pool = app_state.db_pool.as_ref().ok_or_else(|| {

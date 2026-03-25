@@ -68,6 +68,10 @@ const MIGRATIONS: &[Migration] = &[
         "0016_dm_history_local_store",
         include_str!("../migrations/0016_dm_history_local_store.sql"),
     ),
+    (
+        "0017_server_channels_and_messages",
+        include_str!("../migrations/0017_server_channels_and_messages.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

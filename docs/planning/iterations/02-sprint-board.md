@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-23
+- last_updated: 2026-03-25
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 extended runtime channel replay coverage to `channel.message.deleted`, with late-device hydration and second-reconnect dedupe proof now covering create/update/delete channel events.
+- Latest meaningful change: 2026-03-25 T4.3.1 execution started as a backend-first server-channel message baseline, with runtime read/create endpoints scoped ahead of edit/delete and realtime fanout follow-ups.
 
 ## Iteration Scope
 
@@ -69,7 +69,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.9 | Devices activated after first receive replay missed payloads and converge deterministically |
 | T4.2.1 | Implement guild/channel/role schema | E4 / S4.2 | L | API | T4.1.1 | Roles and channel membership constraints are enforced in DB/API |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
-| T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support create/edit/delete/reply/mention with audit-safe events |
+| T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support read/create with reply and mention metadata in the runtime API baseline; edit/delete/audit-safe realtime follow in subsequent T4.3.x slices |
 | T4.3.2 | Add websocket event fanout and optimistic UI for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
 | T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | E4 / S4.3 | M | Realtime/Core | T4.0.2, T4.3.2 | Server communication is adapterized with no DM policy leakage or regression |
 | T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | E4 / S4.3 | L | Realtime/Core | T4.3.3, T3.3.2 | Server-channel and presence events converge across all profile devices, including devices that reconnect later |

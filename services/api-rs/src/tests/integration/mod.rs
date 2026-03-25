@@ -18,3 +18,4 @@ mod dm_wan_wizard_tests;
 mod friends_tests;
 mod invites_tests;
 mod presence_tests;
+mod server_channel_messages_tests;

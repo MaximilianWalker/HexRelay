@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-03-25
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-16 aligned multi-device profile convergence semantics for DM and server communication paths across architecture, planning, product, and verification docs.
+- Latest meaningful change: 2026-03-25 started T4.3.1 as a backend-first server-channel message baseline, narrowing the first delivery slice to runtime read/create plus reply and mention persistence.
 
 ## Purpose
 
@@ -29,6 +29,21 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-03-25 (T4.3.1 backend-first server-channel baseline)
+
+- Area affected: Iteration 2 API sequencing, runtime REST contract, and server workspace enablement.
+- Change summary:
+  - Started `T4.3.1` as a backend-first runtime slice centered on server-channel message read/create endpoints under the existing `/v1/servers/{server_id}/channels/{channel_id}/messages` namespace.
+  - Locked the first delivered scope to persisted message listing, message creation, same-channel reply validation, and same-server mention validation.
+  - Explicitly deferred edit/delete mutations, websocket fanout, richer audit-event semantics, and deeper channel/role permissions to later `T4.3.x` and `T4.4.x` follow-ups.
+- Rationale:
+  - The repo now has server-membership authorization primitives, but still needs a coherent persisted channel message API before fanout/UI expansion. Narrowing the first slice reduces risk while unblocking the placeholder server workspace.
+- Linked docs updated:
+  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-03-16 (multi-device profile convergence hardening)
 
