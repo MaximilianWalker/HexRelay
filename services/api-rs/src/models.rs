@@ -123,6 +123,40 @@ pub struct ServerDetailResponse {
 }
 
 #[derive(Deserialize)]
+pub struct ServerChannelMessageListQuery {
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct ServerChannelMessageCreateRequest {
+    pub content: String,
+    pub reply_to_message_id: Option<String>,
+    #[serde(default)]
+    pub mention_identity_ids: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ServerChannelMessageRecord {
+    pub message_id: String,
+    pub channel_id: String,
+    pub author_id: String,
+    pub channel_seq: u64,
+    pub content: String,
+    pub reply_to_message_id: Option<String>,
+    pub mentions: Vec<String>,
+    pub created_at: String,
+    pub edited_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ServerChannelMessagePage {
+    pub items: Vec<ServerChannelMessageRecord>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct ContactListQuery {
     pub search: Option<String>,
     pub online_only: Option<bool>,

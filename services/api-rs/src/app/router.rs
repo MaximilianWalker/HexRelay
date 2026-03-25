@@ -31,6 +31,7 @@ use crate::{
         health::health,
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
         presence::list_presence_watchers,
+        server_channels::{create_server_channel_message, list_server_channel_messages},
     },
 };
 
@@ -64,6 +65,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
         .route("/v1/servers/:server_id", get(get_server))
+        .route(
+            "/v1/servers/:server_id/channels/:channel_id/messages",
+            get(list_server_channel_messages).post(create_server_channel_message),
+        )
         .route("/v1/contacts", get(list_contacts))
         .route(
             "/v1/internal/presence/watchers/:identity_id",

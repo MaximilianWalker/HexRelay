@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-25 T4.4.1 added server-membership authorization coverage and documented the runtime `GET /v1/servers/{server_id}` contract.
+- Latest meaningful change: 2026-03-25 T4.3.1 added the runtime server-channel message read/create baseline under `/v1/servers/{server_id}/channels/{channel_id}/messages`, including reply and mention metadata.
 
 ## Purpose
 
