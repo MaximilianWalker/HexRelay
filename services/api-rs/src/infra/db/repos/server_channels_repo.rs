@@ -42,6 +42,16 @@ pub struct UpdateServerChannelMessageParams {
     pub edited_at: String,
 }
 
+pub struct UpdateServerChannelMessageResult {
+    pub message: ServerChannelMessageRecord,
+    pub changed: bool,
+}
+
+pub struct SoftDeleteServerChannelMessageResult {
+    pub message: ServerChannelMessageRecord,
+    pub changed: bool,
+}
+
 pub enum CreateServerChannelMessageError {
     ChannelNotFound,
     ReplyTargetInvalid,
@@ -445,7 +455,7 @@ pub async fn create_server_channel_message(
 pub async fn update_server_channel_message(
     pool: &PgPool,
     params: UpdateServerChannelMessageParams,
-) -> Result<ServerChannelMessageRecord, UpdateServerChannelMessageError> {
+) -> Result<UpdateServerChannelMessageResult, UpdateServerChannelMessageError> {
     let mut tx = pool.begin().await?;
 
     let message = get_message_for_mutation(
@@ -535,7 +545,12 @@ pub async fn update_server_channel_message(
 
     let row = fetch_message_row(&mut tx, &params.message_id).await?;
     tx.commit().await?;
-    map_server_channel_message_row(row).map_err(UpdateServerChannelMessageError::Storage)
+    map_server_channel_message_row(row)
+        .map(|message| UpdateServerChannelMessageResult {
+            message,
+            changed: !is_noop,
+        })
+        .map_err(UpdateServerChannelMessageError::Storage)
 }
 
 pub async fn soft_delete_server_channel_message(
@@ -545,7 +560,7 @@ pub async fn soft_delete_server_channel_message(
     message_id: &str,
     author_id: &str,
     deleted_at: &str,
-) -> Result<ServerChannelMessageRecord, SoftDeleteServerChannelMessageError> {
+) -> Result<SoftDeleteServerChannelMessageResult, SoftDeleteServerChannelMessageError> {
     let mut tx = pool.begin().await?;
 
     let message = get_message_for_mutation(&mut tx, server_id, channel_id, message_id).await?;
@@ -564,7 +579,8 @@ pub async fn soft_delete_server_channel_message(
         return Err(SoftDeleteServerChannelMessageError::DeleteForbidden);
     }
 
-    if message.deleted_at.is_none() {
+    let changed = message.deleted_at.is_none();
+    if changed {
         sqlx::query(
             "
             UPDATE server_channel_messages
@@ -591,7 +607,9 @@ pub async fn soft_delete_server_channel_message(
 
     let row = fetch_message_row(&mut tx, message_id).await?;
     tx.commit().await?;
-    map_server_channel_message_row(row).map_err(SoftDeleteServerChannelMessageError::Storage)
+    map_server_channel_message_row(row)
+        .map(|message| SoftDeleteServerChannelMessageResult { message, changed })
+        .map_err(SoftDeleteServerChannelMessageError::Storage)
 }
 
 struct MutationMessageState {

@@ -17,6 +17,11 @@ info:
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
+    Persisted server-channel message create, edit, and delete mutations in
+    `services/api-rs` now bridge into this runtime surface through protected
+    internal realtime publish routes, so successful REST mutations emit
+    `channel.message.created`, `channel.message.updated`, and
+    `channel.message.deleted` to current server members.
     Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
     per-device replay/hydration for `presence.updated`, `channel.message.created`,
     `channel.message.updated`, and `channel.message.deleted`.

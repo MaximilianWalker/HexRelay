@@ -176,7 +176,7 @@ pub async fn edit_server_channel_message(
     let author_id = membership.identity_id.clone();
 
     let edited_at = current_timestamp();
-    let message = server_channels_repo::update_server_channel_message(
+    let result = server_channels_repo::update_server_channel_message(
         pool,
         server_channels_repo::UpdateServerChannelMessageParams {
             server_id: server_id.clone(),
@@ -190,8 +190,9 @@ pub async fn edit_server_channel_message(
     )
     .await
     .map_err(map_update_message_error)?;
+    let message = result.message;
 
-    if message.edited_at.as_deref() == Some(edited_at.as_str()) {
+    if result.changed {
         notify_channel_message_updated(&state, pool, &server_id, &message).await;
     }
 
@@ -216,7 +217,7 @@ pub async fn soft_delete_server_channel_message(
     let server_id = membership.server_id.clone();
 
     let deleted_at = current_timestamp();
-    let message = server_channels_repo::soft_delete_server_channel_message(
+    let result = server_channels_repo::soft_delete_server_channel_message(
         pool,
         &server_id,
         &channel_id,
@@ -226,8 +227,9 @@ pub async fn soft_delete_server_channel_message(
     )
     .await
     .map_err(map_soft_delete_message_error)?;
+    let message = result.message;
 
-    if message.deleted_at.as_deref() == Some(deleted_at.as_str()) {
+    if result.changed {
         notify_channel_message_deleted(&state, pool, &server_id, &message).await;
     }
 
