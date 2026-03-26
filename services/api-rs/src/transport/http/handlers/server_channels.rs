@@ -12,8 +12,9 @@ use crate::{
         UpdateServerChannelMessageError,
     },
     models::{
-        ApiError, ServerChannelMessageCreateRequest, ServerChannelMessageEditRequest,
-        ServerChannelMessageListQuery, ServerChannelMessagePage, ServerChannelMessageRecord,
+        ApiError, ServerChannelListResponse, ServerChannelMessageCreateRequest,
+        ServerChannelMessageEditRequest, ServerChannelMessageListQuery, ServerChannelMessagePage,
+        ServerChannelMessageRecord,
     },
     shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
@@ -78,6 +79,24 @@ pub async fn list_server_channel_messages(
     };
 
     Ok(Json(ServerChannelMessagePage { items, next_cursor }))
+}
+
+pub async fn list_server_channels(
+    State(state): State<AppState>,
+    membership: AuthorizedServerMembership,
+) -> ApiResult<Json<ServerChannelListResponse>> {
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "server channel listing requires configured database pool",
+        )
+    })?;
+
+    let items = server_channels_repo::list_server_channels(pool, &membership.server_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to list server channels"))?;
+
+    Ok(Json(ServerChannelListResponse { items }))
 }
 
 pub async fn create_server_channel_message(

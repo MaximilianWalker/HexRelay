@@ -33,7 +33,7 @@ use crate::{
         presence::list_presence_watchers,
         server_channels::{
             create_server_channel_message, edit_server_channel_message,
-            list_server_channel_messages, soft_delete_server_channel_message,
+            list_server_channel_messages, list_server_channels, soft_delete_server_channel_message,
         },
     },
 };
@@ -68,6 +68,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
         .route("/v1/servers", get(list_servers))
         .route("/v1/servers/:server_id", get(get_server))
+        .route("/v1/servers/:server_id/channels", get(list_server_channels))
         .route(
             "/v1/servers/:server_id/channels/:channel_id/messages",
             get(list_server_channel_messages).post(create_server_channel_message),

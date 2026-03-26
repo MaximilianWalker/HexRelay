@@ -1,6 +1,6 @@
 use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 
-use crate::models::ServerChannelMessageRecord;
+use crate::models::{ServerChannelMessageRecord, ServerChannelSummary};
 
 pub struct ServerChannelInsertParams<'a> {
     pub channel_id: &'a str,
@@ -188,6 +188,27 @@ pub async fn insert_server_channel_message(
     }
 
     tx.commit().await
+}
+
+pub async fn list_server_channels(
+    pool: &PgPool,
+    server_id: &str,
+) -> Result<Vec<ServerChannelSummary>, sqlx::Error> {
+    let rows = sqlx::query(
+        "
+        SELECT channel_id, name, kind, last_message_seq
+        FROM server_channels
+        WHERE server_id = $1
+        ORDER BY created_at ASC, channel_id ASC
+        ",
+    )
+    .bind(server_id)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(map_server_channel_summary_row)
+        .collect()
 }
 
 pub async fn list_server_channel_messages(
@@ -713,5 +734,20 @@ fn map_server_channel_message_row(
         created_at: row.try_get::<String, _>("created_at")?,
         edited_at: row.try_get::<Option<String>, _>("edited_at")?,
         deleted_at: row.try_get::<Option<String>, _>("deleted_at")?,
+    })
+}
+
+fn map_server_channel_summary_row(
+    row: sqlx::postgres::PgRow,
+) -> Result<ServerChannelSummary, sqlx::Error> {
+    let last_message_seq = row.try_get::<i64, _>("last_message_seq")?;
+    let last_message_seq = u64::try_from(last_message_seq)
+        .map_err(|_| sqlx::Error::Protocol("last_message_seq must be non-negative".into()))?;
+
+    Ok(ServerChannelSummary {
+        id: row.try_get::<String, _>("channel_id")?,
+        name: row.try_get::<String, _>("name")?,
+        kind: row.try_get::<String, _>("kind")?,
+        last_message_seq,
     })
 }
