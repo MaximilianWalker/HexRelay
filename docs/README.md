@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-26 wired persisted server-channel create/edit/delete mutations into runtime realtime fanout, with REST docs reflecting best-effort websocket delivery and AsyncAPI documenting the API-to-realtime bridge.
+- Latest meaningful change: 2026-03-26 routed server-channel realtime dispatch through the shared `NodeClientTransport` adapter path while preserving the existing REST mutation and websocket fanout contract.
 
 ## Purpose
 
