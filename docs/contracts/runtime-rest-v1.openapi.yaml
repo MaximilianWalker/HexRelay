@@ -384,7 +384,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create a server-channel message for an authorized member
-      description: Persists a new server-channel message for an authenticated server member, optionally linking a same-channel reply target and persisted mention identities. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members. Cookie-authenticated requests require a matching CSRF header.
+      description: Persists a new server-channel message for an authenticated server member, optionally linking a same-channel reply target and persisted mention identities. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -430,7 +430,7 @@ paths:
   /v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}:
     patch:
       summary: Edit a server-channel message for an authorized author
-      description: Updates the message content and replacement mention set for an existing server-channel message when the authenticated identity is both a member of the server and the original message author. Successful non-noop edits now best-effort fan out `channel.message.updated` over realtime delivery to current server members. Deleted messages cannot be edited. Cookie-authenticated requests require a matching CSRF header.
+      description: Updates the message content and replacement mention set for an existing server-channel message when the authenticated identity is both a member of the server and the original message author. Successful non-noop edits now best-effort fan out `channel.message.updated` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path. Deleted messages cannot be edited. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -486,7 +486,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Soft-delete a server-channel message for an authorized author
-      description: Soft-deletes a server-channel message when the authenticated identity is both a member of the server and the original author. First-time deletes now best-effort fan out `channel.message.deleted` over realtime delivery to current server members, while repeated deletes remain idempotent without duplicate fanout. Deleted messages remain visible in history as tombstones with scrubbed content and empty mentions. Cookie-authenticated requests require a matching CSRF header.
+      description: Soft-deletes a server-channel message when the authenticated identity is both a member of the server and the original author. First-time deletes now best-effort fan out `channel.message.deleted` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path, while repeated deletes remain idempotent without duplicate fanout. Deleted messages remain visible in history as tombstones with scrubbed content and empty mentions. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
