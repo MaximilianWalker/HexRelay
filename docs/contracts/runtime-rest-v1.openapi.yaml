@@ -306,6 +306,32 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/servers/{server_id}/channels:
+    get:
+      summary: List channels for an authorized server member
+      description: Returns persisted channels for the requested server only when the authenticated identity has membership in that server. Results use stable creation order and expose the current `last_message_seq` cursor baseline for each channel.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: server_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Server channel list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerChannelListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages for an authorized member
@@ -1435,6 +1461,28 @@ components:
       properties:
         item:
           $ref: '#/components/schemas/ServerSummary'
+    ServerChannelSummary:
+      type: object
+      required: [id, name, kind, last_message_seq]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [text]
+        last_message_seq:
+          type: integer
+          minimum: 0
+    ServerChannelListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerChannelSummary'
     ServerChannelMessageCreateRequest:
       type: object
       required: [content]

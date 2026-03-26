@@ -122,6 +122,19 @@ pub struct ServerDetailResponse {
     pub item: ServerSummary,
 }
 
+#[derive(Clone, Serialize)]
+pub struct ServerChannelSummary {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub last_message_seq: u64,
+}
+
+#[derive(Serialize)]
+pub struct ServerChannelListResponse {
+    pub items: Vec<ServerChannelSummary>,
+}
+
 #[derive(Deserialize)]
 pub struct ServerChannelMessageListQuery {
     pub cursor: Option<String>,
