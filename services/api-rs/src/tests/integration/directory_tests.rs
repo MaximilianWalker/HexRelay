@@ -226,6 +226,7 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         Some(redis_client.clone()),
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -346,6 +347,7 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         Some(redis_client.clone()),
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -450,6 +452,7 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         Some(redis_client.clone()),
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),

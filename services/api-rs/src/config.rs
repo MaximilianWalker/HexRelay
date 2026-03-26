@@ -1,4 +1,10 @@
-use std::{collections::HashMap, env, net::SocketAddr};
+use std::{
+    collections::HashMap,
+    env,
+    net::{IpAddr, SocketAddr},
+};
+
+use reqwest::Url;
 
 #[derive(Clone)]
 pub struct ApiRateLimitConfig {
@@ -18,6 +24,7 @@ pub struct ApiConfig {
     pub discovery_denylist: Vec<String>,
     pub presence_internal_token: String,
     pub presence_redis_url: Option<String>,
+    pub realtime_base_url: String,
     pub session_signing_keys: HashMap<String, String>,
     pub active_signing_key_id: String,
     pub session_cookie_domain: Option<String>,
@@ -65,6 +72,8 @@ impl ApiConfig {
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        let realtime_base_url = env::var("API_REALTIME_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8081".to_string());
         let (active_signing_key_id, session_signing_keys) = parse_session_signing_keys()?;
         let session_cookie_domain = env::var("API_SESSION_COOKIE_DOMAIN")
             .ok()
@@ -107,6 +116,10 @@ impl ApiConfig {
             return Err(
                 "Invalid API_PRESENCE_INTERNAL_TOKEN. Expected at least 16 characters".to_string(),
             );
+        }
+
+        if realtime_base_url.trim().is_empty() {
+            return Err("Invalid API_REALTIME_BASE_URL. Value must not be empty".to_string());
         }
 
         if allowed_origins.is_empty() {
@@ -185,6 +198,26 @@ impl ApiConfig {
             }
         }
 
+        let parsed_realtime_url = Url::parse(&realtime_base_url).map_err(|_| {
+            format!(
+                "Invalid API_REALTIME_BASE_URL='{}'. Expected absolute URL like http://127.0.0.1:8081",
+                realtime_base_url
+            )
+        })?;
+        let scheme = parsed_realtime_url.scheme();
+        if scheme != "http" && scheme != "https" {
+            return Err(format!(
+                "Invalid API_REALTIME_BASE_URL='{}'. Scheme must be http or https",
+                realtime_base_url
+            ));
+        }
+        if scheme == "http" && !is_loopback_host(parsed_realtime_url.host_str()) {
+            return Err(format!(
+                "Invalid API_REALTIME_BASE_URL='{}'. Non-loopback hosts must use https",
+                realtime_base_url
+            ));
+        }
+
         Ok(Self {
             bind_addr,
             allowed_origins,
@@ -193,6 +226,7 @@ impl ApiConfig {
             discovery_denylist,
             presence_internal_token,
             presence_redis_url,
+            realtime_base_url,
             session_signing_keys,
             active_signing_key_id,
             session_cookie_domain,
@@ -201,6 +235,21 @@ impl ApiConfig {
             trust_proxy_headers,
             rate_limits,
         })
+    }
+}
+
+fn is_loopback_host(host: Option<&str>) -> bool {
+    let Some(host) = host else {
+        return false;
+    };
+
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    match host.parse::<IpAddr>() {
+        Ok(ip) => ip.is_loopback(),
+        Err(_) => false,
     }
 }
 

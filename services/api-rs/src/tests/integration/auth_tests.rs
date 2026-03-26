@@ -278,6 +278,7 @@ async fn rate_limits_auth_challenge_requests() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -346,6 +347,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -416,6 +418,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -486,6 +489,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -543,6 +547,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),

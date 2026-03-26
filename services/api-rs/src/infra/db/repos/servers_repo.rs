@@ -146,6 +146,23 @@ pub async fn get_server_for_identity(
     row.map(map_server_summary_row).transpose()
 }
 
+pub async fn list_server_member_identity_ids(
+    pool: &PgPool,
+    server_id: &str,
+) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "
+        SELECT identity_id
+        FROM server_memberships
+        WHERE server_id = $1
+        ORDER BY identity_id ASC
+        ",
+    )
+    .bind(server_id)
+    .fetch_all(pool)
+    .await
+}
+
 fn map_server_summary_row(row: sqlx::postgres::PgRow) -> Result<ServerSummary, sqlx::Error> {
     let unread_count = row.try_get::<i32, _>("unread_count")?;
     let unread = u32::try_from(unread_count)

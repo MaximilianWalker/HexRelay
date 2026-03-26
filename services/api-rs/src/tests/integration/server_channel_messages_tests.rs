@@ -1,5 +1,16 @@
 use super::*;
 
+use futures::StreamExt;
+use realtime_rs::{
+    app::{build_app as build_realtime_app, AppState as RealtimeAppState},
+    domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber},
+};
+use tokio::net::TcpListener;
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message as WsMessage},
+};
+
 struct ServerChannelFixture {
     server_id: String,
     channel_id: String,
@@ -852,4 +863,383 @@ async fn deleted_server_channel_messages_remain_visible_as_tombstones() {
     assert_eq!(items[1]["content"], "");
     assert_eq!(items[1]["mentions"], serde_json::json!([]));
     assert!(items[1]["deleted_at"].is_string());
+}
+
+async fn start_api_http_server(state: AppState) -> String {
+    let app = build_app(state);
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind API listener");
+    let address = listener.local_addr().expect("read API listener address");
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .expect("serve API app");
+    });
+    format!("http://{address}")
+}
+
+async fn connect_ws_with_token_and_device(
+    ws_url: &str,
+    token: &str,
+    device_id: &str,
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {token}")).expect("authorization header"),
+    );
+    request
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static("http://localhost:3002"));
+    request.headers_mut().insert(
+        "x-hexrelay-device-id",
+        HeaderValue::from_str(device_id).expect("device header"),
+    );
+
+    let (socket, _) = connect_async(request)
+        .await
+        .expect("connect websocket with device");
+    socket
+}
+
+async fn connect_ws_with_token(
+    ws_url: &str,
+    token: &str,
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {token}")).expect("authorization header"),
+    );
+    request
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static("http://localhost:3002"));
+
+    let (socket, _) = connect_async(request).await.expect("connect websocket");
+    socket
+}
+
+async fn recv_channel_event(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_event_type: &str,
+    expected_message_id: &str,
+) -> serde_json::Value {
+    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        loop {
+            let message = socket
+                .next()
+                .await
+                .expect("socket message")
+                .expect("websocket frame");
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: serde_json::Value =
+                serde_json::from_str(&text).expect("decode websocket payload");
+            if payload["event_type"] == expected_event_type
+                && payload["data"]["message_id"] == expected_message_id
+            {
+                break payload;
+            }
+        }
+    })
+    .await
+    .expect("channel event timeout")
+}
+
+async fn assert_no_channel_event(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_event_type: &str,
+    expected_message_id: &str,
+    timeout: std::time::Duration,
+) {
+    let wait_result = tokio::time::timeout(timeout, async {
+        while let Some(message) = socket.next().await {
+            let message = match message {
+                Ok(value) => value,
+                Err(_) => return,
+            };
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if payload["event_type"] == expected_event_type
+                && payload["data"]["message_id"] == expected_message_id
+            {
+                panic!(
+                    "unexpected channel event for event_type={expected_event_type} message_id={expected_message_id}: {text}"
+                );
+            }
+        }
+    })
+    .await;
+
+    if let Ok(()) = wait_result {
+        panic!("socket closed before channel absence assertion completed");
+    }
+}
+
+#[tokio::test]
+async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let Some(redis_client) = prepared_presence_redis_client().await else {
+        return;
+    };
+
+    let server_id = format!("srv-fanout-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-fanout-{}", Uuid::new_v4().simple());
+    let member_id = unique_identity("usr-fanout-member");
+    let teammate_id = unique_identity("usr-fanout-teammate");
+    let outsider_id = unique_identity("usr-fanout-outsider");
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Fanout",
+        &channel_id,
+        "general",
+        &[&member_id, &teammate_id],
+        &[],
+    )
+    .await;
+    ensure_db_identity_key(&pool, &outsider_id).await;
+
+    let realtime_listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind realtime listener");
+    let realtime_address = realtime_listener
+        .local_addr()
+        .expect("read realtime listener address");
+    let realtime_base_url = format!("http://{realtime_address}");
+
+    let mut api_state = AppState::default().with_db_pool(pool.clone());
+    api_state.presence_redis_client = Some(redis_client.clone());
+    api_state.realtime_base_url = realtime_base_url;
+
+    let member_token = issue_db_session_cookie(&pool, &api_state, &member_id).await;
+    let teammate_token = issue_db_session_cookie(&pool, &api_state, &teammate_id).await;
+    let outsider_token = issue_db_session_cookie(&pool, &api_state, &outsider_id).await;
+
+    let api_base_url = start_api_http_server(api_state.clone()).await;
+
+    let realtime_state = RealtimeAppState::new(
+        api_base_url.clone(),
+        vec!["http://localhost:3002".to_string()],
+        api_state.presence_internal_token.clone(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build realtime state");
+    spawn_presence_subscriber(realtime_state.clone());
+    spawn_channel_subscriber(realtime_state.clone());
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+    let realtime_app = build_realtime_app(realtime_state);
+    tokio::spawn(async move {
+        axum::serve(
+            realtime_listener,
+            realtime_app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .expect("serve realtime app");
+    });
+
+    let ws_url = format!("ws://{realtime_address}/ws");
+    let mut member_socket =
+        connect_ws_with_token_and_device(&ws_url, &member_token, "device-primary").await;
+    let mut teammate_socket = connect_ws_with_token(&ws_url, &teammate_token).await;
+    let mut outsider_socket = connect_ws_with_token(&ws_url, &outsider_token).await;
+    let _ = member_socket.next().await;
+    let _ = teammate_socket.next().await;
+    let _ = outsider_socket.next().await;
+
+    let client = reqwest::Client::new();
+    let create_response = client
+        .post(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .bearer_auth(&member_token)
+        .json(&serde_json::json!({
+            "content": "hello realtime",
+            "mention_identity_ids": []
+        }))
+        .send()
+        .await
+        .expect("send create request");
+    assert_eq!(create_response.status(), reqwest::StatusCode::CREATED);
+    let created_message: serde_json::Value = create_response.json().await.expect("decode create");
+    let message_id = created_message["message_id"]
+        .as_str()
+        .expect("created message id")
+        .to_string();
+
+    let member_created =
+        recv_channel_event(&mut member_socket, "channel.message.created", &message_id).await;
+    let teammate_created =
+        recv_channel_event(&mut teammate_socket, "channel.message.created", &message_id).await;
+    assert_eq!(member_created["data"]["channel_id"], channel_id);
+    assert_eq!(teammate_created["data"]["channel_seq"], 1);
+    assert_no_channel_event(
+        &mut outsider_socket,
+        "channel.message.created",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let edit_response = client
+        .patch(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+        ))
+        .bearer_auth(&member_token)
+        .json(&serde_json::json!({
+            "content": "hello realtime edited",
+            "mention_identity_ids": []
+        }))
+        .send()
+        .await
+        .expect("send edit request");
+    assert_eq!(edit_response.status(), reqwest::StatusCode::OK);
+
+    let member_updated =
+        recv_channel_event(&mut member_socket, "channel.message.updated", &message_id).await;
+    let teammate_updated =
+        recv_channel_event(&mut teammate_socket, "channel.message.updated", &message_id).await;
+    assert_eq!(member_updated["data"]["channel_seq"], 1);
+    assert_eq!(teammate_updated["data"]["channel_id"], channel_id);
+    assert_no_channel_event(
+        &mut outsider_socket,
+        "channel.message.updated",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let no_op_edit_response = client
+        .patch(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+        ))
+        .bearer_auth(&member_token)
+        .json(&serde_json::json!({
+            "content": "hello realtime edited",
+            "mention_identity_ids": []
+        }))
+        .send()
+        .await
+        .expect("send no-op edit request");
+    assert_eq!(no_op_edit_response.status(), reqwest::StatusCode::OK);
+    assert_no_channel_event(
+        &mut member_socket,
+        "channel.message.updated",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
+        &mut teammate_socket,
+        "channel.message.updated",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let delete_response = client
+        .delete(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+        ))
+        .bearer_auth(&member_token)
+        .send()
+        .await
+        .expect("send delete request");
+    assert_eq!(delete_response.status(), reqwest::StatusCode::OK);
+
+    let member_deleted =
+        recv_channel_event(&mut member_socket, "channel.message.deleted", &message_id).await;
+    let teammate_deleted =
+        recv_channel_event(&mut teammate_socket, "channel.message.deleted", &message_id).await;
+    assert_eq!(member_deleted["data"]["channel_seq"], 1);
+    assert_eq!(teammate_deleted["data"]["channel_id"], channel_id);
+    assert_no_channel_event(
+        &mut outsider_socket,
+        "channel.message.deleted",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let repeated_delete_response = client
+        .delete(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+        ))
+        .bearer_auth(&member_token)
+        .send()
+        .await
+        .expect("send repeated delete request");
+    assert_eq!(repeated_delete_response.status(), reqwest::StatusCode::OK);
+    assert_no_channel_event(
+        &mut member_socket,
+        "channel.message.deleted",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
+        &mut teammate_socket,
+        "channel.message.deleted",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, &member_token, "device-late").await;
+    let _ = late_device.next().await;
+    let late_created =
+        recv_channel_event(&mut late_device, "channel.message.created", &message_id).await;
+    let late_updated =
+        recv_channel_event(&mut late_device, "channel.message.updated", &message_id).await;
+    let late_deleted =
+        recv_channel_event(&mut late_device, "channel.message.deleted", &message_id).await;
+    assert_eq!(late_created["data"]["channel_id"], channel_id);
+    assert_eq!(late_updated["data"]["channel_id"], channel_id);
+    assert_eq!(late_deleted["data"]["channel_id"], channel_id);
+
+    late_device.close(None).await.expect("close late device");
+    let mut late_device_reconnect =
+        connect_ws_with_token_and_device(&ws_url, &member_token, "device-late").await;
+    let _ = late_device_reconnect.next().await;
+    assert_no_channel_event(
+        &mut late_device_reconnect,
+        "channel.message.created",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
 }

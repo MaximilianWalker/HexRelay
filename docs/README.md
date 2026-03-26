@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-25 added runtime server channel listing at `/v1/servers/{server_id}/channels`, exposing member-scoped channel summaries and `last_message_seq` baselines.
+- Latest meaningful change: 2026-03-26 wired persisted server-channel create/edit/delete mutations into runtime realtime fanout, with REST docs reflecting best-effort websocket delivery and AsyncAPI documenting the API-to-realtime bridge.
 
 ## Purpose
 
