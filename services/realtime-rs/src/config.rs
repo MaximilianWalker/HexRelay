@@ -24,6 +24,15 @@ pub struct RealtimeConfig {
 impl RealtimeConfig {
     pub fn from_env() -> Result<Self, String> {
         const DEFAULT_PRESENCE_INTERNAL_TOKEN: &str = "hexrelay-dev-presence-token-change-me";
+        let environment = env::var("REALTIME_ENVIRONMENT")
+            .unwrap_or_else(|_| "development".to_string())
+            .trim()
+            .to_ascii_lowercase();
+        if environment != "development" && environment != "production" {
+            return Err(
+                "Invalid REALTIME_ENVIRONMENT. Expected 'development' or 'production'".to_string(),
+            );
+        }
         let bind_raw = env::var("REALTIME_BIND").unwrap_or_else(|_| "127.0.0.1:8081".to_string());
         let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
             format!(
@@ -149,6 +158,14 @@ impl RealtimeConfig {
                 "Invalid REALTIME_API_BASE_URL='{}'. Non-loopback hosts must use https",
                 api_base_url
             ));
+        }
+
+        if environment == "production" && presence_internal_token == DEFAULT_PRESENCE_INTERNAL_TOKEN
+        {
+            return Err(
+                "Invalid REALTIME_PRESENCE_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                    .to_string(),
+            );
         }
 
         Ok(Self {
@@ -355,6 +372,31 @@ mod tests {
                 let config = RealtimeConfig::from_env().expect("config should parse");
                 assert_eq!(config.ws_auth_grace_seconds, 30);
                 assert_eq!(config.ws_auth_cache_max_entries, 200);
+            },
+        );
+    }
+
+    #[test]
+    fn production_requires_non_default_internal_token() {
+        with_realtime_env(
+            &[
+                ("REALTIME_ENVIRONMENT", Some("production")),
+                (
+                    "REALTIME_API_BASE_URL",
+                    Some("https://realtime.example.com"),
+                ),
+                ("REALTIME_ALLOWED_ORIGINS", Some("https://app.example.com")),
+                (
+                    "REALTIME_PRESENCE_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-presence-token-change-me"),
+                ),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("default production token should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_PRESENCE_INTERNAL_TOKEN"));
             },
         );
     }

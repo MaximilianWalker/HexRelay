@@ -4,13 +4,19 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use tracing::warn;
 
 use crate::{
     domain::auth::validation::is_valid_identity_id,
+    domain::server_channels::realtime::{
+        self as server_channel_realtime, DispatchChannelMessageCreatedInput,
+        DispatchChannelMessageDeletedInput, DispatchChannelMessageUpdatedInput,
+    },
     infra::db::repos::server_channels_repo::{
         self, CreateServerChannelMessageError, SoftDeleteServerChannelMessageError,
         UpdateServerChannelMessageError,
     },
+    infra::db::repos::servers_repo,
     models::{
         ApiError, ServerChannelListResponse, ServerChannelMessageCreateRequest,
         ServerChannelMessageEditRequest, ServerChannelMessageListQuery, ServerChannelMessagePage,
@@ -27,6 +33,10 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const MAX_MESSAGE_CONTENT_LENGTH: usize = 4000;
+
+fn current_timestamp() -> String {
+    Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
 
 pub async fn list_server_channel_messages(
     State(state): State<AppState>,
@@ -119,15 +129,17 @@ pub async fn create_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
+    let server_id = membership.server_id.clone();
+    let author_id = membership.identity_id.clone();
 
-    let created_at = Utc::now().to_rfc3339();
+    let created_at = current_timestamp();
     let message = server_channels_repo::create_server_channel_message(
         pool,
         server_channels_repo::CreateServerChannelMessageParams {
-            server_id: membership.server_id,
+            server_id: server_id.clone(),
             channel_id,
             message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
-            author_id: membership.identity_id,
+            author_id,
             content,
             reply_to_message_id,
             mention_identity_ids,
@@ -136,6 +148,8 @@ pub async fn create_server_channel_message(
     )
     .await
     .map_err(map_create_message_error)?;
+
+    notify_channel_message_created(&state, pool, &server_id, &message).await;
 
     Ok((StatusCode::CREATED, Json(message)))
 }
@@ -158,22 +172,28 @@ pub async fn edit_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
+    let server_id = membership.server_id.clone();
+    let author_id = membership.identity_id.clone();
 
-    let edited_at = Utc::now().to_rfc3339();
+    let edited_at = current_timestamp();
     let message = server_channels_repo::update_server_channel_message(
         pool,
         server_channels_repo::UpdateServerChannelMessageParams {
-            server_id: membership.server_id,
+            server_id: server_id.clone(),
             channel_id,
             message_id,
-            author_id: membership.identity_id,
+            author_id,
             content,
             mention_identity_ids,
-            edited_at,
+            edited_at: edited_at.clone(),
         },
     )
     .await
     .map_err(map_update_message_error)?;
+
+    if message.edited_at.as_deref() == Some(edited_at.as_str()) {
+        notify_channel_message_updated(&state, pool, &server_id, &message).await;
+    }
 
     Ok(Json(message))
 }
@@ -193,11 +213,12 @@ pub async fn soft_delete_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
+    let server_id = membership.server_id.clone();
 
-    let deleted_at = Utc::now().to_rfc3339();
+    let deleted_at = current_timestamp();
     let message = server_channels_repo::soft_delete_server_channel_message(
         pool,
-        &membership.server_id,
+        &server_id,
         &channel_id,
         &message_id,
         &membership.identity_id,
@@ -206,7 +227,122 @@ pub async fn soft_delete_server_channel_message(
     .await
     .map_err(map_soft_delete_message_error)?;
 
+    if message.deleted_at.as_deref() == Some(deleted_at.as_str()) {
+        notify_channel_message_deleted(&state, pool, &server_id, &message).await;
+    }
+
     Ok(Json(message))
+}
+
+async fn notify_channel_message_created(
+    state: &AppState,
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    message: &ServerChannelMessageRecord,
+) {
+    let recipients = match list_server_event_recipients(pool, server_id).await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
+            return;
+        }
+    };
+
+    if let Err(error) = server_channel_realtime::dispatch_channel_message_created(
+        state,
+        DispatchChannelMessageCreatedInput {
+            server_id,
+            channel_id: &message.channel_id,
+            message_id: &message.message_id,
+            sender_id: &message.author_id,
+            created_at: &message.created_at,
+            channel_seq: message.channel_seq,
+            recipients: &recipients,
+        },
+    )
+    .await
+    {
+        warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to dispatch server channel create event");
+    }
+}
+
+async fn notify_channel_message_updated(
+    state: &AppState,
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    message: &ServerChannelMessageRecord,
+) {
+    let recipients = match list_server_event_recipients(pool, server_id).await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
+            return;
+        }
+    };
+
+    let Some(edited_at) = message.edited_at.as_deref() else {
+        return;
+    };
+
+    if let Err(error) = server_channel_realtime::dispatch_channel_message_updated(
+        state,
+        DispatchChannelMessageUpdatedInput {
+            server_id,
+            channel_id: &message.channel_id,
+            message_id: &message.message_id,
+            editor_id: &message.author_id,
+            edited_at,
+            channel_seq: message.channel_seq,
+            recipients: &recipients,
+        },
+    )
+    .await
+    {
+        warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to dispatch server channel update event");
+    }
+}
+
+async fn notify_channel_message_deleted(
+    state: &AppState,
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    message: &ServerChannelMessageRecord,
+) {
+    let recipients = match list_server_event_recipients(pool, server_id).await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
+            return;
+        }
+    };
+
+    let Some(deleted_at) = message.deleted_at.as_deref() else {
+        return;
+    };
+
+    if let Err(error) = server_channel_realtime::dispatch_channel_message_deleted(
+        state,
+        DispatchChannelMessageDeletedInput {
+            server_id,
+            channel_id: &message.channel_id,
+            message_id: &message.message_id,
+            deleted_by: &message.author_id,
+            deleted_at,
+            channel_seq: message.channel_seq,
+            recipients: &recipients,
+        },
+    )
+    .await
+    {
+        warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to dispatch server channel delete event");
+    }
+}
+
+async fn list_server_event_recipients(
+    pool: &sqlx::PgPool,
+    server_id: &str,
+) -> Result<Vec<String>, sqlx::Error> {
+    servers_repo::list_server_member_identity_ids(pool, server_id).await
 }
 
 fn normalize_message_content(value: &str) -> ApiResult<String> {

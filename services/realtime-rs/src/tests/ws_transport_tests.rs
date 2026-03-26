@@ -1,7 +1,8 @@
 use axum::{
+    body::Body,
     extract::Path,
     extract::State,
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderValue, Request, StatusCode},
     routing::get,
     Json, Router,
 };
@@ -17,6 +18,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message as WsMessage},
 };
+use tower::util::ServiceExt;
 
 use crate::app::{build_app, AppState};
 use crate::domain::channels::{
@@ -687,6 +689,51 @@ async fn start_ws_server_with_state(state: AppState) -> String {
     });
 
     format!("ws://{}/ws", address)
+}
+
+#[tokio::test]
+async fn internal_channel_publish_routes_require_internal_token() {
+    let state = AppState::new(
+        "http://127.0.0.1:8080".to_string(),
+        test_allowed_origins(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/created")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "sender_id": "usr-1",
+                "created_at": "2026-03-26T01:00:00Z",
+                "channel_seq": 1,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal publish request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("internal publish response");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[allow(clippy::too_many_arguments)]

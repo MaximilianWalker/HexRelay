@@ -25,8 +25,10 @@ pub struct AppState {
     pub blocked_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
     pub db_pool: Option<PgPool>,
     pub discovery_denylist: Arc<HashSet<String>>,
+    pub http_client: reqwest::Client,
     pub presence_internal_token: String,
     pub presence_redis_client: Option<redis::Client>,
+    pub realtime_base_url: String,
     pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
     pub dm_fanout_delivery_log: Arc<RwLock<HashMap<String, Vec<DmFanoutDeliveryRecord>>>>,
     pub dm_fanout_device_cursors: Arc<RwLock<HashMap<String, HashMap<String, u64>>>>,
@@ -58,6 +60,7 @@ impl AppState {
         discovery_denylist: Vec<String>,
         presence_internal_token: String,
         presence_redis_client: Option<redis::Client>,
+        realtime_base_url: String,
         session_signing_keys: BTreeMap<String, String>,
         session_cookie_domain: Option<String>,
         session_cookie_secure: bool,
@@ -65,6 +68,12 @@ impl AppState {
         rate_limits: ApiRateLimitConfig,
         trust_proxy_headers: bool,
     ) -> Self {
+        let http_client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(2))
+            .timeout(std::time::Duration::from_secs(3))
+            .build()
+            .expect("build API HTTP client");
+
         Self {
             active_signing_key_id,
             allowed_origins,
@@ -72,8 +81,10 @@ impl AppState {
             blocked_users: Arc::default(),
             db_pool: None,
             discovery_denylist: Arc::new(discovery_denylist.into_iter().collect()),
+            http_client,
             presence_internal_token,
             presence_redis_client,
+            realtime_base_url,
             dm_endpoint_cards: Arc::default(),
             dm_fanout_delivery_log: Arc::default(),
             dm_fanout_device_cursors: Arc::default(),
@@ -112,6 +123,7 @@ impl Default for AppState {
             Vec::new(),
             "hexrelay-dev-presence-token-change-me".to_string(),
             None,
+            "http://127.0.0.1:8081".to_string(),
             BTreeMap::from([(
                 "v1".to_string(),
                 "hexrelay-dev-signing-key-change-me".to_string(),

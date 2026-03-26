@@ -222,6 +222,7 @@ async fn discovery_rate_limits_queries() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -324,6 +325,7 @@ async fn discovery_excludes_configured_denylist() {
         vec!["usr-denied".to_string()],
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
@@ -429,6 +431,7 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
         vec![denied.clone()],
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),

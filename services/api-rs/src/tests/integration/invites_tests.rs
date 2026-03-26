@@ -185,6 +185,7 @@ async fn rate_limits_invite_redeem_requests() {
         Vec::new(),
         "hexrelay-dev-presence-token-change-me".to_string(),
         None,
+        "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
             "v1".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
