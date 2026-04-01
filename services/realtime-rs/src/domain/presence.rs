@@ -2,6 +2,14 @@ use std::collections::BTreeSet;
 
 use crate::state::AppState;
 use chrono::Utc;
+use communication_core::{
+    app::CommunicationRouter,
+    domain::{
+        CommunicationMode, CommunicationReasonCode, ConnectIntent, SendEnvelope, SessionProvenance,
+        TransportProfile,
+    },
+    transport::{DirectPeerTransport, NodeClientTransport, TransportError},
+};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -60,6 +68,110 @@ struct PresenceSnapshot {
 #[derive(Deserialize)]
 struct PresenceWatcherListResponse {
     watchers: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", content = "body")]
+enum PresenceDispatchEnvelope<'a> {
+    #[serde(rename = "presence_edge")]
+    Edge(PresenceEdgeDispatchRequest<'a>),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", content = "body")]
+enum OwnedPresenceDispatchEnvelope {
+    #[serde(rename = "presence_edge")]
+    Edge(OwnedPresenceEdgeDispatchRequest),
+}
+
+#[derive(Serialize)]
+struct PresenceEdgeDispatchRequest<'a> {
+    identity_id: &'a str,
+    online: bool,
+}
+
+#[derive(Deserialize)]
+struct OwnedPresenceEdgeDispatchRequest {
+    identity_id: String,
+    online: bool,
+}
+
+#[derive(Clone)]
+struct LocalPresenceNodeClientTransport {
+    state: AppState,
+}
+
+struct UnusedDirectPeerTransport;
+
+impl DirectPeerTransport for UnusedDirectPeerTransport {
+    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
+        Err(TransportError::ConnectFailed)
+    }
+
+    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
+        Err(TransportError::SendFailed)
+    }
+}
+
+impl NodeClientTransport for LocalPresenceNodeClientTransport {
+    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
+        Ok(SessionProvenance {
+            mode: intent.mode,
+            profile: TransportProfile::NodeClient,
+            reason_code: match intent.mode {
+                CommunicationMode::Presence => CommunicationReasonCode::PresenceRouteSelected,
+                CommunicationMode::ServerChannel => {
+                    CommunicationReasonCode::ServerChannelRouteSelected
+                }
+                CommunicationMode::DmDirect => CommunicationReasonCode::DmDirectPolicyViolation,
+            },
+            policy_assertions: vec!["node_client_transport_selected".to_string()],
+        })
+    }
+
+    fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {
+        let dispatch = PresenceNodeDispatch::from_payload(&envelope.payload)?;
+        let state = self.state.clone();
+        let handle =
+            tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
+        let identity_id = dispatch.identity_id.clone();
+        let online = dispatch.online;
+
+        handle.spawn(async move {
+            if let Err(error) = dispatch.publish(&state).await {
+                warn!(
+                    identity_id = %identity_id,
+                    online,
+                    error = %error,
+                    "NodeClientTransport presence dispatch failed"
+                );
+            }
+        });
+
+        Ok(())
+    }
+}
+
+struct PresenceNodeDispatch {
+    identity_id: String,
+    online: bool,
+}
+
+impl PresenceNodeDispatch {
+    fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
+        let envelope: OwnedPresenceDispatchEnvelope =
+            serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
+        match envelope {
+            OwnedPresenceDispatchEnvelope::Edge(body) => Ok(Self {
+                identity_id: body.identity_id,
+                online: body.online,
+            }),
+        }
+    }
+
+    async fn publish(&self, state: &AppState) -> Result<(), String> {
+        publish_presence_edge_direct(state, &self.identity_id, self.online).await
+    }
 }
 
 pub fn spawn_presence_subscriber(state: AppState) {
@@ -130,13 +242,13 @@ pub fn spawn_presence_subscriber(state: AppState) {
 }
 
 pub async fn publish_online_if_needed(state: &AppState, identity_id: &str) {
-    if let Err(error) = publish_presence_edge(state, identity_id, true).await {
+    if let Err(error) = dispatch_presence_edge(state, identity_id, true) {
         warn!(identity_id = %identity_id, error = %error, "failed to publish online presence edge");
     }
 }
 
 pub async fn publish_offline_if_needed(state: &AppState, identity_id: &str) {
-    if let Err(error) = publish_presence_edge(state, identity_id, false).await {
+    if let Err(error) = dispatch_presence_edge(state, identity_id, false) {
         warn!(identity_id = %identity_id, error = %error, "failed to publish offline presence edge");
     }
 }
@@ -204,7 +316,37 @@ pub async fn hydrate_presence_backlog_if_needed(
     }
 }
 
-async fn publish_presence_edge(
+fn dispatch_presence_edge(state: &AppState, identity_id: &str, online: bool) -> Result<(), String> {
+    let payload = serde_json::to_vec(&PresenceDispatchEnvelope::Edge(
+        PresenceEdgeDispatchRequest {
+            identity_id,
+            online,
+        },
+    ))
+    .map_err(|error| format!("encode presence dispatch payload: {error}"))?;
+
+    let router = CommunicationRouter::new(
+        communication_core::PolicyContext::default(),
+        UnusedDirectPeerTransport,
+        LocalPresenceNodeClientTransport {
+            state: state.clone(),
+        },
+    );
+
+    router
+        .send(&SendEnvelope {
+            mode: CommunicationMode::Presence,
+            payload,
+        })
+        .map_err(|error| {
+            format!(
+                "dispatch presence event via NodeClientTransport: {:?}",
+                error.code
+            )
+        })
+}
+
+async fn publish_presence_edge_direct(
     state: &AppState,
     identity_id: &str,
     online: bool,
@@ -781,5 +923,31 @@ mod tests {
         let connections = guard.get("usr-main").expect("remaining connections");
         assert!(connections.contains_key("conn-open"));
         assert!(!connections.contains_key("conn-stale"));
+    }
+
+    #[test]
+    fn presence_dispatch_payload_parses_edge_request() {
+        let payload = serde_json::to_vec(&PresenceDispatchEnvelope::Edge(
+            PresenceEdgeDispatchRequest {
+                identity_id: "usr-main",
+                online: true,
+            },
+        ))
+        .expect("encode presence payload");
+
+        let dispatch =
+            PresenceNodeDispatch::from_payload(&payload).expect("parse presence payload");
+        assert_eq!(dispatch.identity_id, "usr-main");
+        assert!(dispatch.online);
+    }
+
+    #[test]
+    fn presence_dispatch_payload_rejects_unknown_kind() {
+        let payload = br#"{"kind":"unknown","body":{"identity_id":"usr-main","online":true}}"#;
+
+        assert!(matches!(
+            PresenceNodeDispatch::from_payload(payload),
+            Err(TransportError::SendFailed)
+        ));
     }
 }
