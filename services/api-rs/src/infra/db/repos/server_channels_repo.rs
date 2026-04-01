@@ -221,6 +221,29 @@ pub async fn list_server_channels(
         .collect()
 }
 
+pub async fn server_channel_exists(
+    pool: &PgPool,
+    server_id: &str,
+    channel_id: &str,
+) -> Result<bool, sqlx::Error> {
+    server_channel_exists_with_executor(pool, server_id, channel_id).await
+}
+
+pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        "
+        SELECT EXISTS (
+            SELECT 1
+            FROM server_channels
+            WHERE channel_id = $1
+        )
+        ",
+    )
+    .bind(channel_id)
+    .fetch_one(pool)
+    .await
+}
+
 pub async fn list_server_channel_messages(
     pool: &PgPool,
     server_id: &str,
@@ -228,19 +251,7 @@ pub async fn list_server_channel_messages(
     cursor: Option<u64>,
     limit: usize,
 ) -> Result<Option<Vec<ServerChannelMessageRecord>>, sqlx::Error> {
-    let exists = sqlx::query_scalar::<_, i64>(
-        "
-        SELECT COUNT(*)
-        FROM server_channels
-        WHERE server_id = $1 AND channel_id = $2
-        ",
-    )
-    .bind(server_id)
-    .bind(channel_id)
-    .fetch_one(pool)
-    .await?;
-
-    if exists == 0 {
+    if !server_channel_exists(pool, server_id, channel_id).await? {
         return Ok(None);
     }
 
@@ -624,19 +635,30 @@ async fn channel_exists(
     server_id: &str,
     channel_id: &str,
 ) -> Result<bool, sqlx::Error> {
-    let exists = sqlx::query_scalar::<_, i64>(
+    server_channel_exists_with_executor(&mut **tx, server_id, channel_id).await
+}
+
+async fn server_channel_exists_with_executor<'e, E>(
+    executor: E,
+    server_id: &str,
+    channel_id: &str,
+) -> Result<bool, sqlx::Error>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar::<_, bool>(
         "
-        SELECT COUNT(*)
-        FROM server_channels
-        WHERE server_id = $1 AND channel_id = $2
+        SELECT EXISTS (
+            SELECT 1
+            FROM server_channels
+            WHERE server_id = $1 AND channel_id = $2
+        )
         ",
     )
     .bind(server_id)
     .bind(channel_id)
-    .fetch_one(&mut **tx)
-    .await?;
-
-    Ok(exists > 0)
+    .fetch_one(executor)
+    .await
 }
 
 async fn get_message_for_mutation(
