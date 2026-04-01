@@ -188,7 +188,7 @@ async fn lists_empty_server_channel_collection_for_member() {
 }
 
 #[tokio::test]
-async fn rejects_server_channel_message_routes_when_channel_belongs_to_different_server() {
+async fn rejects_server_channel_message_list_when_channel_belongs_to_different_server() {
     let member_id = unique_identity("usr-cross-server-member");
     let server_a = format!("srv-cross-a-{}", uuid::Uuid::new_v4().simple());
     let server_b = format!("srv-cross-b-{}", uuid::Uuid::new_v4().simple());
