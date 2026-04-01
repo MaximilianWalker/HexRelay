@@ -152,6 +152,88 @@ async fn rejects_server_channel_listing_for_outsiders() {
 }
 
 #[tokio::test]
+async fn rejects_server_channel_message_routes_without_authentication() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, _, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
+        return;
+    };
+
+    let list_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages?limit=2",
+            fixture.server_id, fixture.channel_id
+        ))
+        .body(Body::empty())
+        .expect("build unauthenticated list request");
+    let create_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages",
+            fixture.server_id, fixture.channel_id
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "hello" }).to_string(),
+        ))
+        .expect("build unauthenticated create request");
+    let edit_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "edited" }).to_string(),
+        ))
+        .expect("build unauthenticated edit request");
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .body(Body::empty())
+        .expect("build unauthenticated delete request");
+
+    let list_response = app
+        .clone()
+        .oneshot(list_request)
+        .await
+        .expect("list response");
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create response");
+    let edit_response = app
+        .clone()
+        .oneshot(edit_request)
+        .await
+        .expect("edit response");
+    let delete_response = app.oneshot(delete_request).await.expect("delete response");
+
+    for response in [
+        list_response,
+        create_response,
+        edit_response,
+        delete_response,
+    ] {
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read unauthenticated response body");
+        let payload: serde_json::Value =
+            serde_json::from_slice(&body).expect("decode unauthenticated response body");
+        assert_eq!(payload["code"], "session_invalid");
+    }
+}
+
+#[tokio::test]
 async fn returns_not_found_for_unknown_server_channel() {
     let Some(pool) = prepared_database_pool().await else {
         return;
@@ -321,6 +403,86 @@ async fn rejects_server_channel_message_patch_and_delete_when_channel_is_not_in_
         serde_json::from_slice(&delete_body).expect("decode delete body");
     assert_eq!(patch_payload["code"], "server_access_denied");
     assert_eq!(delete_payload["code"], "server_access_denied");
+}
+
+#[tokio::test]
+async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let fixture = seed_server_channel_fixture(&pool).await;
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&fixture.outsider_id]).await
+    else {
+        return;
+    };
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages",
+            fixture.server_id, fixture.channel_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.outsider_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "outsider create" }).to_string(),
+        ))
+        .expect("build outsider create request");
+    let edit_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.outsider_id]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "outsider edit" }).to_string(),
+        ))
+        .expect("build outsider edit request");
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{}/channels/{}/messages/{}",
+            fixture.server_id, fixture.channel_id, fixture.first_message_id
+        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[&fixture.outsider_id]),
+        )
+        .body(Body::empty())
+        .expect("build outsider delete request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("outsider create response");
+    let edit_response = app
+        .clone()
+        .oneshot(edit_request)
+        .await
+        .expect("outsider edit response");
+    let delete_response = app
+        .oneshot(delete_request)
+        .await
+        .expect("outsider delete response");
+
+    for response in [create_response, edit_response, delete_response] {
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read outsider response body");
+        let payload: serde_json::Value =
+            serde_json::from_slice(&body).expect("decode outsider response body");
+        assert_eq!(payload["code"], "server_access_denied");
+    }
 }
 
 #[tokio::test]
