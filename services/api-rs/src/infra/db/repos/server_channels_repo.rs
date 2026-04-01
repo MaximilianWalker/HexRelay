@@ -241,6 +241,21 @@ pub async fn server_channel_exists(
     Ok(exists > 0)
 }
 
+pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, sqlx::Error> {
+    let exists = sqlx::query_scalar::<_, i64>(
+        "
+        SELECT COUNT(*)
+        FROM server_channels
+        WHERE channel_id = $1
+        ",
+    )
+    .bind(channel_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(exists > 0)
+}
+
 pub async fn list_server_channel_messages(
     pool: &PgPool,
     server_id: &str,

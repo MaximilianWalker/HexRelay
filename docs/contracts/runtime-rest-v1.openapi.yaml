@@ -335,7 +335,7 @@ paths:
   /v1/servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages for an authorized member
-      description: Returns persisted server-channel messages only when the authenticated identity has membership in the requested server. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
+      description: Returns persisted server-channel messages only when the authenticated identity has membership in the requested server and the requested `channel_id` belongs to that same server. Requests for unknown channel ids return `404 channel_not_found`, while cross-server path mismatches fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -384,7 +384,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create a server-channel message for an authorized member
-      description: Persists a new server-channel message for an authenticated server member, optionally linking a same-channel reply target and persisted mention identities. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path using borrowed request serialization on the API side. Cookie-authenticated requests require a matching CSRF header.
+      description: Persists a new server-channel message for an authenticated server member when the requested `channel_id` belongs to the same server identified by the route, optionally linking a same-channel reply target and persisted mention identities. Cross-server path mismatches fail with deterministic `403 server_access_denied`. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path using borrowed request serialization on the API side. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -430,7 +430,7 @@ paths:
   /v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}:
     patch:
       summary: Edit a server-channel message for an authorized author
-      description: Updates the message content and replacement mention set for an existing server-channel message when the authenticated identity is both a member of the server and the original message author. Successful non-noop edits now best-effort fan out `channel.message.updated` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path. Deleted messages cannot be edited. Cookie-authenticated requests require a matching CSRF header.
+      description: Updates the message content and replacement mention set for an existing server-channel message when the authenticated identity is both a member of the server, the requested `channel_id` belongs to that same server, and the caller is the original message author. Cross-server path mismatches fail with deterministic `403 server_access_denied`. Successful non-noop edits now best-effort fan out `channel.message.updated` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path. Deleted messages cannot be edited. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -486,7 +486,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Soft-delete a server-channel message for an authorized author
-      description: Soft-deletes a server-channel message when the authenticated identity is both a member of the server and the original author. First-time deletes now best-effort fan out `channel.message.deleted` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path, while repeated deletes remain idempotent without duplicate fanout. Deleted messages remain visible in history as tombstones with scrubbed content and empty mentions. Cookie-authenticated requests require a matching CSRF header.
+      description: Soft-deletes a server-channel message when the authenticated identity is both a member of the server, the requested `channel_id` belongs to that same server, and the caller is the original author. Cross-server path mismatches fail with deterministic `403 server_access_denied`. First-time deletes now best-effort fan out `channel.message.deleted` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path, while repeated deletes remain idempotent without duplicate fanout. Deleted messages remain visible in history as tombstones with scrubbed content and empty mentions. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []

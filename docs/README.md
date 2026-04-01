@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-26 tightened the `NodeClientTransport` server-channel dispatch path to preserve borrowed payload serialization, richer failure context, and stable semantic test coverage without changing the public REST/websocket contract.
+- Latest meaningful change: 2026-04-01 hardened server-channel route authorization so `channel_id` must belong to the requested server, with runtime REST docs now distinguishing `404 channel_not_found` from cross-server `403 server_access_denied` path mismatches.
 
 ## Purpose
 

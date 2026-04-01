@@ -29,6 +29,35 @@ pub struct AuthorizedServerChannelMembership {
     pub identity_id: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ServerChannelAuthorizationFailure {
+    ChannelNotFound,
+    ServerAccessDenied,
+}
+
+impl From<ServerChannelAuthorizationFailure> for (StatusCode, Json<ApiError>) {
+    fn from(value: ServerChannelAuthorizationFailure) -> Self {
+        match value {
+            ServerChannelAuthorizationFailure::ChannelNotFound => (
+                StatusCode::NOT_FOUND,
+                Json(ApiError {
+                    code: "channel_not_found",
+                    message: "server channel was not found",
+                }),
+            ),
+            ServerChannelAuthorizationFailure::ServerAccessDenied => {
+                forbidden("server_access_denied", "server channel membership required")
+            }
+        }
+    }
+}
+
+fn map_server_channel_authorization_failure(
+    failure: ServerChannelAuthorizationFailure,
+) -> (StatusCode, Json<ApiError>) {
+    failure.into()
+}
+
 #[async_trait]
 impl<S> FromRequestParts<S> for AuthorizedServerMembership
 where
@@ -86,12 +115,17 @@ where
     type Rejection = (StatusCode, Json<ApiError>);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let membership = AuthorizedServerMembership::from_request_parts(parts, state).await?;
         let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
             .await
-            .map_err(|_| forbidden("server_access_denied", "server channel membership required"))?;
+            .map_err(|_| {
+                map_server_channel_authorization_failure(
+                    ServerChannelAuthorizationFailure::ServerAccessDenied,
+                )
+            })?;
         let channel_id = params.get("channel_id").cloned().ok_or_else(|| {
-            forbidden("server_access_denied", "server channel membership required")
+            map_server_channel_authorization_failure(
+                ServerChannelAuthorizationFailure::ServerAccessDenied,
+            )
         })?;
 
         let app_state = AppState::from_ref(state);
@@ -102,6 +136,20 @@ where
             )
         })?;
 
+        let channel_id_exists = server_channels_repo::channel_id_exists(pool, &channel_id)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to verify server channel")
+            })?;
+
+        if !channel_id_exists {
+            return Err(map_server_channel_authorization_failure(
+                ServerChannelAuthorizationFailure::ChannelNotFound,
+            ));
+        }
+
+        let membership = AuthorizedServerMembership::from_request_parts(parts, state).await?;
+
         let channel_exists =
             server_channels_repo::server_channel_exists(pool, &membership.server_id, &channel_id)
                 .await
@@ -110,9 +158,8 @@ where
                 })?;
 
         if !channel_exists {
-            return Err(forbidden(
-                "server_access_denied",
-                "server channel membership required",
+            return Err(map_server_channel_authorization_failure(
+                ServerChannelAuthorizationFailure::ServerAccessDenied,
             ));
         }
 
