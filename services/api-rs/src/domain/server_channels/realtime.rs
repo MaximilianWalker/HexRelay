@@ -393,7 +393,7 @@ fn dispatch_server_channel_payload(
         RealtimeNodeClientTransport {
             http_client: state.http_client.clone(),
             realtime_base_url: state.realtime_base_url.clone(),
-            internal_token: state.presence_internal_token.clone(),
+            internal_token: state.channel_dispatch_internal_token.clone(),
         },
     );
 

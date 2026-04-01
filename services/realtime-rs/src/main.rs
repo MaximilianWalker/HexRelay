@@ -41,7 +41,8 @@ async fn main() {
     let state = match AppState::new(
         config.api_base_url.clone(),
         config.allowed_origins.clone(),
-        config.presence_internal_token.clone(),
+        config.channel_dispatch_internal_token.clone(),
+        config.presence_watcher_internal_token.clone(),
         presence_redis_client,
         config.trust_proxy_headers,
         config.ws_connect_rate_limit,

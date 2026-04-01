@@ -587,6 +587,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Presence-watcher scoped internal token configured separately from channel dispatch credentials.
         - in: path
           name: identity_id
           required: true

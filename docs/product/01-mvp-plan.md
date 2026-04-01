@@ -312,6 +312,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Database access: `sqlx`.
 - Serialization: `serde`.
 - Auth/session transport: challenge-response with signed nonce, HttpOnly session cookie auth, and double-submit CSRF header for authenticated mutation routes.
+- Internal service auth: capability-scoped bearer credentials; presence watcher resolution and channel fanout ingress must not share one broad token.
 - Realtime ingress abuse controls: websocket connect rate limiting, per-identity connection cap, inbound message-size cap, and message-rate cap.
 - Background jobs/events: `tokio` tasks + Redis streams/pubsub.
 - Observability: `tracing`, OpenTelemetry exporter.

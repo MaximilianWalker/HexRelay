@@ -683,7 +683,10 @@ async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {
     let response = match state
         .http_client
         .get(url)
-        .header("x-hexrelay-internal-token", &state.presence_internal_token)
+        .header(
+            "x-hexrelay-internal-token",
+            &state.presence_watcher_internal_token,
+        )
         .send()
         .await
     {
@@ -821,7 +824,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,
@@ -844,7 +848,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,
@@ -873,7 +878,8 @@ mod tests {
         let state = AppState::new(
             api_base_url,
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,
@@ -904,7 +910,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,

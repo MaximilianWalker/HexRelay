@@ -52,7 +52,8 @@ async fn rejects_public_identity_registration_when_disabled() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -322,7 +323,8 @@ async fn rate_limits_auth_challenge_requests() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -391,7 +393,8 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -462,7 +465,8 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -533,7 +537,8 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -591,7 +596,8 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(

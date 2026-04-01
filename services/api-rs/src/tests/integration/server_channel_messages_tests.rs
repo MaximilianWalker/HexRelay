@@ -1341,7 +1341,8 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let realtime_state = RealtimeAppState::new(
         api_base_url.clone(),
         vec!["http://localhost:3002".to_string()],
-        api_state.presence_internal_token.clone(),
+        api_state.channel_dispatch_internal_token.clone(),
+        api_state.presence_watcher_internal_token.clone(),
         Some(redis_client.clone()),
         false,
         60,

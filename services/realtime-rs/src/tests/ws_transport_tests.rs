@@ -67,7 +67,7 @@ enum ValidateMode {
 struct PresenceApiStubState {
     sessions: Arc<RwLock<HashMap<String, String>>>,
     watchers: Arc<RwLock<HashMap<String, Vec<String>>>>,
-    internal_token: String,
+    watcher_token: String,
 }
 
 async fn start_validate_server(mode: ValidateMode) -> String {
@@ -127,7 +127,7 @@ async fn start_validate_server(mode: ValidateMode) -> String {
 async fn start_presence_api_stub(
     sessions: HashMap<String, String>,
     watchers: HashMap<String, Vec<String>>,
-    internal_token: &str,
+    watcher_token: &str,
 ) -> String {
     async fn validate_endpoint(
         State(state): State<PresenceApiStubState>,
@@ -176,7 +176,7 @@ async fn start_presence_api_stub(
         let token_valid = headers
             .get("x-hexrelay-internal-token")
             .and_then(|value| value.to_str().ok())
-            .map(|value| value == state.internal_token)
+            .map(|value| value == state.watcher_token)
             .unwrap_or(false);
         if !token_valid {
             return (
@@ -201,7 +201,7 @@ async fn start_presence_api_stub(
     let state = PresenceApiStubState {
         sessions: Arc::new(RwLock::new(sessions)),
         watchers: Arc::new(RwLock::new(watchers)),
-        internal_token: internal_token.to_string(),
+        watcher_token: watcher_token.to_string(),
     };
     let app = Router::new()
         .route("/v1/auth/sessions/validate", get(validate_endpoint))
@@ -579,7 +579,8 @@ async fn rejects_missing_authorization_header() {
     let state = AppState::new(
         "http://127.0.0.1:1".to_string(),
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -603,7 +604,8 @@ async fn accepts_valid_authorization_with_successful_validation() {
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -631,7 +633,8 @@ async fn rejects_authorization_when_validation_endpoint_denies() {
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -696,7 +699,8 @@ async fn internal_channel_publish_routes_require_internal_token() {
     let state = AppState::new(
         "http://127.0.0.1:8080".to_string(),
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -736,6 +740,56 @@ async fn internal_channel_publish_routes_require_internal_token() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
+#[tokio::test]
+async fn internal_channel_publish_rejects_presence_watcher_token() {
+    let state = AppState::new(
+        "http://127.0.0.1:8080".to_string(),
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/created")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-presence-watcher-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "sender_id": "usr-1",
+                "created_at": "2026-03-26T01:00:00Z",
+                "channel_seq": 1,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal publish request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("internal publish response");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn start_ws_server_with_limits(
     api_base_url: String,
@@ -750,7 +804,8 @@ async fn start_ws_server_with_limits(
     let state = AppState::new(
         api_base_url,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         ws_connect_rate_limit,
@@ -903,14 +958,15 @@ async fn websocket_presence_updates_propagate_and_recover_after_reconnect() {
             ),
             ("usr-watcher".to_string(), vec!["usr-watcher".to_string()]),
         ]),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -991,14 +1047,15 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
             "usr-presence-subject".to_string(),
             vec!["usr-presence-viewer".to_string()],
         )]),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -1088,14 +1145,15 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
             "usr-offline-subject".to_string(),
             vec!["usr-offline-viewer".to_string()],
         )]),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -1200,14 +1258,15 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
             viewer_identity_id.to_string(),
         )]),
         HashMap::new(),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -1309,14 +1368,15 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
             viewer_identity_id.to_string(),
         )]),
         HashMap::new(),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -1418,14 +1478,15 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
             viewer_identity_id.to_string(),
         )]),
         HashMap::new(),
-        "hexrelay-dev-presence-token-change-me",
+        "hexrelay-dev-presence-watcher-token-change-me",
     )
     .await;
 
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,
@@ -1677,7 +1738,8 @@ async fn websocket_upgrade_accepts_cached_session_when_validation_is_unavailable
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -1723,7 +1785,8 @@ async fn websocket_upgrade_rejects_stale_cached_session_when_validation_is_unava
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
@@ -1773,7 +1836,8 @@ async fn websocket_upgrade_rejects_expired_cached_session_when_validation_is_una
     let state = AppState::new(
         api_base,
         test_allowed_origins(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         None,
         false,
         60,
