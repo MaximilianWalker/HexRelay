@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-26 routed server-channel realtime dispatch through the shared `NodeClientTransport` adapter path while preserving the existing REST mutation and websocket fanout contract.
+- Latest meaningful change: 2026-03-26 tightened the `NodeClientTransport` server-channel dispatch path to preserve borrowed payload serialization, richer failure context, and stable semantic test coverage without changing the public REST/websocket contract.
 
 ## Purpose
 
