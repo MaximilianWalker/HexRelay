@@ -188,6 +188,49 @@ async fn lists_empty_server_channel_collection_for_member() {
 }
 
 #[tokio::test]
+async fn rejects_server_channel_message_routes_when_channel_belongs_to_different_server() {
+    let member_id = unique_identity("usr-cross-server-member");
+    let server_a = format!("srv-cross-a-{}", uuid::Uuid::new_v4().simple());
+    let server_b = format!("srv-cross-b-{}", uuid::Uuid::new_v4().simple());
+    let channel_b = format!("chn-cross-b-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
+    server_channels_repo::insert_server_channel(
+        &pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id: &channel_b,
+            server_id: &server_b,
+            name: "random",
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server B channel");
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/servers/{server_a}/channels/{channel_b}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build mismatched request");
+
+    let response = app.oneshot(request).await.expect("mismatched response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read mismatched response body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+    assert_eq!(payload["code"], "server_access_denied");
+}
+
+#[tokio::test]
 async fn gets_server_detail_for_cookie_authenticated_member_only() {
     let member_id = unique_identity("usr-cookie-member");
     let outsider_id = unique_identity("usr-cookie-outsider");

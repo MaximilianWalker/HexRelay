@@ -26,7 +26,7 @@ use crate::{
     state::AppState,
     transport::http::middleware::{
         auth::{enforce_csrf_for_cookie_auth, AuthSession},
-        authorization::AuthorizedServerMembership,
+        authorization::{AuthorizedServerChannelMembership, AuthorizedServerMembership},
     },
 };
 
@@ -40,8 +40,7 @@ fn current_timestamp() -> String {
 
 pub async fn list_server_channel_messages(
     State(state): State<AppState>,
-    membership: AuthorizedServerMembership,
-    Path((_, channel_id)): Path<(String, String)>,
+    channel_membership: AuthorizedServerChannelMembership,
     Query(query): Query<ServerChannelMessageListQuery>,
 ) -> ApiResult<Json<ServerChannelMessagePage>> {
     let limit = parse_limit(query.limit)?;
@@ -55,8 +54,8 @@ pub async fn list_server_channel_messages(
 
     let mut items = server_channels_repo::list_server_channel_messages(
         pool,
-        &membership.server_id,
-        &channel_id,
+        &channel_membership.server_id,
+        &channel_membership.channel_id,
         cursor,
         limit,
     )
@@ -111,10 +110,9 @@ pub async fn list_server_channels(
 
 pub async fn create_server_channel_message(
     State(state): State<AppState>,
-    membership: AuthorizedServerMembership,
+    channel_membership: AuthorizedServerChannelMembership,
     auth: AuthSession,
     headers: HeaderMap,
-    Path((_, channel_id)): Path<(String, String)>,
     Json(payload): Json<ServerChannelMessageCreateRequest>,
 ) -> ApiResult<(StatusCode, Json<crate::models::ServerChannelMessageRecord>)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
@@ -129,8 +127,9 @@ pub async fn create_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
-    let server_id = membership.server_id.clone();
-    let author_id = membership.identity_id.clone();
+    let server_id = channel_membership.server_id.clone();
+    let channel_id = channel_membership.channel_id.clone();
+    let author_id = channel_membership.identity_id.clone();
 
     let created_at = current_timestamp();
     let message = server_channels_repo::create_server_channel_message(
@@ -156,10 +155,10 @@ pub async fn create_server_channel_message(
 
 pub async fn edit_server_channel_message(
     State(state): State<AppState>,
-    membership: AuthorizedServerMembership,
+    channel_membership: AuthorizedServerChannelMembership,
     auth: AuthSession,
     headers: HeaderMap,
-    Path((_, channel_id, message_id)): Path<(String, String, String)>,
+    Path((_, _, message_id)): Path<(String, String, String)>,
     Json(payload): Json<ServerChannelMessageEditRequest>,
 ) -> ApiResult<Json<ServerChannelMessageRecord>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
@@ -172,8 +171,9 @@ pub async fn edit_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
-    let server_id = membership.server_id.clone();
-    let author_id = membership.identity_id.clone();
+    let server_id = channel_membership.server_id.clone();
+    let channel_id = channel_membership.channel_id.clone();
+    let author_id = channel_membership.identity_id.clone();
 
     let edited_at = current_timestamp();
     let result = server_channels_repo::update_server_channel_message(
@@ -201,10 +201,10 @@ pub async fn edit_server_channel_message(
 
 pub async fn soft_delete_server_channel_message(
     State(state): State<AppState>,
-    membership: AuthorizedServerMembership,
+    channel_membership: AuthorizedServerChannelMembership,
     auth: AuthSession,
     headers: HeaderMap,
-    Path((_, channel_id, message_id)): Path<(String, String, String)>,
+    Path((_, _, message_id)): Path<(String, String, String)>,
 ) -> ApiResult<Json<ServerChannelMessageRecord>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
 
@@ -214,7 +214,8 @@ pub async fn soft_delete_server_channel_message(
             "server channel history requires configured database pool",
         )
     })?;
-    let server_id = membership.server_id.clone();
+    let server_id = channel_membership.server_id.clone();
+    let channel_id = channel_membership.channel_id.clone();
 
     let deleted_at = current_timestamp();
     let result = server_channels_repo::soft_delete_server_channel_message(
@@ -222,7 +223,7 @@ pub async fn soft_delete_server_channel_message(
         &server_id,
         &channel_id,
         &message_id,
-        &membership.identity_id,
+        &channel_membership.identity_id,
         &deleted_at,
     )
     .await

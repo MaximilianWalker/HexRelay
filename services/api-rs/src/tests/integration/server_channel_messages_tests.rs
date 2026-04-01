@@ -189,6 +189,141 @@ async fn returns_not_found_for_unknown_server_channel() {
 }
 
 #[tokio::test]
+async fn rejects_server_channel_message_create_when_channel_is_not_in_requested_server() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let member_id = unique_identity("usr-create-cross-server");
+    let server_a = format!("srv-create-cross-a-{}", Uuid::new_v4().simple());
+    let server_b = format!("srv-create-cross-b-{}", Uuid::new_v4().simple());
+    let channel_b = format!("chn-create-cross-b-{}", Uuid::new_v4().simple());
+
+    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
+    server_channels_repo::insert_server_channel(
+        &pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id: &channel_b,
+            server_id: &server_b,
+            name: "server-b-only",
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server B channel");
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/servers/{server_a}/channels/{channel_b}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "hello" }).to_string(),
+        ))
+        .expect("build cross-server create request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("cross-server create response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read create response body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode create body");
+    assert_eq!(payload["code"], "server_access_denied");
+}
+
+#[tokio::test]
+async fn rejects_server_channel_message_patch_and_delete_when_channel_is_not_in_requested_server() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let member_id = unique_identity("usr-mutate-cross-server");
+    let server_a = format!("srv-mutate-cross-a-{}", Uuid::new_v4().simple());
+    let server_b = format!("srv-mutate-cross-b-{}", Uuid::new_v4().simple());
+    let channel_b = format!("chn-mutate-cross-b-{}", Uuid::new_v4().simple());
+    let message_b = format!("scm-mutate-cross-b-{}", Uuid::new_v4().simple());
+
+    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
+    seed_server_channel(
+        &pool,
+        &server_b,
+        "Server B",
+        &channel_b,
+        "server-b-only",
+        &[&member_id],
+        &[(
+            &message_b,
+            &member_id,
+            1,
+            "server b message",
+            None,
+            &[],
+            "2026-03-26T03:00:00Z",
+            None,
+            None,
+        )],
+    )
+    .await;
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    let patch_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/v1/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "edited" }).to_string(),
+        ))
+        .expect("build cross-server patch request");
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/v1/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build cross-server delete request");
+
+    let patch_response = app
+        .clone()
+        .oneshot(patch_request)
+        .await
+        .expect("patch response");
+    let delete_response = app.oneshot(delete_request).await.expect("delete response");
+
+    assert_eq!(patch_response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(delete_response.status(), StatusCode::FORBIDDEN);
+
+    let patch_body = to_bytes(patch_response.into_body(), usize::MAX)
+        .await
+        .expect("read patch body");
+    let delete_body = to_bytes(delete_response.into_body(), usize::MAX)
+        .await
+        .expect("read delete body");
+    let patch_payload: serde_json::Value =
+        serde_json::from_slice(&patch_body).expect("decode patch body");
+    let delete_payload: serde_json::Value =
+        serde_json::from_slice(&delete_body).expect("decode delete body");
+    assert_eq!(patch_payload["code"], "server_access_denied");
+    assert_eq!(delete_payload["code"], "server_access_denied");
+}
+
+#[tokio::test]
 async fn paginates_server_channel_messages_by_channel_seq_cursor() {
     let Some(pool) = prepared_database_pool().await else {
         return;

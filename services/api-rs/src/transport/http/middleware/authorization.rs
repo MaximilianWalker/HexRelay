@@ -8,6 +8,7 @@ use axum::{
 };
 
 use crate::{
+    infra::db::repos::server_channels_repo,
     infra::db::repos::servers_repo,
     models::ApiError,
     shared::errors::{forbidden, internal_error},
@@ -18,6 +19,13 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorizedServerMembership {
     pub server_id: String,
+    pub identity_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AuthorizedServerChannelMembership {
+    pub server_id: String,
+    pub channel_id: String,
     pub identity_id: String,
 }
 
@@ -65,6 +73,53 @@ where
         Ok(Self {
             server_id,
             identity_id: auth.identity_id,
+        })
+    }
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for AuthorizedServerChannelMembership
+where
+    S: Send + Sync,
+    AppState: FromRef<S>,
+{
+    type Rejection = (StatusCode, Json<ApiError>);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let membership = AuthorizedServerMembership::from_request_parts(parts, state).await?;
+        let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| forbidden("server_access_denied", "server channel membership required"))?;
+        let channel_id = params.get("channel_id").cloned().ok_or_else(|| {
+            forbidden("server_access_denied", "server channel membership required")
+        })?;
+
+        let app_state = AppState::from_ref(state);
+        let pool = app_state.db_pool.as_ref().ok_or_else(|| {
+            internal_error(
+                "storage_unavailable",
+                "server authorization requires configured database pool",
+            )
+        })?;
+
+        let channel_exists =
+            server_channels_repo::server_channel_exists(pool, &membership.server_id, &channel_id)
+                .await
+                .map_err(|_| {
+                    internal_error("storage_unavailable", "failed to verify server channel")
+                })?;
+
+        if !channel_exists {
+            return Err(forbidden(
+                "server_access_denied",
+                "server channel membership required",
+            ));
+        }
+
+        Ok(Self {
+            server_id: membership.server_id,
+            channel_id,
+            identity_id: membership.identity_id,
         })
     }
 }
