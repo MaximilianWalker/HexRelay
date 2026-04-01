@@ -368,3 +368,57 @@ async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
 
     assert_eq!(first_record.request_id, second_record.request_id);
 }
+
+#[tokio::test]
+async fn contact_invite_redeem_rejects_blocked_pair() {
+    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
+
+    let block_request = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"target_identity_id":"usr-target"}"#))
+        .expect("build block request");
+    let block_response = app
+        .clone()
+        .oneshot(block_request)
+        .await
+        .expect("block response");
+    assert_eq!(block_response.status(), StatusCode::CREATED);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build contact invite create request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read contact invite create body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build contact invite redeem request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("redeem contact invite response");
+    assert_eq!(redeem_response.status(), StatusCode::FORBIDDEN);
+}

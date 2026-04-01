@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 added structured server-channel message edit/delete author-authorization decision logs, extending node-owner authz debugging without changing runtime REST auth semantics or error contracts.
+- Latest meaningful change: 2026-04-01 hardened peer identity/privacy boundaries by failing public identity registration closed by default and extending blocked-pair protection to contact-invite redemption, bootstrap material, and LAN discovery visibility.
 
 ## Purpose
 

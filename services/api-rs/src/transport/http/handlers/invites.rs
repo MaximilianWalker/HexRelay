@@ -8,6 +8,7 @@ use ring::digest::{digest, SHA256};
 use uuid::Uuid;
 
 use crate::{
+    domain::block_mute::service::is_blocked_bidirectional,
     domain::invites::validation::{
         validate_contact_invite_redeem_request, validate_invite_create_request,
         validate_invite_redeem_request,
@@ -20,7 +21,9 @@ use crate::{
         ContactInviteRedeemRequest, FriendRequestCreate, FriendRequestRecord, InviteCreateRequest,
         InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
-    shared::errors::{bad_request, conflict, internal_error, too_many_requests, ApiResult},
+    shared::errors::{
+        bad_request, conflict, forbidden, internal_error, too_many_requests, ApiResult,
+    },
     state::AppState,
     transport::http::middleware::{
         auth::{enforce_csrf_for_cookie_auth, AuthSession},
@@ -323,6 +326,13 @@ pub async fn redeem_contact_invite(
                 ));
             }
 
+            if is_blocked_bidirectional(&state, &auth.identity_id, &inviter_identity_id)? {
+                return Err(forbidden(
+                    "blocked_user",
+                    "cannot redeem contact invite while a block relationship exists between these users",
+                ));
+            }
+
             if let Some(expires_at) = invite.expires_at {
                 if Utc::now() > expires_at {
                     return Err(bad_request("invite_expired", "invite token is expired"));
@@ -381,6 +391,13 @@ pub async fn redeem_contact_invite(
         return Err(conflict(
             "invite_invalid",
             "cannot redeem a contact invite created by the same identity",
+        ));
+    }
+
+    if is_blocked_bidirectional(&state, &auth.identity_id, &inviter_identity_id)? {
+        return Err(forbidden(
+            "blocked_user",
+            "cannot redeem contact invite while a block relationship exists between these users",
         ));
     }
 

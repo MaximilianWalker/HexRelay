@@ -646,3 +646,161 @@ async fn rejects_redeeming_own_contact_invite_in_db() {
 
     assert_eq!(redeem_response.status(), StatusCode::CONFLICT);
 }
+
+#[tokio::test]
+async fn rejects_redeeming_blocked_contact_invite_in_db() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let inviter_identity = unique_identity("db-user-contact-invite-block-a");
+    let redeemer_identity = unique_identity("db-user-contact-invite-block-b");
+    let (inviter_cookie, app) = authenticate_identity(app, &inviter_identity).await;
+    let (redeemer_cookie, app) = authenticate_identity(app, &redeemer_identity).await;
+
+    let block_request = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{}"}}"#,
+            redeemer_identity
+        )))
+        .expect("build block request");
+    let block_response = app
+        .clone()
+        .oneshot(block_request)
+        .await
+        .expect("block response");
+    assert_eq!(block_response.status(), StatusCode::CREATED);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build create contact invite request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create contact invite body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_body).expect("decode create contact invite body");
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={redeemer_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build contact invite redeem request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("contact invite redeem response");
+    assert_eq!(redeem_response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
+
+    ensure_db_identity_key(&pool, "usr-a").await;
+    ensure_db_identity_key(&pool, "usr-b").await;
+
+    let create_req = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-a"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(
+            r#"{"requester_identity_id":"usr-a","target_identity_id":"usr-b"}"#,
+        ))
+        .expect("build create request");
+    let create_resp = app.clone().oneshot(create_req).await.expect("create resp");
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let create_body = to_bytes(create_resp.into_body(), usize::MAX)
+        .await
+        .expect("read create body");
+    let created: FriendRequestRecord = serde_json::from_slice(&create_body).expect("decode create");
+
+    let accept_req = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/friends/requests/{}/accept",
+            created.request_id
+        ))
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-b"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::empty())
+        .expect("build accept request");
+    let accept_resp = app.clone().oneshot(accept_req).await.expect("accept resp");
+    assert_eq!(accept_resp.status(), StatusCode::OK);
+
+    let block_req = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-b"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
+        .expect("build block request");
+    let block_resp = app.clone().oneshot(block_req).await.expect("block resp");
+    assert_eq!(block_resp.status(), StatusCode::CREATED);
+
+    let bootstrap_req = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/friends/requests/{}/bootstrap",
+            created.request_id
+        ))
+        .header("cookie", format!("hexrelay_session={}", tokens["usr-a"]))
+        .body(Body::empty())
+        .expect("build bootstrap request");
+    let bootstrap_resp = app.oneshot(bootstrap_req).await.expect("bootstrap resp");
+    assert_eq!(bootstrap_resp.status(), StatusCode::FORBIDDEN);
+}

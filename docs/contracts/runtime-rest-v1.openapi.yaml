@@ -228,6 +228,9 @@ paths:
   /v1/contact-invites/redeem:
     post:
       summary: Redeem a contact invite token and create friend request
+      description: |
+        Redemption fails when a block relationship exists between the authenticated
+        redeemer and the invite creator.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -250,6 +253,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '429':
@@ -792,7 +797,7 @@ paths:
   /v1/dm/connectivity/lan-discovery/peers:
     get:
       summary: List recently discovered LAN peers for direct DM fast path
-      description: Returns only recently discovered peer endpoint hints whose current DM inbound policy allows the authenticated requester. `same_server` visibility is verified from persisted server membership records, and LAN discovery hints remain ephemeral TTL-scoped snapshots rather than durable stored history.
+      description: Returns only recently discovered peer endpoint hints whose current DM inbound policy allows the authenticated requester and where no block relationship exists between the two identities. `same_server` visibility is verified from persisted server membership records, and LAN discovery hints remain ephemeral TTL-scoped snapshots rather than durable stored history.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1270,7 +1275,8 @@ paths:
       description: >-
         Returns the other party's identity bundle (public key, endpoint cards,
         profile devices). Only accessible to the requester or target of an
-        accepted friend request.
+        accepted friend request, and blocked pairs cannot retrieve bootstrap
+        material.
       security:
         - CookieAuth: []
         - BearerAuth: []

@@ -210,6 +210,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Privacy-First Social Graph Policy (MVP)
 
 - Servers do not expose raw key/profile-identifying data to other users by default.
+- Any bidirectional block relationship suppresses peer-facing invite redemption, bootstrap material, and discovery visibility until the block is removed.
 - Friend requests through a server are mediated actions:
   - User A requests contact with User B through server-local reference.
   - Server sends request notification to User B.
