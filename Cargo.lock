@@ -33,6 +33,7 @@ dependencies = [
  "axum",
  "base64",
  "chrono",
+ "communication-core",
  "futures",
  "hex",
  "rand 0.8.5",
