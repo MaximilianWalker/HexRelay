@@ -384,7 +384,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Create a server-channel message for an authorized member
-      description: Persists a new server-channel message for an authenticated server member, optionally linking a same-channel reply target and persisted mention identities. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path. Cookie-authenticated requests require a matching CSRF header.
+      description: Persists a new server-channel message for an authenticated server member, optionally linking a same-channel reply target and persisted mention identities. Successful writes now best-effort fan out `channel.message.created` over realtime delivery to current server members, routed through the shared `NodeClientTransport` adapter path using borrowed request serialization on the API side. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []

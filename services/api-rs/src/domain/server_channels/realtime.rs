@@ -15,8 +15,41 @@ const INTERNAL_CHANNEL_MESSAGE_CREATED_PATH: &str = "/internal/channels/messages
 const INTERNAL_CHANNEL_MESSAGE_UPDATED_PATH: &str = "/internal/channels/messages/updated";
 const INTERNAL_CHANNEL_MESSAGE_DELETED_PATH: &str = "/internal/channels/messages/deleted";
 
-#[derive(Serialize, Deserialize)]
-struct ChannelMessageCreatedDispatchRequest {
+#[derive(Serialize)]
+struct ChannelMessageCreatedDispatchRequest<'a> {
+    message_id: &'a str,
+    guild_id: &'a str,
+    channel_id: &'a str,
+    sender_id: &'a str,
+    created_at: &'a str,
+    channel_seq: u64,
+    recipients: &'a [String],
+}
+
+#[derive(Serialize)]
+struct ChannelMessageUpdatedDispatchRequest<'a> {
+    message_id: &'a str,
+    guild_id: &'a str,
+    channel_id: &'a str,
+    editor_id: &'a str,
+    edited_at: &'a str,
+    channel_seq: u64,
+    recipients: &'a [String],
+}
+
+#[derive(Serialize)]
+struct ChannelMessageDeletedDispatchRequest<'a> {
+    message_id: &'a str,
+    guild_id: &'a str,
+    channel_id: &'a str,
+    deleted_by: &'a str,
+    deleted_at: &'a str,
+    channel_seq: u64,
+    recipients: &'a [String],
+}
+
+#[derive(Deserialize, Serialize)]
+struct OwnedChannelMessageCreatedDispatchRequest {
     message_id: String,
     guild_id: String,
     channel_id: String,
@@ -26,8 +59,8 @@ struct ChannelMessageCreatedDispatchRequest {
     recipients: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct ChannelMessageUpdatedDispatchRequest {
+#[derive(Deserialize, Serialize)]
+struct OwnedChannelMessageUpdatedDispatchRequest {
     message_id: String,
     guild_id: String,
     channel_id: String,
@@ -37,8 +70,8 @@ struct ChannelMessageUpdatedDispatchRequest {
     recipients: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct ChannelMessageDeletedDispatchRequest {
+#[derive(Deserialize, Serialize)]
+struct OwnedChannelMessageDeletedDispatchRequest {
     message_id: String,
     guild_id: String,
     channel_id: String,
@@ -121,8 +154,12 @@ impl NodeClientTransport for RealtimeNodeClientTransport {
             self.realtime_base_url.trim_end_matches('/'),
             dispatch.path()
         );
+        let path = dispatch.path().to_string();
+        let message_id = dispatch.message_id().to_string();
+        let guild_id = dispatch.guild_id().to_string();
+        let channel_id = dispatch.channel_id().to_string();
         let internal_token = self.internal_token.clone();
-        let body = dispatch.body();
+        let body = dispatch.body().to_vec();
         let handle =
             tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
         handle.spawn(async move {
@@ -136,10 +173,24 @@ impl NodeClientTransport for RealtimeNodeClientTransport {
             {
                 Ok(response) if response.status().is_success() => {}
                 Ok(response) => {
-                    warn!(status = %response.status(), "NodeClientTransport server-channel dispatch failed");
+                    warn!(
+                        %path,
+                        %message_id,
+                        %guild_id,
+                        %channel_id,
+                        status = %response.status(),
+                        "NodeClientTransport server-channel dispatch failed"
+                    );
                 }
                 Err(error) => {
-                    warn!(error = %error, "NodeClientTransport server-channel dispatch errored");
+                    warn!(
+                        %path,
+                        %message_id,
+                        %guild_id,
+                        %channel_id,
+                        error = %error,
+                        "NodeClientTransport server-channel dispatch errored"
+                    );
                 }
             }
         });
@@ -149,25 +200,47 @@ impl NodeClientTransport for RealtimeNodeClientTransport {
 }
 
 enum RealtimeNodeDispatch {
-    Created(Vec<u8>),
-    Updated(Vec<u8>),
-    Deleted(Vec<u8>),
+    Created(DispatchPayload),
+    Updated(DispatchPayload),
+    Deleted(DispatchPayload),
+}
+
+struct DispatchPayload {
+    body: Vec<u8>,
+    message_id: String,
+    guild_id: String,
+    channel_id: String,
 }
 
 impl RealtimeNodeDispatch {
     fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
-        let envelope: RealtimeNodeDispatchEnvelope =
+        let envelope: OwnedRealtimeNodeDispatchEnvelope =
             serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
         match envelope {
-            RealtimeNodeDispatchEnvelope::Created(body) => Ok(Self::Created(
-                serde_json::to_vec(&body).map_err(|_| TransportError::SendFailed)?,
-            )),
-            RealtimeNodeDispatchEnvelope::Updated(body) => Ok(Self::Updated(
-                serde_json::to_vec(&body).map_err(|_| TransportError::SendFailed)?,
-            )),
-            RealtimeNodeDispatchEnvelope::Deleted(body) => Ok(Self::Deleted(
-                serde_json::to_vec(&body).map_err(|_| TransportError::SendFailed)?,
-            )),
+            OwnedRealtimeNodeDispatchEnvelope::Created(body) => {
+                let message_id = body.message_id.clone();
+                let guild_id = body.guild_id.clone();
+                let channel_id = body.channel_id.clone();
+                Ok(Self::Created(DispatchPayload::new(
+                    &body, message_id, guild_id, channel_id,
+                )?))
+            }
+            OwnedRealtimeNodeDispatchEnvelope::Updated(body) => {
+                let message_id = body.message_id.clone();
+                let guild_id = body.guild_id.clone();
+                let channel_id = body.channel_id.clone();
+                Ok(Self::Updated(DispatchPayload::new(
+                    &body, message_id, guild_id, channel_id,
+                )?))
+            }
+            OwnedRealtimeNodeDispatchEnvelope::Deleted(body) => {
+                let message_id = body.message_id.clone();
+                let guild_id = body.guild_id.clone();
+                let channel_id = body.channel_id.clone();
+                Ok(Self::Deleted(DispatchPayload::new(
+                    &body, message_id, guild_id, channel_id,
+                )?))
+            }
         }
     }
 
@@ -179,22 +252,78 @@ impl RealtimeNodeDispatch {
         }
     }
 
-    fn body(&self) -> Vec<u8> {
+    fn body(&self) -> &[u8] {
         match self {
-            Self::Created(body) | Self::Updated(body) | Self::Deleted(body) => body.clone(),
+            Self::Created(payload) | Self::Updated(payload) | Self::Deleted(payload) => {
+                &payload.body
+            }
+        }
+    }
+
+    fn message_id(&self) -> &str {
+        match self {
+            Self::Created(payload) | Self::Updated(payload) | Self::Deleted(payload) => {
+                &payload.message_id
+            }
+        }
+    }
+
+    fn guild_id(&self) -> &str {
+        match self {
+            Self::Created(payload) | Self::Updated(payload) | Self::Deleted(payload) => {
+                &payload.guild_id
+            }
+        }
+    }
+
+    fn channel_id(&self) -> &str {
+        match self {
+            Self::Created(payload) | Self::Updated(payload) | Self::Deleted(payload) => {
+                &payload.channel_id
+            }
         }
     }
 }
 
-#[derive(Serialize, Deserialize)]
+impl DispatchPayload {
+    fn new<T>(
+        body: &T,
+        message_id: String,
+        guild_id: String,
+        channel_id: String,
+    ) -> Result<Self, TransportError>
+    where
+        T: Serialize,
+    {
+        Ok(Self {
+            body: serde_json::to_vec(body).map_err(|_| TransportError::SendFailed)?,
+            message_id,
+            guild_id,
+            channel_id,
+        })
+    }
+}
+
+#[derive(Serialize)]
 #[serde(tag = "kind", content = "body")]
-enum RealtimeNodeDispatchEnvelope {
+enum RealtimeNodeDispatchEnvelope<'a> {
     #[serde(rename = "channel_message_created")]
-    Created(ChannelMessageCreatedDispatchRequest),
+    Created(ChannelMessageCreatedDispatchRequest<'a>),
     #[serde(rename = "channel_message_updated")]
-    Updated(ChannelMessageUpdatedDispatchRequest),
+    Updated(ChannelMessageUpdatedDispatchRequest<'a>),
     #[serde(rename = "channel_message_deleted")]
-    Deleted(ChannelMessageDeletedDispatchRequest),
+    Deleted(ChannelMessageDeletedDispatchRequest<'a>),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", content = "body")]
+enum OwnedRealtimeNodeDispatchEnvelope {
+    #[serde(rename = "channel_message_created")]
+    Created(OwnedChannelMessageCreatedDispatchRequest),
+    #[serde(rename = "channel_message_updated")]
+    Updated(OwnedChannelMessageUpdatedDispatchRequest),
+    #[serde(rename = "channel_message_deleted")]
+    Deleted(OwnedChannelMessageDeletedDispatchRequest),
 }
 
 pub async fn dispatch_channel_message_created(
@@ -204,13 +333,13 @@ pub async fn dispatch_channel_message_created(
     dispatch_server_channel_payload(
         state,
         &RealtimeNodeDispatchEnvelope::Created(ChannelMessageCreatedDispatchRequest {
-            message_id: input.message_id.to_string(),
-            guild_id: input.server_id.to_string(),
-            channel_id: input.channel_id.to_string(),
-            sender_id: input.sender_id.to_string(),
-            created_at: input.created_at.to_string(),
+            message_id: input.message_id,
+            guild_id: input.server_id,
+            channel_id: input.channel_id,
+            sender_id: input.sender_id,
+            created_at: input.created_at,
             channel_seq: input.channel_seq,
-            recipients: input.recipients.to_vec(),
+            recipients: input.recipients,
         }),
     )
 }
@@ -222,13 +351,13 @@ pub async fn dispatch_channel_message_updated(
     dispatch_server_channel_payload(
         state,
         &RealtimeNodeDispatchEnvelope::Updated(ChannelMessageUpdatedDispatchRequest {
-            message_id: input.message_id.to_string(),
-            guild_id: input.server_id.to_string(),
-            channel_id: input.channel_id.to_string(),
-            editor_id: input.editor_id.to_string(),
-            edited_at: input.edited_at.to_string(),
+            message_id: input.message_id,
+            guild_id: input.server_id,
+            channel_id: input.channel_id,
+            editor_id: input.editor_id,
+            edited_at: input.edited_at,
             channel_seq: input.channel_seq,
-            recipients: input.recipients.to_vec(),
+            recipients: input.recipients,
         }),
     )
 }
@@ -240,20 +369,20 @@ pub async fn dispatch_channel_message_deleted(
     dispatch_server_channel_payload(
         state,
         &RealtimeNodeDispatchEnvelope::Deleted(ChannelMessageDeletedDispatchRequest {
-            message_id: input.message_id.to_string(),
-            guild_id: input.server_id.to_string(),
-            channel_id: input.channel_id.to_string(),
-            deleted_by: input.deleted_by.to_string(),
-            deleted_at: input.deleted_at.to_string(),
+            message_id: input.message_id,
+            guild_id: input.server_id,
+            channel_id: input.channel_id,
+            deleted_by: input.deleted_by,
+            deleted_at: input.deleted_at,
             channel_seq: input.channel_seq,
-            recipients: input.recipients.to_vec(),
+            recipients: input.recipients,
         }),
     )
 }
 
 fn dispatch_server_channel_payload(
     state: &AppState,
-    envelope: &RealtimeNodeDispatchEnvelope,
+    envelope: &RealtimeNodeDispatchEnvelope<'_>,
 ) -> Result<(), String> {
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
@@ -287,15 +416,16 @@ mod tests {
 
     #[test]
     fn dispatch_payload_maps_created_kind_to_internal_path() {
+        let recipients = vec!["usr-1".to_string()];
         let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Created(
             ChannelMessageCreatedDispatchRequest {
-                message_id: "msg-1".to_string(),
-                guild_id: "guild-1".to_string(),
-                channel_id: "channel-1".to_string(),
-                sender_id: "usr-1".to_string(),
-                created_at: "2026-03-26T00:00:00Z".to_string(),
+                message_id: "msg-1",
+                guild_id: "guild-1",
+                channel_id: "channel-1",
+                sender_id: "usr-1",
+                created_at: "2026-03-26T00:00:00Z",
                 channel_seq: 1,
-                recipients: vec!["usr-1".to_string()],
+                recipients: &recipients,
             },
         ))
         .expect("encode payload");
@@ -303,9 +433,19 @@ mod tests {
         let dispatch =
             RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
         assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_CREATED_PATH);
+        let body_value: serde_json::Value =
+            serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
         assert_eq!(
-            dispatch.body(),
-            br#"{"message_id":"msg-1","guild_id":"guild-1","channel_id":"channel-1","sender_id":"usr-1","created_at":"2026-03-26T00:00:00Z","channel_seq":1,"recipients":["usr-1"]}"#.to_vec()
+            body_value,
+            serde_json::json!({
+                "message_id": "msg-1",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "sender_id": "usr-1",
+                "created_at": "2026-03-26T00:00:00Z",
+                "channel_seq": 1,
+                "recipients": ["usr-1"]
+            })
         );
     }
 
