@@ -173,7 +173,6 @@ pub async fn edit_server_channel_message(
     })?;
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
-    let author_id = channel_membership.identity_id.clone();
 
     let edited_at = current_timestamp();
     let result = server_channels_repo::update_server_channel_message(
@@ -182,10 +181,10 @@ pub async fn edit_server_channel_message(
             server_id: server_id.clone(),
             channel_id,
             message_id: message_id.clone(),
-            author_id: author_id.clone(),
+            author_id: channel_membership.identity_id.clone(),
             content,
             mention_identity_ids,
-            edited_at: edited_at.clone(),
+            edited_at,
         },
     )
     .await
@@ -193,7 +192,7 @@ pub async fn edit_server_channel_message(
         log_update_message_authorization_decision(
             &server_id,
             &channel_membership.channel_id,
-            &author_id,
+            &channel_membership.identity_id,
             &message_id,
             &error,
         );
@@ -205,7 +204,7 @@ pub async fn edit_server_channel_message(
         authorization_scope = "server_channel_message_mutation",
         decision = "allow",
         action = "edit",
-        identity_id = %author_id,
+        identity_id = %channel_membership.identity_id,
         server_id = %server_id,
         channel_id = %message.channel_id,
         message_id = %message.message_id,

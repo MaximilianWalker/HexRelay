@@ -6,7 +6,7 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-26
+- last_updated: 2026-04-01
 - Source of truth: `docs/README.md`
 
 ## Quick Context
