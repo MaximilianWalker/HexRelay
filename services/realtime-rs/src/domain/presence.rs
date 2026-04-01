@@ -339,7 +339,11 @@ pub async fn hydrate_presence_backlog_if_needed(
     }
 }
 
-async fn dispatch_presence_edge(state: &AppState, identity_id: &str, online: bool) -> Result<(), String> {
+async fn dispatch_presence_edge(
+    state: &AppState,
+    identity_id: &str,
+    online: bool,
+) -> Result<(), String> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread => {
             return publish_presence_edge_direct(state, identity_id, online).await;
