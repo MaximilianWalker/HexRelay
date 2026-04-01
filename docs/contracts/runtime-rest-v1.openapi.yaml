@@ -10,6 +10,9 @@ info:
     source fingerprint hashing so enforcement remains consistent across instances.
     Distributed counter cleanup runs at most once per process/window epoch to avoid
     per-request cleanup amplification while preserving stale-window pruning.
+    Server membership and server-channel authorization decisions emit structured
+    allow/deny/failure logs for node-owner debugging without changing response
+    contracts.
 servers:
   - url: https://api.hexrelay.local
 paths:
