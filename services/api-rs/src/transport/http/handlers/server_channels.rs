@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use tracing::warn;
+use tracing::{debug, info, warn};
 
 use crate::{
     domain::auth::validation::is_valid_identity_id,
@@ -173,7 +173,6 @@ pub async fn edit_server_channel_message(
     })?;
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
-    let author_id = channel_membership.identity_id.clone();
 
     let edited_at = current_timestamp();
     let result = server_channels_repo::update_server_channel_message(
@@ -181,16 +180,37 @@ pub async fn edit_server_channel_message(
         server_channels_repo::UpdateServerChannelMessageParams {
             server_id: server_id.clone(),
             channel_id,
-            message_id,
-            author_id,
+            message_id: message_id.clone(),
+            author_id: channel_membership.identity_id.clone(),
             content,
             mention_identity_ids,
-            edited_at: edited_at.clone(),
+            edited_at,
         },
     )
     .await
-    .map_err(map_update_message_error)?;
+    .map_err(|error| {
+        log_update_message_authorization_decision(
+            &server_id,
+            &channel_membership.channel_id,
+            &channel_membership.identity_id,
+            &message_id,
+            &error,
+        );
+        map_update_message_error(error)
+    })?;
     let message = result.message;
+
+    debug!(
+        authorization_scope = "server_channel_message_mutation",
+        decision = "allow",
+        action = "edit",
+        identity_id = %channel_membership.identity_id,
+        server_id = %server_id,
+        channel_id = %message.channel_id,
+        message_id = %message.message_id,
+        changed = result.changed,
+        "server channel message edit authorized"
+    );
 
     if result.changed {
         notify_channel_message_updated(&state, pool, &server_id, &message).await;
@@ -227,8 +247,29 @@ pub async fn soft_delete_server_channel_message(
         &deleted_at,
     )
     .await
-    .map_err(map_soft_delete_message_error)?;
+    .map_err(|error| {
+        log_delete_message_authorization_decision(
+            &server_id,
+            &channel_membership.channel_id,
+            &channel_membership.identity_id,
+            &message_id,
+            &error,
+        );
+        map_soft_delete_message_error(error)
+    })?;
     let message = result.message;
+
+    debug!(
+        authorization_scope = "server_channel_message_mutation",
+        decision = "allow",
+        action = "delete",
+        identity_id = %channel_membership.identity_id,
+        server_id = %server_id,
+        channel_id = %message.channel_id,
+        message_id = %message.message_id,
+        changed = result.changed,
+        "server channel message delete authorized"
+    );
 
     if result.changed {
         notify_channel_message_deleted(&state, pool, &server_id, &message).await;
@@ -466,6 +507,41 @@ fn map_create_message_error(
     }
 }
 
+fn log_update_message_authorization_decision(
+    server_id: &str,
+    channel_id: &str,
+    identity_id: &str,
+    message_id: &str,
+    error: &UpdateServerChannelMessageError,
+) {
+    match error {
+        UpdateServerChannelMessageError::EditForbidden => info!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "deny",
+            action = "edit",
+            reason = "message_edit_forbidden",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            message_id = %message_id,
+            "server channel message edit denied"
+        ),
+        UpdateServerChannelMessageError::Storage(storage_error) => warn!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "failure",
+            action = "edit",
+            reason = "message_update_storage_failed",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            message_id = %message_id,
+            error = %storage_error,
+            "server channel message edit authorization failed"
+        ),
+        _ => {}
+    }
+}
+
 fn map_update_message_error(
     error: UpdateServerChannelMessageError,
 ) -> (StatusCode, Json<ApiError>) {
@@ -500,6 +576,41 @@ fn map_update_message_error(
             "storage_unavailable",
             "failed to update server channel message",
         ),
+    }
+}
+
+fn log_delete_message_authorization_decision(
+    server_id: &str,
+    channel_id: &str,
+    identity_id: &str,
+    message_id: &str,
+    error: &SoftDeleteServerChannelMessageError,
+) {
+    match error {
+        SoftDeleteServerChannelMessageError::DeleteForbidden => info!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "deny",
+            action = "delete",
+            reason = "message_delete_forbidden",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            message_id = %message_id,
+            "server channel message delete denied"
+        ),
+        SoftDeleteServerChannelMessageError::Storage(storage_error) => warn!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "failure",
+            action = "delete",
+            reason = "message_delete_storage_failed",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            message_id = %message_id,
+            error = %storage_error,
+            "server channel message delete authorization failed"
+        ),
+        _ => {}
     }
 }
 

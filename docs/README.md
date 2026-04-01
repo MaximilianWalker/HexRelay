@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-26
+- last_updated: 2026-04-01
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 added structured server-membership and server-channel authorization decision logs for node-owner debugging without changing runtime REST auth semantics or error contracts.
+- Latest meaningful change: 2026-04-01 added structured server-channel message edit/delete author-authorization decision logs, extending node-owner authz debugging without changing runtime REST auth semantics or error contracts.
 
 ## Purpose
 
