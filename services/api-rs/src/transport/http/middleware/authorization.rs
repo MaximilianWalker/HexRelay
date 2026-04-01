@@ -6,7 +6,7 @@ use axum::{
     http::{request::Parts, StatusCode},
     Json,
 };
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     infra::db::repos::server_channels_repo,
@@ -101,7 +101,7 @@ where
                 })?;
 
         if !is_member {
-            warn!(
+            info!(
                 authorization_scope = "server_membership",
                 decision = "deny",
                 reason = "server_membership_required",
@@ -183,7 +183,7 @@ where
             })?;
 
         if !channel_id_exists {
-            warn!(
+            info!(
                 authorization_scope = "server_channel",
                 decision = "deny",
                 reason = "channel_not_found",
@@ -216,7 +216,7 @@ where
                 })?;
 
         if !channel_exists {
-            warn!(
+            info!(
                 authorization_scope = "server_channel",
                 decision = "deny",
                 reason = "channel_not_in_server",
