@@ -7,6 +7,7 @@ use communication_core::{
     transport::{DirectPeerTransport, NodeClientTransport, TransportError},
 };
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::state::AppState;
 
@@ -122,30 +123,28 @@ impl NodeClientTransport for RealtimeNodeClientTransport {
         );
         let internal_token = self.internal_token.clone();
         let body = dispatch.body();
-        let response = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|_| TransportError::SendFailed)?;
-            runtime.block_on(async move {
-                http_client
-                    .post(url)
-                    .header("x-hexrelay-internal-token", internal_token)
-                    .header("content-type", "application/json")
-                    .body(body)
-                    .send()
-                    .await
-                    .map_err(|_| TransportError::SendFailed)
-            })
-        })
-        .join()
-        .map_err(|_| TransportError::SendFailed)??;
+        let handle =
+            tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
+        handle.spawn(async move {
+            match http_client
+                .post(url)
+                .header("x-hexrelay-internal-token", internal_token)
+                .header("content-type", "application/json")
+                .body(body)
+                .send()
+                .await
+            {
+                Ok(response) if response.status().is_success() => {}
+                Ok(response) => {
+                    warn!(status = %response.status(), "NodeClientTransport server-channel dispatch failed");
+                }
+                Err(error) => {
+                    warn!(error = %error, "NodeClientTransport server-channel dispatch errored");
+                }
+            }
+        });
 
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(TransportError::SendFailed)
-        }
+        Ok(())
     }
 }
 
