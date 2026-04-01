@@ -17,6 +17,7 @@ pub struct ApiRateLimitConfig {
 }
 
 pub struct ApiConfig {
+    pub allow_public_identity_registration: bool,
     pub bind_addr: SocketAddr,
     pub allowed_origins: Vec<String>,
     pub database_url: String,
@@ -59,6 +60,8 @@ impl ApiConfig {
             );
         }
 
+        let allow_public_identity_registration =
+            parse_bool_env("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", false)?;
         let node_fingerprint = env::var("API_NODE_FINGERPRINT")
             .unwrap_or_else(|_| DEFAULT_NODE_FINGERPRINT.to_string());
         let allowed_origins_raw = env::var("API_ALLOWED_ORIGINS")
@@ -219,6 +222,7 @@ impl ApiConfig {
         }
 
         Ok(Self {
+            allow_public_identity_registration,
             bind_addr,
             allowed_origins,
             database_url,
@@ -428,6 +432,23 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("Invalid API_ENVIRONMENT"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_public_identity_registration_flag() {
+        with_api_env(
+            &[
+                ("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert!(config.allow_public_identity_registration);
             },
         );
     }

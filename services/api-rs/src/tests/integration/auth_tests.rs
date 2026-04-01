@@ -46,6 +46,54 @@ async fn rejects_duplicate_identity_registration() {
 }
 
 #[tokio::test]
+async fn rejects_public_identity_registration_when_disabled() {
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-presence-token-change-me".to_string(),
+        None,
+        "http://127.0.0.1:8081".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    );
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/identity/keys/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"identity_id":"user-1","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
+        ))
+        .expect("build request");
+
+    let response = app.oneshot(request).await.expect("get response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read error body");
+    let error_body: serde_json::Value = serde_json::from_slice(&body).expect("decode error body");
+    assert_eq!(error_body["code"], "identity_registration_disabled");
+}
+
+#[tokio::test]
 async fn rejects_invalid_algorithm() {
     let app = build_app(AppState::default());
     let request = Request::builder()
@@ -96,13 +144,12 @@ async fn rejects_identity_id_with_surrounding_whitespace() {
 #[tokio::test]
 async fn issues_auth_challenge_for_registered_identity() {
     let app = build_app(AppState::default());
-    let (register_status, app) = register_identity(
+    let app = register_identity_expect_success(
         app,
         "user-1",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     )
     .await;
-    assert_eq!(register_status, StatusCode::CREATED);
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -217,8 +264,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
         Ed25519KeyPair::from_pkcs8(identity_pkcs8.as_ref()).expect("decode identity keypair");
     let identity_public_key = hex::encode(identity_signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, "user-signed", &identity_public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "user-signed", &identity_public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -608,8 +654,7 @@ async fn verifies_auth_challenge_and_revokes_session() {
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, "user-verify", &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "user-verify", &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -734,9 +779,7 @@ async fn rejects_invalid_signature_on_verify() {
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) =
-        register_identity(app, "user-invalid-signature", &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "user-invalid-signature", &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -799,8 +842,7 @@ async fn rejects_replayed_challenge_verification() {
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, "user-replay", &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "user-replay", &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")

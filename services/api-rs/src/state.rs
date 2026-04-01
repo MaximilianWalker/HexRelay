@@ -20,6 +20,7 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub active_signing_key_id: String,
+    pub allow_public_identity_registration: bool,
     pub allowed_origins: Vec<String>,
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub blocked_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
@@ -76,6 +77,7 @@ impl AppState {
 
         Self {
             active_signing_key_id,
+            allow_public_identity_registration: false,
             allowed_origins,
             auth_challenges: Arc::default(),
             blocked_users: Arc::default(),
@@ -112,6 +114,11 @@ impl AppState {
         self.db_pool = Some(db_pool);
         self
     }
+
+    pub fn with_public_identity_registration(mut self, allow: bool) -> Self {
+        self.allow_public_identity_registration = allow;
+        self
+    }
 }
 
 impl Default for AppState {
@@ -141,5 +148,6 @@ impl Default for AppState {
             },
             false,
         )
+        .with_public_identity_registration(true)
     }
 }

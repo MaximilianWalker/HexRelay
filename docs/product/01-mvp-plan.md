@@ -228,6 +228,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### Authentication Flow
 
+- Public identity-key registration must fail closed unless a trusted claim flow exists.
 - Server sends a nonce challenge.
 - Client signs nonce with private key.
 - Server verifies signature against bound public key and issues session token.

@@ -118,14 +118,23 @@ async fn register_identity(
     (response.status(), app)
 }
 
+async fn register_identity_expect_success(
+    app: axum::Router,
+    identity_id: &str,
+    public_key: &str,
+) -> axum::Router {
+    let (status, app) = register_identity(app, identity_id, public_key).await;
+    assert_eq!(status, StatusCode::CREATED);
+    app
+}
+
 async fn authenticate_identity(app: axum::Router, identity_id: &str) -> (String, axum::Router) {
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")

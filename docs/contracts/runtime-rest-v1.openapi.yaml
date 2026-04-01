@@ -32,6 +32,9 @@ paths:
   /v1/identity/keys/register:
     post:
       summary: Register a public identity key
+      description: |
+        Public registration is disabled by default until a trusted identity-claim
+        flow is configured. Local development/tests may explicitly enable it.
       requestBody:
         required: true
         content:
@@ -43,6 +46,8 @@ paths:
           description: Identity key registered
         '400':
           $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -2498,6 +2503,7 @@ components:
             - rate_limited
             - storage_unavailable
             - rate_limiter_unavailable
+            - identity_registration_disabled
             - identity_exists
             - friend_request_exists
             - transition_invalid

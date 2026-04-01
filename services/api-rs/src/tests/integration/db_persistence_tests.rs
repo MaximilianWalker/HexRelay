@@ -11,8 +11,7 @@ async fn validates_and_revokes_db_backed_session() {
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
     let identity_id = unique_identity("db-user-verify");
-    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, &identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -186,8 +185,7 @@ async fn verifies_db_challenge_after_app_restart() {
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
     let identity_id = unique_identity("db-user-restart");
-    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, &identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")

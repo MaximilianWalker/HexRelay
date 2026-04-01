@@ -10,10 +10,8 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     // Keys must be valid 32-byte ed25519 public keys in hex (64 hex chars).
     let key_p = "aa".repeat(32);
     let key_q = "bb".repeat(32);
-    let (status, app) = register_identity(app, "usr-p", &key_p).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-q", &key_q).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-p", &key_p).await;
+    let app = register_identity_expect_success(app, "usr-q", &key_q).await;
 
     // Create a friend request: usr-p → usr-q
     let create_req = Request::builder()
@@ -100,10 +98,8 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
 async fn bootstrap_returns_403_on_pending_request() {
     let (app, tokens) = app_with_sessions(&["usr-r", "usr-s"]);
 
-    let (status, app) = register_identity(app, "usr-r", &"cc".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-s", &"dd".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-r", &"cc".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-s", &"dd".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -139,10 +135,8 @@ async fn bootstrap_returns_403_on_pending_request() {
 async fn bootstrap_returns_403_on_declined_request() {
     let (app, tokens) = app_with_sessions(&["usr-t", "usr-u"]);
 
-    let (status, app) = register_identity(app, "usr-t", &"ee".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-u", &"ff".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-t", &"ee".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-u", &"ff".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -195,10 +189,8 @@ async fn bootstrap_returns_403_on_declined_request() {
 async fn bootstrap_returns_401_for_third_party() {
     let (app, tokens) = app_with_sessions(&["usr-v", "usr-w", "usr-x"]);
 
-    let (status, app) = register_identity(app, "usr-v", &"11".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-w", &"22".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-v", &"11".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-w", &"22".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
