@@ -13,6 +13,9 @@ info:
     Server membership and server-channel authorization decisions emit structured
     allow/deny/failure logs for node-owner debugging without changing response
     contracts.
+    Server-channel message edit/delete author-authorization decisions also emit
+    structured allow/deny/failure logs for node-owner debugging without changing
+    response contracts.
 servers:
   - url: https://api.hexrelay.local
 paths:
