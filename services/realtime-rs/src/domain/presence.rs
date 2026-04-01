@@ -265,13 +265,13 @@ pub fn spawn_presence_subscriber(state: AppState) {
 }
 
 pub async fn publish_online_if_needed(state: &AppState, identity_id: &str) {
-    if let Err(error) = dispatch_presence_edge(state, identity_id, true) {
+    if let Err(error) = dispatch_presence_edge(state, identity_id, true).await {
         warn!(identity_id = %identity_id, error = %error, "failed to publish online presence edge");
     }
 }
 
 pub async fn publish_offline_if_needed(state: &AppState, identity_id: &str) {
-    if let Err(error) = dispatch_presence_edge(state, identity_id, false) {
+    if let Err(error) = dispatch_presence_edge(state, identity_id, false).await {
         warn!(identity_id = %identity_id, error = %error, "failed to publish offline presence edge");
     }
 }
@@ -339,7 +339,14 @@ pub async fn hydrate_presence_backlog_if_needed(
     }
 }
 
-fn dispatch_presence_edge(state: &AppState, identity_id: &str, online: bool) -> Result<(), String> {
+async fn dispatch_presence_edge(state: &AppState, identity_id: &str, online: bool) -> Result<(), String> {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread => {
+            return publish_presence_edge_direct(state, identity_id, online).await;
+        }
+        Ok(_) | Err(_) => {}
+    }
+
     let payload = serde_json::to_vec(&PresenceDispatchEnvelope::Edge(
         PresenceEdgeDispatchRequest {
             identity_id,
