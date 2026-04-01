@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 hardened server-channel route authorization so `channel_id` must belong to the requested server, with runtime REST docs now distinguishing `404 channel_not_found` from cross-server `403 server_access_denied` path mismatches.
+- Latest meaningful change: 2026-04-01 added structured server-membership and server-channel authorization decision logs for node-owner debugging without changing runtime REST auth semantics or error contracts.
 
 ## Purpose
 
