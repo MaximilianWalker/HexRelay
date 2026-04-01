@@ -137,18 +137,41 @@ impl NodeClientTransport for LocalPresenceNodeClientTransport {
         let identity_id = dispatch.identity_id.clone();
         let online = dispatch.online;
 
-        handle.spawn(async move {
-            if let Err(error) = dispatch.publish(&state).await {
-                warn!(
-                    identity_id = %identity_id,
-                    online,
-                    error = %error,
-                    "NodeClientTransport presence dispatch failed"
-                );
-            }
-        });
+        let result = match handle.runtime_flavor() {
+            tokio::runtime::RuntimeFlavor::CurrentThread => std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|_| TransportError::SendFailed)?
+                    .block_on(async move {
+                        dispatch
+                            .publish(&state)
+                            .await
+                            .map_err(|_| TransportError::SendFailed)
+                    })
+            })
+            .join()
+            .map_err(|_| TransportError::SendFailed)?,
+            tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(move || {
+                handle.block_on(async move {
+                    dispatch
+                        .publish(&state)
+                        .await
+                        .map_err(|_| TransportError::SendFailed)
+                })
+            }),
+            _ => Err(TransportError::SendFailed),
+        };
 
-        Ok(())
+        if result.is_err() {
+            warn!(
+                identity_id = %identity_id,
+                online,
+                "NodeClientTransport presence dispatch failed"
+            );
+        }
+
+        result
     }
 }
 
