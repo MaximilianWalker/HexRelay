@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 hardened delivery and trust boundaries by failing public identity registration closed by default, extending blocked-pair protection to peer-facing privacy routes, splitting watcher-vs-channel internal service credentials, enforcing server-channel author membership below HTTP, and documenting best-effort realtime fanout semantics.
+- Latest meaningful change: 2026-04-01 hardened delivery and trust boundaries by failing public identity registration closed by default, extending blocked-pair protection to peer-facing privacy routes, splitting watcher-vs-channel internal service credentials, enforcing server-channel author membership below HTTP, documenting best-effort realtime fanout semantics, and separating websocket backpressure from disconnect cleanup.
 
 ## Purpose
 

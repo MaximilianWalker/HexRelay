@@ -749,8 +749,15 @@ async fn dispatch_presence_event_locally(
                         ));
                     }
                 }
-                Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
+                Err(TrySendError::Closed(_)) => {
                     stale_connections.push((watcher_identity_id.clone(), connection_id.clone()));
+                }
+                Err(TrySendError::Full(_)) => {
+                    warn!(
+                        watcher_identity_id = %watcher_identity_id,
+                        connection_id = %connection_id,
+                        "presence outbound queue saturated; keeping websocket registered"
+                    );
                 }
             }
         }
@@ -964,6 +971,58 @@ mod tests {
         let connections = guard.get("usr-main").expect("remaining connections");
         assert!(connections.contains_key("conn-open"));
         assert!(!connections.contains_key("conn-stale"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_presence_event_locally_keeps_full_connections_registered() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        full_tx
+            .try_send("seed".to_string())
+            .expect("fill outbound queue");
+
+        state.connection_senders.lock().await.insert(
+            "usr-main".to_string(),
+            std::collections::HashMap::from([(
+                "conn-full".to_string(),
+                crate::state::ConnectionSenderEntry {
+                    sender: full_tx,
+                    device_id: Some("device-a".to_string()),
+                },
+            )]),
+        );
+
+        dispatch_presence_event_locally(
+            &state,
+            "payload-1",
+            &["usr-main".to_string()],
+            &[PresenceWatcherCursor {
+                watcher_identity_id: "usr-main".to_string(),
+                cursor: 4,
+            }],
+        )
+        .await;
+
+        assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
+        let guard = state.connection_senders.lock().await;
+        let connections = guard.get("usr-main").expect("remaining connections");
+        assert!(connections.contains_key("conn-full"));
     }
 
     #[test]
