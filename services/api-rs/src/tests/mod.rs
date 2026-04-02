@@ -479,6 +479,10 @@ async fn seed_server_channel(
         deleted_at,
     ) in messages
     {
+        assert!(
+            member_identity_ids.contains(author_id),
+            "seed_server_channel requires message authors to be members of the seeded server"
+        );
         ensure_db_identity_key(pool, author_id).await;
         for mentioned_identity_id in *mention_identity_ids {
             ensure_db_identity_key(pool, mentioned_identity_id).await;

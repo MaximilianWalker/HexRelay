@@ -1,4 +1,114 @@
 use super::*;
+
+#[tokio::test]
+async fn rejects_server_channel_message_create_for_non_member_author_in_repo() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = unique_identity("srv-repo-create");
+    let channel_id = unique_identity("chan-repo-create");
+    let member_id = unique_identity("usr-repo-member");
+    let outsider_id = unique_identity("usr-repo-outsider");
+
+    seed_server_membership(
+        &pool,
+        &server_id,
+        "Repo Create",
+        &member_id,
+        false,
+        false,
+        0,
+    )
+    .await;
+    ensure_db_identity_key(&pool, &outsider_id).await;
+    server_channels_repo::insert_server_channel(
+        &pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id: &channel_id,
+            server_id: &server_id,
+            name: "general",
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server channel");
+
+    let result = server_channels_repo::create_server_channel_message(
+        &pool,
+        server_channels_repo::CreateServerChannelMessageParams {
+            server_id: server_id.clone(),
+            channel_id: channel_id.clone(),
+            message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
+            author_id: outsider_id.clone(),
+            content: "hello".to_string(),
+            reply_to_message_id: None,
+            mention_identity_ids: Vec::new(),
+            created_at: "2026-04-01T00:00:00Z".to_string(),
+        },
+    )
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(server_channels_repo::CreateServerChannelMessageError::AuthorNotMember)
+    ));
+}
+
+#[tokio::test]
+async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = unique_identity("srv-repo-delete");
+    let channel_id = unique_identity("chan-repo-delete");
+    let author_id = unique_identity("usr-repo-delete-author");
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Repo Delete",
+        &channel_id,
+        "general",
+        &[&author_id],
+        &[(
+            "scm-delete-repo",
+            &author_id,
+            1,
+            "hello",
+            None,
+            &[],
+            "2026-04-01T00:00:00Z",
+            None,
+            None,
+        )],
+    )
+    .await;
+
+    sqlx::query("DELETE FROM server_memberships WHERE server_id = $1 AND identity_id = $2")
+        .bind(&server_id)
+        .bind(&author_id)
+        .execute(&pool)
+        .await
+        .expect("remove membership");
+
+    let result = server_channels_repo::soft_delete_server_channel_message(
+        &pool,
+        &server_id,
+        &channel_id,
+        "scm-delete-repo",
+        &author_id,
+        "2026-04-01T01:00:00Z",
+    )
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(server_channels_repo::SoftDeleteServerChannelMessageError::AuthorNotMember)
+    ));
+}
+
 #[tokio::test]
 async fn validates_and_revokes_db_backed_session() {
     let Some(app) = app_with_database().await else {

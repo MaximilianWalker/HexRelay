@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 hardened internal trust boundaries by failing public identity registration closed by default, extending blocked-pair protection to peer-facing privacy routes, and splitting watcher-vs-channel internal service credentials.
+- Latest meaningful change: 2026-04-01 hardened write-boundary trust by failing public identity registration closed by default, extending blocked-pair protection to peer-facing privacy routes, splitting watcher-vs-channel internal service credentials, and enforcing server-channel author membership below HTTP.
 
 ## Purpose
 

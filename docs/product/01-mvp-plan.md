@@ -215,6 +215,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - User A requests contact with User B through server-local reference.
   - Server sends request notification to User B.
   - Only after User B accepts, both sides receive bootstrap material required for direct relationship setup.
+- Server-channel message authorship is valid only while the author is a current member of that server; write boundaries must reject non-member authors even for internal callers.
 - DM policy defaults to opt-in:
   - Default allow-list: friends/accepted requests only.
   - Per-user override options: allow DMs from same-server members or from anyone.
