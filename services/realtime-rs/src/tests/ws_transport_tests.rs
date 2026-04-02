@@ -790,6 +790,56 @@ async fn internal_channel_publish_rejects_presence_watcher_token() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
+#[tokio::test]
+async fn internal_channel_publish_returns_bad_gateway_when_redis_is_unavailable() {
+    let state = AppState::new(
+        "http://127.0.0.1:8080".to_string(),
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis::Client::open("redis://127.0.0.1:1/").expect("build unreachable redis client")),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/created")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "sender_id": "usr-1",
+                "created_at": "2026-03-26T01:00:00Z",
+                "channel_seq": 1,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal publish request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("internal publish response");
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn start_ws_server_with_limits(
     api_base_url: String,

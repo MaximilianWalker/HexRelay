@@ -19,14 +19,18 @@ info:
     `/v1/auth/sessions/validate`.
     Persisted server-channel message create, edit, and delete mutations in
     `services/api-rs` now bridge into this runtime surface through protected
-    internal realtime publish routes, so successful REST mutations emit
-    `channel.message.created`, `channel.message.updated`, and
-    `channel.message.deleted` to current server members.
+    internal realtime publish routes, so successful REST mutations attempt to
+    emit `channel.message.created`, `channel.message.updated`, and
+    `channel.message.deleted` to current server members. That bridge is
+    best-effort: REST mutation success is not transactional with downstream
+    realtime delivery, downstream dispatch failures are logged, and no durable
+    retry/outbox guarantee exists in the current runtime.
     Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
     per-device replay/hydration for `presence.updated`, `channel.message.created`,
     `channel.message.updated`, and `channel.message.deleted`.
     When present, late-joining profile devices receive missed supported events before new
-    live transitions.
+    live transitions only for recipients that had an active profiled connection when the
+    original event was published.
 defaultContentType: application/json
 channels:
   callSignalOffer:

@@ -1541,3 +1541,73 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn server_channel_create_succeeds_when_realtime_dispatch_is_unreachable() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = format!("srv-dispatch-down-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-dispatch-down-{}", Uuid::new_v4().simple());
+    let member_id = unique_identity("usr-dispatch-down-member");
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Dispatch Down",
+        &channel_id,
+        "general",
+        &[&member_id],
+        &[],
+    )
+    .await;
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    let mut state = AppState::default().with_db_pool(pool.clone());
+    state.realtime_base_url = "http://127.0.0.1:1".to_string();
+    let api_base_url = start_api_http_server(state).await;
+
+    let create_response = reqwest::Client::new()
+        .post(format!(
+            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .bearer_auth(&tokens[&member_id])
+        .json(&serde_json::json!({
+            "content": "persist despite realtime outage",
+            "mention_identity_ids": []
+        }))
+        .send()
+        .await
+        .expect("send create request");
+
+    assert_eq!(create_response.status(), reqwest::StatusCode::CREATED);
+    let created_message: serde_json::Value = create_response.json().await.expect("decode create");
+    let created_message_id = created_message["message_id"]
+        .as_str()
+        .expect("created message id")
+        .to_string();
+
+    let list_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/servers/{server_id}/channels/{channel_id}/messages?limit=10"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build list request");
+
+    let list_response = app.oneshot(list_request).await.expect("list response");
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let list_body = to_bytes(list_response.into_body(), usize::MAX)
+        .await
+        .expect("read list body");
+    let page: serde_json::Value = serde_json::from_slice(&list_body).expect("decode page");
+    let items = page["items"].as_array().expect("items array");
+    assert!(items
+        .iter()
+        .any(|item| item["message_id"] == created_message_id));
+}
