@@ -234,10 +234,35 @@ def extract_function_blocks(paths):
                 'has_auth': 'AuthSession' in params,
                 'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                 'has_json_body': 'Json<' in params,
+                'has_path_params': 'Path<' in params,
+                'query_type': extract_query_type(params),
                 'return_type': return_type,
                 'body': body,
             }
     return functions
+
+
+def extract_query_type(params: str):
+    match = re.search(r'(?:^|[^A-Za-z0-9_:])(?:axum::extract::)?Query\s*\(?.*?:\s*(?:axum::extract::)?Query<\s*([A-Za-z0-9_]+)\s*>', params, re.S)
+    if match:
+        return match.group(1)
+    return None
+
+
+def extract_query_struct_fields(models_path: pathlib.Path):
+    text = models_path.read_text()
+    structs = {}
+    struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
+    field_pattern = re.compile(r'pub\s+(\w+):')
+
+    for match in struct_pattern.finditer(text):
+        name = match.group(1)
+        body = match.group(2)
+        if not name.endswith('Query'):
+            continue
+        structs[name] = sorted(set(field_pattern.findall(body)))
+
+    return structs
 
 
 def infer_success_status(handler_name, functions, stack=None):
@@ -275,20 +300,24 @@ def infer_success_status(handler_name, functions, stack=None):
     return None
 
 
-def extract_runtime_semantics(router_text: str, function_semantics):
+def extract_runtime_semantics(router_text: str, function_semantics, query_struct_fields):
     semantics = {}
     for block in route_blocks(router_text):
         path_match = re.search(r'\.route\(\s*"([^"]+)"', block, re.S)
         if not path_match:
             continue
         path = re.sub(r':([A-Za-z0-9_]+)', r'{\1}', path_match.group(1))
+        path_param_names = sorted(set(re.findall(r'\{([A-Za-z0-9_]+)\}', path)))
         for method, handler in re.findall(r'\b(get|post|put|patch|delete)\s*\(\s*(\w+)\s*\)', block):
             handler_semantics = function_semantics.get(handler, {})
+            query_type = handler_semantics.get('query_type')
             semantics[(method.upper(), path)] = {
                 'handler': handler,
                 'has_auth': bool(handler_semantics.get('has_auth')),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
+                'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
+                'query_param_names': query_struct_fields.get(query_type, []) if query_type else [],
                 'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
@@ -300,6 +329,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     in_paths = False
     current_path = None
     current_method = None
+    current_parameter_in = None
 
     for line in lines:
         if not in_paths:
@@ -314,17 +344,21 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         if path_match:
             current_path = path_match.group(1)
             current_method = None
+            current_parameter_in = None
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
         if method_match and current_path:
             current_method = method_match.group(1).upper()
+            current_parameter_in = None
             semantics[(current_method, current_path)] = {
                 'has_security': False,
                 'has_401': False,
                 'has_500': False,
                 'has_csrf': False,
                 'has_request_body': False,
+                'path_parameters': set(),
+                'query_parameters': set(),
                 'success_responses': set(),
             }
             continue
@@ -343,6 +377,23 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         elif re.match(r"^        '500':\s*$", line):
             semantics[(current_method, current_path)]['has_500'] = True
         else:
+            if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                current_parameter_in = None
+            parameter_match = re.match(r'^        - in: (path|query)\s*$', line)
+            if parameter_match:
+                current_parameter_in = parameter_match.group(1)
+                continue
+            other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
+            if other_parameter_match:
+                current_parameter_in = None
+                continue
+            parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_]+)\s*$', line)
+            if parameter_name_match and current_parameter_in in {'path', 'query'}:
+                if current_parameter_in == 'path':
+                    semantics[(current_method, current_path)]['path_parameters'].add(parameter_name_match.group(1))
+                else:
+                    semantics[(current_method, current_path)]['query_parameters'].add(parameter_name_match.group(1))
+                continue
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
             if success_match:
                 semantics[(current_method, current_path)]['success_responses'].add(
@@ -355,9 +406,10 @@ def extract_contract_semantics(contract_path: pathlib.Path):
 contract_path = pathlib.Path(sys.argv[1])
 router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
 handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
+query_struct_fields = extract_query_struct_fields(pathlib.Path('services/api-rs/src/models.rs'))
 
 function_semantics = extract_function_blocks(handler_paths)
-runtime_semantics = extract_runtime_semantics(router_text, function_semantics)
+runtime_semantics = extract_runtime_semantics(router_text, function_semantics, query_struct_fields)
 contract_semantics = extract_contract_semantics(contract_path)
 
 errors = []
@@ -377,6 +429,12 @@ for key, runtime in sorted(runtime_semantics.items()):
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
     if runtime['has_json_body'] and not contract['has_request_body']:
         errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+    missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
+    for parameter_name in missing_path_parameters:
+        errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")
+    missing_query_parameters = sorted(set(runtime['query_param_names']) - contract['query_parameters'])
+    for parameter_name in missing_query_parameters:
+        errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` at runtime but is missing an `in: query` parameter in {contract_path}.")
     if runtime['success_status'] and runtime['success_status'] not in contract['success_responses']:
         errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} at runtime but is missing that success response in {contract_path}.")
 
