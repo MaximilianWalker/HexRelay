@@ -210,7 +210,7 @@ def route_blocks(text: str):
 
 def extract_function_blocks(paths):
     functions = {}
-    pattern = re.compile(r'pub async fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
+    pattern = re.compile(r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
     for path in paths:
         text = pathlib.Path(path).read_text()
         for match in pattern.finditer(text):
@@ -230,12 +230,13 @@ def extract_function_blocks(paths):
                     depth -= 1
                 cursor += 1
             body = text[body_start:cursor]
+            existing = functions.get(name)
             functions[name] = {
-                'has_auth': 'AuthSession' in params,
-                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
-                'has_json_body': 'Json<' in params,
-                'has_path_params': 'Path<' in params,
-                'query_type': extract_query_type(params),
+                'has_auth': 'AuthSession' in params if existing is None else existing['has_auth'],
+                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body if existing is None else existing['has_csrf'],
+                'has_json_body': 'Json<' in params if existing is None else existing['has_json_body'],
+                'has_path_params': 'Path<' in params if existing is None else existing['has_path_params'],
+                'query_type': extract_query_type(params) if existing is None else existing['query_type'],
                 'error_statuses': set(),
                 'return_type': return_type,
                 'body': body,
@@ -268,7 +269,7 @@ def extract_query_struct_fields(models_path: pathlib.Path):
     return structs
 
 
-def infer_error_statuses(handler_name, functions, stack=None):
+def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=True):
     if stack is None:
         stack = set()
     if handler_name in stack:
@@ -291,12 +292,19 @@ def infer_error_statuses(handler_name, functions, stack=None):
         if token in body:
             statuses.add(status)
 
-    helper_names = set(re.findall(r'\b(map_[A-Za-z0-9_]+)\s*\(', body))
+    if not follow_helpers:
+        return statuses
+
+    helper_names = set(re.findall(r'\b(map_[A-Za-z0-9_]+)\b', body))
     delegate_calls = set(re.findall(r'\b(\w+)\s*\([^;]*\)\.await', body))
     for callee_name in sorted(helper_names | delegate_calls):
         if callee_name == handler_name:
             continue
-        statuses.update(infer_error_statuses(callee_name, functions, stack | {handler_name}))
+        statuses.update(
+            infer_error_statuses(
+                callee_name, functions, stack | {handler_name}, follow_helpers=follow_helpers
+            )
+        )
 
     return statuses
 
@@ -354,7 +362,11 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_param_names': query_struct_fields.get(query_type, []) if query_type else [],
-                'error_statuses': set(handler_semantics.get('error_statuses', set())),
+                'error_statuses': infer_error_statuses(
+                    handler,
+                    function_semantics,
+                    follow_helpers=method.upper() != 'GET',
+                ),
                 'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
