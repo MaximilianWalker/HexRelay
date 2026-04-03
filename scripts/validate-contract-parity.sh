@@ -219,6 +219,7 @@ def extract_function_blocks(paths):
             body_start = text.find('{', match.end())
             if body_start == -1:
                 continue
+            return_type = text[match.end():body_start].strip()
             cursor = body_start + 1
             depth = 1
             while cursor < len(text) and depth > 0:
@@ -233,8 +234,45 @@ def extract_function_blocks(paths):
                 'has_auth': 'AuthSession' in params,
                 'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                 'has_json_body': 'Json<' in params,
+                'return_type': return_type,
+                'body': body,
             }
     return functions
+
+
+def infer_success_status(handler_name, functions, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_name in stack:
+        return None
+
+    function = functions.get(handler_name)
+    if not function:
+        return None
+
+    body = function.get('body', '')
+    if 'StatusCode::CREATED' in body:
+        return '201'
+    if 'StatusCode::NO_CONTENT' in body:
+        return '204'
+    if 'StatusCode::ACCEPTED' in body:
+        return '202'
+
+    body_inner = body.strip()
+    if body_inner.startswith('{') and body_inner.endswith('}'):
+        body_inner = body_inner[1:-1].strip()
+    delegate_match = re.fullmatch(r'(?:return\s+)?(\w+)\([^;]*\)\.await;?', body_inner, re.S)
+    if delegate_match:
+        delegated_status = infer_success_status(
+            delegate_match.group(1), functions, stack | {handler_name}
+        )
+        if delegated_status:
+            return delegated_status
+
+    if 'Json<' in function.get('return_type', ''):
+        return '200'
+
+    return None
 
 
 def extract_runtime_semantics(router_text: str, function_semantics):
@@ -251,6 +289,7 @@ def extract_runtime_semantics(router_text: str, function_semantics):
                 'has_auth': bool(handler_semantics.get('has_auth')),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
+                'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
 
@@ -286,6 +325,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'has_500': False,
                 'has_csrf': False,
                 'has_request_body': False,
+                'success_responses': set(),
             }
             continue
 
@@ -302,6 +342,12 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             semantics[(current_method, current_path)]['has_401'] = True
         elif re.match(r"^        '500':\s*$", line):
             semantics[(current_method, current_path)]['has_500'] = True
+        else:
+            success_match = re.match(r"^        '(2\d\d)':\s*$", line)
+            if success_match:
+                semantics[(current_method, current_path)]['success_responses'].add(
+                    success_match.group(1)
+                )
 
     return semantics
 
@@ -331,6 +377,8 @@ for key, runtime in sorted(runtime_semantics.items()):
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
     if runtime['has_json_body'] and not contract['has_request_body']:
         errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+    if runtime['success_status'] and runtime['success_status'] not in contract['success_responses']:
+        errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} at runtime but is missing that success response in {contract_path}.")
 
 if errors:
     print("\n".join(errors))
