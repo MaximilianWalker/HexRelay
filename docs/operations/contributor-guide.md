@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-03 clarified that `npm run security` is only the fast Rust-audit gate and documented the extra local checks needed for CI-level security parity.
+- Latest meaningful change: 2026-04-03 expanded contract-parity guidance to catch missing OpenAPI `requestBody` entries for runtime JSON-body routes.
 
 ## Purpose
 
@@ -75,6 +75,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `contract-parity-check`, `dm-transport-policy-check`, `docs-index-freshness-check`, `rust-coverage-gate`, and `integration-smoke`.
+- `contract-parity-check` now covers route/event/error inventory, selected auth/CSRF/storage semantics, and presence of OpenAPI `requestBody` entries for routed API handlers that accept `Json<...>` request extractors.
 - Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
