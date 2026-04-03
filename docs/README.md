@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by extending routed `500` parity to local `internal_error(...)` helper/delegate flows, with refreshed contributor/readiness operations guidance.
+- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by extending routed `400` parity to local parse/normalize/validation helper/delegate flows, inferred when same-file calls reach `bad_request(...)`, with refreshed contributor/readiness operations guidance.
 
 ## Purpose
 
