@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by requiring exact routed `AuthSession` security-scheme parity and refreshing contributor/readiness operations guidance.
+- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by extending exact session-auth auth/error parity to server-membership authorization extractors and refreshing contributor/readiness operations guidance.
 
 ## Purpose
 
