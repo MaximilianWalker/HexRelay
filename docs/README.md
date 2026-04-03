@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 added canonical system-overview and runtime-config reference docs, then repointed onboarding docs to them instead of relying on scattered summaries.
+- Latest meaningful change: 2026-04-03 tightened contract-parity governance for routed JSON-body request documentation and refreshed contributor/readiness operations guidance.
 
 ## Purpose
 
@@ -110,6 +110,7 @@
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/02-dedicated-server-deployment.md`
+- `docs/operations/contributor-guide.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
 - `docs/reference/runtime-config-reference.md`
