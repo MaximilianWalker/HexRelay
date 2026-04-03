@@ -133,7 +133,7 @@ pub async fn list_relationship_rows(
 ) -> Result<Vec<DiscoveryRelationshipRow>, sqlx::Error> {
     let rows = sqlx::query(
         "
-        SELECT requester_identity_id, target_identity_id, status
+        SELECT requester_identity_id, target_identity_id, status, created_at
         FROM friend_requests
         WHERE requester_identity_id = $1 OR target_identity_id = $1
         ORDER BY created_at DESC

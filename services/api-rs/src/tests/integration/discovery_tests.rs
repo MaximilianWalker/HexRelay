@@ -286,20 +286,34 @@ async fn discovery_rate_limits_queries() {
 
 #[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
+    let actor = unique_identity("usr-discovery-shared-actor");
+    let shared_peer = unique_identity("usr-discovery-shared-peer");
+    let other_user = unique_identity("usr-discovery-shared-other");
+
     let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-a", "usr-b", "usr-c"]).await
+        app_with_database_and_sessions(&[&actor, &shared_peer, &other_user]).await
     else {
         return;
     };
 
-    seed_server_membership(&pool, "srv-shared", "Shared", "usr-a", false, false, 0).await;
-    seed_server_membership(&pool, "srv-shared", "Shared", "usr-b", false, false, 0).await;
-    seed_server_membership(&pool, "srv-other", "Other", "usr-c", false, false, 0).await;
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+    )
+    .bind(unique_identity("req-discovery-shared"))
+    .bind(&actor)
+    .bind(&other_user)
+    .execute(&pool)
+    .await
+    .expect("insert persisted relationship");
+
+    seed_server_membership(&pool, "srv-shared", "Shared", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "srv-shared", "Shared", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, "srv-other", "Other", &other_user, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
         .uri("/v1/discovery/users?scope=shared_server")
-        .header("cookie", format!("hexrelay_session={}", tokens["usr-a"]))
+        .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build discovery request");
 
@@ -313,7 +327,7 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
         serde_json::from_slice(&body).expect("decode discovery payload");
 
     assert_eq!(payload.items.len(), 1);
-    assert_eq!(payload.items[0].identity_id, "usr-b");
+    assert_eq!(payload.items[0].identity_id, shared_peer);
     assert_eq!(payload.items[0].shared_server_count, 1);
 }
 
