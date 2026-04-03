@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 use crate::app::{router::assert_dm_direct_profile, CommunicationError, CommunicationRouter};
 use crate::domain::{
@@ -7,12 +10,15 @@ use crate::domain::{
 };
 use crate::transport::{DirectPeerTransport, NodeClientTransport, TransportError};
 
-#[derive(Default)]
-struct RecordingDirectPeer;
+#[derive(Clone)]
+struct RecordingDirectPeer {
+    connect_calls: Arc<AtomicUsize>,
+    send_calls: Arc<AtomicUsize>,
+}
 
 impl DirectPeerTransport for RecordingDirectPeer {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        DIRECT_CONNECT_CALLS.fetch_add(1, Ordering::SeqCst);
+        self.connect_calls.fetch_add(1, Ordering::SeqCst);
         Ok(SessionProvenance {
             mode: intent.mode,
             profile: TransportProfile::DirectPeer,
@@ -22,17 +28,20 @@ impl DirectPeerTransport for RecordingDirectPeer {
     }
 
     fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        DIRECT_SEND_CALLS.fetch_add(1, Ordering::SeqCst);
+        self.send_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
 
-#[derive(Default)]
-struct RecordingNodeClient;
+#[derive(Clone)]
+struct RecordingNodeClient {
+    connect_calls: Arc<AtomicUsize>,
+    send_calls: Arc<AtomicUsize>,
+}
 
 impl NodeClientTransport for RecordingNodeClient {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        NODE_CONNECT_CALLS.fetch_add(1, Ordering::SeqCst);
+        self.connect_calls.fetch_add(1, Ordering::SeqCst);
         Ok(SessionProvenance {
             mode: intent.mode,
             profile: TransportProfile::NodeClient,
@@ -42,15 +51,42 @@ impl NodeClientTransport for RecordingNodeClient {
     }
 
     fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        NODE_SEND_CALLS.fetch_add(1, Ordering::SeqCst);
+        self.send_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
 
-static DIRECT_CONNECT_CALLS: AtomicUsize = AtomicUsize::new(0);
-static DIRECT_SEND_CALLS: AtomicUsize = AtomicUsize::new(0);
-static NODE_CONNECT_CALLS: AtomicUsize = AtomicUsize::new(0);
-static NODE_SEND_CALLS: AtomicUsize = AtomicUsize::new(0);
+struct TestCounters {
+    direct_connect_calls: Arc<AtomicUsize>,
+    direct_send_calls: Arc<AtomicUsize>,
+    node_connect_calls: Arc<AtomicUsize>,
+    node_send_calls: Arc<AtomicUsize>,
+}
+
+impl TestCounters {
+    fn new() -> Self {
+        Self {
+            direct_connect_calls: Arc::new(AtomicUsize::new(0)),
+            direct_send_calls: Arc::new(AtomicUsize::new(0)),
+            node_connect_calls: Arc::new(AtomicUsize::new(0)),
+            node_send_calls: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    fn direct_peer(&self) -> RecordingDirectPeer {
+        RecordingDirectPeer {
+            connect_calls: Arc::clone(&self.direct_connect_calls),
+            send_calls: Arc::clone(&self.direct_send_calls),
+        }
+    }
+
+    fn node_client(&self) -> RecordingNodeClient {
+        RecordingNodeClient {
+            connect_calls: Arc::clone(&self.node_connect_calls),
+            send_calls: Arc::clone(&self.node_send_calls),
+        }
+    }
+}
 
 struct FailingDirectPeer;
 
@@ -64,20 +100,13 @@ impl DirectPeerTransport for FailingDirectPeer {
     }
 }
 
-fn reset_counters() {
-    DIRECT_CONNECT_CALLS.store(0, Ordering::SeqCst);
-    DIRECT_SEND_CALLS.store(0, Ordering::SeqCst);
-    NODE_CONNECT_CALLS.store(0, Ordering::SeqCst);
-    NODE_SEND_CALLS.store(0, Ordering::SeqCst);
-}
-
 #[test]
 fn routes_dm_connect_through_direct_peer_adapter() {
-    reset_counters();
+    let counters = TestCounters::new();
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingDirectPeer,
-        RecordingNodeClient,
+        counters.direct_peer(),
+        counters.node_client(),
     );
 
     let result = router.connect(&ConnectIntent {
@@ -88,17 +117,17 @@ fn routes_dm_connect_through_direct_peer_adapter() {
     });
 
     assert!(result.is_ok());
-    assert_eq!(DIRECT_CONNECT_CALLS.load(Ordering::SeqCst), 1);
-    assert_eq!(NODE_CONNECT_CALLS.load(Ordering::SeqCst), 0);
+    assert_eq!(counters.direct_connect_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.node_connect_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn routes_server_send_through_node_adapter() {
-    reset_counters();
+    let counters = TestCounters::new();
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingDirectPeer,
-        RecordingNodeClient,
+        counters.direct_peer(),
+        counters.node_client(),
     );
 
     let result = router.send(&SendEnvelope {
@@ -107,17 +136,17 @@ fn routes_server_send_through_node_adapter() {
     });
 
     assert_eq!(result, Ok(()));
-    assert_eq!(NODE_SEND_CALLS.load(Ordering::SeqCst), 1);
-    assert_eq!(DIRECT_SEND_CALLS.load(Ordering::SeqCst), 0);
+    assert_eq!(counters.node_send_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.direct_send_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn rejects_target_profile_mismatch_before_adapter_call() {
-    reset_counters();
+    let counters = TestCounters::new();
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingDirectPeer,
-        RecordingNodeClient,
+        counters.direct_peer(),
+        counters.node_client(),
     );
 
     let result = router.connect(&ConnectIntent {
@@ -135,16 +164,17 @@ fn rejects_target_profile_mismatch_before_adapter_call() {
             profile: Some(TransportProfile::DirectPeer),
         })
     );
-    assert_eq!(DIRECT_CONNECT_CALLS.load(Ordering::SeqCst), 0);
-    assert_eq!(NODE_CONNECT_CALLS.load(Ordering::SeqCst), 0);
+    assert_eq!(counters.direct_connect_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(counters.node_connect_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn maps_transport_connect_failure_to_reason_code() {
+    let counters = TestCounters::new();
     let router = CommunicationRouter::new(
         PolicyContext::default(),
         FailingDirectPeer,
-        RecordingNodeClient,
+        counters.node_client(),
     );
 
     let result = router.connect(&ConnectIntent {
@@ -170,7 +200,8 @@ fn maps_mode_disabled_to_reason_code() {
         enable_server_channel: false,
         ..PolicyContext::default()
     };
-    let router = CommunicationRouter::new(policy, RecordingDirectPeer, RecordingNodeClient);
+    let counters = TestCounters::new();
+    let router = CommunicationRouter::new(policy, counters.direct_peer(), counters.node_client());
 
     let result = router.send(&SendEnvelope {
         mode: CommunicationMode::ServerChannel,
