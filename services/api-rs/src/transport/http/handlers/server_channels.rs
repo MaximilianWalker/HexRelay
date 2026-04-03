@@ -492,6 +492,9 @@ fn map_create_message_error(
                 message: "server channel was not found",
             }),
         ),
+        CreateServerChannelMessageError::AuthorNotMember => {
+            forbidden("server_access_denied", "server membership required")
+        }
         CreateServerChannelMessageError::ReplyTargetInvalid => bad_request(
             "reply_target_invalid",
             "reply target must exist in the same server channel",
@@ -560,6 +563,9 @@ fn map_update_message_error(
                 message: "server channel message was not found",
             }),
         ),
+        UpdateServerChannelMessageError::AuthorNotMember => {
+            forbidden("server_access_denied", "server membership required")
+        }
         UpdateServerChannelMessageError::EditForbidden => forbidden(
             "message_edit_forbidden",
             "only the author may edit this server channel message",
@@ -632,6 +638,9 @@ fn map_soft_delete_message_error(
                 message: "server channel message was not found",
             }),
         ),
+        SoftDeleteServerChannelMessageError::AuthorNotMember => {
+            forbidden("server_access_denied", "server membership required")
+        }
         SoftDeleteServerChannelMessageError::DeleteForbidden => forbidden(
             "message_delete_forbidden",
             "only the author may delete this server channel message",

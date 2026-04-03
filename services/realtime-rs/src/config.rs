@@ -6,7 +6,8 @@ use reqwest::Url;
 pub struct RealtimeConfig {
     pub api_base_url: String,
     pub require_api_health_on_start: bool,
-    pub presence_internal_token: String,
+    pub channel_dispatch_internal_token: String,
+    pub presence_watcher_internal_token: String,
     pub presence_redis_url: Option<String>,
     pub trust_proxy_headers: bool,
     pub allowed_origins: Vec<String>,
@@ -23,7 +24,10 @@ pub struct RealtimeConfig {
 
 impl RealtimeConfig {
     pub fn from_env() -> Result<Self, String> {
-        const DEFAULT_PRESENCE_INTERNAL_TOKEN: &str = "hexrelay-dev-presence-token-change-me";
+        const DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN: &str =
+            "hexrelay-dev-channel-dispatch-token-change-me";
+        const DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN: &str =
+            "hexrelay-dev-presence-watcher-token-change-me";
         let environment = env::var("REALTIME_ENVIRONMENT")
             .unwrap_or_else(|_| "development".to_string())
             .trim()
@@ -52,8 +56,10 @@ impl RealtimeConfig {
             .collect::<Vec<_>>();
         let require_api_health_on_start =
             parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
-        let presence_internal_token = env::var("REALTIME_PRESENCE_INTERNAL_TOKEN")
-            .unwrap_or_else(|_| DEFAULT_PRESENCE_INTERNAL_TOKEN.to_string());
+        let channel_dispatch_internal_token = env::var("REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN.to_string());
+        let presence_watcher_internal_token = env::var("REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN.to_string());
         let presence_redis_url = env::var("REALTIME_PRESENCE_REDIS_URL")
             .ok()
             .map(|value| value.trim().to_string())
@@ -82,9 +88,16 @@ impl RealtimeConfig {
             );
         }
 
-        if presence_internal_token.trim().len() < 16 {
+        if channel_dispatch_internal_token.trim().len() < 16 {
             return Err(
-                "Invalid REALTIME_PRESENCE_INTERNAL_TOKEN. Expected at least 16 characters"
+                "Invalid REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN. Expected at least 16 characters"
+                    .to_string(),
+            );
+        }
+
+        if presence_watcher_internal_token.trim().len() < 16 {
+            return Err(
+                "Invalid REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN. Expected at least 16 characters"
                     .to_string(),
             );
         }
@@ -160,10 +173,20 @@ impl RealtimeConfig {
             ));
         }
 
-        if environment == "production" && presence_internal_token == DEFAULT_PRESENCE_INTERNAL_TOKEN
+        if environment == "production"
+            && channel_dispatch_internal_token == DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN
         {
             return Err(
-                "Invalid REALTIME_PRESENCE_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                "Invalid REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                    .to_string(),
+            );
+        }
+
+        if environment == "production"
+            && presence_watcher_internal_token == DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN
+        {
+            return Err(
+                "Invalid REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN for production. Configure a non-default internal token"
                     .to_string(),
             );
         }
@@ -171,7 +194,8 @@ impl RealtimeConfig {
         Ok(Self {
             api_base_url,
             require_api_health_on_start,
-            presence_internal_token,
+            channel_dispatch_internal_token,
+            presence_watcher_internal_token,
             presence_redis_url,
             trust_proxy_headers,
             allowed_origins,
@@ -387,8 +411,8 @@ mod tests {
                 ),
                 ("REALTIME_ALLOWED_ORIGINS", Some("https://app.example.com")),
                 (
-                    "REALTIME_PRESENCE_INTERNAL_TOKEN",
-                    Some("hexrelay-dev-presence-token-change-me"),
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-channel-dispatch-token-change-me"),
                 ),
             ],
             || {
@@ -396,7 +420,36 @@ mod tests {
                     Ok(_) => panic!("default production token should fail"),
                     Err(err) => err,
                 };
-                assert!(err.contains("REALTIME_PRESENCE_INTERNAL_TOKEN"));
+                assert!(err.contains("REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_split_internal_tokens() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                (
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-channel-dispatch-token-1234"),
+                ),
+                (
+                    "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-presence-watcher-token-1234"),
+                ),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert_eq!(
+                    config.channel_dispatch_internal_token,
+                    "hexrelay-dev-channel-dispatch-token-1234"
+                );
+                assert_eq!(
+                    config.presence_watcher_internal_token,
+                    "hexrelay-dev-presence-watcher-token-1234"
+                );
             },
         );
     }

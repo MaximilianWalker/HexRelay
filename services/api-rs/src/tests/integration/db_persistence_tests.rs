@@ -1,4 +1,114 @@
 use super::*;
+
+#[tokio::test]
+async fn rejects_server_channel_message_create_for_non_member_author_in_repo() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = unique_identity("srv-repo-create");
+    let channel_id = unique_identity("chan-repo-create");
+    let member_id = unique_identity("usr-repo-member");
+    let outsider_id = unique_identity("usr-repo-outsider");
+
+    seed_server_membership(
+        &pool,
+        &server_id,
+        "Repo Create",
+        &member_id,
+        false,
+        false,
+        0,
+    )
+    .await;
+    ensure_db_identity_key(&pool, &outsider_id).await;
+    server_channels_repo::insert_server_channel(
+        &pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id: &channel_id,
+            server_id: &server_id,
+            name: "general",
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server channel");
+
+    let result = server_channels_repo::create_server_channel_message(
+        &pool,
+        server_channels_repo::CreateServerChannelMessageParams {
+            server_id: server_id.clone(),
+            channel_id: channel_id.clone(),
+            message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
+            author_id: outsider_id.clone(),
+            content: "hello".to_string(),
+            reply_to_message_id: None,
+            mention_identity_ids: Vec::new(),
+            created_at: "2026-04-01T00:00:00Z".to_string(),
+        },
+    )
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(server_channels_repo::CreateServerChannelMessageError::AuthorNotMember)
+    ));
+}
+
+#[tokio::test]
+async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = unique_identity("srv-repo-delete");
+    let channel_id = unique_identity("chan-repo-delete");
+    let author_id = unique_identity("usr-repo-delete-author");
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Repo Delete",
+        &channel_id,
+        "general",
+        &[&author_id],
+        &[(
+            "scm-delete-repo",
+            &author_id,
+            1,
+            "hello",
+            None,
+            &[],
+            "2026-04-01T00:00:00Z",
+            None,
+            None,
+        )],
+    )
+    .await;
+
+    sqlx::query("DELETE FROM server_memberships WHERE server_id = $1 AND identity_id = $2")
+        .bind(&server_id)
+        .bind(&author_id)
+        .execute(&pool)
+        .await
+        .expect("remove membership");
+
+    let result = server_channels_repo::soft_delete_server_channel_message(
+        &pool,
+        &server_id,
+        &channel_id,
+        "scm-delete-repo",
+        &author_id,
+        "2026-04-01T01:00:00Z",
+    )
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(server_channels_repo::SoftDeleteServerChannelMessageError::AuthorNotMember)
+    ));
+}
+
 #[tokio::test]
 async fn validates_and_revokes_db_backed_session() {
     let Some(app) = app_with_database().await else {
@@ -11,8 +121,7 @@ async fn validates_and_revokes_db_backed_session() {
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
     let identity_id = unique_identity("db-user-verify");
-    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, &identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -186,8 +295,7 @@ async fn verifies_db_challenge_after_app_restart() {
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
     let identity_id = unique_identity("db-user-restart");
-    let (register_status, app) = register_identity(app, &identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, &identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -647,4 +755,162 @@ async fn rejects_redeeming_own_contact_invite_in_db() {
         .expect("contact invite redeem response");
 
     assert_eq!(redeem_response.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn rejects_redeeming_blocked_contact_invite_in_db() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let inviter_identity = unique_identity("db-user-contact-invite-block-a");
+    let redeemer_identity = unique_identity("db-user-contact-invite-block-b");
+    let (inviter_cookie, app) = authenticate_identity(app, &inviter_identity).await;
+    let (redeemer_cookie, app) = authenticate_identity(app, &redeemer_identity).await;
+
+    let block_request = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{}"}}"#,
+            redeemer_identity
+        )))
+        .expect("build block request");
+    let block_response = app
+        .clone()
+        .oneshot(block_request)
+        .await
+        .expect("block response");
+    assert_eq!(block_response.status(), StatusCode::CREATED);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build create contact invite request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create contact invite body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_body).expect("decode create contact invite body");
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={redeemer_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build contact invite redeem request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("contact invite redeem response");
+    assert_eq!(redeem_response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
+
+    ensure_db_identity_key(&pool, "usr-a").await;
+    ensure_db_identity_key(&pool, "usr-b").await;
+
+    let create_req = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-a"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(
+            r#"{"requester_identity_id":"usr-a","target_identity_id":"usr-b"}"#,
+        ))
+        .expect("build create request");
+    let create_resp = app.clone().oneshot(create_req).await.expect("create resp");
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let create_body = to_bytes(create_resp.into_body(), usize::MAX)
+        .await
+        .expect("read create body");
+    let created: FriendRequestRecord = serde_json::from_slice(&create_body).expect("decode create");
+
+    let accept_req = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/friends/requests/{}/accept",
+            created.request_id
+        ))
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-b"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::empty())
+        .expect("build accept request");
+    let accept_resp = app.clone().oneshot(accept_req).await.expect("accept resp");
+    assert_eq!(accept_resp.status(), StatusCode::OK);
+
+    let block_req = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!(
+                "hexrelay_session={}; hexrelay_csrf=test-csrf",
+                tokens["usr-b"]
+            ),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
+        .expect("build block request");
+    let block_resp = app.clone().oneshot(block_req).await.expect("block resp");
+    assert_eq!(block_resp.status(), StatusCode::CREATED);
+
+    let bootstrap_req = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/friends/requests/{}/bootstrap",
+            created.request_id
+        ))
+        .header("cookie", format!("hexrelay_session={}", tokens["usr-a"]))
+        .body(Body::empty())
+        .expect("build bootstrap request");
+    let bootstrap_resp = app.oneshot(bootstrap_req).await.expect("bootstrap resp");
+    assert_eq!(bootstrap_resp.status(), StatusCode::FORBIDDEN);
 }

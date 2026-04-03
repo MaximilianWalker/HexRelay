@@ -17,12 +17,14 @@ pub struct ApiRateLimitConfig {
 }
 
 pub struct ApiConfig {
+    pub allow_public_identity_registration: bool,
     pub bind_addr: SocketAddr,
+    pub channel_dispatch_internal_token: String,
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
     pub discovery_denylist: Vec<String>,
-    pub presence_internal_token: String,
+    pub presence_watcher_internal_token: String,
     pub presence_redis_url: Option<String>,
     pub realtime_base_url: String,
     pub session_signing_keys: HashMap<String, String>,
@@ -39,7 +41,10 @@ impl ApiConfig {
         const DEFAULT_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
         const DEFAULT_DATABASE_URL: &str =
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay";
-        const DEFAULT_PRESENCE_INTERNAL_TOKEN: &str = "hexrelay-dev-presence-token-change-me";
+        const DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN: &str =
+            "hexrelay-dev-channel-dispatch-token-change-me";
+        const DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN: &str =
+            "hexrelay-dev-presence-watcher-token-change-me";
 
         let bind_raw = env::var("API_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let bind_addr = bind_raw.parse::<SocketAddr>().map_err(|_| {
@@ -59,6 +64,8 @@ impl ApiConfig {
             );
         }
 
+        let allow_public_identity_registration =
+            parse_bool_env("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", false)?;
         let node_fingerprint = env::var("API_NODE_FINGERPRINT")
             .unwrap_or_else(|_| DEFAULT_NODE_FINGERPRINT.to_string());
         let allowed_origins_raw = env::var("API_ALLOWED_ORIGINS")
@@ -66,8 +73,10 @@ impl ApiConfig {
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
-        let presence_internal_token = env::var("API_PRESENCE_INTERNAL_TOKEN")
-            .unwrap_or_else(|_| DEFAULT_PRESENCE_INTERNAL_TOKEN.to_string());
+        let channel_dispatch_internal_token = env::var("API_CHANNEL_DISPATCH_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN.to_string());
+        let presence_watcher_internal_token = env::var("API_PRESENCE_WATCHER_INTERNAL_TOKEN")
+            .unwrap_or_else(|_| DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN.to_string());
         let presence_redis_url = env::var("API_PRESENCE_REDIS_URL")
             .ok()
             .map(|value| value.trim().to_string())
@@ -112,9 +121,17 @@ impl ApiConfig {
             return Err("Invalid API_DATABASE_URL. Value must not be empty".to_string());
         }
 
-        if presence_internal_token.trim().len() < 16 {
+        if channel_dispatch_internal_token.trim().len() < 16 {
             return Err(
-                "Invalid API_PRESENCE_INTERNAL_TOKEN. Expected at least 16 characters".to_string(),
+                "Invalid API_CHANNEL_DISPATCH_INTERNAL_TOKEN. Expected at least 16 characters"
+                    .to_string(),
+            );
+        }
+
+        if presence_watcher_internal_token.trim().len() < 16 {
+            return Err(
+                "Invalid API_PRESENCE_WATCHER_INTERNAL_TOKEN. Expected at least 16 characters"
+                    .to_string(),
             );
         }
 
@@ -190,9 +207,16 @@ impl ApiConfig {
                 );
             }
 
-            if presence_internal_token == DEFAULT_PRESENCE_INTERNAL_TOKEN {
+            if channel_dispatch_internal_token == DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN {
                 return Err(
-                    "Invalid API_PRESENCE_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                    "Invalid API_CHANNEL_DISPATCH_INTERNAL_TOKEN for production. Configure a non-default internal token"
+                        .to_string(),
+                );
+            }
+
+            if presence_watcher_internal_token == DEFAULT_PRESENCE_WATCHER_INTERNAL_TOKEN {
+                return Err(
+                    "Invalid API_PRESENCE_WATCHER_INTERNAL_TOKEN for production. Configure a non-default internal token"
                         .to_string(),
                 );
             }
@@ -219,12 +243,14 @@ impl ApiConfig {
         }
 
         Ok(Self {
+            allow_public_identity_registration,
             bind_addr,
+            channel_dispatch_internal_token,
             allowed_origins,
             database_url,
             node_fingerprint,
             discovery_denylist,
-            presence_internal_token,
+            presence_watcher_internal_token,
             presence_redis_url,
             realtime_base_url,
             session_signing_keys,
@@ -428,6 +454,54 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("Invalid API_ENVIRONMENT"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_public_identity_registration_flag() {
+        with_api_env(
+            &[
+                ("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert!(config.allow_public_identity_registration);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_split_internal_tokens() {
+        with_api_env(
+            &[
+                (
+                    "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-channel-dispatch-token-1234"),
+                ),
+                (
+                    "API_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("hexrelay-dev-presence-watcher-token-1234"),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(
+                    config.channel_dispatch_internal_token,
+                    "hexrelay-dev-channel-dispatch-token-1234"
+                );
+                assert_eq!(
+                    config.presence_watcher_internal_token,
+                    "hexrelay-dev-presence-watcher-token-1234"
+                );
             },
         );
     }

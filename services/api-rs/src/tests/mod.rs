@@ -118,14 +118,23 @@ async fn register_identity(
     (response.status(), app)
 }
 
+async fn register_identity_expect_success(
+    app: axum::Router,
+    identity_id: &str,
+    public_key: &str,
+) -> axum::Router {
+    let (status, app) = register_identity(app, identity_id, public_key).await;
+    assert_eq!(status, StatusCode::CREATED);
+    app
+}
+
 async fn authenticate_identity(app: axum::Router, identity_id: &str) -> (String, axum::Router) {
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
     let public_key = hex::encode(signing_key.public_key().as_ref());
 
-    let (register_status, app) = register_identity(app, identity_id, &public_key).await;
-    assert_eq!(register_status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, identity_id, &public_key).await;
 
     let challenge_request = Request::builder()
         .method("POST")
@@ -470,6 +479,10 @@ async fn seed_server_channel(
         deleted_at,
     ) in messages
     {
+        assert!(
+            member_identity_ids.contains(author_id),
+            "seed_server_channel requires message authors to be members of the seeded server"
+        );
         ensure_db_identity_key(pool, author_id).await;
         for mentioned_identity_id in *mention_identity_ids {
             ensure_db_identity_key(pool, mentioned_identity_id).await;

@@ -26,7 +26,8 @@ use crate::{
         IdentityKeyRegistrationRequest, SessionRevokeRequest, SessionValidateResponse,
     },
     shared::errors::{
-        bad_request, conflict, internal_error, too_many_requests, unauthorized, ApiResult,
+        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
+        ApiResult,
     },
     state::AppState,
     transport::http::middleware::{
@@ -47,6 +48,13 @@ pub async fn register_identity_key(
     Json(payload): Json<IdentityKeyRegistrationRequest>,
 ) -> ApiResult<StatusCode> {
     validate_identity_registration(&payload)?;
+
+    if !state.allow_public_identity_registration {
+        return Err(forbidden(
+            "identity_registration_disabled",
+            "public identity registration is disabled until a trusted claim flow is configured",
+        ));
+    }
 
     if let Some(pool) = state.db_pool.as_ref() {
         let inserted = auth_repo::insert_identity_key(

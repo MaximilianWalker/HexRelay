@@ -416,6 +416,13 @@ pub async fn get_friend_request_bootstrap(
         &request.requester_identity_id
     };
 
+    if is_blocked_bidirectional(&state, &actor_identity, peer_identity_id)? {
+        return Err(forbidden(
+            "blocked_user",
+            "identity bootstrap material is unavailable while a block relationship exists between these users",
+        ));
+    }
+
     let identity_key = auth_repo::get_identity_key(pool, peer_identity_id)
         .await
         .map_err(|_| {
@@ -532,6 +539,13 @@ fn get_friend_request_bootstrap_in_memory(
         } else {
             request.requester_identity_id.clone()
         };
+
+        if is_blocked_bidirectional(&state, &actor_identity, &peer_identity_id)? {
+            return Err(forbidden(
+                "blocked_user",
+                "identity bootstrap material is unavailable while a block relationship exists between these users",
+            ));
+        }
 
         (peer_identity_id, request.status.clone())
     }; // guard dropped here

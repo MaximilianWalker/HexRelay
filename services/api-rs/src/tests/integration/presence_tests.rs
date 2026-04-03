@@ -67,7 +67,7 @@ async fn presence_watchers_include_self_and_accepted_unblocked_friends_only() {
         .uri("/v1/internal/presence/watchers/usr-main")
         .header(
             "x-hexrelay-internal-token",
-            state.presence_internal_token.as_str(),
+            state.presence_watcher_internal_token.as_str(),
         )
         .body(Body::empty())
         .expect("build watcher request");
@@ -90,4 +90,22 @@ async fn presence_watchers_include_self_and_accepted_unblocked_friends_only() {
     assert!(watchers.contains(&"usr-friend"));
     assert!(!watchers.contains(&"usr-pending"));
     assert!(!watchers.contains(&"usr-blocked"));
+}
+
+#[tokio::test]
+async fn presence_watchers_reject_channel_dispatch_token() {
+    let state = AppState::default();
+    let app = build_app(state);
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/internal/presence/watchers/usr-main")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .body(Body::empty())
+        .expect("build watcher request");
+
+    let response = app.oneshot(request).await.expect("watcher response");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

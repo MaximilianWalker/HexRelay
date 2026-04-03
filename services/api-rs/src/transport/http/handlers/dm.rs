@@ -372,6 +372,10 @@ pub async fn list_dm_lan_peers(
 
     let mut items = Vec::new();
     for record in candidate_records {
+        if is_blocked_bidirectional(&state, &auth.identity_id, &record.identity_id)? {
+            continue;
+        }
+
         if matches!(
             dm_interaction_policy_decision(&state, &auth.identity_id, &record.identity_id).await?,
             DmInteractionPolicyDecision::Allowed

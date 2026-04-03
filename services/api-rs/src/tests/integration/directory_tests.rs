@@ -224,7 +224,8 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -345,7 +346,8 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -450,7 +452,8 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "v1".to_string(),
         Vec::new(),
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
@@ -499,7 +502,8 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
     let realtime_state = realtime_rs::state::AppState::new(
         api_base_url.clone(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
-        "hexrelay-dev-presence-token-change-me".to_string(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         false,
         60,

@@ -45,7 +45,8 @@ async fn main() {
         config.allowed_origins.clone(),
         config.active_signing_key_id.clone(),
         config.discovery_denylist.clone(),
-        config.presence_internal_token.clone(),
+        config.channel_dispatch_internal_token.clone(),
+        config.presence_watcher_internal_token.clone(),
         presence_redis_client,
         config.realtime_base_url.clone(),
         config.session_signing_keys.clone().into_iter().collect(),
@@ -55,6 +56,7 @@ async fn main() {
         config.rate_limits,
         config.trust_proxy_headers,
     )
+    .with_public_identity_registration(config.allow_public_identity_registration)
     .with_db_pool(db_pool);
 
     let app = build_app(state);

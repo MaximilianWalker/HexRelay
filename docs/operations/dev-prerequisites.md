@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-11
+- last_updated: 2026-04-03
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-03-11 added lockfile-first web dependency policy (`npm ci`) to keep setup behavior deterministic with CI.
+- Latest meaningful change: 2026-04-03 reduced env duplication by pointing bootstrap/setup readers to the canonical runtime config reference.
 
 ## Purpose
 
@@ -60,13 +60,15 @@ Expected: commands resolve without errors and versions satisfy the required tool
 1. Install required tooling.
 2. Run `npm run setup`.
 3. Confirm `services/api-rs/.env` and `services/realtime-rs/.env` exist (created automatically from `*.env.example` on first `npm run run`).
-4. Set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
+4. Review `docs/reference/runtime-config-reference.md` and set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
 5. Run `npm run run` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
 
 - Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
 
 ## First-Run Env Bootstrap (Copy/Paste)
+
+- Canonical runtime variable inventory: `docs/reference/runtime-config-reference.md`
 
 ```bash
 cat > services/api-rs/.env <<'EOF'
@@ -102,11 +104,8 @@ EOF
 
 ## Canonical Local Runtime Env Contract
 
-- `API_SESSION_SIGNING_KEYS` (required): keyring in `key_id:secret` format (set in `services/api-rs/.env`).
-- `API_SESSION_SIGNING_KEY_ID` (required when keyring is used): active key ID present in `API_SESSION_SIGNING_KEYS`.
-- `API_ENVIRONMENT` defaults to `development`; set `production` for dedicated deployments to enforce stricter config checks.
-- `API_TRUST_PROXY_HEADERS` and `REALTIME_TRUST_PROXY_HEADERS` default to `false`; set to `true` only behind a trusted reverse proxy that sanitizes forwarded headers.
-- Legacy fallback `API_SESSION_SIGNING_KEY` is supported for local compatibility only; prefer keyring form.
+- Canonical runtime env/config authority now lives in `docs/reference/runtime-config-reference.md`.
+- This document keeps only local setup/tooling guidance, not the full env inventory.
 
 ## Related Documents
 

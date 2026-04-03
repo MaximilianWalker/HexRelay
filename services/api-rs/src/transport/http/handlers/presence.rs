@@ -30,7 +30,7 @@ pub async fn list_presence_watchers(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
-    if internal_token != Some(state.presence_internal_token.as_str()) {
+    if internal_token != Some(state.presence_watcher_internal_token.as_str()) {
         return Err(unauthorized(
             "internal_token_invalid",
             "presence watcher lookup requires a valid internal token",

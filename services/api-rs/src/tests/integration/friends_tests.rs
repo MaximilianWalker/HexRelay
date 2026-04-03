@@ -10,10 +10,8 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     // Keys must be valid 32-byte ed25519 public keys in hex (64 hex chars).
     let key_p = "aa".repeat(32);
     let key_q = "bb".repeat(32);
-    let (status, app) = register_identity(app, "usr-p", &key_p).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-q", &key_q).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-p", &key_p).await;
+    let app = register_identity_expect_success(app, "usr-q", &key_q).await;
 
     // Create a friend request: usr-p → usr-q
     let create_req = Request::builder()
@@ -100,10 +98,8 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
 async fn bootstrap_returns_403_on_pending_request() {
     let (app, tokens) = app_with_sessions(&["usr-r", "usr-s"]);
 
-    let (status, app) = register_identity(app, "usr-r", &"cc".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-s", &"dd".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-r", &"cc".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-s", &"dd".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -139,10 +135,8 @@ async fn bootstrap_returns_403_on_pending_request() {
 async fn bootstrap_returns_403_on_declined_request() {
     let (app, tokens) = app_with_sessions(&["usr-t", "usr-u"]);
 
-    let (status, app) = register_identity(app, "usr-t", &"ee".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-u", &"ff".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-t", &"ee".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-u", &"ff".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -195,10 +189,8 @@ async fn bootstrap_returns_403_on_declined_request() {
 async fn bootstrap_returns_401_for_third_party() {
     let (app, tokens) = app_with_sessions(&["usr-v", "usr-w", "usr-x"]);
 
-    let (status, app) = register_identity(app, "usr-v", &"11".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
-    let (status, app) = register_identity(app, "usr-w", &"22".repeat(32)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    let app = register_identity_expect_success(app, "usr-v", &"11".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-w", &"22".repeat(32)).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -258,6 +250,64 @@ async fn bootstrap_returns_400_for_nonexistent_request() {
         .expect("build bootstrap request");
     let bootstrap_resp = app.oneshot(bootstrap_req).await.expect("bootstrap resp");
     assert_eq!(bootstrap_resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn bootstrap_returns_403_when_peer_is_blocked_after_acceptance() {
+    let (app, tokens) = app_with_sessions(&["usr-p", "usr-q"]);
+
+    let app = register_identity_expect_success(app, "usr-p", &"aa".repeat(32)).await;
+    let app = register_identity_expect_success(app, "usr-q", &"bb".repeat(32)).await;
+
+    let create_req = Request::builder()
+        .method("POST")
+        .uri("/v1/friends/requests")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-p"]))
+        .body(Body::from(
+            r#"{"requester_identity_id":"usr-p","target_identity_id":"usr-q"}"#,
+        ))
+        .expect("build create request");
+    let create_resp = app.clone().oneshot(create_req).await.expect("create resp");
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let create_body = to_bytes(create_resp.into_body(), usize::MAX)
+        .await
+        .expect("read create body");
+    let created: FriendRequestRecord = serde_json::from_slice(&create_body).expect("decode create");
+
+    let accept_req = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/v1/friends/requests/{}/accept",
+            created.request_id
+        ))
+        .header("authorization", format!("Bearer {}", tokens["usr-q"]))
+        .body(Body::empty())
+        .expect("build accept request");
+    let accept_resp = app.clone().oneshot(accept_req).await.expect("accept resp");
+    assert_eq!(accept_resp.status(), StatusCode::OK);
+
+    let block_req = Request::builder()
+        .method("POST")
+        .uri("/v1/users/block")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-q"]))
+        .body(Body::from(r#"{"target_identity_id":"usr-p"}"#))
+        .expect("build block request");
+    let block_resp = app.clone().oneshot(block_req).await.expect("block resp");
+    assert_eq!(block_resp.status(), StatusCode::CREATED);
+
+    let bootstrap_req = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/v1/friends/requests/{}/bootstrap",
+            created.request_id
+        ))
+        .header("authorization", format!("Bearer {}", tokens["usr-p"]))
+        .body(Body::empty())
+        .expect("build bootstrap request");
+    let bootstrap_resp = app.oneshot(bootstrap_req).await.expect("bootstrap resp");
+    assert_eq!(bootstrap_resp.status(), StatusCode::FORBIDDEN);
 }
 
 // ── Existing friend request tests ─────────────────────────────────────

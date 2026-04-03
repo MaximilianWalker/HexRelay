@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-01
+- last_updated: 2026-04-03
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 added structured server-channel message edit/delete author-authorization decision logs, extending node-owner authz debugging without changing runtime REST auth semantics or error contracts.
+- Latest meaningful change: 2026-04-03 added canonical system-overview and runtime-config reference docs, then repointed onboarding docs to them instead of relying on scattered summaries.
 
 ## Purpose
 
@@ -25,6 +25,7 @@
 | Topic | Canonical document | Owner | Update trigger |
 |---|---|---|---|
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
+| Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
 | Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
@@ -35,7 +36,8 @@
 | Target-state realtime event/signaling model | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
-| Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Default values, ranges, or override policy changes |
+| Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs` or `services/*/.env.example` changes |
+| Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
 | Infrastructure-free DM connectivity solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM connectivity policy, direct-connect mechanisms, or acceptance criteria change |
 | Infrastructure-free DM connectivity execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM connectivity sequencing, task gates, or acceptance evidence changes |
@@ -48,6 +50,7 @@
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
 | Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, DM/server transport divergence, or networking rollout phases change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
+| Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, remote smoke, or deployment-scope assumptions change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |
@@ -100,13 +103,16 @@
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/architecture/01-system-overview.md`
 - `docs/architecture/03-rust-service-migration-baseline.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
+- `docs/operations/02-dedicated-server-deployment.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
+- `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`

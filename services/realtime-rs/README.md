@@ -12,6 +12,8 @@ Rust realtime/signaling service scaffold for HexRelay.
 ## Authority
 
 - Runtime/deployment authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
+- Whole-system overview authority: `docs/architecture/01-system-overview.md`.
+- Runtime config authority: `docs/reference/runtime-config-reference.md`.
 - Operational procedure authority: `docs/operations/01-mvp-runbook.md`.
 - This file is service-local quickstart context only.
 

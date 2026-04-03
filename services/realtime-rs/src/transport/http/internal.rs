@@ -137,5 +137,5 @@ fn internal_token_valid(state: &AppState, headers: &HeaderMap) -> bool {
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        == Some(state.presence_internal_token.as_str())
+        == Some(state.channel_dispatch_internal_token.as_str())
 }

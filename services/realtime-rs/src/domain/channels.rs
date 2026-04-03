@@ -11,6 +11,8 @@ use tokio::{
 };
 use tracing::warn;
 
+use crate::domain::replay_store;
+
 const CHANNEL_EVENTS_CHANNEL: &str = "channels:v1:events";
 const CHANNEL_REPLAY_LOG_MAX_ENTRIES: usize = 256;
 const CHANNEL_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
@@ -134,12 +136,6 @@ pub struct PublishChannelMessageDeletedInput {
     pub deleted_at: Option<String>,
     pub channel_seq: u64,
     pub recipients: Vec<String>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-struct ChannelReplayEntry {
-    cursor: u64,
-    payload: String,
 }
 
 pub fn spawn_channel_subscriber(state: AppState) {
@@ -311,8 +307,13 @@ pub async fn hydrate_channel_backlog_if_needed(
         }
     };
 
-    let current_cursor = match get_channel_device_cursor(&mut connection, identity_id, device_id)
-        .await
+    let current_cursor = match replay_store::get_device_cursor(
+        &mut connection,
+        channel_device_cursor_key,
+        identity_id,
+        device_id,
+    )
+    .await
     {
         Ok(value) => value,
         Err(error) => {
@@ -321,7 +322,13 @@ pub async fn hydrate_channel_backlog_if_needed(
         }
     };
 
-    let replay_entries = match list_channel_replay_entries(&mut connection, identity_id).await {
+    let replay_entries = match replay_store::list_replay_entries(
+        &mut connection,
+        channel_replay_log_key,
+        identity_id,
+    )
+    .await
+    {
         Ok(value) => value,
         Err(error) => {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to load channel replay entries");
@@ -341,8 +348,15 @@ pub async fn hydrate_channel_backlog_if_needed(
     }
 
     if latest_cursor > current_cursor {
-        if let Err(error) =
-            set_channel_device_cursor(&mut connection, identity_id, device_id, latest_cursor).await
+        if let Err(error) = replay_store::set_device_cursor(
+            &mut connection,
+            channel_device_cursor_key,
+            CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
+            identity_id,
+            device_id,
+            latest_cursor,
+        )
+        .await
         {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist hydrated channel device cursor");
         }
@@ -638,110 +652,19 @@ async fn persist_channel_replay_entries(
     recipients: &[String],
     client_payload: &str,
 ) -> Result<Vec<ChannelRecipientCursor>, redis::RedisError> {
-    let mut cursors = Vec::with_capacity(recipients.len());
-    for recipient_identity_id in recipients {
-        let cursor = advance_channel_stream_head(connection, recipient_identity_id).await?;
-        let replay_entry = serde_json::to_string(&ChannelReplayEntry {
+    replay_store::persist_replay_entries(
+        connection,
+        recipients,
+        client_payload,
+        CHANNEL_REPLAY_LOG_MAX_ENTRIES,
+        channel_stream_head_key,
+        channel_replay_log_key,
+        |recipient_identity_id, cursor| ChannelRecipientCursor {
+            recipient_identity_id: recipient_identity_id.to_string(),
             cursor,
-            payload: client_payload.to_string(),
-        })
-        .map_err(|error| {
-            redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "serialize channel replay entry",
-                error.to_string(),
-            ))
-        })?;
-
-        let replay_log_key = channel_replay_log_key(recipient_identity_id);
-        let _: () = redis::cmd("LPUSH")
-            .arg(&replay_log_key)
-            .arg(replay_entry)
-            .query_async(connection)
-            .await?;
-        let _: () = redis::cmd("LTRIM")
-            .arg(&replay_log_key)
-            .arg(0)
-            .arg((CHANNEL_REPLAY_LOG_MAX_ENTRIES - 1) as i64)
-            .query_async(connection)
-            .await?;
-
-        cursors.push(ChannelRecipientCursor {
-            recipient_identity_id: recipient_identity_id.clone(),
-            cursor,
-        });
-    }
-    Ok(cursors)
-}
-
-async fn advance_channel_stream_head(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-) -> Result<u64, redis::RedisError> {
-    redis::cmd("INCR")
-        .arg(channel_stream_head_key(identity_id))
-        .query_async(connection)
-        .await
-}
-
-async fn list_channel_replay_entries(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-) -> Result<Vec<ChannelReplayEntry>, redis::RedisError> {
-    let values: Vec<String> = redis::cmd("LRANGE")
-        .arg(channel_replay_log_key(identity_id))
-        .arg(0)
-        .arg(-1)
-        .query_async(connection)
-        .await?;
-
-    let mut entries = values
-        .into_iter()
-        .filter_map(|value| serde_json::from_str::<ChannelReplayEntry>(&value).ok())
-        .collect::<Vec<_>>();
-    entries.reverse();
-    Ok(entries)
-}
-
-async fn get_channel_device_cursor(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-    device_id: &str,
-) -> Result<u64, redis::RedisError> {
-    redis::cmd("GET")
-        .arg(channel_device_cursor_key(identity_id, device_id))
-        .query_async::<Option<u64>>(connection)
-        .await
-        .map(|value| value.unwrap_or(0))
-}
-
-async fn set_channel_device_cursor(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-    device_id: &str,
-    cursor: u64,
-) -> Result<(), redis::RedisError> {
-    let _: () = redis::cmd("EVAL")
-        .arg(
-            r#"
-            local key = KEYS[1]
-            local incoming = tonumber(ARGV[1])
-            local ttl = tonumber(ARGV[2])
-            local current = tonumber(redis.call('GET', key) or '0')
-            if incoming > current then
-              current = incoming
-            end
-            redis.call('SET', key, current, 'EX', ttl)
-            return current
-            "#,
-        )
-        .arg(1)
-        .arg(channel_device_cursor_key(identity_id, device_id))
-        .arg(cursor)
-        .arg(CHANNEL_DEVICE_CURSOR_TTL_SECONDS)
-        .query_async(connection)
-        .await?;
-    Ok(())
+        },
+    )
+    .await
 }
 
 fn channel_stream_head_key(identity_id: &str) -> String {
@@ -791,8 +714,15 @@ async fn dispatch_channel_event_locally(
                         ));
                     }
                 }
-                Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
+                Err(TrySendError::Closed(_)) => {
                     stale_connections.push((recipient_identity_id.clone(), connection_id.clone()));
+                }
+                Err(TrySendError::Full(_)) => {
+                    warn!(
+                        recipient_identity_id = %recipient_identity_id,
+                        connection_id = %connection_id,
+                        "channel outbound queue saturated; keeping websocket registered"
+                    );
                 }
             }
         }
@@ -824,10 +754,76 @@ async fn dispatch_channel_event_locally(
     };
 
     for (identity_id, device_id, cursor) in delivered_device_cursors {
-        if let Err(error) =
-            set_channel_device_cursor(&mut connection, &identity_id, &device_id, cursor).await
+        if let Err(error) = replay_store::set_device_cursor(
+            &mut connection,
+            channel_device_cursor_key,
+            CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
+            &identity_id,
+            &device_id,
+            cursor,
+        )
+        .await
         {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live channel device cursor");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::AppState;
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn dispatch_channel_event_locally_keeps_full_connections_registered() {
+        let state = AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            32 * 1024,
+            120,
+            60,
+            3,
+            5,
+            2048,
+        )
+        .expect("build app state");
+        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        full_tx
+            .try_send("seed".to_string())
+            .expect("fill outbound queue");
+
+        state.connection_senders.lock().await.insert(
+            "usr-main".to_string(),
+            std::collections::HashMap::from([(
+                "conn-full".to_string(),
+                crate::state::ConnectionSenderEntry {
+                    sender: full_tx,
+                    device_id: Some("device-a".to_string()),
+                },
+            )]),
+        );
+
+        dispatch_channel_event_locally(
+            &state,
+            "payload-1",
+            &["usr-main".to_string()],
+            &[ChannelRecipientCursor {
+                recipient_identity_id: "usr-main".to_string(),
+                cursor: 4,
+            }],
+        )
+        .await;
+
+        assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
+        let guard = state.connection_senders.lock().await;
+        let connections = guard.get("usr-main").expect("remaining connections");
+        assert!(connections.contains_key("conn-full"));
     }
 }

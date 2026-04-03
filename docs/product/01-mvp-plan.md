@@ -210,10 +210,15 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Privacy-First Social Graph Policy (MVP)
 
 - Servers do not expose raw key/profile-identifying data to other users by default.
+- Any bidirectional block relationship suppresses peer-facing invite redemption, bootstrap material, and discovery visibility until the block is removed.
 - Friend requests through a server are mediated actions:
   - User A requests contact with User B through server-local reference.
   - Server sends request notification to User B.
   - Only after User B accepts, both sides receive bootstrap material required for direct relationship setup.
+- Server-channel message authorship is valid only while the author is a current member of that server; write boundaries must reject non-member authors even for internal callers.
+- Server-channel live websocket fanout is currently best-effort after persistence; message history durability is stronger than live delivery guarantees until an outbox/retry design exists.
+- Realtime outbound backpressure must degrade delivery without silently unregistering still-open websocket sessions; queue saturation is not equivalent to disconnect.
+- Presence and channel profile-device replay should share one private replay-store/cursor implementation where semantics are identical, while keeping domain-specific publish logic separate.
 - DM policy defaults to opt-in:
   - Default allow-list: friends/accepted requests only.
   - Per-user override options: allow DMs from same-server members or from anyone.
@@ -228,6 +233,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### Authentication Flow
 
+- Public identity-key registration must fail closed unless a trusted claim flow exists.
 - Server sends a nonce challenge.
 - Client signs nonce with private key.
 - Server verifies signature against bound public key and issues session token.
@@ -310,6 +316,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Database access: `sqlx`.
 - Serialization: `serde`.
 - Auth/session transport: challenge-response with signed nonce, HttpOnly session cookie auth, and double-submit CSRF header for authenticated mutation routes.
+- Internal service auth: capability-scoped bearer credentials; presence watcher resolution and channel fanout ingress must not share one broad token.
 - Realtime ingress abuse controls: websocket connect rate limiting, per-identity connection cap, inbound message-size cap, and message-rate cap.
 - Background jobs/events: `tokio` tasks + Redis streams/pubsub.
 - Observability: `tracing`, OpenTelemetry exporter.

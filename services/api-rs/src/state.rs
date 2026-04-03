@@ -20,13 +20,15 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub active_signing_key_id: String,
+    pub allow_public_identity_registration: bool,
     pub allowed_origins: Vec<String>,
     pub auth_challenges: Arc<RwLock<HashMap<String, AuthChallengeRecord>>>,
     pub blocked_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
+    pub channel_dispatch_internal_token: String,
     pub db_pool: Option<PgPool>,
     pub discovery_denylist: Arc<HashSet<String>>,
     pub http_client: reqwest::Client,
-    pub presence_internal_token: String,
+    pub presence_watcher_internal_token: String,
     pub presence_redis_client: Option<redis::Client>,
     pub realtime_base_url: String,
     pub dm_endpoint_cards: Arc<RwLock<HashMap<String, HashMap<String, DmEndpointCardRecord>>>>,
@@ -58,7 +60,8 @@ impl AppState {
         allowed_origins: Vec<String>,
         active_signing_key_id: String,
         discovery_denylist: Vec<String>,
-        presence_internal_token: String,
+        channel_dispatch_internal_token: String,
+        presence_watcher_internal_token: String,
         presence_redis_client: Option<redis::Client>,
         realtime_base_url: String,
         session_signing_keys: BTreeMap<String, String>,
@@ -76,13 +79,15 @@ impl AppState {
 
         Self {
             active_signing_key_id,
+            allow_public_identity_registration: false,
             allowed_origins,
             auth_challenges: Arc::default(),
             blocked_users: Arc::default(),
+            channel_dispatch_internal_token,
             db_pool: None,
             discovery_denylist: Arc::new(discovery_denylist.into_iter().collect()),
             http_client,
-            presence_internal_token,
+            presence_watcher_internal_token,
             presence_redis_client,
             realtime_base_url,
             dm_endpoint_cards: Arc::default(),
@@ -112,6 +117,11 @@ impl AppState {
         self.db_pool = Some(db_pool);
         self
     }
+
+    pub fn with_public_identity_registration(mut self, allow: bool) -> Self {
+        self.allow_public_identity_registration = allow;
+        self
+    }
 }
 
 impl Default for AppState {
@@ -121,7 +131,8 @@ impl Default for AppState {
             vec!["http://localhost:3002".to_string()],
             "v1".to_string(),
             Vec::new(),
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             "http://127.0.0.1:8081".to_string(),
             BTreeMap::from([(
@@ -141,5 +152,6 @@ impl Default for AppState {
             },
             false,
         )
+        .with_public_identity_registration(true)
     }
 }

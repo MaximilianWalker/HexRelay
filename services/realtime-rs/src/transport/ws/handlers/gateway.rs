@@ -640,7 +640,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,
@@ -681,7 +682,8 @@ mod tests {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-presence-token-change-me".to_string(),
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
             None,
             false,
             60,

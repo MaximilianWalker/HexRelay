@@ -54,6 +54,7 @@ pub struct SoftDeleteServerChannelMessageResult {
 
 pub enum CreateServerChannelMessageError {
     ChannelNotFound,
+    AuthorNotMember,
     ReplyTargetInvalid,
     MentionTargetInvalid,
     Storage(sqlx::Error),
@@ -62,6 +63,7 @@ pub enum CreateServerChannelMessageError {
 pub enum UpdateServerChannelMessageError {
     ChannelNotFound,
     MessageNotFound,
+    AuthorNotMember,
     EditForbidden,
     MessageDeleted,
     MentionTargetInvalid,
@@ -71,6 +73,7 @@ pub enum UpdateServerChannelMessageError {
 pub enum SoftDeleteServerChannelMessageError {
     ChannelNotFound,
     MessageNotFound,
+    AuthorNotMember,
     DeleteForbidden,
     Storage(sqlx::Error),
 }
@@ -341,6 +344,10 @@ pub async fn create_server_channel_message(
     .await?
     .ok_or(CreateServerChannelMessageError::ChannelNotFound)?;
 
+    if !server_membership_exists(&mut tx, &params.server_id, &params.author_id).await? {
+        return Err(CreateServerChannelMessageError::AuthorNotMember);
+    }
+
     if let Some(reply_to_message_id) = params.reply_to_message_id.as_ref() {
         let reply_exists = sqlx::query_scalar::<_, i64>(
             "
@@ -491,6 +498,10 @@ pub async fn update_server_channel_message(
         return Err(UpdateServerChannelMessageError::EditForbidden);
     }
 
+    if !server_membership_exists(&mut tx, &params.server_id, &params.author_id).await? {
+        return Err(UpdateServerChannelMessageError::AuthorNotMember);
+    }
+
     if message.deleted_at.is_some() {
         return Err(UpdateServerChannelMessageError::MessageDeleted);
     }
@@ -590,6 +601,10 @@ pub async fn soft_delete_server_channel_message(
         return Err(SoftDeleteServerChannelMessageError::DeleteForbidden);
     }
 
+    if !server_membership_exists(&mut tx, server_id, author_id).await? {
+        return Err(SoftDeleteServerChannelMessageError::AuthorNotMember);
+    }
+
     let changed = message.deleted_at.is_none();
     if changed {
         sqlx::query(
@@ -636,6 +651,26 @@ async fn channel_exists(
     channel_id: &str,
 ) -> Result<bool, sqlx::Error> {
     server_channel_exists_with_executor(&mut **tx, server_id, channel_id).await
+}
+
+async fn server_membership_exists(
+    tx: &mut Transaction<'_, Postgres>,
+    server_id: &str,
+    identity_id: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        "
+        SELECT EXISTS (
+            SELECT 1
+            FROM server_memberships
+            WHERE server_id = $1 AND identity_id = $2
+        )
+        ",
+    )
+    .bind(server_id)
+    .bind(identity_id)
+    .fetch_one(&mut **tx)
+    .await
 }
 
 async fn server_channel_exists_with_executor<'e, E>(
