@@ -210,7 +210,7 @@ def route_blocks(text: str):
 
 def extract_function_blocks(paths):
     functions = {}
-    pattern = re.compile(r'pub async fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
+    pattern = re.compile(r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
     for path in paths:
         text = pathlib.Path(path).read_text()
         for match in pattern.finditer(text):
@@ -230,15 +230,19 @@ def extract_function_blocks(paths):
                     depth -= 1
                 cursor += 1
             body = text[body_start:cursor]
+            existing = functions.get(name)
             functions[name] = {
-                'has_auth': 'AuthSession' in params,
-                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
-                'has_json_body': 'Json<' in params,
-                'has_path_params': 'Path<' in params,
-                'query_type': extract_query_type(params),
+                'has_auth': 'AuthSession' in params if existing is None else existing['has_auth'],
+                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body if existing is None else existing['has_csrf'],
+                'has_json_body': 'Json<' in params if existing is None else existing['has_json_body'],
+                'has_path_params': 'Path<' in params if existing is None else existing['has_path_params'],
+                'query_type': extract_query_type(params) if existing is None else existing['query_type'],
+                'error_statuses': set(),
                 'return_type': return_type,
                 'body': body,
             }
+    for name in list(functions):
+        functions[name]['error_statuses'] = infer_error_statuses(name, functions)
     return functions
 
 
@@ -263,6 +267,46 @@ def extract_query_struct_fields(models_path: pathlib.Path):
         structs[name] = sorted(set(field_pattern.findall(body)))
 
     return structs
+
+
+def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=True):
+    if stack is None:
+        stack = set()
+    if handler_name in stack:
+        return set()
+
+    function = functions.get(handler_name)
+    if not function:
+        return set()
+
+    body = function.get('body', '')
+    statuses = set()
+    constructor_statuses = {
+        'bad_request(': '400',
+        'forbidden(': '403',
+        'conflict(': '409',
+        'too_many_requests(': '429',
+    }
+
+    for token, status in constructor_statuses.items():
+        if token in body:
+            statuses.add(status)
+
+    if not follow_helpers:
+        return statuses
+
+    helper_names = set(re.findall(r'\b(map_[A-Za-z0-9_]+)\b', body))
+    delegate_calls = set(re.findall(r'\b(\w+)\s*\([^;]*\)\.await', body))
+    for callee_name in sorted(helper_names | delegate_calls):
+        if callee_name == handler_name:
+            continue
+        statuses.update(
+            infer_error_statuses(
+                callee_name, functions, stack | {handler_name}, follow_helpers=follow_helpers
+            )
+        )
+
+    return statuses
 
 
 def infer_success_status(handler_name, functions, stack=None):
@@ -318,6 +362,11 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_param_names': query_struct_fields.get(query_type, []) if query_type else [],
+                'error_statuses': infer_error_statuses(
+                    handler,
+                    function_semantics,
+                    follow_helpers=method.upper() != 'GET',
+                ),
                 'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
@@ -359,6 +408,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'has_request_body': False,
                 'path_parameters': set(),
                 'query_parameters': set(),
+                'error_responses': set(),
                 'success_responses': set(),
             }
             continue
@@ -399,6 +449,12 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 semantics[(current_method, current_path)]['success_responses'].add(
                     success_match.group(1)
                 )
+                continue
+            error_match = re.match(r"^        '((?:400|403|409|429))':\s*$", line)
+            if error_match:
+                semantics[(current_method, current_path)]['error_responses'].add(
+                    error_match.group(1)
+                )
 
     return semantics
 
@@ -435,6 +491,9 @@ for key, runtime in sorted(runtime_semantics.items()):
     missing_query_parameters = sorted(set(runtime['query_param_names']) - contract['query_parameters'])
     for parameter_name in missing_query_parameters:
         errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` at runtime but is missing an `in: query` parameter in {contract_path}.")
+    missing_error_responses = sorted(runtime['error_statuses'] - contract['error_responses'])
+    for status_code in missing_error_responses:
+        errors.append(f"::error::{method} {path} can return HTTP {status_code} at runtime but is missing that error response in {contract_path}.")
     if runtime['success_status'] and runtime['success_status'] not in contract['success_responses']:
         errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} at runtime but is missing that success response in {contract_path}.")
 
