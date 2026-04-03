@@ -206,6 +206,7 @@ AUTHORIZER_ERROR_STATUSES = {
     'AuthorizedServerMembership': {'403'},
     'AuthorizedServerChannelMembership': {'403', '404'},
 }
+UNAUTHORIZED_HELPER_NAME_PATTERN = re.compile(r'^(?:map_.*|.*_failure)$')
 
 
 def route_blocks(text: str):
@@ -338,6 +339,35 @@ def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=Tru
     return statuses
 
 
+def infer_has_401(handler_name, functions, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_name in stack:
+        return False
+
+    function = functions.get(handler_name)
+    if not function:
+        return False
+
+    body = function.get('body', '')
+    if 'unauthorized(' in body:
+        return True
+
+    helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
+    helper_names.update(
+        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
+    )
+    for callee_name in sorted(helper_names):
+        if callee_name == handler_name or callee_name not in functions:
+            continue
+        if not UNAUTHORIZED_HELPER_NAME_PATTERN.match(callee_name):
+            continue
+        if infer_has_401(callee_name, functions, stack | {handler_name}):
+            return True
+
+    return False
+
+
 def infer_success_status(handler_name, functions, stack=None):
     if stack is None:
         stack = set()
@@ -396,6 +426,9 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
                     function_semantics,
                     follow_helpers=method.upper() != 'GET',
                 ) | set(handler_semantics.get('implied_error_statuses', set())),
+                'has_401': bool(handler_semantics.get('has_auth')) or infer_has_401(
+                    handler, function_semantics
+                ),
                 'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
@@ -514,8 +547,11 @@ for key, runtime in sorted(runtime_semantics.items()):
         documented = ', '.join(sorted(contract['security_schemes'])) or '<none>'
         expected = ', '.join(sorted(AUTH_SESSION_SECURITY_SCHEMES))
         errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but documents security schemes [{documented}] instead of [{expected}] in {contract_path}.")
-    if runtime['has_auth'] and not contract['has_401']:
-        errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
+    if runtime['has_401'] and not contract['has_401']:
+        if runtime['has_auth']:
+            errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
+        else:
+            errors.append(f"::error::{method} {path} can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers but is missing a 401 response in {contract_path}.")
     if runtime['has_auth'] and not contract['has_500']:
         errors.append(f"::error::{method} {path} requires session-auth-backed runtime auth/storage (AuthSession or server-membership authorizer extractor) but is missing a 500 response in {contract_path}.")
     if runtime['has_csrf'] and not contract['has_csrf']:
