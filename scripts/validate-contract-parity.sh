@@ -207,6 +207,23 @@ AUTHORIZER_ERROR_STATUSES = {
     'AuthorizedServerChannelMembership': {'403', '404'},
 }
 UNAUTHORIZED_HELPER_NAME_PATTERN = re.compile(r'^(?:map_.*|.*_failure)$')
+QUERY_RUNTIME_FIELD_RULES = {
+    'FriendRequestListQuery': {
+        'direction': {'enum': ('inbound', 'outbound')},
+    },
+    'DiscoveryUserListQuery': {
+        'scope': {'enum': ('global', 'shared_server')},
+    },
+    'ServerChannelMessageListQuery': {
+        'limit': {'minimum': 1, 'maximum': 100},
+    },
+    'DmThreadListQuery': {
+        'limit': {'minimum': 1, 'maximum': 100},
+    },
+    'DmThreadMessageListQuery': {
+        'limit': {'minimum': 1, 'maximum': 100},
+    },
+}
 
 
 def route_blocks(text: str):
@@ -302,16 +319,44 @@ def extract_query_struct_fields(models_path: pathlib.Path):
     text = models_path.read_text()
     structs = {}
     struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
-    field_pattern = re.compile(r'pub\s+(\w+):')
+    field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
 
     for match in struct_pattern.finditer(text):
         name = match.group(1)
         body = match.group(2)
         if not name.endswith('Query'):
             continue
-        structs[name] = sorted(set(field_pattern.findall(body)))
+        field_details = {}
+        for field_name, raw_type in field_pattern.findall(body):
+            schema_type, required = map_query_schema_type(raw_type.strip())
+            field_details[field_name] = {
+                'required': required,
+                'schema_type': schema_type,
+            }
+        for field_name, rule in QUERY_RUNTIME_FIELD_RULES.get(name, {}).items():
+            if field_name not in field_details:
+                continue
+            field_details[field_name].update(rule)
+        structs[name] = field_details
 
     return structs
+
+
+def map_query_schema_type(raw_type: str):
+    required = True
+    inner_type = raw_type
+    option_match = re.fullmatch(r'Option<\s*([^>]+)\s*>', raw_type)
+    if option_match:
+        required = False
+        inner_type = option_match.group(1).strip()
+
+    schema_type = 'string'
+    if inner_type == 'bool':
+        schema_type = 'boolean'
+    elif inner_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
+        schema_type = 'integer'
+
+    return schema_type, required
 
 
 def infer_error_statuses(handler_id, functions, local_lookup, stack=None, follow_helpers=True):
@@ -501,7 +546,7 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
-                'query_param_names': query_struct_fields.get(query_type, []) if query_type else [],
+                'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                 'error_statuses': infer_error_statuses(
                     handler_id,
                     function_semantics,
@@ -532,6 +577,8 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     current_path = None
     current_method = None
     current_parameter_in = None
+    current_parameter_name = None
+    current_query_schema_parameter = None
 
     for line in lines:
         if not in_paths:
@@ -547,12 +594,16 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_path = path_match.group(1)
             current_method = None
             current_parameter_in = None
+            current_parameter_name = None
+            current_query_schema_parameter = None
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
         if method_match and current_path:
             current_method = method_match.group(1).upper()
             current_parameter_in = None
+            current_parameter_name = None
+            current_query_schema_parameter = None
             semantics[(current_method, current_path)] = {
                 'security_schemes': set(),
                 'has_401': False,
@@ -561,6 +612,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'has_request_body': False,
                 'path_parameters': set(),
                 'query_parameters': set(),
+                'query_parameter_details': {},
                 'error_responses': set(),
                 'success_responses': set(),
             }
@@ -586,21 +638,72 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         else:
             if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
                 current_parameter_in = None
+                current_parameter_name = None
+                current_query_schema_parameter = None
             parameter_match = re.match(r'^        - in: (path|query)\s*$', line)
             if parameter_match:
                 current_parameter_in = parameter_match.group(1)
+                current_parameter_name = None
+                current_query_schema_parameter = None
                 continue
             other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
             if other_parameter_match:
                 current_parameter_in = None
+                current_parameter_name = None
+                current_query_schema_parameter = None
                 continue
             parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_]+)\s*$', line)
             if parameter_name_match and current_parameter_in in {'path', 'query'}:
+                current_parameter_name = parameter_name_match.group(1)
                 if current_parameter_in == 'path':
-                    semantics[(current_method, current_path)]['path_parameters'].add(parameter_name_match.group(1))
+                    semantics[(current_method, current_path)]['path_parameters'].add(current_parameter_name)
                 else:
-                    semantics[(current_method, current_path)]['query_parameters'].add(parameter_name_match.group(1))
+                    semantics[(current_method, current_path)]['query_parameters'].add(current_parameter_name)
+                    semantics[(current_method, current_path)]['query_parameter_details'].setdefault(
+                        current_parameter_name,
+                        {
+                            'required': False,
+                            'schema_type': None,
+                            'enum': set(),
+                            'minimum': None,
+                            'maximum': None,
+                        },
+                    )
                 continue
+            if (
+                current_parameter_in == 'query'
+                and current_parameter_name
+                and re.match(r'^          required: true\s*$', line)
+            ):
+                semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
+                continue
+            if (
+                current_parameter_in == 'query'
+                and current_parameter_name
+                and re.match(r'^          schema:\s*$', line)
+            ):
+                current_query_schema_parameter = current_parameter_name
+                continue
+            if current_query_schema_parameter and not re.match(r'^            ', line):
+                current_query_schema_parameter = None
+            if current_query_schema_parameter:
+                type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
+                if type_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['schema_type'] = type_match.group(1)
+                    continue
+                enum_match = re.match(r'^            enum: \[(.*)\]\s*$', line)
+                if enum_match:
+                    raw_values = [value.strip() for value in enum_match.group(1).split(',') if value.strip()]
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['enum'] = set(raw_values)
+                    continue
+                minimum_match = re.match(r'^            minimum: (\d+)\s*$', line)
+                if minimum_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['minimum'] = int(minimum_match.group(1))
+                    continue
+                maximum_match = re.match(r'^            maximum: (\d+)\s*$', line)
+                if maximum_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
+                    continue
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
             if success_match:
                 semantics[(current_method, current_path)]['success_responses'].add(
@@ -657,9 +760,33 @@ for key, runtime in sorted(runtime_semantics.items()):
     missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
     for parameter_name in missing_path_parameters:
         errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")
-    missing_query_parameters = sorted(set(runtime['query_param_names']) - contract['query_parameters'])
+    missing_query_parameters = sorted(set(runtime['query_parameters']) - contract['query_parameters'])
     for parameter_name in missing_query_parameters:
         errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` at runtime but is missing an `in: query` parameter in {contract_path}.")
+    for parameter_name, runtime_query in sorted(runtime['query_parameters'].items()):
+        contract_query = contract['query_parameter_details'].get(parameter_name)
+        if contract_query is None:
+            continue
+        if runtime_query.get('required') and not contract_query.get('required'):
+            errors.append(f"::error::{method} {path} requires query parameter `{parameter_name}` at runtime but it is not marked required in {contract_path}.")
+        if not runtime_query.get('required') and contract_query.get('required'):
+            errors.append(f"::error::{method} {path} treats query parameter `{parameter_name}` as optional at runtime but documents it as required in {contract_path}.")
+        runtime_type = runtime_query.get('schema_type')
+        documented_type = contract_query.get('schema_type')
+        if runtime_type and not documented_type:
+            errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` as type `{runtime_type}` at runtime but does not document a query schema type in {contract_path}.")
+        elif runtime_type and documented_type and runtime_type != documented_type:
+            errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` as type `{runtime_type}` at runtime but documents `{documented_type}` in {contract_path}.")
+        runtime_enum = set(runtime_query.get('enum', ()))
+        if runtime_enum and runtime_enum != contract_query.get('enum', set()):
+            documented = ', '.join(sorted(contract_query.get('enum', set()))) or '<none>'
+            expected = ', '.join(sorted(runtime_enum))
+            errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with enum [{expected}] at runtime but documents [{documented}] in {contract_path}.")
+        for bound_name in ('minimum', 'maximum'):
+            runtime_bound = runtime_query.get(bound_name)
+            documented_bound = contract_query.get(bound_name)
+            if runtime_bound is not None and runtime_bound != documented_bound:
+                errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with {bound_name} `{runtime_bound}` at runtime but documents `{documented_bound}` in {contract_path}.")
     missing_error_responses = sorted(runtime['error_statuses'] - contract['error_responses'])
     for status_code in missing_error_responses:
         errors.append(f"::error::{method} {path} can return HTTP {status_code} at runtime but is missing that error response in {contract_path}.")

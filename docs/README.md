@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by extending routed `400` parity to local parse/normalize/validation helper/delegate flows, inferred when same-file calls reach `bad_request(...)`, with refreshed contributor/readiness operations guidance.
+- Latest meaningful change: 2026-04-03 broadened contract-parity governance further by enforcing query/filter/pagination parameter semantics for requiredness, type, enum domains, and reject-backed numeric bounds alongside the earlier response-path parity checks.
 
 ## Purpose
 
