@@ -329,6 +329,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     in_paths = False
     current_path = None
     current_method = None
+    current_parameter_in = None
 
     for line in lines:
         if not in_paths:
@@ -343,11 +344,13 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         if path_match:
             current_path = path_match.group(1)
             current_method = None
+            current_parameter_in = None
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
         if method_match and current_path:
             current_method = method_match.group(1).upper()
+            current_parameter_in = None
             semantics[(current_method, current_path)] = {
                 'has_security': False,
                 'has_401': False,
@@ -374,15 +377,21 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         elif re.match(r"^        '500':\s*$", line):
             semantics[(current_method, current_path)]['has_500'] = True
         else:
+            if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                current_parameter_in = None
             parameter_match = re.match(r'^        - in: (path|query)\s*$', line)
             if parameter_match:
                 current_parameter_in = parameter_match.group(1)
                 continue
+            other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
+            if other_parameter_match:
+                current_parameter_in = None
+                continue
             parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_]+)\s*$', line)
-            if parameter_name_match:
+            if parameter_name_match and current_parameter_in in {'path', 'query'}:
                 if current_parameter_in == 'path':
                     semantics[(current_method, current_path)]['path_parameters'].add(parameter_name_match.group(1))
-                elif current_parameter_in == 'query':
+                else:
                     semantics[(current_method, current_path)]['query_parameters'].add(parameter_name_match.group(1))
                 continue
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
