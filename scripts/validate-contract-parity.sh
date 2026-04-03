@@ -197,6 +197,15 @@ TRACKED_ERROR_STATUS_TOKENS = {
 }
 TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
 AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
+AUTH_PARAM_MARKERS = (
+    'AuthSession',
+    'AuthorizedServerMembership',
+    'AuthorizedServerChannelMembership',
+)
+AUTHORIZER_ERROR_STATUSES = {
+    'AuthorizedServerMembership': {'403'},
+    'AuthorizedServerChannelMembership': {'403', '404'},
+}
 
 
 def route_blocks(text: str):
@@ -219,6 +228,19 @@ def route_blocks(text: str):
         index = cursor
 
 
+def extract_auth_semantics(params: str):
+    markers = {
+        marker for marker in AUTH_PARAM_MARKERS if re.search(rf'\b{marker}\b', params)
+    }
+    implied_error_statuses = set()
+    for marker in markers:
+        implied_error_statuses.update(AUTHORIZER_ERROR_STATUSES.get(marker, set()))
+    return {
+        'has_auth': bool(markers),
+        'implied_error_statuses': implied_error_statuses,
+    }
+
+
 def extract_function_blocks(paths):
     functions = {}
     pattern = re.compile(r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
@@ -227,6 +249,7 @@ def extract_function_blocks(paths):
         for match in pattern.finditer(text):
             name = match.group(1)
             params = match.group(2)
+            auth_semantics = extract_auth_semantics(params)
             body_start = text.find('{', match.end())
             if body_start == -1:
                 continue
@@ -243,11 +266,12 @@ def extract_function_blocks(paths):
             body = text[body_start:cursor]
             existing = functions.get(name)
             functions[name] = {
-                'has_auth': 'AuthSession' in params if existing is None else existing['has_auth'],
+                'has_auth': auth_semantics['has_auth'] if existing is None else existing['has_auth'],
                 'has_csrf': 'enforce_csrf_for_cookie_auth(' in body if existing is None else existing['has_csrf'],
                 'has_json_body': 'Json<' in params if existing is None else existing['has_json_body'],
                 'has_path_params': 'Path<' in params if existing is None else existing['has_path_params'],
                 'query_type': extract_query_type(params) if existing is None else existing['query_type'],
+                'implied_error_statuses': auth_semantics['implied_error_statuses'] if existing is None else existing['implied_error_statuses'],
                 'error_statuses': set(),
                 'return_type': return_type,
                 'body': body,
@@ -371,7 +395,7 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
                     handler,
                     function_semantics,
                     follow_helpers=method.upper() != 'GET',
-                ),
+                ) | set(handler_semantics.get('implied_error_statuses', set())),
                 'success_status': infer_success_status(handler, function_semantics),
             }
     return semantics
