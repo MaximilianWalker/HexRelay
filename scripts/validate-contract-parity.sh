@@ -196,6 +196,7 @@ TRACKED_ERROR_STATUS_TOKENS = {
     '429': ('too_many_requests(',),
 }
 TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
+AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
 
 
 def route_blocks(text: str):
@@ -405,7 +406,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_method = method_match.group(1).upper()
             current_parameter_in = None
             semantics[(current_method, current_path)] = {
-                'has_security': False,
+                'security_schemes': set(),
                 'has_401': False,
                 'has_500': False,
                 'has_csrf': False,
@@ -421,7 +422,11 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             continue
 
         if re.match(r'^      security:\s*$', line):
-            semantics[(current_method, current_path)]['has_security'] = True
+            continue
+        elif security_scheme_match := re.match(r'^        - ([A-Za-z0-9_]+): \[\]\s*$', line):
+            semantics[(current_method, current_path)]['security_schemes'].add(
+                security_scheme_match.group(1)
+            )
         elif re.match(r'^      requestBody:\s*$', line):
             semantics[(current_method, current_path)]['has_request_body'] = True
         elif "#/components/parameters/CsrfTokenHeader" in line:
@@ -481,8 +486,10 @@ for key, runtime in sorted(runtime_semantics.items()):
     contract = contract_semantics.get(key)
     if contract is None:
         continue
-    if runtime['has_auth'] and not contract['has_security']:
-        errors.append(f"::error::{method} {path} uses AuthSession at runtime but is missing security requirements in {contract_path}.")
+    if runtime['has_auth'] and contract['security_schemes'] != AUTH_SESSION_SECURITY_SCHEMES:
+        documented = ', '.join(sorted(contract['security_schemes'])) or '<none>'
+        expected = ', '.join(sorted(AUTH_SESSION_SECURITY_SCHEMES))
+        errors.append(f"::error::{method} {path} uses AuthSession at runtime but documents security schemes [{documented}] instead of [{expected}] in {contract_path}.")
     if runtime['has_auth'] and not contract['has_401']:
         errors.append(f"::error::{method} {path} uses AuthSession at runtime but is missing a 401 response in {contract_path}.")
     if runtime['has_auth'] and not contract['has_500']:
