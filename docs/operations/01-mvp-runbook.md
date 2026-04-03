@@ -190,12 +190,13 @@ npm --prefix apps/web run e2e:smoke
 
 ## CI Security and Evidence Baseline
 
-- Security gates run in CI:
-  - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071`
+- Canonical contributor security-parity procedure lives in `docs/operations/contributor-guide.md`.
+- CI security gates currently include:
+  - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0049`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Advisory ignore governance:
-  - `RUSTSEC-2023-0071` temporary ignore remains CI-blocked by `scripts/validate-cargo-audit-ignore.sh` expiry checks.
+  - temporary ignores remain CI-blocked by `scripts/validate-cargo-audit-ignore.sh` expiry checks.
 - Rust coverage gate:
   - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.

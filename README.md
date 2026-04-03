@@ -39,6 +39,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Documentation index and source-of-truth map: `docs/README.md`
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
+- Dedicated server deployment baseline: `docs/operations/02-dedicated-server-deployment.md`
 - Sprint execution boards index: `docs/planning/iterations/README.md`
 
 ## Getting Started

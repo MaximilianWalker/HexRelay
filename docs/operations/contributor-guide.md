@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-03
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-03-16 clarified that contributors must check open readiness-watch items before assuming deferred runtime behavior is already complete.
+- Latest meaningful change: 2026-04-03 clarified that `npm run security` is only the fast Rust-audit gate and documented the extra local checks needed for CI-level security parity.
 
 ## Purpose
 
@@ -53,13 +53,22 @@
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
 - For code changes:
   - Run lint, tests, and build for touched projects.
-  - Run `npm run security` before opening a PR.
+  - Run `npm run security` before opening a PR as the fast local Rust-audit gate.
+  - If you want local CI-level security parity, also run the extra security checks listed in `Local CI Parity (Pre-PR)`.
   - Keep security-sensitive data out of logs and fixtures.
 
 ## Security Tooling Baseline
 
 - `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
+- `npm run security` currently covers the fast Rust dependency audit path only; it is not full CI security parity by itself.
+- Full CI security parity additionally includes:
+  - `bash scripts/validate-cargo-audit-ignore.sh`
+  - `npm --prefix apps/web audit --omit=dev --audit-level=high`
+  - `semgrep scan --config p/security-audit --error --exclude node_modules --exclude target`
 - Temporary cargo-audit ignore exceptions must pass `scripts/validate-cargo-audit-ignore.sh` expiry checks in CI.
+- Current ignore-expiry policy covers:
+  - `RUSTSEC-2023-0071`
+  - `RUSTSEC-2026-0049`
 - If `npm run setup` fails installing `cargo-audit` because Rust is too old, run `rustup update stable` and retry setup.
 
 ## CI Expectations
@@ -123,7 +132,8 @@ npm --prefix apps/web run build
 - The `DEFAULT_BRANCH` fallback keeps local parity compatible with both `master` and `main` default-branch repositories.
 - If no `origin` remote is available (fork/offline workflows), set `BASE_SHA=$(git rev-parse HEAD~1)` before running evidence validation scripts.
 
-- `npm run test` is the fast local baseline; the explicit commands above mirror CI gates as closely as possible outside GitHub Actions context.
+- `npm run security` is the fast local Rust-audit gate; the explicit commands above mirror CI security/runtime gates as closely as possible outside GitHub Actions context.
+- `npm run test` is the fast local baseline for functional checks.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
 
 ## Local Happy Path and Triage
