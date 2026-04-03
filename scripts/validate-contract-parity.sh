@@ -377,6 +377,29 @@ def infer_has_401(handler_id, functions, local_lookup, stack=None):
     return False
 
 
+def infer_has_400(handler_id, functions, local_lookup, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_id in stack:
+        return False
+
+    function = functions.get(handler_id)
+    if not function:
+        return False
+
+    body = function.get('body', '')
+    if 'bad_request(' in body:
+        return True
+
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+    for callee_id in sorted(helper_ids):
+        if infer_has_400(callee_id, functions, local_lookup, stack | {handler_id}):
+            return True
+
+    return False
+
+
 def infer_has_500(handler_id, functions, local_lookup, stack=None):
     if stack is None:
         stack = set()
@@ -484,7 +507,9 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                     function_semantics,
                     local_lookup,
                     follow_helpers=method.upper() != 'GET',
-                ) | set(handler_semantics.get('implied_error_statuses', set())),
+                )
+                | set(handler_semantics.get('implied_error_statuses', set()))
+                | ({'400'} if infer_has_400(handler_id, function_semantics, local_lookup) else set()),
                 'has_401': bool(handler_semantics.get('has_auth')) or infer_has_401(
                     handler_id, function_semantics, local_lookup
                 ),
