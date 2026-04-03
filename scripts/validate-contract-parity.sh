@@ -244,9 +244,12 @@ def extract_auth_semantics(params: str):
 
 def extract_function_blocks(paths):
     functions = {}
+    route_handler_lookup = {}
+    local_lookup = {}
     pattern = re.compile(r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
     for path in paths:
         text = pathlib.Path(path).read_text()
+        source_path = str(path)
         for match in pattern.finditer(text):
             name = match.group(1)
             params = match.group(2)
@@ -265,21 +268,27 @@ def extract_function_blocks(paths):
                     depth -= 1
                 cursor += 1
             body = text[body_start:cursor]
-            existing = functions.get(name)
-            functions[name] = {
-                'has_auth': auth_semantics['has_auth'] if existing is None else existing['has_auth'],
-                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body if existing is None else existing['has_csrf'],
-                'has_json_body': 'Json<' in params if existing is None else existing['has_json_body'],
-                'has_path_params': 'Path<' in params if existing is None else existing['has_path_params'],
-                'query_type': extract_query_type(params) if existing is None else existing['query_type'],
-                'implied_error_statuses': auth_semantics['implied_error_statuses'] if existing is None else existing['implied_error_statuses'],
+            function_id = f'{source_path}::{name}'
+            local_lookup[(source_path, name)] = function_id
+            route_handler_lookup[name] = function_id
+            functions[function_id] = {
+                'name': name,
+                'source_path': source_path,
+                'has_auth': auth_semantics['has_auth'],
+                'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
+                'has_json_body': 'Json<' in params,
+                'has_path_params': 'Path<' in params,
+                'query_type': extract_query_type(params),
+                'implied_error_statuses': auth_semantics['implied_error_statuses'],
                 'error_statuses': set(),
                 'return_type': return_type,
                 'body': body,
             }
-    for name in list(functions):
-        functions[name]['error_statuses'] = infer_error_statuses(name, functions)
-    return functions
+    for function_id in list(functions):
+        functions[function_id]['error_statuses'] = infer_error_statuses(
+            function_id, functions, local_lookup
+        )
+    return functions, route_handler_lookup, local_lookup
 
 
 def extract_query_type(params: str):
@@ -305,13 +314,13 @@ def extract_query_struct_fields(models_path: pathlib.Path):
     return structs
 
 
-def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=True):
+def infer_error_statuses(handler_id, functions, local_lookup, stack=None, follow_helpers=True):
     if stack is None:
         stack = set()
-    if handler_name in stack:
+    if handler_id in stack:
         return set()
 
-    function = functions.get(handler_name)
+    function = functions.get(handler_id)
     if not function:
         return set()
 
@@ -325,27 +334,31 @@ def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=Tru
     if not follow_helpers:
         return statuses
 
-    helper_names = set(re.findall(r'\b(map_[A-Za-z0-9_]+)\b', body))
-    delegate_calls = set(re.findall(r'\b(\w+)\s*\([^;]*\)\.await', body))
-    for callee_name in sorted(helper_names | delegate_calls):
-        if callee_name == handler_name:
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+    for callee_id in sorted(helper_ids):
+        if callee_id == handler_id:
             continue
         statuses.update(
             infer_error_statuses(
-                callee_name, functions, stack | {handler_name}, follow_helpers=follow_helpers
+                callee_id,
+                functions,
+                local_lookup,
+                stack | {handler_id},
+                follow_helpers=follow_helpers,
             )
         )
 
     return statuses
 
 
-def infer_has_401(handler_name, functions, stack=None):
+def infer_has_401(handler_id, functions, local_lookup, stack=None):
     if stack is None:
         stack = set()
-    if handler_name in stack:
+    if handler_id in stack:
         return False
 
-    function = functions.get(handler_name)
+    function = functions.get(handler_id)
     if not function:
         return False
 
@@ -353,28 +366,24 @@ def infer_has_401(handler_name, functions, stack=None):
     if 'unauthorized(' in body:
         return True
 
-    helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
-    helper_names.update(
-        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
-    )
-    for callee_name in sorted(helper_names):
-        if callee_name == handler_name or callee_name not in functions:
-            continue
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    for callee_id in sorted(helper_ids):
+        callee_name = functions[callee_id]['name']
         if not UNAUTHORIZED_HELPER_NAME_PATTERN.match(callee_name):
             continue
-        if infer_has_401(callee_name, functions, stack | {handler_name}):
+        if infer_has_401(callee_id, functions, local_lookup, stack | {handler_id}):
             return True
 
     return False
 
 
-def infer_has_500(handler_name, functions, stack=None):
+def infer_has_500(handler_id, functions, local_lookup, stack=None):
     if stack is None:
         stack = set()
-    if handler_name in stack:
+    if handler_id in stack:
         return False
 
-    function = functions.get(handler_name)
+    function = functions.get(handler_id)
     if not function:
         return False
 
@@ -382,26 +391,45 @@ def infer_has_500(handler_name, functions, stack=None):
     if 'internal_error(' in body:
         return True
 
-    helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
-    helper_names.update(
-        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
-    )
-    for callee_name in sorted(helper_names):
-        if callee_name == handler_name or callee_name not in functions:
-            continue
-        if infer_has_500(callee_name, functions, stack | {handler_name}):
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+    for callee_id in sorted(helper_ids):
+        if infer_has_500(callee_id, functions, local_lookup, stack | {handler_id}):
             return True
 
     return False
 
 
-def infer_success_status(handler_name, functions, stack=None):
+def resolve_local_helper_ids(body, function, local_lookup):
+    helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
+    helper_names.update(
+        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
+    )
+    source_path = function.get('source_path')
+    return {
+        local_lookup[(source_path, callee_name)]
+        for callee_name in helper_names
+        if (source_path, callee_name) in local_lookup
+    }
+
+
+def resolve_local_delegate_ids(body, function, local_lookup):
+    source_path = function.get('source_path')
+    delegate_names = set(re.findall(r'\b(\w+)\s*\([^;]*\)\.await', body))
+    return {
+        local_lookup[(source_path, callee_name)]
+        for callee_name in delegate_names
+        if (source_path, callee_name) in local_lookup
+    }
+
+
+def infer_success_status(handler_id, functions, local_lookup, stack=None):
     if stack is None:
         stack = set()
-    if handler_name in stack:
+    if handler_id in stack:
         return None
 
-    function = functions.get(handler_name)
+    function = functions.get(handler_id)
     if not function:
         return None
 
@@ -416,10 +444,10 @@ def infer_success_status(handler_name, functions, stack=None):
     body_inner = body.strip()
     if body_inner.startswith('{') and body_inner.endswith('}'):
         body_inner = body_inner[1:-1].strip()
-    delegate_match = re.fullmatch(r'(?:return\s+)?(\w+)\([^;]*\)\.await;?', body_inner, re.S)
-    if delegate_match:
+    delegate_ids = resolve_local_delegate_ids(body_inner, function, local_lookup)
+    if delegate_ids:
         delegated_status = infer_success_status(
-            delegate_match.group(1), functions, stack | {handler_name}
+            sorted(delegate_ids)[0], functions, local_lookup, stack | {handler_id}
         )
         if delegated_status:
             return delegated_status
@@ -430,7 +458,7 @@ def infer_success_status(handler_name, functions, stack=None):
     return None
 
 
-def extract_runtime_semantics(router_text: str, function_semantics, query_struct_fields):
+def extract_runtime_semantics(router_text: str, function_semantics, route_handler_lookup, local_lookup, query_struct_fields):
     semantics = {}
     for block in route_blocks(router_text):
         path_match = re.search(r'\.route\(\s*"([^"]+)"', block, re.S)
@@ -439,26 +467,30 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
         path = re.sub(r':([A-Za-z0-9_]+)', r'{\1}', path_match.group(1))
         path_param_names = sorted(set(re.findall(r'\{([A-Za-z0-9_]+)\}', path)))
         for method, handler in re.findall(r'\b(get|post|put|patch|delete)\s*\(\s*(\w+)\s*\)', block):
-            handler_semantics = function_semantics.get(handler, {})
+            handler_id = route_handler_lookup.get(handler)
+            handler_semantics = function_semantics.get(handler_id, {})
             query_type = handler_semantics.get('query_type')
             semantics[(method.upper(), path)] = {
                 'handler': handler,
                 'has_auth': bool(handler_semantics.get('has_auth')),
                 'has_500': bool(handler_semantics.get('has_auth'))
-                or infer_has_500(handler, function_semantics),
+                or infer_has_500(handler_id, function_semantics, local_lookup),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_param_names': query_struct_fields.get(query_type, []) if query_type else [],
                 'error_statuses': infer_error_statuses(
-                    handler,
+                    handler_id,
                     function_semantics,
+                    local_lookup,
                     follow_helpers=method.upper() != 'GET',
                 ) | set(handler_semantics.get('implied_error_statuses', set())),
                 'has_401': bool(handler_semantics.get('has_auth')) or infer_has_401(
-                    handler, function_semantics
+                    handler_id, function_semantics, local_lookup
                 ),
-                'success_status': infer_success_status(handler, function_semantics),
+                'success_status': infer_success_status(
+                    handler_id, function_semantics, local_lookup
+                ),
             }
     return semantics
 
@@ -561,8 +593,10 @@ router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
 handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
 query_struct_fields = extract_query_struct_fields(pathlib.Path('services/api-rs/src/models.rs'))
 
-function_semantics = extract_function_blocks(handler_paths)
-runtime_semantics = extract_runtime_semantics(router_text, function_semantics, query_struct_fields)
+function_semantics, route_handler_lookup, local_lookup = extract_function_blocks(handler_paths)
+runtime_semantics = extract_runtime_semantics(
+    router_text, function_semantics, route_handler_lookup, local_lookup, query_struct_fields
+)
 contract_semantics = extract_contract_semantics(contract_path)
 
 errors = []
