@@ -354,6 +354,9 @@ def infer_has_401(handler_name, functions, stack=None):
         return True
 
     helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
+    helper_names.update(
+        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
+    )
     for callee_name in sorted(helper_names):
         if callee_name == handler_name or callee_name not in functions:
             continue
