@@ -58,7 +58,7 @@
 | `API_PRESENCE_REDIS_URL` | unset | optional | enables Redis-backed presence snapshot source |
 | `API_DISCOVERY_DENYLIST` | unset | optional | CSV denylist for discovery filtering |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
-| `API_SESSION_SIGNING_KEY_ID` | derived from keyring | required with keyring | active signing key id |
+| `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
 | `API_SESSION_SIGNING_KEY` | legacy fallback | avoid in production | local compatibility fallback only |
 | `API_SESSION_COOKIE_SECURE` | `false` | must be `true` | required for production cookies |
 | `API_SESSION_COOKIE_SAME_SITE` | `Lax` | required | `Strict`, `Lax`, or `None`; `None` requires secure cookie |

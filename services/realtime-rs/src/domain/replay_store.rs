@@ -18,6 +18,7 @@ pub async fn persist_replay_entries<TCursor, F>(
 where
     F: Fn(&str, u64) -> TCursor,
 {
+    let trim_end = replay_log_trim_end(replay_log_max_entries)?;
     let mut cursors = Vec::with_capacity(identities.len());
     for identity_id in identities {
         let cursor = advance_stream_head(connection, stream_head_key, identity_id).await?;
@@ -36,7 +37,7 @@ where
         let _: () = redis::cmd("LTRIM")
             .arg(&log_key)
             .arg(0)
-            .arg((replay_log_max_entries - 1) as i64)
+            .arg(trim_end)
             .query_async(connection)
             .await?;
 
@@ -121,10 +122,37 @@ async fn advance_stream_head(
         .await
 }
 
+fn replay_log_trim_end(replay_log_max_entries: usize) -> Result<i64, redis::RedisError> {
+    replay_log_max_entries
+        .checked_sub(1)
+        .map(|value| value as i64)
+        .ok_or_else(|| {
+            redis::RedisError::from((
+                redis::ErrorKind::TypeError,
+                "replay_log_max_entries must be greater than 0",
+            ))
+        })
+}
+
 fn serialize_replay_error(error: serde_json::Error) -> redis::RedisError {
     redis::RedisError::from((
         redis::ErrorKind::TypeError,
         "serialize replay entry",
         error.to_string(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replay_log_trim_end;
+
+    #[test]
+    fn replay_log_trim_end_rejects_zero_entries() {
+        assert!(replay_log_trim_end(0).is_err());
+    }
+
+    #[test]
+    fn replay_log_trim_end_uses_last_valid_index() {
+        assert_eq!(replay_log_trim_end(3).expect("trim end"), 2);
+    }
 }
