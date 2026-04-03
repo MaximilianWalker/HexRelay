@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-03 expanded contract-parity guidance to catch missing OpenAPI parameter, request-body, success-response, and selected error-response entries for routed API handlers.
+- Latest meaningful change: 2026-04-03 tightened contract-parity guidance so routed `AuthSession` handlers must document the exact `CookieAuth` and `BearerAuth` security schemes used at runtime.
 
 ## Purpose
 
