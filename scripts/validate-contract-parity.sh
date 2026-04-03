@@ -232,6 +232,7 @@ def extract_function_blocks(paths):
             functions[name] = {
                 'has_auth': 'AuthSession' in params,
                 'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
+                'has_json_body': 'Json<' in params,
             }
     return functions
 
@@ -249,6 +250,7 @@ def extract_runtime_semantics(router_text: str, function_semantics):
                 'handler': handler,
                 'has_auth': bool(handler_semantics.get('has_auth')),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
+                'has_json_body': bool(handler_semantics.get('has_json_body')),
             }
     return semantics
 
@@ -283,6 +285,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'has_401': False,
                 'has_500': False,
                 'has_csrf': False,
+                'has_request_body': False,
             }
             continue
 
@@ -291,6 +294,8 @@ def extract_contract_semantics(contract_path: pathlib.Path):
 
         if re.match(r'^      security:\s*$', line):
             semantics[(current_method, current_path)]['has_security'] = True
+        elif re.match(r'^      requestBody:\s*$', line):
+            semantics[(current_method, current_path)]['has_request_body'] = True
         elif "#/components/parameters/CsrfTokenHeader" in line:
             semantics[(current_method, current_path)]['has_csrf'] = True
         elif re.match(r"^        '401':\s*$", line):
@@ -324,6 +329,8 @@ for key, runtime in sorted(runtime_semantics.items()):
         errors.append(f"::error::{method} {path} uses AuthSession-backed runtime auth/storage but is missing a 500 response in {contract_path}.")
     if runtime['has_csrf'] and not contract['has_csrf']:
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
+    if runtime['has_json_body'] and not contract['has_request_body']:
+        errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
 
 if errors:
     print("\n".join(errors))
