@@ -368,6 +368,33 @@ def infer_has_401(handler_name, functions, stack=None):
     return False
 
 
+def infer_has_500(handler_name, functions, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_name in stack:
+        return False
+
+    function = functions.get(handler_name)
+    if not function:
+        return False
+
+    body = function.get('body', '')
+    if 'internal_error(' in body:
+        return True
+
+    helper_names = set(re.findall(r'\b(\w+)\s*\(', body))
+    helper_names.update(
+        re.findall(r'\b(?:ok_or_else|map_err|or_else)\s*\(\s*(\w+)\s*\)', body)
+    )
+    for callee_name in sorted(helper_names):
+        if callee_name == handler_name or callee_name not in functions:
+            continue
+        if infer_has_500(callee_name, functions, stack | {handler_name}):
+            return True
+
+    return False
+
+
 def infer_success_status(handler_name, functions, stack=None):
     if stack is None:
         stack = set()
@@ -417,6 +444,8 @@ def extract_runtime_semantics(router_text: str, function_semantics, query_struct
             semantics[(method.upper(), path)] = {
                 'handler': handler,
                 'has_auth': bool(handler_semantics.get('has_auth')),
+                'has_500': bool(handler_semantics.get('has_auth'))
+                or infer_has_500(handler, function_semantics),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
@@ -552,8 +581,11 @@ for key, runtime in sorted(runtime_semantics.items()):
             errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
         else:
             errors.append(f"::error::{method} {path} can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers but is missing a 401 response in {contract_path}.")
-    if runtime['has_auth'] and not contract['has_500']:
-        errors.append(f"::error::{method} {path} requires session-auth-backed runtime auth/storage (AuthSession or server-membership authorizer extractor) but is missing a 500 response in {contract_path}.")
+    if runtime['has_500'] and not contract['has_500']:
+        if runtime['has_auth']:
+            errors.append(f"::error::{method} {path} requires session-auth-backed runtime auth/storage (AuthSession or server-membership authorizer extractor) but is missing a 500 response in {contract_path}.")
+        else:
+            errors.append(f"::error::{method} {path} can return HTTP 500 at runtime via direct internal_error emitters or local helper/delegate flows but is missing a 500 response in {contract_path}.")
     if runtime['has_csrf'] and not contract['has_csrf']:
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
     if runtime['has_json_body'] and not contract['has_request_body']:

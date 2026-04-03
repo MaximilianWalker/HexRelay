@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-03 tightened contract-parity guidance so routed handlers must keep documented `401` responses aligned with both session-auth routes and direct unauthorized runtime emitters such as auth verify failure helpers.
+- Latest meaningful change: 2026-04-03 tightened contract-parity guidance so routed handlers must keep documented `500` responses aligned with both session-auth storage failures and local `internal_error(...)` helper/delegate flows.
 
 ## Purpose
 
@@ -75,7 +75,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `contract-parity-check`, `dm-transport-policy-check`, `docs-index-freshness-check`, `rust-coverage-gate`, and `integration-smoke`.
-- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, and selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths.
+- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and local `internal_error(...)` helper/delegate flows, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, and selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths.
 - Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
