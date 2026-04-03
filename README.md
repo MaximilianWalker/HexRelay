@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-03
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-16 clarified current readiness watch gaps and updated project stage wording to reflect completed Iteration 1 foundations.
+- Latest meaningful change: 2026-04-03 shortened runtime/config onboarding by pointing to the new canonical system overview and runtime config reference.
 
 ## Project Stage
 
@@ -29,17 +29,16 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 ## Runtime Model (Locked)
 
-- Primary product mode is a downloadable desktop app that runs off-grid without a central hosted control plane.
-- Desktop distribution bundles UI plus local API/realtime runtime components.
-- Local install supports two UI entry options: embedded desktop window and optional local-browser access to the same local runtime.
-- Users can run dedicated server deployments (headless API/realtime) as an optional advanced mode.
-- Architecture stays multi-component at runtime (UI, API service, realtime service) even when distributed as one installer.
+- Canonical system overview: `docs/architecture/01-system-overview.md`
+- Runtime mode authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`
 
 ## Start Here
 
 - Product strategy: `docs/product/01-mvp-plan.md`
 - Product requirements: `docs/product/02-prd-v1.md`
 - Documentation index and source-of-truth map: `docs/README.md`
+- System overview: `docs/architecture/01-system-overview.md`
+- Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Sprint execution boards index: `docs/planning/iterations/README.md`
 
 ## Getting Started
@@ -54,7 +53,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
   - One-command bootstrap via `npm run setup`
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
-  - One-command local startup via `npm run run` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/operations/dev-prerequisites.md`)
+- One-command local startup via `npm run run` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
 
 ### Pre-Dev Gate (Deterministic)

@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-03
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-03-16 clarified readiness-status interpretation against open watch findings.
+- Latest meaningful change: 2026-04-03 narrowed this runbook to operational procedures and pointed full runtime variable inventory to the canonical config reference.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -37,11 +37,10 @@
 
 - Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
+- Runtime config authority: `docs/reference/runtime-config-reference.md`.
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
 - Realtime limiter scope: websocket connect/message limits are process-local; multi-instance deployments must apply sticky routing or edge/global limiting to preserve equivalent abuse controls.
-- Minimum environment:
-  - API: `API_BIND`, `API_ENVIRONMENT`, `API_DATABASE_URL`, `API_SESSION_SIGNING_KEYS`, `API_SESSION_SIGNING_KEY_ID`, `API_ALLOWED_ORIGINS`, `API_TRUST_PROXY_HEADERS`, `API_SESSION_COOKIE_SECURE`, `API_SESSION_COOKIE_SAME_SITE`.
-  - Realtime: `REALTIME_BIND`, `REALTIME_API_BASE_URL`, `REALTIME_REQUIRE_API_HEALTH_ON_START`, `REALTIME_TRUST_PROXY_HEADERS`, `REALTIME_ALLOWED_ORIGINS`, `REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES`, `REALTIME_WS_MESSAGE_RATE_LIMIT`, `REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS`, `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY`, `REALTIME_WS_AUTH_GRACE_SECONDS`, `REALTIME_WS_AUTH_CACHE_MAX_ENTRIES`.
+- Minimum environment: see `docs/reference/runtime-config-reference.md` for the complete variable inventory and production validation rules.
 - Startup sequence:
   1. Start database dependencies.
   2. Start API service and verify `GET /health` returns 200.

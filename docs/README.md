@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-01
+- last_updated: 2026-04-03
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-01 hardened delivery and trust boundaries by failing public identity registration closed by default, extending blocked-pair protection to peer-facing privacy routes, splitting watcher-vs-channel internal service credentials, enforcing server-channel author membership below HTTP, documenting best-effort realtime fanout semantics, separating websocket backpressure from disconnect cleanup, and extracting shared replay-store helpers for presence/channel hydration.
+- Latest meaningful change: 2026-04-03 added canonical system-overview and runtime-config reference docs, then repointed onboarding docs to them instead of relying on scattered summaries.
 
 ## Purpose
 
@@ -25,6 +25,7 @@
 | Topic | Canonical document | Owner | Update trigger |
 |---|---|---|---|
 | Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
+| Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
 | Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
@@ -35,7 +36,8 @@
 | Target-state realtime event/signaling model | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
-| Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Default values, ranges, or override policy changes |
+| Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs` or `services/*/.env.example` changes |
+| Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
 | Infrastructure-free DM connectivity solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM connectivity policy, direct-connect mechanisms, or acceptance criteria change |
 | Infrastructure-free DM connectivity execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM connectivity sequencing, task gates, or acceptance evidence changes |
@@ -100,6 +102,7 @@
 - `docs/contracts/mvp-rest-v1.openapi.yaml`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
+- `docs/architecture/01-system-overview.md`
 - `docs/architecture/03-rust-service-migration-baseline.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
@@ -107,6 +110,7 @@
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
+- `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`
