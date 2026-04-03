@@ -188,6 +188,16 @@ import re
 import sys
 
 
+TRACKED_ERROR_STATUS_TOKENS = {
+    '400': ('bad_request(',),
+    '403': ('forbidden(',),
+    '404': ('StatusCode::NOT_FOUND',),
+    '409': ('conflict(',),
+    '429': ('too_many_requests(',),
+}
+TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
+
+
 def route_blocks(text: str):
     needle = '.route('
     index = 0
@@ -281,16 +291,9 @@ def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=Tru
 
     body = function.get('body', '')
     statuses = set()
-    constructor_statuses = {
-        'bad_request(': '400',
-        'forbidden(': '403',
-        'StatusCode::NOT_FOUND': '404',
-        'conflict(': '409',
-        'too_many_requests(': '429',
-    }
 
-    for token, status in constructor_statuses.items():
-        if token in body:
+    for status, tokens in TRACKED_ERROR_STATUS_TOKENS.items():
+        if any(token in body for token in tokens):
             statuses.add(status)
 
     if not follow_helpers:
@@ -451,7 +454,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                     success_match.group(1)
                 )
                 continue
-            error_match = re.match(r"^        '((?:400|403|404|409|429))':\s*$", line)
+            error_match = re.match(
+                rf"^        '(({TRACKED_ERROR_STATUS_PATTERN}))':\s*$", line
+            )
             if error_match:
                 semantics[(current_method, current_path)]['error_responses'].add(
                     error_match.group(1)
