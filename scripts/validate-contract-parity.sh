@@ -284,6 +284,7 @@ def infer_error_statuses(handler_name, functions, stack=None, follow_helpers=Tru
     constructor_statuses = {
         'bad_request(': '400',
         'forbidden(': '403',
+        'StatusCode::NOT_FOUND': '404',
         'conflict(': '409',
         'too_many_requests(': '429',
     }
@@ -450,7 +451,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                     success_match.group(1)
                 )
                 continue
-            error_match = re.match(r"^        '((?:400|403|409|429))':\s*$", line)
+            error_match = re.match(r"^        '((?:400|403|404|409|429))':\s*$", line)
             if error_match:
                 semantics[(current_method, current_path)]['error_responses'].add(
                     error_match.group(1)
