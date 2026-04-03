@@ -513,11 +513,11 @@ for key, runtime in sorted(runtime_semantics.items()):
     if runtime['has_auth'] and contract['security_schemes'] != AUTH_SESSION_SECURITY_SCHEMES:
         documented = ', '.join(sorted(contract['security_schemes'])) or '<none>'
         expected = ', '.join(sorted(AUTH_SESSION_SECURITY_SCHEMES))
-        errors.append(f"::error::{method} {path} uses AuthSession at runtime but documents security schemes [{documented}] instead of [{expected}] in {contract_path}.")
+        errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but documents security schemes [{documented}] instead of [{expected}] in {contract_path}.")
     if runtime['has_auth'] and not contract['has_401']:
-        errors.append(f"::error::{method} {path} uses AuthSession at runtime but is missing a 401 response in {contract_path}.")
+        errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
     if runtime['has_auth'] and not contract['has_500']:
-        errors.append(f"::error::{method} {path} uses AuthSession-backed runtime auth/storage but is missing a 500 response in {contract_path}.")
+        errors.append(f"::error::{method} {path} requires session-auth-backed runtime auth/storage (AuthSession or server-membership authorizer extractor) but is missing a 500 response in {contract_path}.")
     if runtime['has_csrf'] and not contract['has_csrf']:
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
     if runtime['has_json_body'] and not contract['has_request_body']:
