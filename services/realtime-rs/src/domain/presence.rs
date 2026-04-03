@@ -19,6 +19,8 @@ use tokio::{
 };
 use tracing::warn;
 
+use crate::domain::replay_store;
+
 const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
 const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
 const PRESENCE_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
@@ -50,12 +52,6 @@ pub struct PresenceUpdatedEnvelope {
 pub struct PresenceWatcherCursor {
     pub watcher_identity_id: String,
     pub cursor: u64,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-struct PresenceReplayEntry {
-    cursor: u64,
-    payload: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -297,8 +293,13 @@ pub async fn hydrate_presence_backlog_if_needed(
         }
     };
 
-    let current_cursor = match get_presence_device_cursor(&mut connection, identity_id, device_id)
-        .await
+    let current_cursor = match replay_store::get_device_cursor(
+        &mut connection,
+        presence_device_cursor_key,
+        identity_id,
+        device_id,
+    )
+    .await
     {
         Ok(value) => value,
         Err(error) => {
@@ -307,7 +308,13 @@ pub async fn hydrate_presence_backlog_if_needed(
         }
     };
 
-    let replay_entries = match list_presence_replay_entries(&mut connection, identity_id).await {
+    let replay_entries = match replay_store::list_replay_entries(
+        &mut connection,
+        presence_replay_log_key,
+        identity_id,
+    )
+    .await
+    {
         Ok(value) => value,
         Err(error) => {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to load presence replay entries");
@@ -331,8 +338,15 @@ pub async fn hydrate_presence_backlog_if_needed(
     }
 
     if latest_cursor > current_cursor {
-        if let Err(error) =
-            set_presence_device_cursor(&mut connection, identity_id, device_id, latest_cursor).await
+        if let Err(error) = replay_store::set_device_cursor(
+            &mut connection,
+            presence_device_cursor_key,
+            PRESENCE_DEVICE_CURSOR_TTL_SECONDS,
+            identity_id,
+            device_id,
+            latest_cursor,
+        )
+        .await
         {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist hydrated presence device cursor");
         }
@@ -535,41 +549,19 @@ async fn persist_presence_replay_entries(
     watchers: &[String],
     client_payload: &str,
 ) -> Result<Vec<PresenceWatcherCursor>, redis::RedisError> {
-    let mut cursors = Vec::with_capacity(watchers.len());
-    for watcher_identity_id in watchers {
-        let cursor = advance_presence_stream_head(connection, watcher_identity_id).await?;
-        let replay_entry = serde_json::to_string(&PresenceReplayEntry {
+    replay_store::persist_replay_entries(
+        connection,
+        watchers,
+        client_payload,
+        PRESENCE_REPLAY_LOG_MAX_ENTRIES,
+        presence_stream_head_key,
+        presence_replay_log_key,
+        |watcher_identity_id, cursor| PresenceWatcherCursor {
+            watcher_identity_id: watcher_identity_id.to_string(),
             cursor,
-            payload: client_payload.to_string(),
-        })
-        .map_err(|error| {
-            redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "serialize presence replay entry",
-                error.to_string(),
-            ))
-        })?;
-
-        let replay_log_key = presence_replay_log_key(watcher_identity_id);
-        let _: () = redis::cmd("LPUSH")
-            .arg(&replay_log_key)
-            .arg(replay_entry)
-            .query_async(connection)
-            .await?;
-        let _: () = redis::cmd("LTRIM")
-            .arg(&replay_log_key)
-            .arg(0)
-            .arg((PRESENCE_REPLAY_LOG_MAX_ENTRIES - 1) as i64)
-            .query_async(connection)
-            .await?;
-
-        cursors.push(PresenceWatcherCursor {
-            watcher_identity_id: watcher_identity_id.clone(),
-            cursor,
-        });
-    }
-
-    Ok(cursors)
+        },
+    )
+    .await
 }
 
 async fn active_replay_watchers(state: &AppState, watchers: &[String]) -> Vec<String> {
@@ -588,76 +580,6 @@ async fn active_replay_watchers(state: &AppState, watchers: &[String]) -> Vec<St
         })
         .cloned()
         .collect()
-}
-
-async fn advance_presence_stream_head(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-) -> Result<u64, redis::RedisError> {
-    redis::cmd("INCR")
-        .arg(presence_stream_head_key(identity_id))
-        .query_async(connection)
-        .await
-}
-
-async fn list_presence_replay_entries(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-) -> Result<Vec<PresenceReplayEntry>, redis::RedisError> {
-    let values: Vec<String> = redis::cmd("LRANGE")
-        .arg(presence_replay_log_key(identity_id))
-        .arg(0)
-        .arg(-1)
-        .query_async(connection)
-        .await?;
-
-    let mut entries = values
-        .into_iter()
-        .filter_map(|value| serde_json::from_str::<PresenceReplayEntry>(&value).ok())
-        .collect::<Vec<_>>();
-    entries.reverse();
-    Ok(entries)
-}
-
-async fn get_presence_device_cursor(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-    device_id: &str,
-) -> Result<u64, redis::RedisError> {
-    redis::cmd("GET")
-        .arg(presence_device_cursor_key(identity_id, device_id))
-        .query_async::<Option<u64>>(connection)
-        .await
-        .map(|value| value.unwrap_or(0))
-}
-
-async fn set_presence_device_cursor(
-    connection: &mut redis::aio::MultiplexedConnection,
-    identity_id: &str,
-    device_id: &str,
-    cursor: u64,
-) -> Result<(), redis::RedisError> {
-    let _: () = redis::cmd("EVAL")
-        .arg(
-            r#"
-            local key = KEYS[1]
-            local incoming = tonumber(ARGV[1])
-            local ttl = tonumber(ARGV[2])
-            local current = tonumber(redis.call('GET', key) or '0')
-            if incoming > current then
-              current = incoming
-            end
-            redis.call('SET', key, current, 'EX', ttl)
-            return current
-            "#,
-        )
-        .arg(1)
-        .arg(presence_device_cursor_key(identity_id, device_id))
-        .arg(cursor)
-        .arg(PRESENCE_DEVICE_CURSOR_TTL_SECONDS)
-        .query_async(connection)
-        .await?;
-    Ok(())
 }
 
 fn presence_stream_head_key(identity_id: &str) -> String {
@@ -790,8 +712,15 @@ async fn dispatch_presence_event_locally(
     };
 
     for (identity_id, device_id, cursor) in delivered_device_cursors {
-        if let Err(error) =
-            set_presence_device_cursor(&mut connection, &identity_id, &device_id, cursor).await
+        if let Err(error) = replay_store::set_device_cursor(
+            &mut connection,
+            presence_device_cursor_key,
+            PRESENCE_DEVICE_CURSOR_TTL_SECONDS,
+            &identity_id,
+            &device_id,
+            cursor,
+        )
+        .await
         {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live presence device cursor");
         }
