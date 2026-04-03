@@ -509,7 +509,12 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                     follow_helpers=method.upper() != 'GET',
                 )
                 | set(handler_semantics.get('implied_error_statuses', set()))
-                | ({'400'} if infer_has_400(handler_id, function_semantics, local_lookup) else set()),
+                | (
+                    {'400'}
+                    if method.upper() == 'GET'
+                    and infer_has_400(handler_id, function_semantics, local_lookup)
+                    else set()
+                ),
                 'has_401': bool(handler_semantics.get('has_auth')) or infer_has_401(
                     handler_id, function_semantics, local_lookup
                 ),
