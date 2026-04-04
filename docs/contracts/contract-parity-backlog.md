@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-04 expanded the first schema-level pass so both request-schema and response-schema parity are now active validator work.
+- Latest meaningful change: 2026-04-04 moved directly from schema refs into active header-parity work for internal auth headers and auth cookie response headers.
 
 ## Purpose
 
@@ -41,10 +41,12 @@
 3. Add internal header parity
 - Enforce non-CSRF request-header documentation for runtime-required headers.
 - First target: `x-hexrelay-internal-token` on `/v1/internal/presence/watchers/{identity_id}` from `services/api-rs/src/transport/http/handlers/presence.rs`.
+- Status: in progress.
 
 4. Add auth response-header and cookie parity
 - Enforce documented `Set-Cookie` and cookie-clearing behavior for auth session routes.
 - First target: `/v1/auth/verify` and `/v1/auth/sessions/revoke` in `services/api-rs/src/transport/http/handlers/auth.rs`.
+- Status: in progress.
 
 5. Add route-scoped `ApiError.code` parity
 - Check the concrete error codes each route can emit instead of validating only the global `ApiError.code` enum inventory.

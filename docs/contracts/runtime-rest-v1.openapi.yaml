@@ -122,6 +122,13 @@ paths:
       responses:
         '204':
           description: Session revoked
+          headers:
+            Set-Cookie:
+              description: |
+                Clears both `hexrelay_session` and `hexrelay_csrf` cookies when the
+                active session is revoked.
+              schema:
+                type: string
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

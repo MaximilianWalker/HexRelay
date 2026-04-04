@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-04 added a dedicated contract-parity backlog and started the first request-schema parity slice from that backlog.
+- Latest meaningful change: 2026-04-04 started grouped schema and header parity hardening for request/response body refs, internal auth headers, and auth cookie response headers.
 
 ## Purpose
 

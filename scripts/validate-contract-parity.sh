@@ -207,6 +207,17 @@ AUTHORIZER_ERROR_STATUSES = {
     'AuthorizedServerChannelMembership': {'403', '404'},
 }
 UNAUTHORIZED_HELPER_NAME_PATTERN = re.compile(r'^(?:map_.*|.*_failure)$')
+TRACKED_REQUEST_HEADERS = {
+    'x-hexrelay-internal-token': {
+        'runtime_marker': '.get("x-hexrelay-internal-token")',
+        'contract_parameter': 'x-hexrelay-internal-token',
+    },
+}
+TRACKED_RESPONSE_HEADERS = {
+    'Set-Cookie': {
+        'runtime_markers': ('append_cookie(',),
+    },
+}
 QUERY_RUNTIME_FIELD_RULES = {
     'FriendRequestListQuery': {
         'direction': {'enum': ('inbound', 'outbound')},
@@ -302,6 +313,8 @@ def extract_function_blocks(paths):
                 'has_json_body': 'Json<' in params,
                 'request_body_schema': extract_request_body_schema(params),
                 'response_body_schema': extract_response_body_schema(return_type),
+                'request_headers': extract_runtime_request_headers(params, body),
+                'response_headers': extract_runtime_response_headers(body),
                 'has_path_params': 'Path<' in params,
                 'query_type': extract_query_type(params),
                 'implied_error_statuses': auth_semantics['implied_error_statuses'],
@@ -339,6 +352,45 @@ def extract_response_body_schema(return_type: str):
     raw_type = json_match.group(1).strip()
     normalized = raw_type.split('::')[-1]
     return RESPONSE_SCHEMA_ALIASES.get(normalized, normalized)
+
+
+def extract_runtime_request_headers(params: str, body: str):
+    headers = set()
+    has_header_map = 'HeaderMap' in params
+    for header_name, rule in TRACKED_REQUEST_HEADERS.items():
+        if has_header_map and rule['runtime_marker'] in body:
+            headers.add(header_name)
+    return headers
+
+
+def extract_runtime_response_headers(body: str):
+    headers = set()
+    for header_name, rule in TRACKED_RESPONSE_HEADERS.items():
+        if any(marker in body for marker in rule['runtime_markers']):
+            headers.add(header_name)
+    return headers
+
+
+def infer_response_headers(handler_id, functions, local_lookup, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_id in stack:
+        return set()
+
+    function = functions.get(handler_id)
+    if not function:
+        return set()
+
+    headers = set(function.get('response_headers', set()))
+    body = function.get('body', '')
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+    for callee_id in sorted(helper_ids):
+        headers.update(
+            infer_response_headers(callee_id, functions, local_lookup, stack | {handler_id})
+        )
+
+    return headers
 
 
 def extract_query_struct_fields(models_path: pathlib.Path):
@@ -573,6 +625,10 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'request_body_schema': handler_semantics.get('request_body_schema'),
                 'response_body_schema': handler_semantics.get('response_body_schema'),
+                'request_headers': handler_semantics.get('request_headers', set()),
+                'response_headers': infer_response_headers(
+                    handler_id, function_semantics, local_lookup
+                ),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                 'error_statuses': infer_error_statuses(
@@ -613,6 +669,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     current_response_status = None
     in_response_json = False
     in_response_schema = False
+    in_parameters_block = False
+    in_response_headers = False
+    current_response_header_status = None
 
     for line in lines:
         if not in_paths:
@@ -636,6 +695,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_response_status = None
             in_response_json = False
             in_response_schema = False
+            in_parameters_block = False
+            in_response_headers = False
+            current_response_header_status = None
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
@@ -650,6 +712,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_response_status = None
             in_response_json = False
             in_response_schema = False
+            in_parameters_block = False
+            in_response_headers = False
+            current_response_header_status = None
             semantics[(current_method, current_path)] = {
                 'security_schemes': set(),
                 'has_401': False,
@@ -658,6 +723,8 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'has_request_body': False,
                 'request_body_schema': None,
                 'response_schemas': {},
+                'request_headers': set(),
+                'response_headers': {},
                 'path_parameters': set(),
                 'query_parameters': set(),
                 'query_parameter_details': {},
@@ -687,12 +754,21 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_response_status = None
             in_response_json = False
             in_response_schema = False
+            in_response_headers = False
         if current_response_status and re.match(r"^        '(?:4\d\d|5\d\d)':\s*$", line):
             current_response_status = None
             in_response_json = False
             in_response_schema = False
+            in_response_headers = False
+        if in_response_headers and not re.match(r'^ {10,}', line):
+            in_response_headers = False
+        if in_parameters_block and not re.match(r'^ {8,}', line):
+            in_parameters_block = False
 
         if re.match(r'^      security:\s*$', line):
+            continue
+        elif re.match(r'^      parameters:\s*$', line):
+            in_parameters_block = True
             continue
         elif security_scheme_match := re.match(r'^        - ([A-Za-z0-9_]+): \[\]\s*$', line):
             semantics[(current_method, current_path)]['security_schemes'].add(
@@ -717,11 +793,16 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         elif re.match(r"^        '500':\s*$", line):
             semantics[(current_method, current_path)]['has_500'] = True
         else:
+            if in_parameters_block and (request_header_ref_match := re.match(r"^        - \$ref: '#/components/parameters/([A-Za-z0-9_]+)'\s*$", line)):
+                parameter_ref = request_header_ref_match.group(1)
+                if parameter_ref == 'CsrfTokenHeader':
+                    semantics[(current_method, current_path)]['request_headers'].add('x-csrf-token')
+                continue
             if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
                 current_parameter_in = None
                 current_parameter_name = None
                 current_query_schema_parameter = None
-            parameter_match = re.match(r'^        - in: (path|query)\s*$', line)
+            parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
             if parameter_match:
                 current_parameter_in = parameter_match.group(1)
                 current_parameter_name = None
@@ -733,7 +814,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 current_parameter_name = None
                 current_query_schema_parameter = None
                 continue
-            parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_]+)\s*$', line)
+            parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_-]+)\s*$', line)
             if parameter_name_match and current_parameter_in in {'path', 'query'}:
                 current_parameter_name = parameter_name_match.group(1)
                 if current_parameter_in == 'path':
@@ -750,6 +831,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                             'maximum': None,
                         },
                     )
+                continue
+            if parameter_name_match and current_parameter_in == 'header':
+                semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
                 continue
             if (
                 current_parameter_in == 'query'
@@ -790,9 +874,17 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 current_response_status = success_match.group(1)
                 in_response_json = False
                 in_response_schema = False
+                current_response_header_status = current_response_status
+                in_response_headers = False
                 semantics[(current_method, current_path)]['success_responses'].add(
                     current_response_status
                 )
+                continue
+            if current_response_header_status and re.match(r'^          headers:\s*$', line):
+                in_response_headers = True
+                continue
+            if in_response_headers and (response_header_match := re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)):
+                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
                 continue
             if current_response_status and re.match(r'^ {12}application/json:\s*$', line):
                 in_response_json = True
@@ -859,6 +951,15 @@ for key, runtime in sorted(runtime_semantics.items()):
         if documented != runtime['response_body_schema']:
             actual = documented or '<none>'
             errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
+    missing_request_headers = sorted(runtime['request_headers'] - contract['request_headers'])
+    for header_name in missing_request_headers:
+        errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but is missing it from {contract_path}.")
+    if runtime['success_status']:
+        missing_response_headers = sorted(
+            runtime['response_headers'] - contract['response_headers'].get(runtime['success_status'], set())
+        )
+        for header_name in missing_response_headers:
+            errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
     missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
     for parameter_name in missing_path_parameters:
         errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")
