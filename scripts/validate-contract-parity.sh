@@ -229,6 +229,8 @@ ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
     ('POST', '/v1/friends/requests/{request_id}/decline'),
     ('POST', '/v1/friends/requests/{request_id}/cancel'),
     ('GET', '/v1/friends/requests/{request_id}/bootstrap'),
+    ('POST', '/v1/invites/redeem'),
+    ('POST', '/v1/contact-invites/redeem'),
 }
 ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
     ('POST', '/v1/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
@@ -237,6 +239,18 @@ ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
     ('GET', '/v1/friends/requests/{request_id}/bootstrap'): {
         'identity_invalid',
         'bootstrap_not_available',
+        'blocked_user',
+    },
+    ('POST', '/v1/invites/redeem'): {
+        'invite_invalid',
+        'fingerprint_mismatch',
+        'invite_expired',
+        'invite_exhausted',
+    },
+    ('POST', '/v1/contact-invites/redeem'): {
+        'invite_invalid',
+        'invite_expired',
+        'invite_exhausted',
         'blocked_user',
     },
 }

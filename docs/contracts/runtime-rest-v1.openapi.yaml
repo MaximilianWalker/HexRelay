@@ -218,7 +218,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/InviteRedeemResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invite token is invalid for the current redemption attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Token does not resolve to a live invite
+                  value:
+                    code: invite_invalid
+                    message: invite token is invalid
+                fingerprintMismatch:
+                  summary: Token is bound to another node fingerprint
+                  value:
+                    code: fingerprint_mismatch
+                    message: invite node fingerprint mismatch
+                inviteExpired:
+                  summary: Token has expired
+                  value:
+                    code: invite_expired
+                    message: invite token is expired
+                inviteExhausted:
+                  summary: Token has no remaining uses
+                  value:
+                    code: invite_exhausted
+                    message: invite token is exhausted
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -277,7 +302,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Contact invite token is invalid for the current redemption attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Token does not resolve to a valid contact invite
+                  value:
+                    code: invite_invalid
+                    message: invite token is invalid
+                inviteExpired:
+                  summary: Token has expired
+                  value:
+                    code: invite_expired
+                    message: invite token is expired
+                inviteExhausted:
+                  summary: Token has no remaining uses
+                  value:
+                    code: invite_exhausted
+                    message: invite token is exhausted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -290,7 +335,7 @@ paths:
                 contactInviteBlocked:
                   summary: Invite creator and redeemer are blocked
                   value:
-                    code: invite_blocked
+                    code: blocked_user
                     message: blocked users cannot redeem contact invites
         '409':
           $ref: '#/components/responses/Conflict'
