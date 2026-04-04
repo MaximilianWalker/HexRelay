@@ -224,6 +224,12 @@ QUERY_RUNTIME_FIELD_RULES = {
         'limit': {'minimum': 1, 'maximum': 100},
     },
 }
+REQUEST_SCHEMA_ALIASES = {
+    'FriendRequestCreate': 'FriendRequestCreateRequest',
+}
+RESPONSE_SCHEMA_ALIASES = {
+    'ServerChannelMessageRecord': 'ServerChannelMessage',
+}
 
 
 def route_blocks(text: str):
@@ -294,6 +300,8 @@ def extract_function_blocks(paths):
                 'has_auth': auth_semantics['has_auth'],
                 'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                 'has_json_body': 'Json<' in params,
+                'request_body_schema': extract_request_body_schema(params),
+                'response_body_schema': extract_response_body_schema(return_type),
                 'has_path_params': 'Path<' in params,
                 'query_type': extract_query_type(params),
                 'implied_error_statuses': auth_semantics['implied_error_statuses'],
@@ -313,6 +321,24 @@ def extract_query_type(params: str):
     if match:
         return match.group(1)
     return None
+
+
+def extract_request_body_schema(params: str):
+    match = re.search(r'(?:^|[^A-Za-z0-9_:])Json\s*\(?.*?:\s*Json<\s*([^>]+)\s*>', params, re.S)
+    if not match:
+        return None
+    raw_type = match.group(1).strip()
+    normalized = raw_type.split('::')[-1]
+    return REQUEST_SCHEMA_ALIASES.get(normalized, normalized)
+
+
+def extract_response_body_schema(return_type: str):
+    json_match = re.search(r'Json<\s*([^>]+)\s*>', return_type)
+    if not json_match:
+        return None
+    raw_type = json_match.group(1).strip()
+    normalized = raw_type.split('::')[-1]
+    return RESPONSE_SCHEMA_ALIASES.get(normalized, normalized)
 
 
 def extract_query_struct_fields(models_path: pathlib.Path):
@@ -545,6 +571,8 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                 or infer_has_500(handler_id, function_semantics, local_lookup),
                 'has_csrf': bool(handler_semantics.get('has_csrf')),
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
+                'request_body_schema': handler_semantics.get('request_body_schema'),
+                'response_body_schema': handler_semantics.get('response_body_schema'),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                 'error_statuses': infer_error_statuses(
@@ -579,6 +607,12 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     current_parameter_in = None
     current_parameter_name = None
     current_query_schema_parameter = None
+    in_request_body = False
+    in_request_body_json = False
+    in_request_body_schema = False
+    current_response_status = None
+    in_response_json = False
+    in_response_schema = False
 
     for line in lines:
         if not in_paths:
@@ -596,6 +630,12 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_parameter_in = None
             current_parameter_name = None
             current_query_schema_parameter = None
+            in_request_body = False
+            in_request_body_json = False
+            in_request_body_schema = False
+            current_response_status = None
+            in_response_json = False
+            in_response_schema = False
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
@@ -604,12 +644,20 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             current_parameter_in = None
             current_parameter_name = None
             current_query_schema_parameter = None
+            in_request_body = False
+            in_request_body_json = False
+            in_request_body_schema = False
+            current_response_status = None
+            in_response_json = False
+            in_response_schema = False
             semantics[(current_method, current_path)] = {
                 'security_schemes': set(),
                 'has_401': False,
                 'has_500': False,
                 'has_csrf': False,
                 'has_request_body': False,
+                'request_body_schema': None,
+                'response_schemas': {},
                 'path_parameters': set(),
                 'query_parameters': set(),
                 'query_parameter_details': {},
@@ -621,6 +669,29 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         if not current_path or not current_method:
             continue
 
+        if in_request_body_schema and not re.match(r'^ {14,}', line):
+            in_request_body_schema = False
+        if in_request_body_json and not re.match(r'^ {12,}', line):
+            in_request_body_json = False
+            in_request_body_schema = False
+        if in_request_body and not re.match(r'^ {8,}', line):
+            in_request_body = False
+            in_request_body_json = False
+            in_request_body_schema = False
+        if in_response_schema and not re.match(r'^ {14,}', line):
+            in_response_schema = False
+        if in_response_json and not re.match(r'^ {10,}', line):
+            in_response_json = False
+            in_response_schema = False
+        if current_response_status and not re.match(r'^ {8,}', line):
+            current_response_status = None
+            in_response_json = False
+            in_response_schema = False
+        if current_response_status and re.match(r"^        '(?:4\d\d|5\d\d)':\s*$", line):
+            current_response_status = None
+            in_response_json = False
+            in_response_schema = False
+
         if re.match(r'^      security:\s*$', line):
             continue
         elif security_scheme_match := re.match(r'^        - ([A-Za-z0-9_]+): \[\]\s*$', line):
@@ -629,6 +700,16 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             )
         elif re.match(r'^      requestBody:\s*$', line):
             semantics[(current_method, current_path)]['has_request_body'] = True
+            in_request_body = True
+            in_request_body_json = False
+            in_request_body_schema = False
+        elif in_request_body and re.match(r'^          application/json:\s*$', line):
+            in_request_body_json = True
+            in_request_body_schema = False
+        elif in_request_body_json and re.match(r'^            schema:\s*$', line):
+            in_request_body_schema = True
+        elif in_request_body_schema and (request_schema_match := re.match(r"^              \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)):
+            semantics[(current_method, current_path)]['request_body_schema'] = request_schema_match.group(1)
         elif "#/components/parameters/CsrfTokenHeader" in line:
             semantics[(current_method, current_path)]['has_csrf'] = True
         elif re.match(r"^        '401':\s*$", line):
@@ -706,9 +787,22 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                     continue
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
             if success_match:
+                current_response_status = success_match.group(1)
+                in_response_json = False
+                in_response_schema = False
                 semantics[(current_method, current_path)]['success_responses'].add(
-                    success_match.group(1)
+                    current_response_status
                 )
+                continue
+            if current_response_status and re.match(r'^ {12}application/json:\s*$', line):
+                in_response_json = True
+                in_response_schema = False
+                continue
+            if current_response_status and in_response_json and re.match(r'^ {14}schema:\s*$', line):
+                in_response_schema = True
+                continue
+            if current_response_status and in_response_schema and (response_schema_match := re.match(r"^ {16}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)):
+                semantics[(current_method, current_path)]['response_schemas'][current_response_status] = response_schema_match.group(1)
                 continue
             error_match = re.match(
                 rf"^        '(({TRACKED_ERROR_STATUS_PATTERN}))':\s*$", line
@@ -757,6 +851,14 @@ for key, runtime in sorted(runtime_semantics.items()):
         errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
     if runtime['has_json_body'] and not contract['has_request_body']:
         errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+    if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
+        documented = contract['request_body_schema'] or '<none>'
+        errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
+    if runtime['response_body_schema'] and runtime['success_status']:
+        documented = contract['response_schemas'].get(runtime['success_status'])
+        if documented != runtime['response_body_schema']:
+            actual = documented or '<none>'
+            errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
     missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
     for parameter_name in missing_path_parameters:
         errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")

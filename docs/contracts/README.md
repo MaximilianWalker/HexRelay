@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-03-16 moved DM thread/message history onto the local runtime store while keeping realtime signaling loopback-only.
+- Latest meaningful change: 2026-04-04 added a dedicated contract-parity backlog and started the first request-schema parity slice from that backlog.
 
 ## Purpose
 
@@ -27,6 +27,7 @@
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; realtime signaling remains self-targeted loopback only until recipient fanout exists.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
+- Remaining contract-parity backlog: `docs/contracts/contract-parity-backlog.md`
 
 ## Target-State Model Contracts
 
