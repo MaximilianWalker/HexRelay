@@ -234,6 +234,9 @@ ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
     ('GET', '/v1/servers/{server_id}'),
     ('GET', '/v1/servers/{server_id}/channels'),
     ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
+    ('GET', '/v1/dm/threads'),
+    ('GET', '/v1/dm/threads/{thread_id}/messages'),
+    ('POST', '/v1/dm/threads/{thread_id}/read'),
 }
 ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
     ('POST', '/v1/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
@@ -262,6 +265,9 @@ ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
         'server_access_denied',
         'channel_not_found',
     },
+    ('GET', '/v1/dm/threads'): {'cursor_invalid'},
+    ('GET', '/v1/dm/threads/{thread_id}/messages'): {'cursor_invalid', 'thread_not_found'},
+    ('POST', '/v1/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
 }
 QUERY_RUNTIME_FIELD_RULES = {
     'FriendRequestListQuery': {

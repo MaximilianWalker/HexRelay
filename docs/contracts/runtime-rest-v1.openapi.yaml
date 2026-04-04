@@ -1315,7 +1315,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmThreadPage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM thread list cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  summary: Cursor does not resolve to a known DM thread
+                  value:
+                    code: cursor_invalid
+                    message: unknown dm thread cursor
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1352,7 +1362,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmMessagePage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM message history cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  summary: Cursor is not a valid DM message sequence number
+                  value:
+                    code: cursor_invalid
+                    message: message cursor must be numeric
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1361,6 +1381,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                threadNotFound:
+                  summary: Thread does not exist for this participant
+                  value:
+                    code: thread_not_found
+                    message: dm thread was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/dm/threads/{thread_id}/read:
