@@ -655,6 +655,36 @@ def infer_success_status(handler_id, functions, local_lookup, stack=None):
     return None
 
 
+def infer_success_body_kind(handler_id, functions, local_lookup, stack=None):
+    if stack is None:
+        stack = set()
+    if handler_id in stack:
+        return None
+
+    function = functions.get(handler_id)
+    if not function:
+        return None
+
+    return_type = function.get('return_type', '')
+    if 'Json<' in return_type:
+        return 'json'
+    if 'StatusCode' in return_type:
+        return 'none'
+
+    body_inner = function.get('body', '').strip()
+    if body_inner.startswith('{') and body_inner.endswith('}'):
+        body_inner = body_inner[1:-1].strip()
+    delegate_ids = resolve_local_delegate_ids(body_inner, function, local_lookup)
+    if delegate_ids:
+        delegated_kind = infer_success_body_kind(
+            sorted(delegate_ids)[0], functions, local_lookup, stack | {handler_id}
+        )
+        if delegated_kind:
+            return delegated_kind
+
+    return None
+
+
 def extract_runtime_semantics(router_text: str, function_semantics, route_handler_lookup, local_lookup, query_struct_fields):
     semantics = {}
     for block in route_blocks(router_text):
@@ -676,6 +706,9 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                 'has_json_body': bool(handler_semantics.get('has_json_body')),
                 'request_body_schema': handler_semantics.get('request_body_schema'),
                 'response_body_schema': handler_semantics.get('response_body_schema'),
+                'success_body_kind': infer_success_body_kind(
+                    handler_id, function_semantics, local_lookup
+                ),
                 'request_headers': handler_semantics.get('request_headers', set()),
                 'response_headers': infer_response_headers(
                     handler_id, function_semantics, local_lookup
@@ -1060,6 +1093,14 @@ for key, runtime in sorted(runtime_semantics.items()):
         if documented != runtime['response_body_schema']:
             actual = documented or '<none>'
             errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
+    if runtime['success_status'] and runtime['success_body_kind'] == 'none':
+        documented = contract['response_schemas'].get(runtime['success_status'])
+        if documented is not None:
+            errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} without a JSON success body at runtime but documents schema `{documented}` in {contract_path}.")
+    if runtime['success_status'] and runtime['success_body_kind'] == 'json':
+        documented = contract['response_schemas'].get(runtime['success_status'])
+        if documented is None:
+            errors.append(f"::error::{method} {path} returns a JSON success body for HTTP {runtime['success_status']} at runtime but documents no success schema in {contract_path}.")
     missing_request_headers = sorted(runtime['request_headers'] - contract['request_headers'])
     for header_name in missing_request_headers:
         errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but is missing it from {contract_path}.")

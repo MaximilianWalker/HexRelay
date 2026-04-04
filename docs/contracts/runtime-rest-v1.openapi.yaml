@@ -45,17 +45,7 @@ paths:
         '201':
           description: Identity key registered
         '400':
-          description: Invalid mark-read payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                lastReadSeqInvalid:
-                  summary: last_read_seq is outside the supported range
-                  value:
-                    code: last_read_seq_invalid
-                    message: last_read_seq is out of range
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -291,22 +281,17 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Delete requires server membership and original authorship
+          description: Invite redemption blocked by policy
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                serverAccessDenied:
-                  summary: Caller is not a server member
+                contactInviteBlocked:
+                  summary: Invite creator and redeemer are blocked
                   value:
-                    code: server_access_denied
-                    message: server membership required
-                messageDeleteForbidden:
-                  summary: Caller is not the message author
-                  value:
-                    code: message_delete_forbidden
-                    message: only the author may delete this server channel message
+                    code: invite_blocked
+                    message: blocked users cannot redeem contact invites
         '409':
           $ref: '#/components/responses/Conflict'
         '429':

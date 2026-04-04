@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-04 moved from grouped schema/header parity into the first active route-scoped `ApiError.code` parity pass for high-signal mutation routes.
+- Latest meaningful change: 2026-04-04 expanded success-content parity and cleaned unrelated contract drift exposed by the broader parity passes.
 
 ## Purpose
 
@@ -51,7 +51,7 @@
 5. Add route-scoped `ApiError.code` parity
 - Check the concrete error codes each route can emit instead of validating only the global `ApiError.code` enum inventory.
 - First target routes: friend-request transitions in `services/api-rs/src/transport/http/handlers/friends.rs` and message mutation routes in `services/api-rs/src/transport/http/handlers/server_channels.rs`.
-- Status: in progress.
+- Status: first pass completed for the initial high-signal route set.
 
 6. Add route-scoped error example parity
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.
@@ -64,6 +64,7 @@
 8. Add success content parity
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.
 - First target files: `services/api-rs/src/transport/http/handlers/health.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
+- Status: in progress; first pass now checks both runtime no-body success paths with documented schemas and runtime JSON success paths with missing documented content.
 
 9. Separate internal-auth parity from session-auth parity
 - Add a dedicated validator path for internal-token-protected endpoints rather than treating them as a one-off documented header.
