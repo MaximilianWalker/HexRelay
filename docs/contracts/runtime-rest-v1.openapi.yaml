@@ -45,7 +45,17 @@ paths:
         '201':
           description: Identity key registered
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -69,7 +79,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -98,7 +118,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthVerifyResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -261,7 +291,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Delete requires server membership and original authorship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageDeleteForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_delete_forbidden
+                    message: only the author may delete this server channel message
         '409':
           $ref: '#/components/responses/Conflict'
         '429':
@@ -326,7 +371,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Delete requires server membership and original authorship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageDeleteForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_delete_forbidden
+                    message: only the author may delete this server channel message
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels:
@@ -352,7 +412,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Delete requires server membership and original authorship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageDeleteForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_delete_forbidden
+                    message: only the author may delete this server channel message
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages:
@@ -392,17 +467,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessagePage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                mentionInvalid:
+                  summary: Mention target is invalid
+                  value:
+                    code: mention_invalid
+                    message: mentioned identities must be members of the same server
+                messageContentInvalid:
+                  summary: Message content exceeds runtime limits
+                  value:
+                    code: message_content_invalid
+                    message: message content must be between 1 and 4000 characters
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership and original authorship required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageEditForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_edit_forbidden
+                    message: only the author may edit this server channel message
         '404':
           description: Channel not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -449,17 +560,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                replyTargetInvalid:
+                  summary: Reply target is outside the channel
+                  value:
+                    code: reply_target_invalid
+                    message: reply target must exist in the same server channel
+                mentionInvalid:
+                  summary: Mention target is invalid
+                  value:
+                    code: mention_invalid
+                    message: mentioned identities must be members of the same server
+                messageContentInvalid:
+                  summary: Message content exceeds runtime limits
+                  value:
+                    code: message_content_invalid
+                    message: message content must be between 1 and 4000 characters
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
         '404':
           description: Channel not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}:
@@ -512,23 +659,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                replyTargetInvalid:
+                  summary: Reply target is outside the channel
+                  value:
+                    code: reply_target_invalid
+                    message: reply target must exist in the same server channel
+                mentionInvalid:
+                  summary: Mention target is invalid
+                  value:
+                    code: mention_invalid
+                    message: mentioned identities must be members of the same server
+                messageContentInvalid:
+                  summary: Message content exceeds runtime limits
+                  value:
+                    code: message_content_invalid
+                    message: message content must be between 1 and 4000 characters
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership and original authorship required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageEditForbidden:
+                  summary: Caller is not the message author for edits
+                  value:
+                    code: message_edit_forbidden
+                    message: only the author may edit this server channel message
         '404':
           description: Channel or message not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
+                messageNotFound:
+                  summary: Message does not exist
+                  value:
+                    code: message_not_found
+                    message: server channel message was not found
         '409':
           description: Message is already deleted
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                messageDeleted:
+                  summary: Message already deleted
+                  value:
+                    code: message_deleted
+                    message: deleted server channel messages cannot be edited
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -577,13 +776,39 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Delete requires server membership and original authorship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageDeleteForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_delete_forbidden
+                    message: only the author may delete this server channel message
         '404':
           description: Channel or message not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
+                messageNotFound:
+                  summary: Message does not exist
+                  value:
+                    code: message_not_found
+                    message: server channel message was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/contacts:
@@ -679,7 +904,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiscoveryUserListResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -1156,7 +1391,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmThreadMarkReadResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1165,6 +1410,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                threadNotFound:
+                  summary: Thread does not exist or caller is not a participant
+                  value:
+                    code: thread_not_found
+                    message: dm thread was not found or identity is not a participant
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests:
@@ -1257,11 +1508,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                verifyFailed:
-                  summary: Indistinguishable auth verify failure
+                identityInvalid:
+                  summary: Session identity does not match the pending request actor
                   value:
-                    code: nonce_invalid
-                    message: auth verification failed
+                    code: identity_invalid
+                    message: friend request cannot be mutated by this session
         '409':
           $ref: '#/components/responses/Conflict'
         '500':

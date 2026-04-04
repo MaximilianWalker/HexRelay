@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-04 moved directly from schema refs into active header-parity work for internal auth headers and auth cookie response headers.
+- Latest meaningful change: 2026-04-04 moved from grouped schema/header parity into the first active route-scoped `ApiError.code` parity pass for high-signal mutation routes.
 
 ## Purpose
 
@@ -51,6 +51,7 @@
 5. Add route-scoped `ApiError.code` parity
 - Check the concrete error codes each route can emit instead of validating only the global `ApiError.code` enum inventory.
 - First target routes: friend-request transitions in `services/api-rs/src/transport/http/handlers/friends.rs` and message mutation routes in `services/api-rs/src/transport/http/handlers/server_channels.rs`.
+- Status: in progress.
 
 6. Add route-scoped error example parity
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.

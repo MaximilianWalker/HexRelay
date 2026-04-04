@@ -218,6 +218,12 @@ TRACKED_RESPONSE_HEADERS = {
         'runtime_markers': ('append_cookie(',),
     },
 }
+ROUTE_SCOPED_ERROR_CODE_ROUTES = {
+    ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
+    ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+    ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+    ('POST', '/v1/dm/threads/{thread_id}/read'),
+}
 QUERY_RUNTIME_FIELD_RULES = {
     'FriendRequestListQuery': {
         'direction': {'enum': ('inbound', 'outbound')},
@@ -391,6 +397,51 @@ def infer_response_headers(handler_id, functions, local_lookup, stack=None):
         )
 
     return headers
+
+
+def infer_error_codes(handler_id, functions, local_lookup, stack=None, follow_helpers=True):
+    if stack is None:
+        stack = set()
+    if handler_id in stack:
+        return set()
+
+    function = functions.get(handler_id)
+    if not function:
+        return set()
+
+    body = function.get('body', '')
+    codes = set(re.findall(r'\b(?:bad_request|forbidden|conflict)\(\s*"([A-Za-z0-9_]+)"', body))
+    codes.update(
+        re.findall(
+            r'StatusCode::NOT_FOUND\s*,\s*Json\(ApiError\s*\{\s*code:\s*"([A-Za-z0-9_]+)"',
+            body,
+            re.S,
+        )
+    )
+
+    if not follow_helpers:
+        return codes
+
+    helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+    helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+    for callee_id in sorted(helper_ids):
+        if callee_id == handler_id:
+            continue
+        codes.update(
+            infer_error_codes(
+                callee_id,
+                functions,
+                local_lookup,
+                stack | {handler_id},
+                follow_helpers=follow_helpers,
+            )
+        )
+
+    return codes
+
+
+def should_track_route_scoped_error_codes(method: str, path: str):
+    return (method, path) in ROUTE_SCOPED_ERROR_CODE_ROUTES
 
 
 def extract_query_struct_fields(models_path: pathlib.Path):
@@ -629,6 +680,12 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                 'response_headers': infer_response_headers(
                     handler_id, function_semantics, local_lookup
                 ),
+                'error_codes': infer_error_codes(
+                    handler_id,
+                    function_semantics,
+                    local_lookup,
+                    follow_helpers=method.upper() != 'GET',
+                ) if should_track_route_scoped_error_codes(method.upper(), path) else set(),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                 'error_statuses': infer_error_statuses(
@@ -672,6 +729,10 @@ def extract_contract_semantics(contract_path: pathlib.Path):
     in_parameters_block = False
     in_response_headers = False
     current_response_header_status = None
+    current_error_status = None
+    in_error_examples = False
+    in_error_example_value = False
+    current_error_example_code = None
 
     for line in lines:
         if not in_paths:
@@ -698,6 +759,10 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             in_parameters_block = False
             in_response_headers = False
             current_response_header_status = None
+            current_error_status = None
+            in_error_examples = False
+            in_error_example_value = False
+            current_error_example_code = None
             continue
 
         method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
@@ -715,6 +780,10 @@ def extract_contract_semantics(contract_path: pathlib.Path):
             in_parameters_block = False
             in_response_headers = False
             current_response_header_status = None
+            current_error_status = None
+            in_error_examples = False
+            in_error_example_value = False
+            current_error_example_code = None
             semantics[(current_method, current_path)] = {
                 'security_schemes': set(),
                 'has_401': False,
@@ -725,6 +794,7 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 'response_schemas': {},
                 'request_headers': set(),
                 'response_headers': {},
+                'error_example_codes': {},
                 'path_parameters': set(),
                 'query_parameters': set(),
                 'query_parameter_details': {},
@@ -750,20 +820,31 @@ def extract_contract_semantics(contract_path: pathlib.Path):
         if in_response_json and not re.match(r'^ {10,}', line):
             in_response_json = False
             in_response_schema = False
-        if current_response_status and not re.match(r'^ {8,}', line):
-            current_response_status = None
-            in_response_json = False
-            in_response_schema = False
-            in_response_headers = False
         if current_response_status and re.match(r"^        '(?:4\d\d|5\d\d)':\s*$", line):
             current_response_status = None
             in_response_json = False
             in_response_schema = False
             in_response_headers = False
+            current_response_header_status = None
+        elif current_response_status and not re.match(r'^ {8,}', line):
+            current_response_status = None
+            in_response_json = False
+            in_response_schema = False
+            in_response_headers = False
+            current_response_header_status = None
+        if current_error_status and re.match(r"^        '(?:4\d\d|5\d\d|2\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
+            current_error_status = None
+            in_error_examples = False
+            in_error_example_value = False
         if in_response_headers and not re.match(r'^ {10,}', line):
             in_response_headers = False
         if in_parameters_block and not re.match(r'^ {8,}', line):
             in_parameters_block = False
+        if in_error_example_value and not re.match(r'^ {18,}', line):
+            in_error_example_value = False
+        if in_error_examples and not re.match(r'^ {16,}', line):
+            in_error_examples = False
+            in_error_example_value = False
 
         if re.match(r'^      security:\s*$', line):
             continue
@@ -876,6 +957,9 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 in_response_schema = False
                 current_response_header_status = current_response_status
                 in_response_headers = False
+                current_error_status = None
+                in_error_examples = False
+                in_error_example_value = False
                 semantics[(current_method, current_path)]['success_responses'].add(
                     current_response_status
                 )
@@ -900,10 +984,35 @@ def extract_contract_semantics(contract_path: pathlib.Path):
                 rf"^        '(({TRACKED_ERROR_STATUS_PATTERN}))':\s*$", line
             )
             if error_match:
+                current_error_status = error_match.group(1)
+                in_error_examples = False
+                in_error_example_value = False
                 semantics[(current_method, current_path)]['error_responses'].add(
-                    error_match.group(1)
+                    current_error_status
                 )
-
+                semantics[(current_method, current_path)]['error_example_codes'].setdefault(
+                    current_error_status, set()
+                )
+                continue
+            if current_error_status and re.match(r'^ {14}examples:\s*$', line):
+                in_error_examples = True
+                in_error_example_value = False
+                continue
+            if current_error_status and not in_error_examples and current_error_status == '400' and re.match(r'^ {14}\$ref: ', line):
+                in_error_examples = False
+                in_error_example_value = False
+                continue
+            if in_error_examples and re.match(r'^ {16}[A-Za-z0-9_]+:\s*$', line):
+                in_error_example_value = False
+                continue
+            if in_error_examples and re.match(r'^ {18}value:\s*$', line):
+                in_error_example_value = True
+                continue
+            if in_error_example_value and (error_code_match := re.match(r'^ {20}code: ([A-Za-z0-9_]+)\s*$', line)):
+                semantics[(current_method, current_path)]['error_example_codes'][current_error_status].add(
+                    error_code_match.group(1)
+                )
+                
     return semantics
 
 
@@ -960,6 +1069,17 @@ for key, runtime in sorted(runtime_semantics.items()):
         )
         for header_name in missing_response_headers:
             errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
+        if runtime['error_codes']:
+            documented_error_codes = set()
+            for status_code in runtime['error_statuses']:
+                documented_error_codes.update(contract['error_example_codes'].get(status_code, set()))
+        unexpected_error_codes = documented_error_codes - runtime['error_codes']
+        if unexpected_error_codes:
+            documented_error_codes = documented_error_codes - unexpected_error_codes
+        if documented_error_codes != runtime['error_codes']:
+            documented = ', '.join(sorted(documented_error_codes)) or '<none>'
+            expected = ', '.join(sorted(runtime['error_codes']))
+            errors.append(f"::error::{method} {path} can emit route-scoped ApiError codes [{expected}] at runtime but documents [{documented}] across tracked error examples in {contract_path}.")
     missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
     for parameter_name in missing_path_parameters:
         errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")
