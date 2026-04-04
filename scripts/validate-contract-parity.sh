@@ -224,6 +224,22 @@ ROUTE_SCOPED_ERROR_CODE_ROUTES = {
     ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
     ('POST', '/v1/dm/threads/{thread_id}/read'),
 }
+ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
+    ('POST', '/v1/friends/requests/{request_id}/accept'),
+    ('POST', '/v1/friends/requests/{request_id}/decline'),
+    ('POST', '/v1/friends/requests/{request_id}/cancel'),
+    ('GET', '/v1/friends/requests/{request_id}/bootstrap'),
+}
+ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
+    ('POST', '/v1/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
+    ('POST', '/v1/friends/requests/{request_id}/decline'): {'identity_invalid', 'transition_invalid'},
+    ('POST', '/v1/friends/requests/{request_id}/cancel'): {'identity_invalid', 'transition_invalid'},
+    ('GET', '/v1/friends/requests/{request_id}/bootstrap'): {
+        'identity_invalid',
+        'bootstrap_not_available',
+        'blocked_user',
+    },
+}
 QUERY_RUNTIME_FIELD_RULES = {
     'FriendRequestListQuery': {
         'direction': {'enum': ('inbound', 'outbound')},
@@ -442,6 +458,14 @@ def infer_error_codes(handler_id, functions, local_lookup, stack=None, follow_he
 
 def should_track_route_scoped_error_codes(method: str, path: str):
     return (method, path) in ROUTE_SCOPED_ERROR_CODE_ROUTES
+
+
+def should_track_route_scoped_error_examples(method: str, path: str):
+    return (method, path) in ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES
+
+
+def expected_route_scoped_error_examples(method: str, path: str):
+    return ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS.get((method, path), set())
 
 
 def extract_query_struct_fields(models_path: pathlib.Path):
@@ -719,6 +743,9 @@ def extract_runtime_semantics(router_text: str, function_semantics, route_handle
                     local_lookup,
                     follow_helpers=method.upper() != 'GET',
                 ) if should_track_route_scoped_error_codes(method.upper(), path) else set(),
+                'tracked_error_example_codes': expected_route_scoped_error_examples(
+                    method.upper(), path
+                ) if should_track_route_scoped_error_examples(method.upper(), path) else set(),
                 'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                 'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                 'error_statuses': infer_error_statuses(
@@ -1110,10 +1137,10 @@ for key, runtime in sorted(runtime_semantics.items()):
         )
         for header_name in missing_response_headers:
             errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
-        if runtime['error_codes']:
-            documented_error_codes = set()
-            for status_code in runtime['error_statuses']:
-                documented_error_codes.update(contract['error_example_codes'].get(status_code, set()))
+    if runtime['error_codes']:
+        documented_error_codes = set()
+        for status_code in runtime['error_statuses']:
+            documented_error_codes.update(contract['error_example_codes'].get(status_code, set()))
         unexpected_error_codes = documented_error_codes - runtime['error_codes']
         if unexpected_error_codes:
             documented_error_codes = documented_error_codes - unexpected_error_codes
@@ -1121,6 +1148,14 @@ for key, runtime in sorted(runtime_semantics.items()):
             documented = ', '.join(sorted(documented_error_codes)) or '<none>'
             expected = ', '.join(sorted(runtime['error_codes']))
             errors.append(f"::error::{method} {path} can emit route-scoped ApiError codes [{expected}] at runtime but documents [{documented}] across tracked error examples in {contract_path}.")
+    if runtime['tracked_error_example_codes']:
+        documented_error_codes = set()
+        for status_code in runtime['error_statuses']:
+            documented_error_codes.update(contract['error_example_codes'].get(status_code, set()))
+        missing_error_codes = runtime['tracked_error_example_codes'] - documented_error_codes
+        if missing_error_codes:
+            missing = ', '.join(sorted(missing_error_codes))
+            errors.append(f"::error::{method} {path} is missing tracked route-level error examples for ApiError codes [{missing}] in {contract_path}.")
     missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
     for parameter_name in missing_path_parameters:
         errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")

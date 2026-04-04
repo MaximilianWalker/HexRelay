@@ -1485,7 +1485,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           description: Authentication or verification failure
           content:
@@ -1499,7 +1509,17 @@ paths:
                     code: identity_invalid
                     message: friend request cannot be mutated by this session
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/decline:
@@ -1519,11 +1539,31 @@ paths:
         '204':
           description: Friend request updated
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/cancel:
@@ -1543,11 +1583,31 @@ paths:
         '204':
           description: Friend request updated
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/bootstrap:
@@ -1575,11 +1635,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/IdentityBootstrapBundle'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or inaccessible
+                  value:
+                    code: identity_invalid
+                    message: friend request not found
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requester is not allowed to view this friend request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Session identity is not one of the friend request participants
+                  value:
+                    code: identity_invalid
+                    message: friend request cannot be accessed by this session
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Bootstrap is unavailable for the current relationship state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                bootstrapNotAvailable:
+                  summary: Request has not been accepted yet
+                  value:
+                    code: bootstrap_not_available
+                    message: identity bootstrap material is only available after friend request acceptance
+                blockedUser:
+                  summary: A block relationship prevents bootstrap access
+                  value:
+                    code: blocked_user
+                    message: identity bootstrap material is unavailable while a block relationship exists between these users
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/block:
