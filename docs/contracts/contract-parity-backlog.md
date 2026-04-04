@@ -56,11 +56,12 @@
 6. Add route-scoped error example parity
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.
 - First cleanup target: `/v1/friends/requests/{request_id}/accept` in `docs/contracts/runtime-rest-v1.openapi.yaml`.
-- Status: in progress; current grouped pass covers friend-request mutation/bootstrap routes, invite redemption routes, server membership read routes, and now DM thread/history read routes.
+- Status: grouped pass now covers friend-request mutation/bootstrap routes, invite redemption routes, server membership read routes, and DM thread/history read routes.
 
 7. Expand query semantics beyond the tracked rule table
 - Cover more query/filter semantics where runtime behavior is stable enough to assert mechanically.
 - First targets: `services/api-rs/src/transport/http/handlers/directory.rs` and remaining safe rules in `services/api-rs/src/transport/http/handlers/discovery.rs`.
+- Status: in progress; `ServerListQuery` and `ContactListQuery` are now covered, and the next pass moves into `DiscoveryUserListQuery` in `services/api-rs/src/transport/http/handlers/discovery.rs`.
 
 8. Add success content parity
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.

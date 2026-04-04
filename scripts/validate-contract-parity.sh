@@ -285,6 +285,23 @@ QUERY_RUNTIME_FIELD_RULES = {
     'DmThreadMessageListQuery': {
         'limit': {'minimum': 1, 'maximum': 100},
     },
+    'ServerListQuery': {
+        'search': {'schema_type': 'string', 'required': False},
+        'favorites_only': {'schema_type': 'boolean', 'required': False},
+        'unread_only': {'schema_type': 'boolean', 'required': False},
+        'muted_only': {'schema_type': 'boolean', 'required': False},
+    },
+    'ContactListQuery': {
+        'search': {'schema_type': 'string', 'required': False},
+        'online_only': {'schema_type': 'boolean', 'required': False},
+        'unread_only': {'schema_type': 'boolean', 'required': False},
+        'favorites_only': {'schema_type': 'boolean', 'required': False},
+    },
+    'DiscoveryUserListQuery': {
+        'scope': {'schema_type': 'string', 'required': False, 'enum': ('global', 'shared_server')},
+        'query': {'schema_type': 'string', 'required': False},
+        'limit': {'schema_type': 'integer', 'required': False},
+    },
 }
 REQUEST_SCHEMA_ALIASES = {
     'FriendRequestCreate': 'FriendRequestCreateRequest',
