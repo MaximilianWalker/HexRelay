@@ -401,7 +401,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Delete requires server membership and original authorship
+          description: Server membership required
           content:
             application/json:
               schema:
@@ -412,11 +412,6 @@ paths:
                   value:
                     code: server_access_denied
                     message: server membership required
-                messageDeleteForbidden:
-                  summary: Caller is not the message author
-                  value:
-                    code: message_delete_forbidden
-                    message: only the author may delete this server channel message
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels:
@@ -442,7 +437,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Delete requires server membership and original authorship
+          description: Server membership required
           content:
             application/json:
               schema:
@@ -453,11 +448,6 @@ paths:
                   value:
                     code: server_access_denied
                     message: server membership required
-                messageDeleteForbidden:
-                  summary: Caller is not the message author
-                  value:
-                    code: message_delete_forbidden
-                    message: only the author may delete this server channel message
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages:
@@ -497,26 +487,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessagePage'
         '400':
-          description: Invalid message payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                mentionInvalid:
-                  summary: Mention target is invalid
-                  value:
-                    code: mention_invalid
-                    message: mentioned identities must be members of the same server
-                messageContentInvalid:
-                  summary: Message content exceeds runtime limits
-                  value:
-                    code: message_content_invalid
-                    message: message content must be between 1 and 4000 characters
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Server membership and original authorship required
+          description: Server membership required
           content:
             application/json:
               schema:
@@ -527,11 +502,6 @@ paths:
                   value:
                     code: server_access_denied
                     message: server membership required
-                messageEditForbidden:
-                  summary: Caller is not the message author
-                  value:
-                    code: message_edit_forbidden
-                    message: only the author may edit this server channel message
         '404':
           description: Channel not found
           content:
