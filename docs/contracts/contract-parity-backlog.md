@@ -71,6 +71,7 @@
 9. Separate internal-auth parity from session-auth parity
 - Add a dedicated validator path for internal-token-protected endpoints rather than treating them as a one-off documented header.
 - Start with `services/api-rs/src/transport/http/handlers/presence.rs` and the matching OpenAPI route block.
+- Status: in progress; first pass now treats the internal presence watcher route as internal-token auth rather than session-auth-plus-header.
 
 10. Add validator regression fixtures or golden-route tests
 - Add a small deterministic test layer around the validator so future parity expansions do not regress silently.

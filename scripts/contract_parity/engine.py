@@ -113,6 +113,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
+    INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
         'AuthSession',
         'AuthorizedServerMembership',
@@ -290,6 +291,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'name': name,
                     'source_path': source_path,
                     'has_auth': auth_semantics['has_auth'],
+                    'has_internal_auth': '.get("x-hexrelay-internal-token")' in body,
                     'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                     'has_json_body': 'Json<' in params,
                     'request_body_schema': extract_request_body_schema(params),
@@ -681,10 +683,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 handler_semantics = function_semantics.get(handler_id, {})
                 query_type = handler_semantics.get('query_type')
                 semantics[(method.upper(), path)] = {
-                    'handler': handler,
-                    'has_auth': bool(handler_semantics.get('has_auth')),
-                    'has_500': bool(handler_semantics.get('has_auth'))
-                    or infer_has_500(handler_id, function_semantics, local_lookup),
+                                'handler': handler,
+                                'has_auth': bool(handler_semantics.get('has_auth')),
+                                'has_internal_auth': bool(handler_semantics.get('has_internal_auth')),
+                                'has_500': bool(handler_semantics.get('has_auth'))
+                                or infer_has_500(handler_id, function_semantics, local_lookup),
                     'has_csrf': bool(handler_semantics.get('has_csrf')),
                     'has_json_body': bool(handler_semantics.get('has_json_body')),
                     'request_body_schema': handler_semantics.get('request_body_schema'),
@@ -1057,9 +1060,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             documented = ', '.join(sorted(contract['security_schemes'])) or '<none>'
             expected = ', '.join(sorted(AUTH_SESSION_SECURITY_SCHEMES))
             errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but documents security schemes [{documented}] instead of [{expected}] in {contract_path}.")
+        if runtime['has_internal_auth']:
+            missing_internal_headers = sorted(INTERNAL_TOKEN_REQUIRED_HEADERS - contract['request_headers'])
+            for header_name in missing_internal_headers:
+                errors.append(f"::error::{method} {path} requires internal-token header `{header_name}` at runtime but is missing it from {contract_path}.")
+            if contract['security_schemes']:
+                documented = ', '.join(sorted(contract['security_schemes']))
+                errors.append(f"::error::{method} {path} uses internal-token auth at runtime and should not declare session security schemes [{documented}] in {contract_path}.")
         if runtime['has_401'] and not contract['has_401']:
             if runtime['has_auth']:
                 errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
+            elif runtime['has_internal_auth']:
+                errors.append(f"::error::{method} {path} requires internal-token auth at runtime but is missing a 401 response in {contract_path}.")
             else:
                 errors.append(f"::error::{method} {path} can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers but is missing a 401 response in {contract_path}.")
         if runtime['has_500'] and not contract['has_500']:

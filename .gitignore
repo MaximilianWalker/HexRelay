@@ -4,3 +4,5 @@ apps/web/.next/
 apps/web/coverage/
 infra/.env
 *.log
+**/__pycache__/
+*.pyc
