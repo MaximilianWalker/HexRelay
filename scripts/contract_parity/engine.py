@@ -112,6 +112,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         '429': ('too_many_requests(',),
     }
     TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
+    TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
     INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
@@ -146,6 +147,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/friends/requests/{request_id}/decline'),
         ('POST', '/v1/friends/requests/{request_id}/cancel'),
         ('GET', '/v1/friends/requests/{request_id}/bootstrap'),
+        ('GET', '/v1/internal/presence/watchers/{identity_id}'),
         ('POST', '/v1/invites/redeem'),
         ('POST', '/v1/contact-invites/redeem'),
         ('GET', '/v1/servers/{server_id}'),
@@ -185,6 +187,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('GET', '/v1/dm/threads'): {'cursor_invalid'},
         ('GET', '/v1/dm/threads/{thread_id}/messages'): {'cursor_invalid', 'thread_not_found'},
         ('POST', '/v1/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
+    }
+    ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
+        ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
+            '401': {'internal_token_invalid'},
+        },
     }
     QUERY_RUNTIME_FIELD_RULES = {
         'FriendRequestListQuery': {
@@ -427,6 +434,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def expected_route_scoped_error_examples(method: str, path: str):
         return ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS.get((method, path), set())
+
+
+    def expected_route_scoped_error_examples_by_status(method: str, path: str):
+        return ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS.get((method, path), {})
 
 
     def extract_query_struct_fields(models_path: pathlib.Path):
@@ -708,6 +719,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'tracked_error_example_codes': expected_route_scoped_error_examples(
                         method.upper(), path
                     ) if should_track_route_scoped_error_examples(method.upper(), path) else set(),
+                    'tracked_error_example_codes_by_status': expected_route_scoped_error_examples_by_status(
+                        method.upper(), path
+                    ) if should_track_route_scoped_error_examples(method.upper(), path) else {},
                     'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
                     'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                     'error_statuses': infer_error_statuses(
@@ -754,7 +768,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_error_status = None
         in_error_examples = False
         in_error_example_value = False
-        current_error_example_code = None
 
         for line in lines:
             if not in_paths:
@@ -784,7 +797,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
-                current_error_example_code = None
                 continue
 
             method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
@@ -805,7 +817,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
-                current_error_example_code = None
                 semantics[(current_method, current_path)] = {
                     'security_schemes': set(),
                     'has_401': False,
@@ -854,7 +865,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 in_response_headers = False
                 current_response_header_status = None
-            if current_error_status and re.match(r"^        '(?:4\d\d|5\d\d|2\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
+            if current_error_status and re.match(r"^        '(?:2\d\d|4\d\d|5\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
@@ -870,171 +881,175 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
             if re.match(r'^      security:\s*$', line):
                 continue
-            elif re.match(r'^      parameters:\s*$', line):
+            if re.match(r'^      parameters:\s*$', line):
                 in_parameters_block = True
                 continue
-            elif security_scheme_match := re.match(r'^        - ([A-Za-z0-9_]+): \[\]\s*$', line):
+
+            security_scheme_match = re.match(r'^        - ([A-Za-z0-9_]+): \[\]\s*$', line)
+            if security_scheme_match:
                 semantics[(current_method, current_path)]['security_schemes'].add(
                     security_scheme_match.group(1)
                 )
-            elif re.match(r'^      requestBody:\s*$', line):
+                continue
+
+            if re.match(r'^      requestBody:\s*$', line):
                 semantics[(current_method, current_path)]['has_request_body'] = True
                 in_request_body = True
                 in_request_body_json = False
                 in_request_body_schema = False
-            elif in_request_body and re.match(r'^          application/json:\s*$', line):
+                continue
+            if in_request_body and re.match(r'^          application/json:\s*$', line):
                 in_request_body_json = True
                 in_request_body_schema = False
-            elif in_request_body_json and re.match(r'^            schema:\s*$', line):
+                continue
+            if in_request_body_json and re.match(r'^            schema:\s*$', line):
                 in_request_body_schema = True
-            elif in_request_body_schema and (request_schema_match := re.match(r"^              \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)):
+                continue
+            request_schema_match = re.match(r"^              \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if in_request_body_schema and request_schema_match:
                 semantics[(current_method, current_path)]['request_body_schema'] = request_schema_match.group(1)
-            elif "#/components/parameters/CsrfTokenHeader" in line:
+                continue
+
+            if "#/components/parameters/CsrfTokenHeader" in line:
                 semantics[(current_method, current_path)]['has_csrf'] = True
-            elif re.match(r"^        '401':\s*$", line):
+                continue
+            if re.match(r"^        '401':\s*$", line):
                 semantics[(current_method, current_path)]['has_401'] = True
-            elif re.match(r"^        '500':\s*$", line):
+            if re.match(r"^        '500':\s*$", line):
                 semantics[(current_method, current_path)]['has_500'] = True
-            else:
-                if in_parameters_block and (request_header_ref_match := re.match(r"^        - \$ref: '#/components/parameters/([A-Za-z0-9_]+)'\s*$", line)):
-                    parameter_ref = request_header_ref_match.group(1)
-                    if parameter_ref == 'CsrfTokenHeader':
-                        semantics[(current_method, current_path)]['request_headers'].add('x-csrf-token')
-                    continue
-                if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
-                    current_parameter_in = None
-                    current_parameter_name = None
-                    current_query_schema_parameter = None
-                parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
-                if parameter_match:
-                    current_parameter_in = parameter_match.group(1)
-                    current_parameter_name = None
-                    current_query_schema_parameter = None
-                    continue
-                other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
-                if other_parameter_match:
-                    current_parameter_in = None
-                    current_parameter_name = None
-                    current_query_schema_parameter = None
-                    continue
-                parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_-]+)\s*$', line)
-                if parameter_name_match and current_parameter_in in {'path', 'query'}:
-                    current_parameter_name = parameter_name_match.group(1)
-                    if current_parameter_in == 'path':
-                        semantics[(current_method, current_path)]['path_parameters'].add(current_parameter_name)
-                    else:
-                        semantics[(current_method, current_path)]['query_parameters'].add(current_parameter_name)
-                        semantics[(current_method, current_path)]['query_parameter_details'].setdefault(
-                            current_parameter_name,
-                            {
-                                'required': False,
-                                'schema_type': None,
-                                'enum': set(),
-                                'minimum': None,
-                                'maximum': None,
-                            },
-                        )
-                    continue
-                if parameter_name_match and current_parameter_in == 'header':
-                    semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
-                    continue
-                if (
-                    current_parameter_in == 'query'
-                    and current_parameter_name
-                    and re.match(r'^          required: true\s*$', line)
-                ):
-                    semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
-                    continue
-                if (
-                    current_parameter_in == 'query'
-                    and current_parameter_name
-                    and re.match(r'^          schema:\s*$', line)
-                ):
-                    current_query_schema_parameter = current_parameter_name
-                    continue
-                if current_query_schema_parameter and not re.match(r'^            ', line):
-                    current_query_schema_parameter = None
-                if current_query_schema_parameter:
-                    type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
-                    if type_match:
-                        semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['schema_type'] = type_match.group(1)
-                        continue
-                    enum_match = re.match(r'^            enum: \[(.*)\]\s*$', line)
-                    if enum_match:
-                        raw_values = [value.strip() for value in enum_match.group(1).split(',') if value.strip()]
-                        semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['enum'] = set(raw_values)
-                        continue
-                    minimum_match = re.match(r'^            minimum: (\d+)\s*$', line)
-                    if minimum_match:
-                        semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['minimum'] = int(minimum_match.group(1))
-                        continue
-                    maximum_match = re.match(r'^            maximum: (\d+)\s*$', line)
-                    if maximum_match:
-                        semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
-                        continue
-                success_match = re.match(r"^        '(2\d\d)':\s*$", line)
-                if success_match:
-                    current_response_status = success_match.group(1)
-                    in_response_json = False
-                    in_response_schema = False
-                    current_response_header_status = current_response_status
-                    in_response_headers = False
-                    current_error_status = None
-                    in_error_examples = False
-                    in_error_example_value = False
-                    semantics[(current_method, current_path)]['success_responses'].add(
-                        current_response_status
+
+            request_header_ref_match = re.match(r"^        - \$ref: '#/components/parameters/([A-Za-z0-9_]+)'\s*$", line)
+            if in_parameters_block and request_header_ref_match:
+                parameter_ref = request_header_ref_match.group(1)
+                if parameter_ref == 'CsrfTokenHeader':
+                    semantics[(current_method, current_path)]['request_headers'].add('x-csrf-token')
+                continue
+
+            if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                current_parameter_in = None
+                current_parameter_name = None
+                current_query_schema_parameter = None
+
+            parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
+            if parameter_match:
+                current_parameter_in = parameter_match.group(1)
+                current_parameter_name = None
+                current_query_schema_parameter = None
+                continue
+
+            other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
+            if other_parameter_match:
+                current_parameter_in = None
+                current_parameter_name = None
+                current_query_schema_parameter = None
+                continue
+
+            parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_-]+)\s*$', line)
+            if parameter_name_match and current_parameter_in in {'path', 'query'}:
+                current_parameter_name = parameter_name_match.group(1)
+                if current_parameter_in == 'path':
+                    semantics[(current_method, current_path)]['path_parameters'].add(current_parameter_name)
+                else:
+                    semantics[(current_method, current_path)]['query_parameters'].add(current_parameter_name)
+                    semantics[(current_method, current_path)]['query_parameter_details'].setdefault(
+                        current_parameter_name,
+                        {
+                            'required': False,
+                            'schema_type': None,
+                            'enum': set(),
+                            'minimum': None,
+                            'maximum': None,
+                        },
                     )
+                continue
+            if parameter_name_match and current_parameter_in == 'header':
+                semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
+                continue
+
+            if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          required: true\s*$', line):
+                semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
+                continue
+            if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          schema:\s*$', line):
+                current_query_schema_parameter = current_parameter_name
+                continue
+            if current_query_schema_parameter and not re.match(r'^            ', line):
+                current_query_schema_parameter = None
+            if current_query_schema_parameter:
+                type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
+                if type_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['schema_type'] = type_match.group(1)
                     continue
-                if current_response_header_status and re.match(r'^          headers:\s*$', line):
-                    in_response_headers = True
+                enum_match = re.match(r'^            enum: \[(.*)\]\s*$', line)
+                if enum_match:
+                    raw_values = [value.strip() for value in enum_match.group(1).split(',') if value.strip()]
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['enum'] = set(raw_values)
                     continue
-                if in_response_headers and (response_header_match := re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)):
-                    semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
+                minimum_match = re.match(r'^            minimum: (\d+)\s*$', line)
+                if minimum_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['minimum'] = int(minimum_match.group(1))
                     continue
-                if current_response_status and re.match(r'^ {12}application/json:\s*$', line):
-                    in_response_json = True
-                    in_response_schema = False
+                maximum_match = re.match(r'^            maximum: (\d+)\s*$', line)
+                if maximum_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
                     continue
-                if current_response_status and in_response_json and re.match(r'^ {14}schema:\s*$', line):
-                    in_response_schema = True
-                    continue
-                if current_response_status and in_response_schema and (response_schema_match := re.match(r"^ {16}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)):
-                    semantics[(current_method, current_path)]['response_schemas'][current_response_status] = response_schema_match.group(1)
-                    continue
-                error_match = re.match(
-                    rf"^        '(({TRACKED_ERROR_STATUS_PATTERN}))':\s*$", line
-                )
-                if error_match:
-                    current_error_status = error_match.group(1)
-                    in_error_examples = False
-                    in_error_example_value = False
-                    semantics[(current_method, current_path)]['error_responses'].add(
-                        current_error_status
-                    )
-                    semantics[(current_method, current_path)]['error_example_codes'].setdefault(
-                        current_error_status, set()
-                    )
-                    continue
-                if current_error_status and re.match(r'^ {14}examples:\s*$', line):
-                    in_error_examples = True
-                    in_error_example_value = False
-                    continue
-                if current_error_status and not in_error_examples and current_error_status == '400' and re.match(r'^ {14}\$ref: ', line):
-                    in_error_examples = False
-                    in_error_example_value = False
-                    continue
-                if in_error_examples and re.match(r'^ {16}[A-Za-z0-9_]+:\s*$', line):
-                    in_error_example_value = False
-                    continue
-                if in_error_examples and re.match(r'^ {18}value:\s*$', line):
-                    in_error_example_value = True
-                    continue
-                if in_error_example_value and (error_code_match := re.match(r'^ {20}code: ([A-Za-z0-9_]+)\s*$', line)):
-                    semantics[(current_method, current_path)]['error_example_codes'][current_error_status].add(
-                        error_code_match.group(1)
-                    )
-                
+
+            success_match = re.match(r"^        '(2\d\d)':\s*$", line)
+            if success_match:
+                current_response_status = success_match.group(1)
+                in_response_json = False
+                in_response_schema = False
+                current_response_header_status = current_response_status
+                in_response_headers = False
+                current_error_status = None
+                in_error_examples = False
+                in_error_example_value = False
+                semantics[(current_method, current_path)]['success_responses'].add(current_response_status)
+                continue
+            if current_response_header_status and re.match(r'^          headers:\s*$', line):
+                in_response_headers = True
+                continue
+            response_header_match = re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)
+            if in_response_headers and response_header_match:
+                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
+                continue
+            if current_response_status and re.match(r'^ {12}application/json:\s*$', line):
+                in_response_json = True
+                in_response_schema = False
+                continue
+            if current_response_status and in_response_json and re.match(r'^ {14}schema:\s*$', line):
+                in_response_schema = True
+                continue
+            response_schema_match = re.match(r"^ {16}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if current_response_status and in_response_schema and response_schema_match:
+                semantics[(current_method, current_path)]['response_schemas'][current_response_status] = response_schema_match.group(1)
+                continue
+
+            error_match = re.match(rf"^        '(({TRACKED_ERROR_EXAMPLE_STATUS_PATTERN}))':\s*$", line)
+            if error_match:
+                current_error_status = error_match.group(1)
+                in_error_examples = False
+                in_error_example_value = False
+                semantics[(current_method, current_path)]['error_responses'].add(current_error_status)
+                semantics[(current_method, current_path)]['error_example_codes'].setdefault(current_error_status, set())
+                continue
+            if current_error_status and re.match(r'^ {14}examples:\s*$', line):
+                in_error_examples = True
+                in_error_example_value = False
+                continue
+            if current_error_status and not in_error_examples and current_error_status == '400' and re.match(r'^ {14}\$ref: ', line):
+                in_error_examples = False
+                in_error_example_value = False
+                continue
+            if in_error_examples and re.match(r'^ {16}[A-Za-z0-9_]+:\s*$', line):
+                in_error_example_value = False
+                continue
+            if in_error_examples and re.match(r'^ {18}value:\s*$', line):
+                in_error_example_value = True
+                continue
+            error_code_match = re.match(r'^ {20}code: ([A-Za-z0-9_]+)\s*$', line)
+            if in_error_example_value and error_code_match:
+                semantics[(current_method, current_path)]['error_example_codes'][current_error_status].add(error_code_match.group(1))
+
         return semantics
 
 
@@ -1120,13 +1135,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 expected = ', '.join(sorted(runtime['error_codes']))
                 errors.append(f"::error::{method} {path} can emit route-scoped ApiError codes [{expected}] at runtime but documents [{documented}] across tracked error examples in {contract_path}.")
         if runtime['tracked_error_example_codes']:
-            documented_error_codes = set()
-            for status_code in runtime['error_statuses']:
-                documented_error_codes.update(contract['error_example_codes'].get(status_code, set()))
+            documented_error_codes = set().union(*contract['error_example_codes'].values()) if contract['error_example_codes'] else set()
             missing_error_codes = runtime['tracked_error_example_codes'] - documented_error_codes
             if missing_error_codes:
                 missing = ', '.join(sorted(missing_error_codes))
                 errors.append(f"::error::{method} {path} is missing tracked route-level error examples for ApiError codes [{missing}] in {contract_path}.")
+        if runtime['tracked_error_example_codes_by_status']:
+            for status_code, expected_codes in sorted(runtime['tracked_error_example_codes_by_status'].items()):
+                documented_error_codes = contract['error_example_codes'].get(status_code, set())
+                missing_error_codes = expected_codes - documented_error_codes
+                if missing_error_codes:
+                    missing = ', '.join(sorted(missing_error_codes))
+                    errors.append(f"::error::{method} {path} is missing tracked HTTP {status_code} route-level error examples for ApiError codes [{missing}] in {contract_path}.")
         missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
         for parameter_name in missing_path_parameters:
             errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")

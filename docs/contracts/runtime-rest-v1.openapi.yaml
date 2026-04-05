@@ -870,7 +870,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/PresenceWatcherListResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Internal token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                internalTokenInvalid:
+                  summary: Presence watcher token is invalid
+                  value:
+                    code: internal_token_invalid
+                    message: presence watcher lookup requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/discovery/users:
