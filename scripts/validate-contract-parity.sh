@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base_sha="${1:-}"
-head_sha="${2:-HEAD}"
-
-if [ -z "${base_sha}" ] || [ "${base_sha}" = "0000000000000000000000000000000000000000" ]; then
-  base_sha="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || git rev-parse HEAD~1)"
-fi
-
-api_contract="docs/contracts/runtime-rest-v1.openapi.yaml"
-realtime_contract="docs/contracts/realtime-events-runtime-v1.asyncapi.yaml"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 if command -v py >/dev/null 2>&1; then
   PYTHON_BIN=(py -3)
@@ -21,6 +13,8 @@ else
   echo "::error::python3, python, or py -3 is required for contract parity validation."
   exit 1
 fi
+
+exec "${PYTHON_BIN[@]}" "$SCRIPT_DIR/contract_parity/validator.py" "$@"
 
 api_surface_files=(
   'services/api-rs/src/models.rs'
