@@ -1,0 +1,71 @@
+openapi: 3.1.0
+paths:
+  /v1/dm/threads/{thread_id}/messages:
+    get:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: thread_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: DM message page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmMessagePage'
+        '400':
+          description: Invalid DM message history cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  value:
+                    code: cursor_invalid
+                    message: message cursor must be numeric
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - cursor_invalid
+            - thread_not_found
+            - storage_unavailable
+    DmMessagePage:
+      type: object

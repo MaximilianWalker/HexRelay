@@ -1,0 +1,124 @@
+openapi: 3.1.0
+paths:
+  /v1/friends/requests/{request_id}/accept:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestAcceptRequest'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          description: Invalid request state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Transition invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/dm/threads:
+    get:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: DM thread page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadPage'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  value:
+                    code: cursor_invalid
+                    message: unknown dm thread cursor
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - cursor_invalid
+            - identity_invalid
+            - transition_invalid
+            - storage_unavailable
+    FriendRequestAcceptRequest:
+      type: object
+    FriendRequestRecord:
+      type: object
+    DmThreadPage:
+      type: object
