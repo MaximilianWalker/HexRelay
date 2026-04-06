@@ -1,0 +1,60 @@
+openapi: 3.1.0
+paths:
+  /v1/dm/threads:
+    get:
+      security:
+        - CookieAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: DM thread page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadPage'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  value:
+                    code: cursor_invalid
+                    message: unknown dm thread cursor
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - cursor_invalid
+            - storage_unavailable
+    DmThreadPage:
+      type: object
