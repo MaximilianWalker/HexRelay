@@ -44,6 +44,7 @@ run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
+run_fixture fail-invite-create-example 1 "invite_invalid"
 run_fixture fail-missing-example 1 "thread_not_found"
 
 printf '[contract-parity-test] Fixture regressions passed\n'

@@ -114,6 +114,13 @@ async fn rejects_exhausted_one_time_invite() {
         .await
         .expect("second redeem response");
     assert_eq!(second_redeem_response.status(), StatusCode::BAD_REQUEST);
+
+    let second_redeem_body = to_bytes(second_redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read exhausted invite body");
+    let second_redeem_payload: serde_json::Value =
+        serde_json::from_slice(&second_redeem_body).expect("decode exhausted invite body");
+    assert_eq!(second_redeem_payload["code"], "invite_exhausted");
 }
 
 #[tokio::test]
@@ -135,6 +142,13 @@ async fn rejects_expired_invite() {
         .await
         .expect("create invite response");
     assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read expired invite create body");
+    let create_payload: serde_json::Value =
+        serde_json::from_slice(&create_body).expect("decode expired invite create body");
+    assert_eq!(create_payload["code"], "invite_invalid");
 }
 
 #[tokio::test]
@@ -174,6 +188,13 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
 
     let redeem_response = app.oneshot(redeem_request).await.expect("redeem response");
     assert_eq!(redeem_response.status(), StatusCode::BAD_REQUEST);
+
+    let redeem_body = to_bytes(redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read mismatch redeem body");
+    let redeem_payload: serde_json::Value =
+        serde_json::from_slice(&redeem_body).expect("decode mismatch redeem body");
+    assert_eq!(redeem_payload["code"], "fingerprint_mismatch");
 }
 
 #[tokio::test]
@@ -422,4 +443,84 @@ async fn contact_invite_redeem_rejects_blocked_pair() {
         .await
         .expect("redeem contact invite response");
     assert_eq!(redeem_response.status(), StatusCode::FORBIDDEN);
+
+    let redeem_body = to_bytes(redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read blocked contact invite body");
+    let redeem_payload: serde_json::Value =
+        serde_json::from_slice(&redeem_body).expect("decode blocked contact invite body");
+    assert_eq!(redeem_payload["code"], "blocked_user");
+}
+
+#[tokio::test]
+async fn rejects_invalid_invite_create_mode() {
+    let (app, tokens) = app_with_sessions(&["usr-invite"]);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"mode":"forever"}"#))
+        .expect("build invalid create invite request");
+
+    let create_response = app
+        .oneshot(create_request)
+        .await
+        .expect("invalid create invite response");
+    assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid create invite body");
+    let create_payload: serde_json::Value =
+        serde_json::from_slice(&create_body).expect("decode invalid create invite body");
+    assert_eq!(create_payload["code"], "invite_invalid");
+}
+
+#[tokio::test]
+async fn contact_invite_redeem_rejects_self_redeem() {
+    let (app, tokens) = app_with_sessions(&["usr-invite"]);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
+        .expect("build contact invite create request");
+
+    let create_response = app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create contact invite response");
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read contact invite create body");
+    let created: InviteCreateResponse =
+        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
+
+    let redeem_request = Request::builder()
+        .method("POST")
+        .uri("/v1/contact-invites/redeem")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
+        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
+        .expect("build self redeem contact invite request");
+
+    let redeem_response = app
+        .oneshot(redeem_request)
+        .await
+        .expect("self redeem contact invite response");
+    assert_eq!(redeem_response.status(), StatusCode::CONFLICT);
+
+    let redeem_body = to_bytes(redeem_response.into_body(), usize::MAX)
+        .await
+        .expect("read self redeem contact invite body");
+    let redeem_payload: serde_json::Value =
+        serde_json::from_slice(&redeem_body).expect("decode self redeem contact invite body");
+    assert_eq!(redeem_payload["code"], "invite_invalid");
 }

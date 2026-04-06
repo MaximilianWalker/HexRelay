@@ -200,7 +200,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid invite creation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Invite creation payload is invalid
+                  value:
+                    code: invite_invalid
+                    message: mode must be one_time or multi_use
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -276,7 +286,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid contact invite creation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Contact invite creation payload is invalid
+                  value:
+                    code: invite_invalid
+                    message: mode must be one_time or multi_use
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -344,7 +364,22 @@ paths:
                     code: blocked_user
                     message: blocked users cannot redeem contact invites
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Contact invite redemption conflicts with existing relationship state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Caller cannot redeem their own contact invite
+                  value:
+                    code: invite_invalid
+                    message: cannot redeem a contact invite created by the same identity
+                friendRequestExists:
+                  summary: Pending friend request already exists
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
