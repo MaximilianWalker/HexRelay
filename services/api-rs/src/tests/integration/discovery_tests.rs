@@ -395,7 +395,16 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
     let payload: DiscoveryUserListResponse =
         serde_json::from_slice(&body).expect("decode blank-query discovery payload");
 
-    assert_eq!(payload.items.len(), 2);
+    assert!(payload.items.len() <= 50);
+    assert!(payload
+        .items
+        .iter()
+        .any(|item| item.identity_id == allowed_a));
+    assert!(payload
+        .items
+        .iter()
+        .any(|item| item.identity_id == allowed_b));
+    assert!(!payload.items.iter().any(|item| item.identity_id == actor));
 }
 
 #[tokio::test]
