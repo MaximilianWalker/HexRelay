@@ -24,11 +24,17 @@ paths:
       summary: Service health probe
       responses:
         '200':
-          description: Service is healthy
+          description: Fixed liveness payload for the API service.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthyApi:
+                  summary: API service reports a healthy probe state
+                  value:
+                    service: api-rs
+                    status: ok
   /v1/identity/keys/register:
     post:
       summary: Register a public identity key
@@ -587,11 +593,24 @@ paths:
             type: boolean
       responses:
         '200':
-          description: Server list response
+          description: >-
+            Identity-scoped server summaries after favorites/unread/muted/search
+            filters are applied. Returned items are only the caller's joined
+            servers.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerListResponse'
+              examples:
+                filteredServers:
+                  summary: Filtered joined-server summaries for the authenticated identity
+                  value:
+                    items:
+                      - id: srv-shared-lab
+                        name: Shared Lab
+                        unread: 3
+                        favorite: true
+                        muted: false
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1166,11 +1185,34 @@ paths:
             type: boolean
       responses:
         '200':
-          description: Contact list response
+          description: >-
+            Contact list response for the authenticated identity. Accepted and
+            pending relationships share the same list surface; pending contacts
+            remain `offline`, while accepted contacts may surface presence-backed
+            status when available.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactListResponse'
+              examples:
+                mixedContacts:
+                  summary: Accepted and pending relationships share one contact surface
+                  value:
+                    items:
+                      - id: usr-nora-k
+                        name: Nora K
+                        status: online
+                        unread: 1
+                        favorite: true
+                        inbound_request: false
+                        pending_request: false
+                      - id: usr-alex-r
+                        name: Alex R
+                        status: offline
+                        unread: 0
+                        favorite: false
+                        inbound_request: false
+                        pending_request: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1193,11 +1235,19 @@ paths:
             type: string
       responses:
         '200':
-          description: Authorized presence watchers
+          description: >-
+            Authorized presence watchers for the subject identity. The response is
+            sorted and always includes the subject identity plus any accepted,
+            non-blocked peers currently entitled to receive presence updates.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PresenceWatcherListResponse'
+              examples:
+                watcherSet:
+                  summary: Subject identity plus accepted non-blocked peers
+                  value:
+                    watchers: [usr-jules-p, usr-nora-k]
         '401':
           description: Internal token is missing or invalid
           content:
@@ -2636,11 +2686,21 @@ paths:
               $ref: '#/components/schemas/BlockUserRequest'
       responses:
         '201':
-          description: User blocked
+          description: >-
+            User blocked. Returns the canonical persisted block record with the
+            caller as `blocker_identity_id`, the trimmed target identity, and the
+            block creation timestamp.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BlockRecord'
+              examples:
+                blockRecord:
+                  summary: Canonical block record returned after a new block
+                  value:
+                    blocker_identity_id: usr-nora-k
+                    blocked_identity_id: usr-jules-p
+                    created_at: '2026-04-06T12:40:00Z'
         '400':
           description: Invalid block request
           content:
@@ -2685,7 +2745,7 @@ paths:
               $ref: '#/components/schemas/BlockUserRequest'
       responses:
         '204':
-          description: User unblocked
+          description: User unblocked with no response body; removing an already-absent block is still a successful no-op.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2700,11 +2760,28 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: List of blocked users
+          description: >-
+            Caller-owned outbound block list, sorted by `blocked_identity_id`.
+            Returns an empty `items` array when the caller has no active blocks.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BlockListResponse'
+              examples:
+                blockedUsers:
+                  summary: Sorted outbound block list for the authenticated identity
+                  value:
+                    items:
+                      - blocker_identity_id: usr-nora-k
+                        blocked_identity_id: usr-alex-r
+                        created_at: '2026-04-06T12:41:00Z'
+                      - blocker_identity_id: usr-nora-k
+                        blocked_identity_id: usr-jules-p
+                        created_at: '2026-04-06T12:40:00Z'
+                noBlockedUsers:
+                  summary: Empty list is a successful response when no blocks exist
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -2725,11 +2802,21 @@ paths:
               $ref: '#/components/schemas/MuteUserRequest'
       responses:
         '201':
-          description: User muted
+          description: >-
+            User muted. Returns the canonical persisted mute record with the
+            caller as `muter_identity_id`, the trimmed target identity, and the
+            mute creation timestamp.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MuteRecord'
+              examples:
+                muteRecord:
+                  summary: Canonical mute record returned after a new mute
+                  value:
+                    muter_identity_id: usr-nora-k
+                    muted_identity_id: usr-jules-p
+                    created_at: '2026-04-06T12:42:00Z'
         '400':
           description: Invalid mute request
           content:
@@ -2774,7 +2861,7 @@ paths:
               $ref: '#/components/schemas/MuteUserRequest'
       responses:
         '204':
-          description: User unmuted
+          description: User unmuted with no response body; removing an already-absent mute is still a successful no-op.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2789,11 +2876,28 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: List of muted users
+          description: >-
+            Caller-owned mute list, sorted by `muted_identity_id`. Returns an
+            empty `items` array when the caller has no active mutes.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MuteListResponse'
+              examples:
+                mutedUsers:
+                  summary: Sorted mute list for the authenticated identity
+                  value:
+                    items:
+                      - muter_identity_id: usr-nora-k
+                        muted_identity_id: usr-alex-r
+                        created_at: '2026-04-06T12:43:00Z'
+                      - muter_identity_id: usr-nora-k
+                        muted_identity_id: usr-jules-p
+                        created_at: '2026-04-06T12:42:00Z'
+                noMutedUsers:
+                  summary: Empty list is a successful response when no mutes exist
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
