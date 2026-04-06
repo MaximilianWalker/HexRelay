@@ -42,6 +42,7 @@ run_fixture() {
 
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_fixture pass-request-schema-alias 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
 run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
@@ -50,6 +51,7 @@ run_fixture fail-internal-auth-header 1 "x-hexrelay-internal-token"
 run_fixture fail-internal-auth-security 1 "should not declare session security schemes"
 run_fixture fail-internal-auth-example 1 "internal_token_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"
+run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
 run_fixture fail-success-content 1 "documents no success schema"
 run_fixture fail-missing-example 1 "thread_not_found"
