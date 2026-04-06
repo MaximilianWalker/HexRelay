@@ -45,11 +45,51 @@ paths:
         '201':
           description: Identity key registered
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid identity registration payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                algorithmInvalid:
+                  summary: Only ed25519 identity keys are accepted
+                  value:
+                    code: algorithm_invalid
+                    message: algorithm must be ed25519
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                publicKeyInvalid:
+                  summary: Public key is not a 32-byte ed25519 key in hex or base64
+                  value:
+                    code: public_key_invalid
+                    message: public_key must be 32-byte ed25519 key in hex or base64
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Public identity registration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityRegistrationDisabled:
+                  summary: Runtime is still fail-closed for public identity claims
+                  value:
+                    code: identity_registration_disabled
+                    message: public identity registration is disabled until a trusted claim flow is configured
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Identity already has a registered key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityExists:
+                  summary: Identity id is already claimed by an existing key
+                  value:
+                    code: identity_exists
+                    message: identity_id already has a registered key
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/challenge:
@@ -69,22 +109,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
-          description: Invalid auth verification request
+          description: Invalid auth challenge request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                algorithmInvalid:
-                  summary: Registered identity key uses an unsupported algorithm
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
                   value:
-                    code: algorithm_invalid
-                    message: registered algorithm must be ed25519
-                signatureInvalid:
-                  summary: Signature encoding is malformed
-                  value:
-                    code: signature_invalid
-                    message: signature must be 64-byte hex or base64
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -122,18 +157,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                algorithmInvalid:
-                  summary: Registered identity key uses an unsupported algorithm
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
                   value:
-                    code: algorithm_invalid
-                    message: registered algorithm must be ed25519
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                nonceInvalid:
+                  summary: Challenge id is missing from the verification payload
+                  value:
+                    code: nonce_invalid
+                    message: challenge_id must not be empty
                 signatureInvalid:
-                  summary: Signature encoding is malformed
+                  summary: Signature is missing from the verification payload
                   value:
                     code: signature_invalid
-                    message: signature must be 64-byte hex or base64
+                    message: signature must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Verification failed against the stored challenge or identity key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                nonceInvalid:
+                  summary: Challenge, signature, or registered key could not be verified
+                  value:
+                    code: nonce_invalid
+                    message: auth verification failed
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -166,19 +216,29 @@ paths:
               schema:
                 type: string
         '400':
-          description: Invalid fanout dispatch request
+          description: Invalid session revoke request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                fanoutInvalid:
-                  summary: Fanout dispatch payload is invalid
+                sessionInvalid:
+                  summary: Session id is missing or does not resolve to an active stored session
                   value:
-                    code: fanout_invalid
-                    message: recipient_identity_id must be 3-64 chars using letters, numbers, _ or -
+                    code: session_invalid
+                    message: session_id must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Revocation payload does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Caller attempted to revoke a different session id
+                  value:
+                    code: session_invalid
+                    message: session_id does not match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/validate:
@@ -1882,9 +1942,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/FriendRequestPage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid friend-request list filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Identity id or direction filter violates runtime rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requested identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Caller attempted to read another identity's friend requests
+                  value:
+                    code: identity_invalid
+                    message: identity_id must match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -1908,13 +1988,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid friend-request creation payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Requester or target identity is invalid or self-targeted
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id and target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requester identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Caller attempted to create a request on behalf of another identity
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id must match authenticated session
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Friend request is blocked by an existing block relationship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                blockedUser:
+                  summary: Users cannot create friend requests across a block relationship
+                  value:
+                    code: blocked_user
+                    message: cannot send friend request — a block relationship exists between these users
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Pending friend request already exists for this pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                friendRequestExists:
+                  summary: Runtime keeps only one pending request for the pair
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/accept:
@@ -2152,11 +2272,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/BlockRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid block request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Target identity is invalid or matches the caller
+                  value:
+                    code: identity_invalid
+                    message: target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: User is already blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                alreadyBlocked:
+                  summary: Duplicate block requests do not create a second record
+                  value:
+                    code: already_blocked
+                    message: user is already blocked
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/unblock:
@@ -2221,11 +2361,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/MuteRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mute request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Target identity is invalid or matches the caller
+                  value:
+                    code: identity_invalid
+                    message: target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: User is already muted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                alreadyMuted:
+                  summary: Duplicate mute requests do not create a second record
+                  value:
+                    code: already_muted
+                    message: user is already muted
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/unmute:

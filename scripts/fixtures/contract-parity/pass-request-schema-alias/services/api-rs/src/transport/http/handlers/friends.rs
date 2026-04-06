@@ -2,7 +2,7 @@ use axum::{extract::State, http::{HeaderMap, StatusCode}, Json};
 
 use crate::{
     models::{FriendRequestCreate, FriendRequestRecord},
-    shared::errors::{bad_request, conflict, internal_error, ApiResult},
+    shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -16,6 +16,12 @@ pub async fn create_friend_request(
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     if payload.requester_identity_id != auth.identity_id {
         return Err(bad_request("identity_invalid", "requester identity must match session"));
+    }
+    if false {
+        return Err(forbidden(
+            "blocked_user",
+            "cannot send friend request — a block relationship exists between these users",
+        ));
     }
     if false {
         return Err(conflict("friend_request_exists", "pending friend request already exists"));

@@ -157,10 +157,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
+        ('POST', '/v1/auth/identity-key'),
+        ('POST', '/v1/auth/challenge'),
+        ('POST', '/v1/auth/sessions/revoke'),
+        ('GET', '/v1/friends/requests'),
+        ('POST', '/v1/friends/requests'),
         ('POST', '/v1/friends/requests/{request_id}/accept'),
         ('POST', '/v1/friends/requests/{request_id}/decline'),
         ('POST', '/v1/friends/requests/{request_id}/cancel'),
         ('GET', '/v1/friends/requests/{request_id}/bootstrap'),
+        ('POST', '/v1/users/block'),
+        ('POST', '/v1/users/mute'),
         ('GET', '/v1/internal/presence/watchers/{identity_id}'),
         ('POST', '/v1/dm/privacy-policy'),
         ('POST', '/v1/dm/pairing-envelope'),
@@ -191,6 +198,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
+        ('POST', '/v1/auth/identity-key'): {
+            'algorithm_invalid',
+            'identity_invalid',
+            'public_key_invalid',
+            'identity_registration_disabled',
+            'identity_exists',
+        },
+        ('POST', '/v1/auth/challenge'): {'identity_invalid'},
+        ('POST', '/v1/auth/sessions/revoke'): {'session_invalid'},
+        ('GET', '/v1/friends/requests'): {'identity_invalid'},
+        ('POST', '/v1/friends/requests'): {
+            'identity_invalid',
+            'blocked_user',
+            'friend_request_exists',
+        },
         ('POST', '/v1/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
         ('POST', '/v1/friends/requests/{request_id}/decline'): {'identity_invalid', 'transition_invalid'},
         ('POST', '/v1/friends/requests/{request_id}/cancel'): {'identity_invalid', 'transition_invalid'},
@@ -199,6 +221,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'bootstrap_not_available',
             'blocked_user',
         },
+        ('POST', '/v1/users/block'): {'identity_invalid', 'already_blocked'},
+        ('POST', '/v1/users/mute'): {'identity_invalid', 'already_muted'},
         ('POST', '/v1/dm/privacy-policy'): {'dm_policy_invalid'},
         ('POST', '/v1/dm/pairing-envelope'): {'pairing_invalid'},
         ('POST', '/v1/dm/pairing-envelope/import'): {
@@ -216,7 +240,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/profile-devices/heartbeat'): {'profile_device_invalid'},
         ('POST', '/v1/invites'): {'invite_invalid'},
         ('POST', '/v1/contact-invites'): {'invite_invalid'},
-        ('POST', '/v1/auth/verify'): {'algorithm_invalid', 'signature_invalid'},
+        ('POST', '/v1/auth/verify'): {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
         ('POST', '/v1/invites/redeem'): {
             'invite_invalid',
             'fingerprint_mismatch',
@@ -266,6 +290,40 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
+        ('POST', '/v1/auth/identity-key'): {
+            '400': {'algorithm_invalid', 'identity_invalid', 'public_key_invalid'},
+            '403': {'identity_registration_disabled'},
+            '409': {'identity_exists'},
+        },
+        ('POST', '/v1/auth/challenge'): {
+            '400': {'identity_invalid'},
+        },
+        ('POST', '/v1/auth/verify'): {
+            '400': {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
+            '401': {'nonce_invalid'},
+        },
+        ('POST', '/v1/auth/sessions/revoke'): {
+            '400': {'session_invalid'},
+            '401': {'session_invalid'},
+        },
+        ('GET', '/v1/friends/requests'): {
+            '400': {'identity_invalid'},
+            '401': {'identity_invalid'},
+        },
+        ('POST', '/v1/friends/requests'): {
+            '400': {'identity_invalid'},
+            '401': {'identity_invalid'},
+            '403': {'blocked_user'},
+            '409': {'friend_request_exists'},
+        },
+        ('POST', '/v1/users/block'): {
+            '400': {'identity_invalid'},
+            '409': {'already_blocked'},
+        },
+        ('POST', '/v1/users/mute'): {
+            '400': {'identity_invalid'},
+            '409': {'already_muted'},
+        },
         ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
             '401': {'internal_token_invalid'},
         },

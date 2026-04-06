@@ -30,18 +30,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                algorithmInvalid:
-                  summary: Registered identity key uses an unsupported algorithm
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
                   value:
-                    code: algorithm_invalid
-                    message: registered algorithm must be ed25519
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                nonceInvalid:
+                  summary: Challenge id is missing from the verification payload
+                  value:
+                    code: nonce_invalid
+                    message: challenge_id must not be empty
                 signatureInvalid:
-                  summary: Signature encoding is malformed
+                  summary: Signature is missing from the verification payload
                   value:
                     code: signature_invalid
-                    message: signature must be 64-byte hex or base64
+                    message: signature must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Verification failed against the stored challenge or identity key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                nonceInvalid:
+                  summary: Challenge, signature, or registered key could not be verified
+                  value:
+                    code: nonce_invalid
+                    message: auth verification failed
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/revoke:
@@ -69,9 +84,29 @@ paths:
               schema:
                 type: string
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid session revoke request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Session id is missing or does not resolve to an active stored session
+                  value:
+                    code: session_invalid
+                    message: session_id must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Revocation payload does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Caller attempted to revoke a different session id
+                  value:
+                    code: session_invalid
+                    message: session_id does not match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:

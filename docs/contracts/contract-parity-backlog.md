@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-06 expanded regression fixture coverage for request/response schema alias handling and direct mismatches, session/internal auth security and status branches, response-header parity, non-auth helper/delegate `500` paths, CSRF/request-body gaps, no-content success responses, and server-channel route-level example status checks, while hardening the temp-fixture harness to inherit repo line-ending policy.
+- Latest meaningful change: 2026-04-06 broadened route-scoped parity across auth/social surfaces by correcting auth example drift, adding tracked examples for auth/friends/block-mute routes, and tightening success-body documentation for DM fanout and server-channel lifecycle responses.
 
 ## Purpose
 
@@ -56,7 +56,7 @@
 6. Close out route-scoped error example breadth
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.
 - First cleanup target: `/v1/friends/requests/{request_id}/accept` in `docs/contracts/runtime-rest-v1.openapi.yaml`.
-- Status: broad grouped pass now covers friend-request mutation/bootstrap routes, invite lifecycle routes, auth verify/discovery validation routes, server membership read routes, DM thread/history read routes, DM control-plane bad-request examples, DM fanout validation examples, internal-auth `401` examples, and server-channel mutation status-specific examples; remaining work is breadth closeout.
+- Status: broad grouped pass now covers auth register/challenge/verify/revoke routes, friend-request list/create/mutation/bootstrap routes, block/mute create routes, invite lifecycle routes, discovery validation routes, server membership read routes, DM thread/history read routes, DM control-plane bad-request examples, internal-auth `401` examples, and server-channel mutation status-specific examples; remaining work is breadth closeout on any still-underdocumented simple routes only.
 
 7. Expand query semantics beyond the tracked rule table
 - Cover more query/filter semantics where runtime behavior is stable enough to assert mechanically.

@@ -21,13 +21,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid friend-request creation payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id and target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requester identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id must match authenticated session
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Friend request is blocked by an existing block relationship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                blockedUser:
+                  value:
+                    code: blocked_user
+                    message: cannot send friend request — a block relationship exists between these users
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Pending friend request already exists for this pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                friendRequestExists:
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -40,12 +76,6 @@ components:
   responses:
     BadRequest:
       description: Bad request
-    Unauthorized:
-      description: Unauthorized
-    Forbidden:
-      description: Forbidden
-    Conflict:
-      description: Conflict
     InternalServerError:
       description: Internal server error
   schemas:
@@ -56,6 +86,7 @@ components:
           type: string
           enum:
             - friend_request_exists
+            - blocked_user
             - identity_invalid
             - storage_unavailable
     FriendRequestCreateRequest:

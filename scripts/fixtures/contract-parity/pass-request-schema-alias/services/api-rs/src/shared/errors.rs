@@ -25,6 +25,16 @@ pub fn conflict(
     )
 }
 
+pub fn forbidden(
+    code: &'static str,
+    message: &'static str,
+) -> (axum::http::StatusCode, axum::Json<ApiError>) {
+    (
+        axum::http::StatusCode::FORBIDDEN,
+        axum::Json(ApiError { code, message }),
+    )
+}
+
 pub fn internal_error(
     code: &'static str,
     message: &'static str,
