@@ -2675,6 +2675,7 @@ components:
           type: string
         devices:
           type: array
+          description: Full normalized profile-device snapshot for the identity after the heartbeat upsert, sorted by `device_id`.
           items:
             $ref: '#/components/schemas/DmProfileDeviceSummary'
     DmFanoutDispatchRequest:
@@ -2718,12 +2719,15 @@ components:
         fanout_count:
           type: integer
           minimum: 0
+          description: Number of recipient devices that will receive this payload in the ready branch; blocked branches report `0`.
         delivered_device_ids:
           type: array
+          description: Sorted recipient device ids that will receive the payload for `status=ready`; empty for blocked branches.
           items:
             type: string
         skipped_device_ids:
           type: array
+          description: Sorted device ids skipped because they were inactive or matched `source_device_id`; may remain populated when backlog saturation blocks delivery after target evaluation.
           items:
             type: string
     DmFanoutCatchUpRequest:
@@ -2782,8 +2786,10 @@ components:
         replay_count:
           type: integer
           minimum: 0
+          description: Number of replay items returned in this response after duplicate suppression.
         next_cursor:
           type: string
+          description: Next device replay cursor. Blocked branches force `"0"`; ready branches preserve or advance the per-device cursor.
         deduped_message_ids:
           type: array
           description: Message IDs skipped as duplicate replay entries using key `(message_id, sender_identity_id, source_device_id, ciphertext)`.
@@ -2791,6 +2797,7 @@ components:
             type: string
         items:
           type: array
+          description: Replay entries returned for this device; blocked and no-missed branches return an empty array.
           items:
             $ref: '#/components/schemas/DmFanoutCatchUpItem'
     DmThreadSummary:
