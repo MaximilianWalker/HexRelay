@@ -61,6 +61,7 @@ run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missin
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
+run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
 run_fixture fail-session-auth-401 1 "missing a 401 response"
 run_fixture fail-session-auth-security 1 "documents security schemes [CookieAuth] instead of [BearerAuth, CookieAuth]"
