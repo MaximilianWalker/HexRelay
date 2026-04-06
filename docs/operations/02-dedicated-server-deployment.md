@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: needs-detail
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/operations/02-dedicated-server-deployment.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-04-03 added the first operator-focused dedicated-server deployment baseline and explicitly marked unresolved bootstrap/dependency gaps.
+- Latest meaningful change: 2026-04-06 clarified smoke/bootstrap prerequisites for dedicated deployments where public identity registration remains default-closed.
 
 ## Purpose
 
@@ -90,6 +90,7 @@
 - Smoke validation additionally requires:
   - `SMOKE_WEB_ORIGIN`
 - Current smoke script defaults to localhost, so remote operator validation must override those values.
+- If the smoke flow needs fresh public identity bootstrap, also set `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` only for that smoke/bootstrap environment and revert to the default fail-closed value afterward.
 
 Example remote smoke invocation:
 

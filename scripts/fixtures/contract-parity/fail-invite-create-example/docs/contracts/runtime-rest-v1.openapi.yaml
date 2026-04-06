@@ -1,0 +1,58 @@
+openapi: 3.1.0
+paths:
+  /v1/invites:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCreateRequest'
+      responses:
+        '201':
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreateResponse'
+        '400':
+          description: Invalid invite creation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - invite_invalid
+            - csrf_invalid
+            - storage_unavailable
+    InviteCreateRequest:
+      type: object
+    InviteCreateResponse:
+      type: object

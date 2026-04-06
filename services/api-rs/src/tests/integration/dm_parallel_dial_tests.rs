@@ -534,3 +534,83 @@ async fn parallel_dial_rejects_cookie_auth_without_matching_csrf_token() {
 
     assert_eq!(payload["code"], "csrf_invalid");
 }
+
+#[tokio::test]
+async fn rejects_invalid_endpoint_card_register_request() {
+    let (app, tokens) = app_with_sessions(&["usr-jules-p"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"cards":[]}"#))
+        .expect("build invalid endpoint register request");
+
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("invalid endpoint register response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid endpoint register body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid endpoint register body");
+    assert_eq!(payload["code"], "endpoint_cards_invalid");
+}
+
+#[tokio::test]
+async fn rejects_invalid_endpoint_card_revoke_request() {
+    let (app, tokens) = app_with_sessions(&["usr-jules-p"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/endpoint-cards/revoke")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"endpoint_ids":[]}"#))
+        .expect("build invalid endpoint revoke request");
+
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("invalid endpoint revoke response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid endpoint revoke body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid endpoint revoke body");
+    assert_eq!(payload["code"], "endpoint_cards_invalid");
+}
+
+#[tokio::test]
+async fn rejects_invalid_parallel_dial_request() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/parallel-dial")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"peer_identity_id":"bad id"}"#))
+        .expect("build invalid parallel dial request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid parallel dial response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid parallel dial body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid parallel dial body");
+    assert_eq!(payload["code"], "parallel_dial_invalid");
+}

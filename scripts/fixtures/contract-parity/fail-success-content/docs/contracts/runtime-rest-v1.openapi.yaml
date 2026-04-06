@@ -1,0 +1,11 @@
+openapi: 3.1.0
+paths:
+  /health:
+    get:
+      responses:
+        '200':
+          description: Service is healthy
+components:
+  schemas:
+    HealthResponse:
+      type: object

@@ -6,7 +6,7 @@ use crate::{
     },
     infra::db::repos::friends_repo::{self, FriendRequestRepoError},
     models::{
-        DmEndpointCard, DmProfileDeviceSummary, FriendRequestCreate, FriendRequestListQuery,
+        DmEndpointCard, DmProfileDeviceSummary, FriendRequestCreateRequest, FriendRequestListQuery,
         FriendRequestPage, FriendRequestRecord, IdentityBootstrapBundle,
     },
     shared::errors::{bad_request, conflict, forbidden, unauthorized, ApiResult},
@@ -36,7 +36,7 @@ pub async fn create_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
     headers: HeaderMap,
-    Json(payload): Json<FriendRequestCreate>,
+    Json(payload): Json<FriendRequestCreateRequest>,
 ) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_friend_request_create(&payload)?;
@@ -80,7 +80,7 @@ pub async fn create_friend_request(
 #[cfg(test)]
 fn create_friend_request_in_memory(
     state: AppState,
-    payload: FriendRequestCreate,
+    payload: FriendRequestCreateRequest,
 ) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
     let mut guard = state
         .friend_requests

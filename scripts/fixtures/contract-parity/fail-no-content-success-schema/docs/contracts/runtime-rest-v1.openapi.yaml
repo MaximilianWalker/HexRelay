@@ -1,0 +1,55 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/sessions/revoke:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRevokeRequest'
+      responses:
+        '204':
+          description: Session revoked
+          headers:
+            Set-Cookie:
+              description: Session and csrf cookies cleared
+              x-hexrelay-cookie-actions:
+                - clear:hexrelay_session
+                - clear:hexrelay_csrf
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad request
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+    SessionRevokeRequest:
+      type: object

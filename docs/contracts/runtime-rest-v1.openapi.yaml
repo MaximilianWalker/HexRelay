@@ -24,11 +24,17 @@ paths:
       summary: Service health probe
       responses:
         '200':
-          description: Service is healthy
+          description: Fixed liveness payload for the API service.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthyApi:
+                  summary: API service reports a healthy probe state
+                  value:
+                    service: api-rs
+                    status: ok
   /v1/identity/keys/register:
     post:
       summary: Register a public identity key
@@ -45,11 +51,51 @@ paths:
         '201':
           description: Identity key registered
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid identity registration payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                algorithmInvalid:
+                  summary: Only ed25519 identity keys are accepted
+                  value:
+                    code: algorithm_invalid
+                    message: algorithm must be ed25519
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                publicKeyInvalid:
+                  summary: Public key is not a 32-byte ed25519 key in hex or base64
+                  value:
+                    code: public_key_invalid
+                    message: public_key must be 32-byte ed25519 key in hex or base64
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Public identity registration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityRegistrationDisabled:
+                  summary: Runtime is still fail-closed for public identity claims
+                  value:
+                    code: identity_registration_disabled
+                    message: public identity registration is disabled until a trusted claim flow is configured
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Identity already has a registered key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityExists:
+                  summary: Identity id is already claimed by an existing key
+                  value:
+                    code: identity_exists
+                    message: identity_id already has a registered key
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/challenge:
@@ -63,13 +109,34 @@ paths:
               $ref: '#/components/schemas/AuthChallengeRequest'
       responses:
         '200':
-          description: Challenge issued
+          description: >-
+            Challenge issued. Returns a fresh opaque `challenge_id`, a 32-byte
+            nonce, and the expiry timestamp. Unknown identities receive the same
+            success-shaped body as registered identities so callers cannot infer
+            account existence from the response shape.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthChallengeResponse'
+              examples:
+                issuedChallenge:
+                  summary: Challenge body is indistinguishable for known and unknown identities
+                  value:
+                    challenge_id: ch_4a7d9d
+                    nonce: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    expires_at: '2026-04-06T12:30:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid auth challenge request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -85,22 +152,64 @@ paths:
               $ref: '#/components/schemas/AuthVerifyRequest'
       responses:
         '200':
-          description: Session issued via HttpOnly cookie
+          description: >-
+            Session issued via HttpOnly cookie. The body returns the canonical
+            session metadata while `Set-Cookie` issues both the auth and CSRF
+            cookies needed for subsequent cookie-auth requests.
           headers:
             Set-Cookie:
               description: |
                 Returns `hexrelay_session` (HttpOnly auth cookie) and
                 `hexrelay_csrf` (double-submit CSRF cookie).
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
               schema:
                 type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthVerifyResponse'
+              examples:
+                issuedSession:
+                  summary: Successful verify returns session metadata alongside issued cookies
+                  value:
+                    session_id: ses_9f3b12
+                    expires_at: '2026-04-07T12:00:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid auth verification request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                nonceInvalid:
+                  summary: Challenge id is missing from the verification payload
+                  value:
+                    code: nonce_invalid
+                    message: challenge_id must not be empty
+                signatureInvalid:
+                  summary: Signature is missing from the verification payload
+                  value:
+                    code: signature_invalid
+                    message: signature must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Verification failed against the stored challenge or identity key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                nonceInvalid:
+                  summary: Challenge, signature, or registered key could not be verified
+                  value:
+                    code: nonce_invalid
+                    message: auth verification failed
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -122,10 +231,40 @@ paths:
       responses:
         '204':
           description: Session revoked
+          headers:
+            Set-Cookie:
+              description: |
+                Clears both `hexrelay_session` and `hexrelay_csrf` cookies when the
+                active session is revoked.
+              x-hexrelay-cookie-actions:
+                - clear:hexrelay_session
+                - clear:hexrelay_csrf
+              schema:
+                type: string
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid session revoke request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Session id is missing or does not resolve to an active stored session
+                  value:
+                    code: session_invalid
+                    message: session_id must not be empty
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Revocation payload does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Caller attempted to revoke a different session id
+                  value:
+                    code: session_invalid
+                    message: session_id does not match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/auth/sessions/validate:
@@ -136,11 +275,21 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: Session is active and valid
+          description: >-
+            Session is active and valid. Returns the authenticated session id,
+            identity id, and current expiry as echoed from the verified runtime
+            session state.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionValidateResponse'
+              examples:
+                activeSession:
+                  summary: Validate returns the currently active authenticated session snapshot
+                  value:
+                    session_id: ses_9f3b12
+                    identity_id: usr-nora-k
+                    expires_at: '2026-04-07T12:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -161,13 +310,45 @@ paths:
               $ref: '#/components/schemas/InviteCreateRequest'
       responses:
         '201':
-          description: Invite created
+          description: >-
+            Invite created. Returns the canonical persisted invite record plus
+            the one-time visible token. `one_time` mode is normalized to
+            `max_uses=1` even when omitted in the request.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
+              examples:
+                multiUseInvite:
+                  summary: Multi-use invite preserves explicit usage cap
+                  value:
+                    invite_id: inv_100
+                    token: tok_live_100
+                    mode: multi_use
+                    expires_at: null
+                    max_uses: 2
+                    created_at: '2026-04-06T12:32:00Z'
+                oneTimeNormalized:
+                  summary: One-time invites normalize to a single allowed redemption
+                  value:
+                    invite_id: inv_101
+                    token: tok_live_101
+                    mode: one_time
+                    expires_at: null
+                    max_uses: 1
+                    created_at: '2026-04-06T12:33:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid invite creation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Invite creation payload is invalid
+                  value:
+                    code: invite_invalid
+                    message: mode must be one_time or multi_use
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -185,13 +366,46 @@ paths:
               $ref: '#/components/schemas/InviteRedeemRequest'
       responses:
         '200':
-          description: Invite redeemed
+          description: >-
+            Invite redeemed. Success returns a simple acceptance ack; multi-use
+            invites can continue redeeming until exhausted, while one-time or
+            exhausted invites move to the documented `400` failure paths.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteRedeemResponse'
+              examples:
+                acceptedInvite:
+                  summary: Valid invite redemption returns a simple acceptance ack
+                  value:
+                    accepted: true
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invite token is invalid for the current redemption attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Token does not resolve to a live invite
+                  value:
+                    code: invite_invalid
+                    message: invite token is invalid
+                fingerprintMismatch:
+                  summary: Token is bound to another node fingerprint
+                  value:
+                    code: fingerprint_mismatch
+                    message: invite node fingerprint mismatch
+                inviteExpired:
+                  summary: Token has expired
+                  value:
+                    code: invite_expired
+                    message: invite token is expired
+                inviteExhausted:
+                  summary: Token has no remaining uses
+                  value:
+                    code: invite_exhausted
+                    message: invite token is exhausted
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -212,13 +426,36 @@ paths:
               $ref: '#/components/schemas/InviteCreateRequest'
       responses:
         '201':
-          description: Contact invite created
+          description: >-
+            Contact invite created. Returns the persisted invite metadata and the
+            shareable token used to open or resume the pending friend-request
+            handshake with another identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
+              examples:
+                contactInvite:
+                  summary: Contact invite exposes the shareable token and persisted limits
+                  value:
+                    invite_id: inv_200
+                    token: tok_contact_200
+                    mode: multi_use
+                    expires_at: null
+                    max_uses: 3
+                    created_at: '2026-04-06T12:34:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid contact invite creation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Contact invite creation payload is invalid
+                  value:
+                    code: invite_invalid
+                    message: mode must be one_time or multi_use
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -244,19 +481,85 @@ paths:
               $ref: '#/components/schemas/ContactInviteRedeemRequest'
       responses:
         '200':
-          description: Pending friend request created or returned
+          description: >-
+            Pending friend request created or returned. Successful redemption is
+            idempotent for a pending pair: the body may be either the newly
+            created pending request or the already-existing pending request for
+            the same redeemer/inviter pair.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
+              examples:
+                createdPendingRequest:
+                  summary: Redeeming a valid contact invite creates a pending friend request
+                  value:
+                    request_id: req-300
+                    requester_identity_id: usr-target
+                    target_identity_id: usr-invite
+                    status: pending
+                    created_at: '2026-04-06T12:20:00Z'
+                existingPendingRequest:
+                  summary: Re-redeeming the same invite returns the existing pending request
+                  value:
+                    request_id: req-300
+                    requester_identity_id: usr-target
+                    target_identity_id: usr-invite
+                    status: pending
+                    created_at: '2026-04-06T12:20:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Contact invite token is invalid for the current redemption attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Token does not resolve to a valid contact invite
+                  value:
+                    code: invite_invalid
+                    message: invite token is invalid
+                inviteExpired:
+                  summary: Token has expired
+                  value:
+                    code: invite_expired
+                    message: invite token is expired
+                inviteExhausted:
+                  summary: Token has no remaining uses
+                  value:
+                    code: invite_exhausted
+                    message: invite token is exhausted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Invite redemption blocked by policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                contactInviteBlocked:
+                  summary: Invite creator and redeemer are blocked
+                  value:
+                    code: blocked_user
+                    message: blocked users cannot redeem contact invites
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Contact invite redemption conflicts with existing relationship state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                inviteInvalid:
+                  summary: Caller cannot redeem their own contact invite
+                  value:
+                    code: invite_invalid
+                    message: cannot redeem a contact invite created by the same identity
+                friendRequestExists:
+                  summary: Pending friend request already exists
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -273,6 +576,9 @@ paths:
           name: search
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: favorites_only
           schema:
@@ -287,11 +593,24 @@ paths:
             type: boolean
       responses:
         '200':
-          description: Server list response
+          description: >-
+            Identity-scoped server summaries after favorites/unread/muted/search
+            filters are applied. Returned items are only the caller's joined
+            servers.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerListResponse'
+              examples:
+                filteredServers:
+                  summary: Filtered joined-server summaries for the authenticated identity
+                  value:
+                    items:
+                      - id: srv-shared-lab
+                        name: Shared Lab
+                        unread: 3
+                        favorite: true
+                        muted: false
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -319,7 +638,17 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels:
@@ -345,7 +674,17 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages:
@@ -379,23 +718,68 @@ paths:
             maximum: 100
       responses:
         '200':
-          description: Server-channel message history page
+          description: >-
+            Server-channel message history page. Deleted messages remain visible as
+            tombstone records in `items`, and `next_cursor` is only present when
+            older history still exists beyond the returned page.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessagePage'
+              examples:
+                historyPageWithTombstone:
+                  summary: History page keeps deleted messages visible as tombstones
+                  value:
+                    items:
+                      - message_id: scm-3
+                        channel_id: chn-general
+                        author_id: usr-nora-k
+                        channel_seq: 3
+                        content: latest update
+                        reply_to_message_id: null
+                        mentions: []
+                        created_at: '2026-04-06T12:03:00Z'
+                        edited_at: null
+                        deleted_at: null
+                      - message_id: scm-2
+                        channel_id: chn-general
+                        author_id: usr-jules-p
+                        channel_seq: 2
+                        content: ''
+                        reply_to_message_id: null
+                        mentions: []
+                        created_at: '2026-04-06T12:02:00Z'
+                        edited_at: null
+                        deleted_at: '2026-04-06T12:05:00Z'
+                    next_cursor: '2'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
         '404':
           description: Channel not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -436,23 +820,90 @@ paths:
               $ref: '#/components/schemas/ServerChannelMessageCreateRequest'
       responses:
         '201':
-          description: Message created
+          description: >-
+            Message created. Returns the persisted canonical message record with an
+            assigned `message_id`, monotonic `channel_seq`, normalized
+            `reply_to_message_id`, and validated mention set. Persistence success
+            is reported even when downstream realtime fanout later fails.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                createdMessage:
+                  summary: Persisted canonical message record after create
+                  value:
+                    message_id: scm-3
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 3
+                    content: ship it
+                    reply_to_message_id: scm-2
+                    mentions: [usr-jules-p]
+                    created_at: '2026-04-06T12:03:00Z'
+                    edited_at: null
+                    deleted_at: null
+                blankReplyNormalized:
+                  summary: Blank reply target is normalized to null before persistence
+                  value:
+                    message_id: scm-4
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 4
+                    content: blank reply target
+                    reply_to_message_id: null
+                    mentions: []
+                    created_at: '2026-04-06T12:04:00Z'
+                    edited_at: null
+                    deleted_at: null
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                replyTargetInvalid:
+                  summary: Reply target is outside the channel
+                  value:
+                    code: reply_target_invalid
+                    message: reply target must exist in the same server channel
+                mentionInvalid:
+                  summary: Mention target is invalid
+                  value:
+                    code: mention_invalid
+                    message: mentioned identities must be members of the same server
+                messageContentInvalid:
+                  summary: Message content exceeds runtime limits
+                  value:
+                    code: message_content_invalid
+                    message: message content must be between 1 and 4000 characters
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
         '404':
           description: Channel not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}:
@@ -499,29 +950,111 @@ paths:
               $ref: '#/components/schemas/ServerChannelMessageEditRequest'
       responses:
         '200':
-          description: Message updated
+          description: >-
+            Message updated. Returns the stored canonical message record for both
+            changed edits and no-op edits; changed edits set `edited_at`, while
+            no-op edits preserve the existing record and leave `edited_at` unset.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                editedMessage:
+                  summary: Changed edit updates content, mentions, and edited timestamp
+                  value:
+                    message_id: scm-1
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 1
+                    content: edited content
+                    reply_to_message_id: null
+                    mentions: [usr-jules-p]
+                    created_at: '2026-04-06T12:00:00Z'
+                    edited_at: '2026-04-06T12:06:00Z'
+                    deleted_at: null
+                noOpEdit:
+                  summary: No-op edit still returns success with unchanged stored record
+                  value:
+                    message_id: scm-2
+                    channel_id: chn-general
+                    author_id: usr-jules-p
+                    channel_seq: 2
+                    content: welcome aboard
+                    reply_to_message_id: null
+                    mentions: [usr-nora-k]
+                    created_at: '2026-04-06T12:01:00Z'
+                    edited_at: null
+                    deleted_at: null
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                replyTargetInvalid:
+                  summary: Reply target is outside the channel
+                  value:
+                    code: reply_target_invalid
+                    message: reply target must exist in the same server channel
+                mentionInvalid:
+                  summary: Mention target is invalid
+                  value:
+                    code: mention_invalid
+                    message: mentioned identities must be members of the same server
+                messageContentInvalid:
+                  summary: Message content exceeds runtime limits
+                  value:
+                    code: message_content_invalid
+                    message: message content must be between 1 and 4000 characters
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Server membership and original authorship required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageEditForbidden:
+                  summary: Caller is not the message author for edits
+                  value:
+                    code: message_edit_forbidden
+                    message: only the author may edit this server channel message
         '404':
           description: Channel or message not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
+                messageNotFound:
+                  summary: Message does not exist
+                  value:
+                    code: message_not_found
+                    message: server channel message was not found
         '409':
           description: Message is already deleted
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                messageDeleted:
+                  summary: Message already deleted
+                  value:
+                    code: message_deleted
+                    message: deleted server channel messages cannot be edited
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -562,21 +1095,65 @@ paths:
             type: string
       responses:
         '200':
-          description: Message tombstoned
+          description: >-
+            Message tombstoned. Returns the canonical tombstone record rather than
+            an ack: `content` is scrubbed to an empty string, `mentions` becomes
+            empty, `deleted_at` is populated, and repeated deletes remain
+            idempotent while returning the same tombstone-shaped success body.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                tombstoneRecord:
+                  summary: First delete returns the scrubbed tombstone state kept in history
+                  value:
+                    message_id: scm-1
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 1
+                    content: ''
+                    reply_to_message_id: null
+                    mentions: []
+                    created_at: '2026-04-06T12:00:00Z'
+                    edited_at: null
+                    deleted_at: '2026-04-06T12:07:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Delete requires server membership and original authorship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  summary: Caller is not a server member
+                  value:
+                    code: server_access_denied
+                    message: server membership required
+                messageDeleteForbidden:
+                  summary: Caller is not the message author
+                  value:
+                    code: message_delete_forbidden
+                    message: only the author may delete this server channel message
         '404':
           description: Channel or message not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  summary: Channel does not exist
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
+                messageNotFound:
+                  summary: Message does not exist
+                  value:
+                    code: message_not_found
+                    message: server channel message was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/contacts:
@@ -591,6 +1168,9 @@ paths:
           name: search
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: online_only
           schema:
@@ -605,11 +1185,34 @@ paths:
             type: boolean
       responses:
         '200':
-          description: Contact list response
+          description: >-
+            Contact list response for the authenticated identity. Accepted and
+            pending relationships share the same list surface; pending contacts
+            remain `offline`, while accepted contacts may surface presence-backed
+            status when available.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactListResponse'
+              examples:
+                mixedContacts:
+                  summary: Accepted and pending relationships share one contact surface
+                  value:
+                    items:
+                      - id: usr-nora-k
+                        name: Nora K
+                        status: online
+                        unread: 1
+                        favorite: true
+                        inbound_request: false
+                        pending_request: false
+                      - id: usr-alex-r
+                        name: Alex R
+                        status: offline
+                        unread: 0
+                        favorite: false
+                        inbound_request: false
+                        pending_request: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -632,13 +1235,31 @@ paths:
             type: string
       responses:
         '200':
-          description: Authorized presence watchers
+          description: >-
+            Authorized presence watchers for the subject identity. The response is
+            sorted and always includes the subject identity plus any accepted,
+            non-blocked peers currently entitled to receive presence updates.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PresenceWatcherListResponse'
+              examples:
+                watcherSet:
+                  summary: Subject identity plus accepted non-blocked peers
+                  value:
+                    watchers: [usr-jules-p, usr-nora-k]
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Internal token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                internalTokenInvalid:
+                  summary: Presence watcher token is invalid
+                  value:
+                    code: internal_token_invalid
+                    message: presence watcher lookup requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/discovery/users:
@@ -654,16 +1275,25 @@ paths:
           schema:
             type: string
             enum: [global, shared_server]
+          x-hexrelay-query-semantics:
+            - default:global
+            - trim-before-enum
         - in: query
           name: query
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: limit
           schema:
             type: integer
             minimum: 1
             maximum: 50
+          x-hexrelay-query-semantics:
+            - default:20
+            - clamp:1:50
       responses:
         '200':
           description: Discovery list response
@@ -672,7 +1302,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiscoveryUserListResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid discovery query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                scopeInvalid:
+                  summary: Discovery scope is unsupported
+                  value:
+                    code: scope_invalid
+                    message: scope must be either global or shared_server
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -688,11 +1328,21 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: DM policy response
+          description: >-
+            Effective DM inbound policy for the authenticated identity. New
+            identities default to `friends_only` with
+            `offline_delivery_mode=best_effort_online` until an explicit update
+            is persisted.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
+              examples:
+                defaultPolicy:
+                  summary: New identities inherit the default DM policy
+                  value:
+                    inbound_policy: friends_only
+                    offline_delivery_mode: best_effort_online
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -713,13 +1363,31 @@ paths:
               $ref: '#/components/schemas/DmPolicyUpdate'
       responses:
         '200':
-          description: DM policy updated
+          description: >-
+            DM policy updated. Returns the effective persisted policy snapshot,
+            including the fixed offline delivery mode used by the runtime.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
+              examples:
+                updatedPolicy:
+                  summary: Runtime returns the persisted effective policy
+                  value:
+                    inbound_policy: anyone
+                    offline_delivery_mode: best_effort_online
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM inbound policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                dmPolicyInvalid:
+                  summary: DM policy value is invalid
+                  value:
+                    code: dm_policy_invalid
+                    message: "inbound_policy must be one of: friends_only, same_server, anyone"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -740,13 +1408,34 @@ paths:
               $ref: '#/components/schemas/DmPairingEnvelopeCreateRequest'
       responses:
         '201':
-          description: DM pairing envelope created
+          description: >-
+            DM pairing envelope created. Returns the signed export bundle used for
+            out-of-band sharing, including the base64url envelope, human-friendly
+            short code, expiry timestamp, and single-use pairing nonce.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPairingEnvelopeResponse'
+              examples:
+                signedEnvelope:
+                  summary: Signed pairing export bundle ready to share with a contact
+                  value:
+                    envelope: eyJrZXlfaWQiOiJkZWZhdWx0Iiwic2lnbmVkIjp0cnVlfQ
+                    short_code: NORA-7214
+                    expires_at: '2026-04-06T12:30:00Z'
+                    pairing_nonce: 8d4c2b9af1ce44d7a2f1aa903cf0b1c2
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid pairing envelope request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                pairingInvalid:
+                  summary: Pairing envelope request is invalid
+                  value:
+                    code: pairing_invalid
+                    message: too many endpoint hints in pairing request
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -767,13 +1456,50 @@ paths:
               $ref: '#/components/schemas/DmPairingEnvelopeImportRequest'
       responses:
         '200':
-          description: DM pairing envelope imported
+          description: >-
+            DM pairing envelope imported. Success means the first valid import of
+            a non-expired, non-self, non-replayed signed envelope and returns the
+            verified inviter bootstrap hints for direct dialing.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPairingImportResponse'
+              examples:
+                importedEnvelope:
+                  summary: Verified inviter identity and hints extracted from the envelope
+                  value:
+                    inviter_identity_id: usr-nora-k
+                    endpoint_hints:
+                      - tcp://127.0.0.1:4040
+                    imported_at: '2026-04-06T12:05:00Z'
+                    expires_at: '2026-04-06T12:30:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid pairing envelope import
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                pairingInvalid:
+                  summary: Pairing envelope payload is invalid
+                  value:
+                    code: pairing_invalid
+                    message: pairing envelope payload is invalid
+                pairingExpired:
+                  summary: Pairing envelope is expired
+                  value:
+                    code: pairing_expired
+                    message: pairing envelope is expired
+                pairingReplayed:
+                  summary: Pairing envelope nonce was already consumed
+                  value:
+                    code: pairing_replayed
+                    message: pairing envelope nonce was already consumed
+                identityInvalid:
+                  summary: Pairing envelope belongs to current identity
+                  value:
+                    code: identity_invalid
+                    message: cannot import a pairing envelope created by the same identity
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -793,13 +1519,44 @@ paths:
               $ref: '#/components/schemas/DmConnectivityPreflightRequest'
       responses:
         '200':
-          description: DM preflight diagnostics result
+          description: >-
+            DM preflight diagnostics result. Returns either a `ready` branch for
+            direct dialing or a `blocked` branch with deterministic remediation
+            guidance explaining the first failing prerequisite.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmConnectivityPreflightResponse'
+              examples:
+                readyLan:
+                  summary: Peer was discovered on LAN so the fast path is ready
+                  value:
+                    status: ready
+                    reason_code: preflight_ok_lan
+                    transport_profile: direct_only
+                    remediation:
+                      - Peer discovered on local network; prioritize LAN direct path.
+                blockedPolicy:
+                  summary: Recipient policy blocks direct connectivity until relationship state changes
+                  value:
+                    status: blocked
+                    reason_code: policy_blocked
+                    transport_profile: direct_only
+                    remediation:
+                      - Send and accept a friend request before starting this DM.
+                      - Or ask your contact to change their DM inbound policy.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid connectivity preflight request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                preflightInvalid:
+                  summary: Preflight request is invalid
+                  value:
+                    code: preflight_invalid
+                    message: peer_identity_id must not be empty when provided
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -821,13 +1578,35 @@ paths:
               $ref: '#/components/schemas/DmLanDiscoveryAnnounceRequest'
       responses:
         '200':
-          description: LAN discovery presence updated
+          description: >-
+            LAN discovery presence updated. Returns the caller's current ephemeral
+            LAN snapshot, not a generic ack, so clients can mirror the exact hints
+            now advertised on the local subnet.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmLanDiscoveryAnnounceResponse'
+              examples:
+                lanSnapshot:
+                  summary: Current LAN advertisement snapshot for the caller
+                  value:
+                    identity_id: usr-jules-p
+                    endpoint_hints:
+                      - udp://192.168.1.12:4040
+                    scope: lan_subnet
+                    last_seen_at: '2026-04-06T12:08:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid LAN discovery announcement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lanDiscoveryInvalid:
+                  summary: LAN discovery request is invalid
+                  value:
+                    code: lan_discovery_invalid
+                    message: endpoint_hints must include at least one LAN endpoint
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -841,11 +1620,26 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: LAN-discovered peer list
+          description: >-
+            LAN-discovered peer list. Empty arrays are a successful result; only
+            non-blocked peers whose current policy allows the caller are returned.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmLanPeerListResponse'
+              examples:
+                eligiblePeers:
+                  summary: Only policy-eligible, non-blocked peers are listed
+                  value:
+                    items:
+                      - identity_id: usr-jules-p
+                        endpoint_hints:
+                          - udp://192.168.1.12:4040
+                        last_seen_at: '2026-04-06T12:08:00Z'
+                noEligiblePeers:
+                  summary: Empty list is still a successful response when no peers qualify
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -864,13 +1658,54 @@ paths:
               $ref: '#/components/schemas/DmWanWizardRequest'
       responses:
         '200':
-          description: WAN direct-connect wizard result
+          description: >-
+            WAN direct-connect wizard result. Success bodies encode materially
+            different outcomes: direct path ready, manual router work required, or
+            network incompatible with infrastructure-free direct inbound WAN.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmWanWizardResponse'
+              examples:
+                upnpReady:
+                  summary: Automatic UPnP mapping opened the preferred port
+                  value:
+                    outcome: success
+                    method: upnp
+                    reason_code: wan_path_ready
+                    checklist:
+                      - UPnP opened port 4040 successfully.
+                      - Use direct DM connection over WAN now.
+                manualRequired:
+                  summary: Router changes are still needed before WAN direct path is usable
+                  value:
+                    outcome: manual_required
+                    method: manual
+                    reason_code: wan_manual_mapping_required
+                    checklist:
+                      - Create manual router port-forward for UDP/TCP 4040.
+                      - Re-run WAN wizard after applying router changes.
+                networkIncompatible:
+                  summary: Current network profile cannot support direct inbound WAN
+                  value:
+                    outcome: network_incompatible
+                    method: none
+                    reason_code: wan_path_unavailable
+                    checklist:
+                      - Current network profile blocks direct inbound WAN connectivity.
+                      - Try connecting on a shared LAN or different home network.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid WAN wizard request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                wanWizardInvalid:
+                  summary: WAN wizard input is invalid
+                  value:
+                    code: wan_wizard_invalid
+                    message: "network_profile must be one of: home_nat, symmetric_nat, carrier_nat, enterprise_restricted"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -892,13 +1727,44 @@ paths:
               $ref: '#/components/schemas/DmEndpointCardRegisterRequest'
       responses:
         '200':
-          description: Endpoint cards registered
+          description: >-
+            Endpoint cards registered. Returns the canonical persisted card set for
+            the identity after atomic upsert, including existing live cards that
+            remain valid alongside the newly registered entries.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRegisterResponse'
+              examples:
+                upsertedCards:
+                  summary: Runtime returns the full active card snapshot after upsert
+                  value:
+                    identity_id: usr-jules-p
+                    cards:
+                      - endpoint_id: lan-a
+                        endpoint_hint: udp://192.168.1.20:4040
+                        estimated_rtt_ms: 9
+                        priority: 2
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid endpoint-card registration request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                endpointCardsInvalid:
+                  summary: Endpoint-card registration payload is invalid
+                  value:
+                    code: endpoint_cards_invalid
+                    message: cards must include between 1 and 8 endpoint cards
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -920,13 +1786,51 @@ paths:
               $ref: '#/components/schemas/DmEndpointCardRevokeRequest'
       responses:
         '200':
-          description: Endpoint cards revoked
+          description: >-
+            Endpoint cards revoked. The response is idempotent: `revoked_endpoint_ids`
+            contains only newly revoked ids in request order, while
+            `remaining_cards` shows the still-active card set after the update.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRevokeResponse'
+              examples:
+                revokeSubset:
+                  summary: Only newly revoked ids are reported, in the same order as the request
+                  value:
+                    identity_id: usr-jules-p
+                    revoked_endpoint_ids: [wan-b, lan-a]
+                    remaining_cards:
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
+                idempotentRevoke:
+                  summary: Re-revoking already revoked ids succeeds with an empty newly-revoked set
+                  value:
+                    identity_id: usr-jules-p
+                    revoked_endpoint_ids: []
+                    remaining_cards:
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid endpoint-card revoke request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                endpointCardsInvalid:
+                  summary: Endpoint-card revoke payload is invalid
+                  value:
+                    code: endpoint_cards_invalid
+                    message: endpoint_ids must include between 1 and 8 ids
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -947,13 +1851,66 @@ paths:
               $ref: '#/components/schemas/DmParallelDialRequest'
       responses:
         '200':
-          description: Parallel dial orchestration result
+          description: >-
+            Parallel dial orchestration result. `ready` means the fastest reachable
+            endpoint won and slower candidates were cancelled; `blocked` means no
+            direct path could be attempted or all attempts failed, with remediation
+            explaining the cause.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmParallelDialResponse'
+              examples:
+                connectedWinner:
+                  summary: Fastest reachable endpoint wins and slower attempts are cancelled
+                  value:
+                    status: ready
+                    reason_code: parallel_dial_connected
+                    transport_profile: direct_only
+                    winner_endpoint_id: lan-a
+                    canceled_endpoint_ids: [wan-b, wan-a]
+                    attempts:
+                      - endpoint_id: lan-a
+                        endpoint_hint: udp://192.168.1.20:4040
+                        estimated_rtt_ms: 9
+                        status: connected
+                        cancellation_reason: null
+                      - endpoint_id: wan-b
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 40
+                        status: cancelled
+                        cancellation_reason: winner_selected
+                    remediation:
+                      - Parallel dial selected the fastest reachable endpoint card.
+                blockedExhausted:
+                  summary: All candidate endpoints failed, so direct dial remains blocked
+                  value:
+                    status: blocked
+                    reason_code: parallel_dial_exhausted
+                    transport_profile: direct_only
+                    winner_endpoint_id: null
+                    canceled_endpoint_ids: []
+                    attempts:
+                      - endpoint_id: wan-a
+                        endpoint_hint: udp://203.0.113.20:4040
+                        estimated_rtt_ms: 70
+                        status: failed
+                        cancellation_reason: dial_unreachable
+                    remediation:
+                      - All attempted endpoint cards were unreachable.
+                      - Refresh endpoint cards and retry direct connection.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid parallel-dial request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                parallelDialInvalid:
+                  summary: Parallel-dial payload is invalid
+                  value:
+                    code: parallel_dial_invalid
+                    message: peer_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -980,8 +1937,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmProfileDeviceHeartbeatResponse'
+              examples:
+                normalizedDeviceSnapshot:
+                  summary: Full sorted device snapshot after heartbeat upsert
+                  value:
+                    identity_id: usr-jules-p
+                    devices:
+                      - device_id: desktop-main
+                        active: true
+                        last_seen_at: '2026-04-06T12:00:00Z'
+                      - device_id: phone-main
+                        active: false
+                        last_seen_at: '2026-04-06T11:58:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid profile-device heartbeat request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                profileDeviceInvalid:
+                  summary: Profile-device heartbeat payload is invalid
+                  value:
+                    code: profile_device_invalid
+                    message: device_id must be non-empty and <= 64 chars
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1008,8 +1987,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
+              examples:
+                readyFanout:
+                  summary: Active devices receive the payload while source or inactive devices are skipped
+                  value:
+                    status: ready
+                    reason_code: fanout_ok
+                    transport_profile: direct_only
+                    fanout_count: 2
+                    delivered_device_ids: [desktop-main, phone-main]
+                    skipped_device_ids: [tablet-idle]
+                blockedNoActiveDevices:
+                  summary: Fanout remains a 200 response but reports a blocked branch with no active targets
+                  value:
+                    status: blocked
+                    reason_code: fanout_no_active_devices
+                    transport_profile: direct_only
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: []
+                blockedBacklogFull:
+                  summary: Fanout is blocked when the bounded replay backlog is already full
+                  value:
+                    status: blocked
+                    reason_code: fanout_backlog_full
+                    transport_profile: direct_only
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: [phone-main]
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid fanout dispatch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutInvalid:
+                  summary: Fanout dispatch payload is invalid
+                  value:
+                    code: fanout_invalid
+                    message: recipient_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1036,8 +2053,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutCatchUpResponse'
+              examples:
+                readyReplay:
+                  summary: Late-activated device replays missed messages and advances cursor
+                  value:
+                    status: ready
+                    reason_code: fanout_catch_up_ok
+                    transport_profile: direct_only
+                    device_id: phone-main
+                    replay_count: 1
+                    next_cursor: '1'
+                    deduped_message_ids: []
+                    items:
+                      - cursor: '1'
+                        message_id: msg-2001
+                        ciphertext: enc:late-2001
+                        source_device_id: null
+                readyNoMissed:
+                  summary: Device is current so replay remains a 200 response with no items and unchanged cursor
+                  value:
+                    status: ready
+                    reason_code: fanout_catch_up_no_missed
+                    transport_profile: direct_only
+                    device_id: phone-main
+                    replay_count: 0
+                    next_cursor: '2'
+                    deduped_message_ids: []
+                    items: []
+                blockedDeviceInactive:
+                  summary: Inactive or unknown devices return a blocked branch with zero replay state
+                  value:
+                    status: blocked
+                    reason_code: fanout_device_inactive
+                    transport_profile: direct_only
+                    device_id: desktop-main
+                    replay_count: 0
+                    next_cursor: '0'
+                    deduped_message_ids: []
+                    items: []
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid fanout catch-up request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutInvalid:
+                  summary: Fanout catch-up payload is invalid
+                  value:
+                    code: fanout_invalid
+                    message: device_id must be non-empty and <= 64 chars
+                cursorOutOfRange:
+                  summary: Cursor is beyond the stored delivery tail
+                  value:
+                    code: cursor_out_of_range
+                    message: cursor is beyond the current delivery tail
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1073,7 +2143,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmThreadPage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM thread list cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  summary: Cursor does not resolve to a known DM thread
+                  value:
+                    code: cursor_invalid
+                    message: unknown dm thread cursor
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1110,7 +2190,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmMessagePage'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM message history cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  summary: Cursor is not a valid DM message sequence number
+                  value:
+                    code: cursor_invalid
+                    message: message cursor must be numeric
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1119,6 +2209,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                threadNotFound:
+                  summary: Thread does not exist for this participant
+                  value:
+                    code: thread_not_found
+                    message: dm thread was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/dm/threads/{thread_id}/read:
@@ -1149,7 +2245,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmThreadMarkReadResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mark-read payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  summary: last_read_seq is outside the supported range
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is out of range
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1158,6 +2264,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+              examples:
+                threadNotFound:
+                  summary: Thread does not exist or caller is not a participant
+                  value:
+                    code: thread_not_found
+                    message: dm thread was not found or identity is not a participant
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests:
@@ -1180,15 +2292,54 @@ paths:
             enum: [inbound, outbound]
       responses:
         '200':
-          description: Friend request list response
+          description: >-
+            Friend request list response for the authenticated identity. Omitting
+            `direction` returns both inbound and outbound requests, ordered
+            newest-first by `created_at`, as current lifecycle snapshots rather
+            than only pending inbox items.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestPage'
+              examples:
+                mixedDirectionHistory:
+                  summary: Listing without direction returns both inbound and outbound requests
+                  value:
+                    items:
+                      - request_id: req-200
+                        requester_identity_id: usr-jules-p
+                        target_identity_id: usr-nora-k
+                        status: pending
+                        created_at: '2026-04-06T12:10:00Z'
+                      - request_id: req-150
+                        requester_identity_id: usr-nora-k
+                        target_identity_id: usr-alex-r
+                        status: accepted
+                        created_at: '2026-04-06T11:55:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid friend-request list filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Identity id or direction filter violates runtime rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requested identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Caller attempted to read another identity's friend requests
+                  value:
+                    code: identity_invalid
+                    message: identity_id must match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
@@ -1206,19 +2357,71 @@ paths:
               $ref: '#/components/schemas/FriendRequestCreateRequest'
       responses:
         '201':
-          description: Friend request created
+          description: >-
+            Friend request created. Returns the newly persisted `pending` request
+            record for this requester/target pair; duplicate pending pairs are
+            rejected with `409` instead of returning an existing row.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
+              examples:
+                pendingFriendRequest:
+                  summary: Newly created pending relationship edge
+                  value:
+                    request_id: req-201
+                    requester_identity_id: usr-nora-k
+                    target_identity_id: usr-jules-p
+                    status: pending
+                    created_at: '2026-04-06T12:12:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid friend-request creation payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Requester or target identity is invalid or self-targeted
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id and target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requester identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Caller attempted to create a request on behalf of another identity
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id must match authenticated session
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Friend request is blocked by an existing block relationship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                blockedUser:
+                  summary: Users cannot create friend requests across a block relationship
+                  value:
+                    code: blocked_user
+                    message: cannot send friend request — a block relationship exists between these users
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Pending friend request already exists for this pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                friendRequestExists:
+                  summary: Runtime keeps only one pending request for the pair
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/accept:
@@ -1236,13 +2439,35 @@ paths:
             type: string
       responses:
         '200':
-          description: Friend request updated
+          description: >-
+            Friend request updated. Returns the effective accepted record; repeat
+            accepts on an already accepted request remain success-shaped and
+            return the stored accepted state.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestRecord'
+              examples:
+                acceptedFriendRequest:
+                  summary: Accepted request returns the canonical accepted record
+                  value:
+                    request_id: req-202
+                    requester_identity_id: usr-mina-s
+                    target_identity_id: usr-alex-r
+                    status: accepted
+                    created_at: '2026-04-06T12:15:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           description: Authentication or verification failure
           content:
@@ -1250,13 +2475,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                verifyFailed:
-                  summary: Indistinguishable auth verify failure
+                identityInvalid:
+                  summary: Session identity does not match the pending request actor
                   value:
-                    code: nonce_invalid
-                    message: auth verification failed
+                    code: identity_invalid
+                    message: friend request cannot be mutated by this session
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/decline:
@@ -1276,11 +2511,31 @@ paths:
         '204':
           description: Friend request updated
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/cancel:
@@ -1300,11 +2555,31 @@ paths:
         '204':
           description: Friend request updated
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing or not actionable by the current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or belongs to another actor
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Friend request transition is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  summary: Request is no longer pending
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/friends/requests/{request_id}/bootstrap:
@@ -1326,17 +2601,73 @@ paths:
             type: string
       responses:
         '200':
-          description: Peer identity bootstrap bundle
+          description: >-
+            Peer identity bootstrap bundle for the other party in an accepted
+            relationship. Returns the peer's current identity key, endpoint-card
+            set, and profile-device snapshot rather than the caller's material.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IdentityBootstrapBundle'
+              examples:
+                acceptedPeerBootstrap:
+                  summary: Accepted relationship exposes the peer bootstrap snapshot
+                  value:
+                    identity_id: usr-jules-p
+                    public_key: 1111111111111111111111111111111111111111111111111111111111111111
+                    algorithm: ed25519
+                    endpoint_cards:
+                      - endpoint_id: ep-1
+                        endpoint_hint: 192.168.1.10:4040
+                        estimated_rtt_ms: 28
+                        priority: 10
+                        expires_at: '2026-04-06T13:00:00Z'
+                        revoked: false
+                    devices:
+                      - device_id: desktop-main
+                        active: true
+                        last_seen_at: '2026-04-06T12:14:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Friend request is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Request is missing or inaccessible
+                  value:
+                    code: identity_invalid
+                    message: friend request not found
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requester is not allowed to view this friend request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Session identity is not one of the friend request participants
+                  value:
+                    code: identity_invalid
+                    message: friend request cannot be accessed by this session
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Bootstrap is unavailable for the current relationship state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                bootstrapNotAvailable:
+                  summary: Request has not been accepted yet
+                  value:
+                    code: bootstrap_not_available
+                    message: identity bootstrap material is only available after friend request acceptance
+                blockedUser:
+                  summary: A block relationship prevents bootstrap access
+                  value:
+                    code: blocked_user
+                    message: identity bootstrap material is unavailable while a block relationship exists between these users
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/block:
@@ -1355,17 +2686,47 @@ paths:
               $ref: '#/components/schemas/BlockUserRequest'
       responses:
         '201':
-          description: User blocked
+          description: >-
+            User blocked. Returns the canonical persisted block record with the
+            caller as `blocker_identity_id`, the trimmed target identity, and the
+            block creation timestamp.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BlockRecord'
+              examples:
+                blockRecord:
+                  summary: Canonical block record returned after a new block
+                  value:
+                    blocker_identity_id: usr-nora-k
+                    blocked_identity_id: usr-jules-p
+                    created_at: '2026-04-06T12:40:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid block request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Target identity is invalid or matches the caller
+                  value:
+                    code: identity_invalid
+                    message: target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: User is already blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                alreadyBlocked:
+                  summary: Duplicate block requests do not create a second record
+                  value:
+                    code: already_blocked
+                    message: user is already blocked
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/unblock:
@@ -1384,7 +2745,7 @@ paths:
               $ref: '#/components/schemas/BlockUserRequest'
       responses:
         '204':
-          description: User unblocked
+          description: User unblocked with no response body; removing an already-absent block is still a successful no-op.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1399,11 +2760,28 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: List of blocked users
+          description: >-
+            Caller-owned outbound block list, sorted by `blocked_identity_id`.
+            Returns an empty `items` array when the caller has no active blocks.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BlockListResponse'
+              examples:
+                blockedUsers:
+                  summary: Sorted outbound block list for the authenticated identity
+                  value:
+                    items:
+                      - blocker_identity_id: usr-nora-k
+                        blocked_identity_id: usr-alex-r
+                        created_at: '2026-04-06T12:41:00Z'
+                      - blocker_identity_id: usr-nora-k
+                        blocked_identity_id: usr-jules-p
+                        created_at: '2026-04-06T12:40:00Z'
+                noBlockedUsers:
+                  summary: Empty list is a successful response when no blocks exist
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1424,17 +2802,47 @@ paths:
               $ref: '#/components/schemas/MuteUserRequest'
       responses:
         '201':
-          description: User muted
+          description: >-
+            User muted. Returns the canonical persisted mute record with the
+            caller as `muter_identity_id`, the trimmed target identity, and the
+            mute creation timestamp.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MuteRecord'
+              examples:
+                muteRecord:
+                  summary: Canonical mute record returned after a new mute
+                  value:
+                    muter_identity_id: usr-nora-k
+                    muted_identity_id: usr-jules-p
+                    created_at: '2026-04-06T12:42:00Z'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mute request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Target identity is invalid or matches the caller
+                  value:
+                    code: identity_invalid
+                    message: target_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: User is already muted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                alreadyMuted:
+                  summary: Duplicate mute requests do not create a second record
+                  value:
+                    code: already_muted
+                    message: user is already muted
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/users/unmute:
@@ -1453,7 +2861,7 @@ paths:
               $ref: '#/components/schemas/MuteUserRequest'
       responses:
         '204':
-          description: User unmuted
+          description: User unmuted with no response body; removing an already-absent mute is still a successful no-op.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1468,11 +2876,28 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: List of muted users
+          description: >-
+            Caller-owned mute list, sorted by `muted_identity_id`. Returns an
+            empty `items` array when the caller has no active mutes.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MuteListResponse'
+              examples:
+                mutedUsers:
+                  summary: Sorted mute list for the authenticated identity
+                  value:
+                    items:
+                      - muter_identity_id: usr-nora-k
+                        muted_identity_id: usr-alex-r
+                        created_at: '2026-04-06T12:43:00Z'
+                      - muter_identity_id: usr-nora-k
+                        muted_identity_id: usr-jules-p
+                        created_at: '2026-04-06T12:42:00Z'
+                noMutedUsers:
+                  summary: Empty list is a successful response when no mutes exist
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -2070,6 +3495,7 @@ components:
           type: string
         devices:
           type: array
+          description: Full normalized profile-device snapshot for the identity after the heartbeat upsert, sorted by `device_id`.
           items:
             $ref: '#/components/schemas/DmProfileDeviceSummary'
     DmFanoutDispatchRequest:
@@ -2113,12 +3539,15 @@ components:
         fanout_count:
           type: integer
           minimum: 0
+          description: Number of recipient devices that will receive this payload in the ready branch; blocked branches report `0`.
         delivered_device_ids:
           type: array
+          description: Sorted recipient device ids that will receive the payload for `status=ready`; empty for blocked branches.
           items:
             type: string
         skipped_device_ids:
           type: array
+          description: Sorted device ids skipped because they were inactive or matched `source_device_id`; may remain populated when backlog saturation blocks delivery after target evaluation.
           items:
             type: string
     DmFanoutCatchUpRequest:
@@ -2177,8 +3606,10 @@ components:
         replay_count:
           type: integer
           minimum: 0
+          description: Number of replay items returned in this response after duplicate suppression.
         next_cursor:
           type: string
+          description: Next device replay cursor. Blocked branches force `"0"`; ready branches preserve or advance the per-device cursor.
         deduped_message_ids:
           type: array
           description: Message IDs skipped as duplicate replay entries using key `(message_id, sender_identity_id, source_device_id, ciphertext)`.
@@ -2186,6 +3617,7 @@ components:
             type: string
         items:
           type: array
+          description: Replay entries returned for this device; blocked and no-missed branches return an empty array.
           items:
             $ref: '#/components/schemas/DmFanoutCatchUpItem'
     DmThreadSummary:

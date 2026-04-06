@@ -156,7 +156,7 @@ pub struct ServerChannelMessageEditRequest {
 }
 
 #[derive(Clone, Serialize)]
-pub struct ServerChannelMessageRecord {
+pub struct ServerChannelMessage {
     pub message_id: String,
     pub channel_id: String,
     pub author_id: String,
@@ -171,7 +171,7 @@ pub struct ServerChannelMessageRecord {
 
 #[derive(Serialize)]
 pub struct ServerChannelMessagePage {
-    pub items: Vec<ServerChannelMessageRecord>,
+    pub items: Vec<ServerChannelMessage>,
     pub next_cursor: Option<String>,
 }
 
@@ -567,7 +567,7 @@ pub struct IdentityBootstrapBundle {
 }
 
 #[derive(Deserialize)]
-pub struct FriendRequestCreate {
+pub struct FriendRequestCreateRequest {
     pub requester_identity_id: String,
     pub target_identity_id: String,
 }

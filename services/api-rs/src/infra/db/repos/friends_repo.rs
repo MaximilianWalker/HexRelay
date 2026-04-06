@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::friends::service::{assert_actor_can_transition, ActorRole},
-    models::{FriendRequestCreate, FriendRequestListQuery, FriendRequestRecord},
+    models::{FriendRequestCreateRequest, FriendRequestListQuery, FriendRequestRecord},
 };
 
 pub enum FriendRequestRepoError {
@@ -21,7 +21,7 @@ impl From<sqlx::Error> for FriendRequestRepoError {
 
 pub async fn create_friend_request(
     pool: &PgPool,
-    payload: FriendRequestCreate,
+    payload: FriendRequestCreateRequest,
 ) -> Result<FriendRequestRecord, FriendRequestRepoError> {
     let request_id = Uuid::new_v4().to_string();
 
@@ -53,7 +53,7 @@ pub async fn create_friend_request(
 
 pub async fn create_friend_request_in_tx(
     tx: &mut Transaction<'_, Postgres>,
-    payload: FriendRequestCreate,
+    payload: FriendRequestCreateRequest,
 ) -> Result<FriendRequestRecord, FriendRequestRepoError> {
     let request_id = Uuid::new_v4().to_string();
 

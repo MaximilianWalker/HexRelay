@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 tightened contract-parity governance further by extending routed `400` parity to local parse/normalize/validation helper/delegate flows, inferred when same-file calls reach `bad_request(...)`, with refreshed contributor/readiness operations guidance.
+- Latest meaningful change: 2026-04-06 refreshed contract-parity routing state after the closeout so the docs router and contract index now reflect the current runtime-contract maintenance baseline.
 
 ## Purpose
 
@@ -65,6 +65,7 @@
 ## Documentation Structure
 
 - `docs/product/`: product-level references and navigation
+- `docs/contracts/`: runtime and target-state contract artifacts plus contract maintenance indexes
 - `docs/planning/`: execution planning guidance and templates
 - `docs/architecture/`: architecture decision records (ADRs)
 - `docs/operations/`: contributor and process operations
@@ -110,7 +111,6 @@
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/02-dedicated-server-deployment.md`
-- `docs/operations/contributor-guide.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
 - `docs/reference/runtime-config-reference.md`

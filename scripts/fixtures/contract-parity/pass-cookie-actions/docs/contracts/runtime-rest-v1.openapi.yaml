@@ -1,0 +1,132 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/verify:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthVerifyRequest'
+      responses:
+        '200':
+          description: Session issued
+          headers:
+            Set-Cookie:
+              description: Session and csrf cookies issued
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVerifyResponse'
+        '400':
+          description: Invalid auth verification request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  summary: Identity id violates the runtime format rules
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+                nonceInvalid:
+                  summary: Challenge id is missing from the verification payload
+                  value:
+                    code: nonce_invalid
+                    message: challenge_id must not be empty
+                signatureInvalid:
+                  summary: Signature is missing from the verification payload
+                  value:
+                    code: signature_invalid
+                    message: signature must not be empty
+        '401':
+          description: Verification failed against the stored challenge or identity key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                nonceInvalid:
+                  summary: Challenge, signature, or registered key could not be verified
+                  value:
+                    code: nonce_invalid
+                    message: auth verification failed
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/auth/sessions/revoke:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRevokeRequest'
+      responses:
+        '204':
+          description: Session revoked
+          headers:
+            Set-Cookie:
+              description: Session and csrf cookies cleared
+              x-hexrelay-cookie-actions:
+                - clear:hexrelay_session
+                - clear:hexrelay_csrf
+              schema:
+                type: string
+        '400':
+          description: Invalid session revoke request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Session id is missing or does not resolve to an active stored session
+                  value:
+                    code: session_invalid
+                    message: session_id must not be empty
+        '401':
+          description: Revocation payload does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                sessionInvalid:
+                  summary: Caller attempted to revoke a different session id
+                  value:
+                    code: session_invalid
+                    message: session_id does not match authenticated session
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+    AuthVerifyRequest:
+      type: object
+    AuthVerifyResponse:
+      type: object
+    SessionRevokeRequest:
+      type: object

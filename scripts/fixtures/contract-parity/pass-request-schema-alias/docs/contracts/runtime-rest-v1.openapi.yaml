@@ -1,0 +1,95 @@
+openapi: 3.1.0
+paths:
+  /v1/friends/requests:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestCreateRequest'
+      responses:
+        '201':
+          description: Friend request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          description: Invalid friend-request creation payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id and target_identity_id must be 3-64 chars using letters, numbers, _ or -
+        '401':
+          description: Requester identity does not match the authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: requester_identity_id must match authenticated session
+        '403':
+          description: Friend request is blocked by an existing block relationship
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                blockedUser:
+                  value:
+                    code: blocked_user
+                    message: cannot send friend request — a block relationship exists between these users
+        '409':
+          description: Pending friend request already exists for this pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                friendRequestExists:
+                  value:
+                    code: friend_request_exists
+                    message: pending friend request already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad request
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - friend_request_exists
+            - blocked_user
+            - identity_invalid
+            - storage_unavailable
+    FriendRequestCreateRequest:
+      type: object
+    FriendRequestRecord:
+      type: object

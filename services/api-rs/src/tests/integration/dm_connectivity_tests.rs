@@ -208,3 +208,31 @@ async fn preflight_allows_when_policy_is_same_server_and_membership_is_shared() 
     assert_eq!(payload["status"], "ready");
     assert_eq!(payload["reason_code"], "preflight_ok");
 }
+
+#[tokio::test]
+async fn rejects_invalid_preflight_request() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/preflight")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"pairing_envelope_present":true,"peer_identity_id":"   "}"#,
+        ))
+        .expect("build invalid preflight request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid preflight response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid preflight body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid preflight body");
+    assert_eq!(payload["code"], "preflight_invalid");
+}

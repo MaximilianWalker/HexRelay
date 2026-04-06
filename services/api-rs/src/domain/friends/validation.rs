@@ -1,11 +1,11 @@
 use crate::{
-    models::{FriendRequestCreate, FriendRequestListQuery},
+    models::{FriendRequestCreateRequest, FriendRequestListQuery},
     shared::errors::{bad_request, ApiResult},
 };
 
 use crate::domain::auth::validation::is_valid_identity_id;
 
-pub fn validate_friend_request_create(payload: &FriendRequestCreate) -> ApiResult<()> {
+pub fn validate_friend_request_create(payload: &FriendRequestCreateRequest) -> ApiResult<()> {
     if !is_valid_identity_id(&payload.requester_identity_id)
         || !is_valid_identity_id(&payload.target_identity_id)
     {
@@ -48,11 +48,11 @@ pub fn validate_friend_request_list_query(query: &FriendRequestListQuery) -> Api
 #[cfg(test)]
 mod tests {
     use super::{validate_friend_request_create, validate_friend_request_list_query};
-    use crate::models::{FriendRequestCreate, FriendRequestListQuery};
+    use crate::models::{FriendRequestCreateRequest, FriendRequestListQuery};
 
     #[test]
     fn rejects_same_requester_and_target() {
-        let payload = FriendRequestCreate {
+        let payload = FriendRequestCreateRequest {
             requester_identity_id: "usr-a".to_string(),
             target_identity_id: "usr-a".to_string(),
         };

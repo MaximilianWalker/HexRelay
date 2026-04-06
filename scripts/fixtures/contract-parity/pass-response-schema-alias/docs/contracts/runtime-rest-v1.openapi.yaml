@@ -1,0 +1,15 @@
+openapi: 3.1.0
+paths:
+  /v1/server-messages:
+    get:
+      responses:
+        '200':
+          description: Server message list item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerChannelMessage'
+components:
+  schemas:
+    ServerChannelMessage:
+      type: object

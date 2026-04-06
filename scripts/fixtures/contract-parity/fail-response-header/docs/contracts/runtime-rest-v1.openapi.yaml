@@ -1,0 +1,49 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/verify:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthVerifyRequest'
+      responses:
+        '200':
+          description: Session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVerifyResponse'
+        '400':
+          description: Invalid auth verification request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                algorithmInvalid:
+                  value:
+                    code: algorithm_invalid
+                    message: registered algorithm must be ed25519
+                signatureInvalid:
+                  value:
+                    code: signature_invalid
+                    message: signature must be 64-byte hex or base64
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+    AuthVerifyRequest:
+      type: object
+    AuthVerifyResponse:
+      type: object

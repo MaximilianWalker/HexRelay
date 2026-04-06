@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-03 tightened contract-parity guidance so routed handlers must keep documented `400` responses aligned with local parse/normalize/validation helper flows, including GET cursor and limit parsing.
+- Latest meaningful change: 2026-04-06 refreshed readiness guidance after the contract-parity closeout, including smoke prerequisites and current deferred-item wording.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery and fixture-backed runtime surfaces.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery, broader realtime semantic contract validation beyond inventory parity, DM replay-backlog durability decisions, multi-instance limiter equivalence, and a few standing governance/process watches.
 
 ## Local Development Prerequisites
 
@@ -51,6 +51,7 @@
   - Verify links and paths resolve.
   - Keep metadata and `last_updated` fields accurate.
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
+  - If docs mention smoke/bootstrap flows, state any required temporary config opt-ins explicitly rather than assuming CI-only knowledge.
 - For code changes:
   - Run lint, tests, and build for touched projects.
   - Run `npm run security` before opening a PR as the fast local Rust-audit gate.
@@ -75,7 +76,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `contract-parity-check`, `dm-transport-policy-check`, `docs-index-freshness-check`, `rust-coverage-gate`, and `integration-smoke`.
-- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, and selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths.
+- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and non-auth local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, query-parameter semantic parity for requiredness, schema type, enum domains, blank-search normalization, case-insensitive matching, trim-before-enum normalization, and reject-backed numeric bounds on the main filter/pagination surfaces, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths, and route-level error-example parity for the tracked high-signal auth/social/DM/server routes. Success-body closeout work should keep documenting branch-specific `200`/`201` payload meaning where one schema serves multiple runtime outcomes, lifecycle states, idempotent success paths, setup-result branches, intentionally indistinguishable auth flows, or sorted/empty-list read semantics.
 - Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
@@ -94,6 +95,7 @@ Required local checks (run before opening PR):
 - `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
+- `bash scripts/test-contract-parity.sh`
 - `./scripts/validate-dm-transport-policy.sh`
 - `./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
 - Rust `fmt`/`clippy`/tests and coverage gate command
@@ -114,6 +116,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
+bash scripts/test-contract-parity.sh
 ./scripts/validate-dm-transport-policy.sh
 ./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
 bash scripts/validate-cargo-audit-ignore.sh

@@ -285,6 +285,129 @@ async fn discovery_rate_limits_queries() {
 }
 
 #[tokio::test]
+async fn discovery_rejects_invalid_scope() {
+    let state = AppState::default();
+    let expires_at = Utc::now() + Duration::hours(1);
+    state.sessions.write().expect("session write lock").insert(
+        "sess-invalid-scope".to_string(),
+        SessionRecord {
+            identity_id: "usr-scope".to_string(),
+            expires_at,
+        },
+    );
+
+    let token = issue_session_token(
+        "sess-invalid-scope",
+        "usr-scope",
+        expires_at.timestamp(),
+        &state.active_signing_key_id,
+        state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active signing key"),
+    );
+
+    let app = build_app(state);
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=planetary")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .expect("build invalid discovery request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid discovery response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid discovery body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid discovery payload");
+    assert_eq!(payload["code"], "scope_invalid");
+}
+
+#[tokio::test]
+async fn discovery_ignores_blank_query_and_clamps_large_limit() {
+    let actor = unique_identity("usr-discovery-query-actor");
+    let allowed_a = unique_identity("usr-discovery-query-alpha");
+    let allowed_b = unique_identity("usr-discovery-query-beta");
+
+    let Some((_app, _tokens, pool)) =
+        app_with_database_and_sessions(&[&actor, &allowed_a, &allowed_b]).await
+    else {
+        return;
+    };
+
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        "http://127.0.0.1:8081".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &allowed_a).await;
+    ensure_db_identity_key(&pool, &allowed_b).await;
+
+    let token = issue_db_session_cookie(&pool, &state, &actor).await;
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=global&query=%20%20%20&limit=999")
+        .header("cookie", format!("hexrelay_session={token}"))
+        .body(Body::empty())
+        .expect("build blank-query discovery request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("blank-query discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read blank-query discovery body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode blank-query discovery payload");
+
+    assert!(payload.items.len() <= 50);
+    assert!(payload
+        .items
+        .iter()
+        .any(|item| item.identity_id == allowed_a));
+    assert!(payload
+        .items
+        .iter()
+        .any(|item| item.identity_id == allowed_b));
+    assert!(!payload.items.iter().any(|item| item.identity_id == actor));
+}
+
+#[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
     let actor = unique_identity("usr-discovery-shared-actor");
     let shared_peer = unique_identity("usr-discovery-shared-peer");
@@ -329,6 +452,42 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     assert_eq!(payload.items.len(), 1);
     assert_eq!(payload.items[0].identity_id, shared_peer);
     assert_eq!(payload.items[0].shared_server_count, 1);
+}
+
+#[tokio::test]
+async fn discovery_trims_scope_before_enum_validation() {
+    let actor = unique_identity("usr-discovery-trim-actor");
+    let shared_peer = unique_identity("usr-discovery-trim-peer");
+
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(&pool, "srv-trim", "Trimmed", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "srv-trim", "Trimmed", &shared_peer, false, false, 0).await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=%20shared_server%20")
+        .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
+        .body(Body::empty())
+        .expect("build trimmed-scope discovery request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("trimmed-scope discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read trimmed-scope discovery body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode trimmed-scope discovery payload");
+
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0].identity_id, shared_peer);
 }
 
 #[tokio::test]

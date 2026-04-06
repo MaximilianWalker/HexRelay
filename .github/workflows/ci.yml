@@ -178,6 +178,7 @@ jobs:
 
           chmod +x scripts/validate-contract-parity.sh
           ./scripts/validate-contract-parity.sh "${BASE_SHA}" "${HEAD_SHA}"
+          bash scripts/test-contract-parity.sh
 
   docs-index-freshness-check:
     name: docs-index-freshness-check
