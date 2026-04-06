@@ -103,11 +103,22 @@ paths:
               $ref: '#/components/schemas/AuthChallengeRequest'
       responses:
         '200':
-          description: Challenge issued
+          description: >-
+            Challenge issued. Returns a fresh opaque `challenge_id`, a 32-byte
+            nonce, and the expiry timestamp. Unknown identities receive the same
+            success-shaped body as registered identities so callers cannot infer
+            account existence from the response shape.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthChallengeResponse'
+              examples:
+                issuedChallenge:
+                  summary: Challenge body is indistinguishable for known and unknown identities
+                  value:
+                    challenge_id: ch_4a7d9d
+                    nonce: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    expires_at: '2026-04-06T12:30:00Z'
         '400':
           description: Invalid auth challenge request
           content:
@@ -135,7 +146,10 @@ paths:
               $ref: '#/components/schemas/AuthVerifyRequest'
       responses:
         '200':
-          description: Session issued via HttpOnly cookie
+          description: >-
+            Session issued via HttpOnly cookie. The body returns the canonical
+            session metadata while `Set-Cookie` issues both the auth and CSRF
+            cookies needed for subsequent cookie-auth requests.
           headers:
             Set-Cookie:
               description: |
@@ -150,6 +164,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthVerifyResponse'
+              examples:
+                issuedSession:
+                  summary: Successful verify returns session metadata alongside issued cookies
+                  value:
+                    session_id: ses_9f3b12
+                    expires_at: '2026-04-07T12:00:00Z'
         '400':
           description: Invalid auth verification request
           content:
@@ -249,11 +269,21 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: Session is active and valid
+          description: >-
+            Session is active and valid. Returns the authenticated session id,
+            identity id, and current expiry as echoed from the verified runtime
+            session state.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionValidateResponse'
+              examples:
+                activeSession:
+                  summary: Validate returns the currently active authenticated session snapshot
+                  value:
+                    session_id: ses_9f3b12
+                    identity_id: usr-nora-k
+                    expires_at: '2026-04-07T12:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -274,11 +304,33 @@ paths:
               $ref: '#/components/schemas/InviteCreateRequest'
       responses:
         '201':
-          description: Invite created
+          description: >-
+            Invite created. Returns the canonical persisted invite record plus
+            the one-time visible token. `one_time` mode is normalized to
+            `max_uses=1` even when omitted in the request.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
+              examples:
+                multiUseInvite:
+                  summary: Multi-use invite preserves explicit usage cap
+                  value:
+                    invite_id: inv_100
+                    token: tok_live_100
+                    mode: multi_use
+                    expires_at: null
+                    max_uses: 2
+                    created_at: '2026-04-06T12:32:00Z'
+                oneTimeNormalized:
+                  summary: One-time invites normalize to a single allowed redemption
+                  value:
+                    invite_id: inv_101
+                    token: tok_live_101
+                    mode: one_time
+                    expires_at: null
+                    max_uses: 1
+                    created_at: '2026-04-06T12:33:00Z'
         '400':
           description: Invalid invite creation request
           content:
@@ -308,11 +360,19 @@ paths:
               $ref: '#/components/schemas/InviteRedeemRequest'
       responses:
         '200':
-          description: Invite redeemed
+          description: >-
+            Invite redeemed. Success returns a simple acceptance ack; multi-use
+            invites can continue redeeming until exhausted, while one-time or
+            exhausted invites move to the documented `400` failure paths.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteRedeemResponse'
+              examples:
+                acceptedInvite:
+                  summary: Valid invite redemption returns a simple acceptance ack
+                  value:
+                    accepted: true
         '400':
           description: Invite token is invalid for the current redemption attempt
           content:
@@ -360,11 +420,24 @@ paths:
               $ref: '#/components/schemas/InviteCreateRequest'
       responses:
         '201':
-          description: Contact invite created
+          description: >-
+            Contact invite created. Returns the persisted invite metadata and the
+            shareable token used to open or resume the pending friend-request
+            handshake with another identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InviteCreateResponse'
+              examples:
+                contactInvite:
+                  summary: Contact invite exposes the shareable token and persisted limits
+                  value:
+                    invite_id: inv_200
+                    token: tok_contact_200
+                    mode: multi_use
+                    expires_at: null
+                    max_uses: 3
+                    created_at: '2026-04-06T12:34:00Z'
         '400':
           description: Invalid contact invite creation request
           content:
