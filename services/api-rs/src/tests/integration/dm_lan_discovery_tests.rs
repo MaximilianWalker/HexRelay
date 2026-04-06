@@ -168,6 +168,32 @@ async fn preflight_prefers_lan_fast_path_when_peer_is_discovered() {
 }
 
 #[tokio::test]
+async fn rejects_invalid_lan_discovery_announce_request() {
+    let (app, tokens) = app_with_sessions(&["usr-jules-p"]);
+
+    let announce_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/lan-discovery/announce")
+        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"endpoint_hints":[]}"#))
+        .expect("build invalid lan announce request");
+
+    let response = app
+        .oneshot(announce_request)
+        .await
+        .expect("invalid lan announce response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid lan announce body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid lan announce body");
+    assert_eq!(payload["code"], "lan_discovery_invalid");
+}
+
+#[tokio::test]
 async fn lists_lan_peer_when_same_server_policy_has_trusted_shared_membership() {
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await

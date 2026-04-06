@@ -80,3 +80,26 @@ async fn wan_wizard_reports_network_incompatible_for_restricted_profiles() {
     assert_eq!(payload["method"], "none");
     assert_eq!(payload["reason_code"], "wan_path_unavailable");
 }
+
+#[tokio::test]
+async fn rejects_invalid_wan_wizard_request() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/connectivity/wan-wizard")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"network_profile":"relay_required"}"#))
+        .expect("build invalid wan wizard request");
+
+    let response = app.oneshot(request).await.expect("invalid wan wizard response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid wan wizard body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid wan wizard body");
+    assert_eq!(payload["code"], "wan_wizard_invalid");
+}

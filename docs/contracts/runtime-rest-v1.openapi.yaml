@@ -977,7 +977,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid DM inbound policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                dmPolicyInvalid:
+                  summary: DM policy value is invalid
+                  value:
+                    code: dm_policy_invalid
+                    message: "inbound_policy must be one of: friends_only, same_server, anyone"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1004,7 +1014,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmPairingEnvelopeResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid pairing envelope request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                pairingInvalid:
+                  summary: Pairing envelope request is invalid
+                  value:
+                    code: pairing_invalid
+                    message: too many endpoint hints in pairing request
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1031,7 +1051,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmPairingImportResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid pairing envelope import
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                pairingInvalid:
+                  summary: Pairing envelope payload is invalid
+                  value:
+                    code: pairing_invalid
+                    message: pairing envelope payload is invalid
+                pairingExpired:
+                  summary: Pairing envelope is expired
+                  value:
+                    code: pairing_expired
+                    message: pairing envelope is expired
+                pairingReplayed:
+                  summary: Pairing envelope nonce was already consumed
+                  value:
+                    code: pairing_replayed
+                    message: pairing envelope nonce was already consumed
+                identityInvalid:
+                  summary: Pairing envelope belongs to current identity
+                  value:
+                    code: identity_invalid
+                    message: cannot import a pairing envelope created by the same identity
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1057,7 +1102,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmConnectivityPreflightResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid connectivity preflight request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                preflightInvalid:
+                  summary: Preflight request is invalid
+                  value:
+                    code: preflight_invalid
+                    message: peer_identity_id must not be empty when provided
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1085,7 +1140,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmLanDiscoveryAnnounceResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid LAN discovery announcement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lanDiscoveryInvalid:
+                  summary: LAN discovery request is invalid
+                  value:
+                    code: lan_discovery_invalid
+                    message: endpoint_hints must include at least one LAN endpoint
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1128,7 +1193,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmWanWizardResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid WAN wizard request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                wanWizardInvalid:
+                  summary: WAN wizard input is invalid
+                  value:
+                    code: wan_wizard_invalid
+                    message: "network_profile must be one of: home_nat, symmetric_nat, carrier_nat, enterprise_restricted"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1156,7 +1231,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRegisterResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid endpoint-card registration request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                endpointCardsInvalid:
+                  summary: Endpoint-card registration payload is invalid
+                  value:
+                    code: endpoint_cards_invalid
+                    message: cards must include between 1 and 8 endpoint cards
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1184,7 +1269,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRevokeResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid endpoint-card revoke request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                endpointCardsInvalid:
+                  summary: Endpoint-card revoke payload is invalid
+                  value:
+                    code: endpoint_cards_invalid
+                    message: endpoint_ids must include between 1 and 8 ids
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1211,7 +1306,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmParallelDialResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid parallel-dial request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                parallelDialInvalid:
+                  summary: Parallel-dial payload is invalid
+                  value:
+                    code: parallel_dial_invalid
+                    message: peer_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1239,7 +1344,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmProfileDeviceHeartbeatResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid profile-device heartbeat request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                profileDeviceInvalid:
+                  summary: Profile-device heartbeat payload is invalid
+                  value:
+                    code: profile_device_invalid
+                    message: device_id must be non-empty and <= 64 chars
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':

@@ -92,6 +92,13 @@ async fn rejects_invalid_dm_policy_update() {
         .expect("invalid dm policy update response");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid dm policy body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid dm policy body");
+    assert_eq!(payload["code"], "dm_policy_invalid");
 }
 
 #[tokio::test]
@@ -418,4 +425,33 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
     assert_eq!(second_payload["replay_count"], 0);
     assert_eq!(second_payload["next_cursor"], "1");
     assert_eq!(second_payload["reason_code"], "fanout_catch_up_no_missed");
+}
+
+#[tokio::test]
+async fn rejects_invalid_profile_device_heartbeat() {
+    let (app, tokens) = app_with_sessions(&["usr-device-invalid"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens["usr-device-invalid"]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"   ","active":true}"#))
+        .expect("build invalid device heartbeat request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid device heartbeat response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid device heartbeat body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid device heartbeat body");
+    assert_eq!(payload["code"], "profile_device_invalid");
 }
