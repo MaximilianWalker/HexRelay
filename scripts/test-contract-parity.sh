@@ -15,6 +15,7 @@ run_fixture() {
   trap 'rm -rf "$temp_repo"' RETURN
 
   cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
   git -C "$temp_repo" init -q
   git -C "$temp_repo" commit --allow-empty -qm "base"
   git -C "$temp_repo" add .
@@ -56,6 +57,7 @@ run_fixture fail-internal-auth-example 1 "internal_token_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"
 run_fixture fail-missing-csrf-header 1 "missing the CsrfTokenHeader parameter"
 run_fixture fail-missing-request-body 1 "missing requestBody"
+run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missing a 500 response"
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"

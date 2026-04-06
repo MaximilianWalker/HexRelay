@@ -1,0 +1,41 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/challenge:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthChallengeRequest'
+      responses:
+        '200':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthChallengeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+    TooManyRequests:
+      description: Too many requests
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - auth_challenge_invalid
+            - rate_limited
+            - storage_unavailable
+    AuthChallengeRequest:
+      type: object
+    AuthChallengeResponse:
+      type: object

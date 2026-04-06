@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-06 expanded regression fixture coverage for request/response schema alias handling, direct request-schema mismatches, missing auth/status branches, CSRF/request-body gaps, and no-content success responses.
+- Latest meaningful change: 2026-04-06 expanded regression fixture coverage for request/response schema alias handling, direct request-schema mismatches, missing auth/status branches, non-auth helper/delegate `500` paths, CSRF/request-body gaps, and no-content success responses, while broadening route-level example coverage for server-channel mutations.
 
 ## Purpose
 
@@ -76,7 +76,7 @@
 10. Add validator regression fixtures or golden-route tests
 - Add a small deterministic test layer around the validator so future parity expansions do not regress silently.
 - Cover tricky handlers first: `auth.rs`, `friends.rs`, `dm.rs`, `server_channels.rs`, and `presence.rs`.
-- Status: in progress; fixtures now cover missing route examples, auth cookie semantics, discovery query semantics, DM control-plane examples, invite create examples, DM fanout validation, internal-auth/header gaps, missing 401/500 branches, request/response schema alias handling, direct request-schema mismatch, requestBody/CSRF gaps, and no-content success-schema regressions. Remaining work is targeted breadth closeout and any still-unprotected helper/delegate branches with real regression value.
+- Status: in progress; fixtures now cover missing route examples, auth cookie semantics, discovery query semantics, DM control-plane examples, invite create examples, DM fanout validation, internal-auth/header gaps, missing 401/500 branches including non-auth helper/delegate `500` flows, request/response schema alias handling, direct request-schema mismatch, requestBody/CSRF gaps, and no-content success-schema regressions. Remaining work is targeted breadth closeout and any still-unprotected helper/delegate branches with real regression value.
 
 ## Recommended Order
 

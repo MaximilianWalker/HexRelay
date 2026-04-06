@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-03 broadened contract-parity guidance so documented query parameters must now match runtime semantics for requiredness, type, enum domains, and reject-backed numeric bounds across the main pagination and filter surfaces.
+- Latest meaningful change: 2026-04-06 broadened contract-parity guidance so server-channel mutation routes now require route-level error-example parity and regression fixtures cover non-auth helper/delegate `500` paths plus repo line-ending policy inside temp fixture repos.
 
 ## Purpose
 
@@ -75,7 +75,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `contract-parity-check`, `dm-transport-policy-check`, `docs-index-freshness-check`, `rust-coverage-gate`, and `integration-smoke`.
-- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, query-parameter semantic parity for requiredness, schema type, enum domains, and reject-backed numeric bounds on the main filter/pagination surfaces, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, and selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths.
+- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and non-auth local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, query-parameter semantic parity for requiredness, schema type, enum domains, and reject-backed numeric bounds on the main filter/pagination surfaces, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths, and route-level error-example parity for the tracked high-signal mutation/read routes including server-channel message mutations.
 - Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.

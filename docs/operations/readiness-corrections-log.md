@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-04-03 broadened contract-parity CI so key query/filter/pagination parameters can no longer drift from runtime requiredness, type, enum, and reject-backed bounds semantics.
+- Latest meaningful change: 2026-04-06 tightened contract-parity fixture/runtime hygiene by carrying repo line-ending policy into temp fixture repos and extending route-level example coverage for server-channel message mutations plus non-auth helper/delegate `500` regression protection.
 
 ## Purpose
 
@@ -31,6 +31,7 @@
 
 ## Entries
 
+- 2026-04-06 | `ci` | Contract-parity fixture runs still emitted noisy Windows LF/CRLF warnings because temp fixture repos did not inherit the repository `.gitattributes`, and the validator still left one high-signal breadth gap where server-channel message mutation routes could lose route-level error examples without CI failure | copied the root `.gitattributes` into temp fixture repos in `scripts/test-contract-parity.sh`, declared `*.py` as LF in `.gitattributes`, added `fail-nonauth-helper-500` to `scripts/fixtures/contract-parity/` plus `scripts/test-contract-parity.sh`, extended tracked route-level error-example expectations for server-channel message create/edit/delete flows in `scripts/contract_parity/engine.py`, and refreshed operator guidance in `docs/operations/contributor-guide.md` and `docs/contracts/contract-parity-backlog.md` | contract-parity regression runs now inherit the repository line-ending policy in temp repos, avoid the recurring fixture warning noise, and catch server-channel mutation example drift plus non-auth helper/delegate `500` regressions before merge | `closed`
 - 2026-04-03 | `ci` | Contract-parity still left a broader filter/pagination drift gap after the status-code passes: OpenAPI could keep the right query parameter names yet silently diverge from runtime requiredness, type, enum domain, or reject-backed numeric limit semantics for main list/history surfaces like friend request filters, discovery scope, and DM/server-channel pagination | extended `scripts/validate-contract-parity.sh` to compare runtime query semantics against OpenAPI for requiredness, schema type, enum domains, and reject-backed numeric bounds on the tracked query structs, and refreshed `docs/operations/contributor-guide.md` to document the broader scope | contract-parity CI now catches high-signal query contract drift across the main filter/pagination surfaces without expanding into generic schema introspection across every request model or clamp-only behaviors | `closed`
 - 2026-04-03 | `ci` | Contract-parity still left one narrow bad-request drift gap after the routed `500` pass: routed handlers, especially GET endpoints, could return stable `400` failures through local parse/normalize/validation helpers while OpenAPI omitted the corresponding `400` response because helper-following stayed narrower on those paths | extended `scripts/validate-contract-parity.sh` to require `400` response presence for routed handlers that reach `bad_request(...)` through local helper/delegate flows, and refreshed `docs/operations/contributor-guide.md` to document the tighter scope | contract-parity CI now catches missing high-signal routed `400` response presence for explicit local validation and cursor/limit parsing paths without widening into broader schema-level validation inference | `closed`
 - 2026-04-03 | `ci` | Contract-parity still left one narrow internal-error drift gap after the routed `401` pass: non-auth routed handlers could directly emit stable `internal_error(...)` runtime failures or reach the same failures through same-file helper/delegate flows while OpenAPI omitted the corresponding `500` response, leaving explicit storage/internal failure paths partially unguarded outside the earlier session-auth subset | extended `scripts/validate-contract-parity.sh` to require `500` response presence for routed handlers that directly emit `internal_error(...)` or reach it through local helper/delegate flows, and refreshed `docs/operations/contributor-guide.md` to document the tighter scope | contract-parity CI now catches missing high-signal routed `500` response presence for explicit internal-error runtime paths without widening into broader schema-level error validation | `closed`

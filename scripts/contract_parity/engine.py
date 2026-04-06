@@ -182,6 +182,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('GET', '/v1/discovery/users'),
         ('GET', '/v1/servers/{server_id}'),
         ('GET', '/v1/servers/{server_id}/channels'),
+        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
+        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
         ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
         ('GET', '/v1/dm/threads'),
         ('GET', '/v1/dm/threads/{thread_id}/messages'),
@@ -230,6 +233,28 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('GET', '/v1/discovery/users'): {'scope_invalid'},
         ('GET', '/v1/servers/{server_id}'): {'server_access_denied'},
         ('GET', '/v1/servers/{server_id}/channels'): {'server_access_denied'},
+        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
+            'message_content_invalid',
+            'reply_target_invalid',
+            'mention_invalid',
+            'server_access_denied',
+            'channel_not_found',
+        },
+        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+            'message_content_invalid',
+            'mention_invalid',
+            'server_access_denied',
+            'message_edit_forbidden',
+            'channel_not_found',
+            'message_not_found',
+            'message_deleted',
+        },
+        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+            'server_access_denied',
+            'message_delete_forbidden',
+            'channel_not_found',
+            'message_not_found',
+        },
         ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
             'server_access_denied',
             'channel_not_found',
@@ -243,6 +268,25 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
         ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
             '401': {'internal_token_invalid'},
+        },
+        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
+            '400': {
+                'message_content_invalid',
+                'reply_target_invalid',
+                'mention_invalid',
+            },
+            '403': {'server_access_denied'},
+            '404': {'channel_not_found'},
+        },
+        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+            '400': {'message_content_invalid', 'mention_invalid'},
+            '403': {'server_access_denied', 'message_edit_forbidden'},
+            '404': {'channel_not_found', 'message_not_found'},
+            '409': {'message_deleted'},
+        },
+        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+            '403': {'server_access_denied', 'message_delete_forbidden'},
+            '404': {'channel_not_found', 'message_not_found'},
         },
     }
     QUERY_RUNTIME_FIELD_RULES = {
