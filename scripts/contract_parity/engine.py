@@ -303,13 +303,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'limit': {'minimum': 1, 'maximum': 100},
         },
         'ServerListQuery': {
-            'search': {'schema_type': 'string', 'required': False},
+            'search': {
+                'schema_type': 'string',
+                'required': False,
+                'semantics': ('blank-means-omitted', 'case-insensitive'),
+            },
             'favorites_only': {'schema_type': 'boolean', 'required': False},
             'unread_only': {'schema_type': 'boolean', 'required': False},
             'muted_only': {'schema_type': 'boolean', 'required': False},
         },
         'ContactListQuery': {
-            'search': {'schema_type': 'string', 'required': False},
+            'search': {
+                'schema_type': 'string',
+                'required': False,
+                'semantics': ('blank-means-omitted', 'case-insensitive'),
+            },
             'online_only': {'schema_type': 'boolean', 'required': False},
             'unread_only': {'schema_type': 'boolean', 'required': False},
             'favorites_only': {'schema_type': 'boolean', 'required': False},
@@ -1453,4 +1461,3 @@ def extract_asyncapi_contract_error_codes(path: str) -> str:
             break
 
     return "\n".join(sorted(set(codes)))
-

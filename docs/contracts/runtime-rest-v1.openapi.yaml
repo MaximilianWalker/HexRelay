@@ -416,6 +416,9 @@ paths:
           name: search
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: favorites_only
           schema:
@@ -884,6 +887,9 @@ paths:
           name: search
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: online_only
           schema:

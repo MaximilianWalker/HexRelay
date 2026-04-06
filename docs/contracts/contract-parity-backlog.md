@@ -61,7 +61,7 @@
 7. Expand query semantics beyond the tracked rule table
 - Cover more query/filter semantics where runtime behavior is stable enough to assert mechanically.
 - First targets: `services/api-rs/src/transport/http/handlers/directory.rs` and remaining safe rules in `services/api-rs/src/transport/http/handlers/discovery.rs`.
-- Status: in progress; `ServerListQuery`, `ContactListQuery`, and first-pass `DiscoveryUserListQuery` normalization/default semantics are now covered.
+- Status: in progress; `ServerListQuery` and `ContactListQuery` now cover blank-search normalization plus case-insensitive matching, and `DiscoveryUserListQuery` covers first-pass normalization/default semantics. Remaining work is limited to additional safe query rules where runtime behavior is stable enough to assert.
 
 8. Close out success content parity breadth
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.
