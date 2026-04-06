@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 SCRIPT_PATH="$ROOT_DIR/scripts/validate-contract-parity.sh"
 FIXTURES_DIR="$ROOT_DIR/scripts/fixtures/contract-parity"
+FIXTURE_GIT_AUTHOR_NAME="OpenCode Fixture"
+FIXTURE_GIT_AUTHOR_EMAIL="fixture@hexrelay.local"
 
 run_fixture() {
   local fixture_name="$1"
@@ -17,9 +19,9 @@ run_fixture() {
   cp -R "$fixture_dir/." "$temp_repo/"
   cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
   git -C "$temp_repo" init -q
-  git -C "$temp_repo" commit --allow-empty -qm "base"
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
   git -C "$temp_repo" add .
-  git -C "$temp_repo" commit -qm "fixture"
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
 
   set +e
   local output
