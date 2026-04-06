@@ -1205,11 +1205,21 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: DM policy response
+          description: >-
+            Effective DM inbound policy for the authenticated identity. New
+            identities default to `friends_only` with
+            `offline_delivery_mode=best_effort_online` until an explicit update
+            is persisted.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
+              examples:
+                defaultPolicy:
+                  summary: New identities inherit the default DM policy
+                  value:
+                    inbound_policy: friends_only
+                    offline_delivery_mode: best_effort_online
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1230,11 +1240,19 @@ paths:
               $ref: '#/components/schemas/DmPolicyUpdate'
       responses:
         '200':
-          description: DM policy updated
+          description: >-
+            DM policy updated. Returns the effective persisted policy snapshot,
+            including the fixed offline delivery mode used by the runtime.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
+              examples:
+                updatedPolicy:
+                  summary: Runtime returns the persisted effective policy
+                  value:
+                    inbound_policy: anyone
+                    offline_delivery_mode: best_effort_online
         '400':
           description: Invalid DM inbound policy
           content:
@@ -1267,11 +1285,22 @@ paths:
               $ref: '#/components/schemas/DmPairingEnvelopeCreateRequest'
       responses:
         '201':
-          description: DM pairing envelope created
+          description: >-
+            DM pairing envelope created. Returns the signed export bundle used for
+            out-of-band sharing, including the base64url envelope, human-friendly
+            short code, expiry timestamp, and single-use pairing nonce.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPairingEnvelopeResponse'
+              examples:
+                signedEnvelope:
+                  summary: Signed pairing export bundle ready to share with a contact
+                  value:
+                    envelope: eyJrZXlfaWQiOiJkZWZhdWx0Iiwic2lnbmVkIjp0cnVlfQ
+                    short_code: NORA-7214
+                    expires_at: '2026-04-06T12:30:00Z'
+                    pairing_nonce: 8d4c2b9af1ce44d7a2f1aa903cf0b1c2
         '400':
           description: Invalid pairing envelope request
           content:
@@ -1304,11 +1333,23 @@ paths:
               $ref: '#/components/schemas/DmPairingEnvelopeImportRequest'
       responses:
         '200':
-          description: DM pairing envelope imported
+          description: >-
+            DM pairing envelope imported. Success means the first valid import of
+            a non-expired, non-self, non-replayed signed envelope and returns the
+            verified inviter bootstrap hints for direct dialing.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPairingImportResponse'
+              examples:
+                importedEnvelope:
+                  summary: Verified inviter identity and hints extracted from the envelope
+                  value:
+                    inviter_identity_id: usr-nora-k
+                    endpoint_hints:
+                      - tcp://127.0.0.1:4040
+                    imported_at: '2026-04-06T12:05:00Z'
+                    expires_at: '2026-04-06T12:30:00Z'
         '400':
           description: Invalid pairing envelope import
           content:
@@ -1355,11 +1396,32 @@ paths:
               $ref: '#/components/schemas/DmConnectivityPreflightRequest'
       responses:
         '200':
-          description: DM preflight diagnostics result
+          description: >-
+            DM preflight diagnostics result. Returns either a `ready` branch for
+            direct dialing or a `blocked` branch with deterministic remediation
+            guidance explaining the first failing prerequisite.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmConnectivityPreflightResponse'
+              examples:
+                readyLan:
+                  summary: Peer was discovered on LAN so the fast path is ready
+                  value:
+                    status: ready
+                    reason_code: preflight_ok_lan
+                    transport_profile: direct_only
+                    remediation:
+                      - Peer discovered on local network; prioritize LAN direct path.
+                blockedPolicy:
+                  summary: Recipient policy blocks direct connectivity until relationship state changes
+                  value:
+                    status: blocked
+                    reason_code: policy_blocked
+                    transport_profile: direct_only
+                    remediation:
+                      - Send and accept a friend request before starting this DM.
+                      - Or ask your contact to change their DM inbound policy.
         '400':
           description: Invalid connectivity preflight request
           content:
@@ -1393,11 +1455,23 @@ paths:
               $ref: '#/components/schemas/DmLanDiscoveryAnnounceRequest'
       responses:
         '200':
-          description: LAN discovery presence updated
+          description: >-
+            LAN discovery presence updated. Returns the caller's current ephemeral
+            LAN snapshot, not a generic ack, so clients can mirror the exact hints
+            now advertised on the local subnet.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmLanDiscoveryAnnounceResponse'
+              examples:
+                lanSnapshot:
+                  summary: Current LAN advertisement snapshot for the caller
+                  value:
+                    identity_id: usr-jules-p
+                    endpoint_hints:
+                      - udp://192.168.1.12:4040
+                    scope: lan_subnet
+                    last_seen_at: '2026-04-06T12:08:00Z'
         '400':
           description: Invalid LAN discovery announcement
           content:
@@ -1423,11 +1497,26 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: LAN-discovered peer list
+          description: >-
+            LAN-discovered peer list. Empty arrays are a successful result; only
+            non-blocked peers whose current policy allows the caller are returned.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmLanPeerListResponse'
+              examples:
+                eligiblePeers:
+                  summary: Only policy-eligible, non-blocked peers are listed
+                  value:
+                    items:
+                      - identity_id: usr-jules-p
+                        endpoint_hints:
+                          - udp://192.168.1.12:4040
+                        last_seen_at: '2026-04-06T12:08:00Z'
+                noEligiblePeers:
+                  summary: Empty list is still a successful response when no peers qualify
+                  value:
+                    items: []
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1446,11 +1535,42 @@ paths:
               $ref: '#/components/schemas/DmWanWizardRequest'
       responses:
         '200':
-          description: WAN direct-connect wizard result
+          description: >-
+            WAN direct-connect wizard result. Success bodies encode materially
+            different outcomes: direct path ready, manual router work required, or
+            network incompatible with infrastructure-free direct inbound WAN.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmWanWizardResponse'
+              examples:
+                upnpReady:
+                  summary: Automatic UPnP mapping opened the preferred port
+                  value:
+                    outcome: success
+                    method: upnp
+                    reason_code: wan_path_ready
+                    checklist:
+                      - UPnP opened port 4040 successfully.
+                      - Use direct DM connection over WAN now.
+                manualRequired:
+                  summary: Router changes are still needed before WAN direct path is usable
+                  value:
+                    outcome: manual_required
+                    method: manual
+                    reason_code: wan_manual_mapping_required
+                    checklist:
+                      - Create manual router port-forward for UDP/TCP 4040.
+                      - Re-run WAN wizard after applying router changes.
+                networkIncompatible:
+                  summary: Current network profile cannot support direct inbound WAN
+                  value:
+                    outcome: network_incompatible
+                    method: none
+                    reason_code: wan_path_unavailable
+                    checklist:
+                      - Current network profile blocks direct inbound WAN connectivity.
+                      - Try connecting on a shared LAN or different home network.
         '400':
           description: Invalid WAN wizard request
           content:
@@ -1484,11 +1604,32 @@ paths:
               $ref: '#/components/schemas/DmEndpointCardRegisterRequest'
       responses:
         '200':
-          description: Endpoint cards registered
+          description: >-
+            Endpoint cards registered. Returns the canonical persisted card set for
+            the identity after atomic upsert, including existing live cards that
+            remain valid alongside the newly registered entries.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRegisterResponse'
+              examples:
+                upsertedCards:
+                  summary: Runtime returns the full active card snapshot after upsert
+                  value:
+                    identity_id: usr-jules-p
+                    cards:
+                      - endpoint_id: lan-a
+                        endpoint_hint: udp://192.168.1.20:4040
+                        estimated_rtt_ms: 9
+                        priority: 2
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
         '400':
           description: Invalid endpoint-card registration request
           content:
@@ -1522,11 +1663,39 @@ paths:
               $ref: '#/components/schemas/DmEndpointCardRevokeRequest'
       responses:
         '200':
-          description: Endpoint cards revoked
+          description: >-
+            Endpoint cards revoked. The response is idempotent: `revoked_endpoint_ids`
+            contains only newly revoked ids in request order, while
+            `remaining_cards` shows the still-active card set after the update.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmEndpointCardRevokeResponse'
+              examples:
+                revokeSubset:
+                  summary: Only newly revoked ids are reported, in the same order as the request
+                  value:
+                    identity_id: usr-jules-p
+                    revoked_endpoint_ids: [wan-b, lan-a]
+                    remaining_cards:
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
+                idempotentRevoke:
+                  summary: Re-revoking already revoked ids succeeds with an empty newly-revoked set
+                  value:
+                    identity_id: usr-jules-p
+                    revoked_endpoint_ids: []
+                    remaining_cards:
+                      - endpoint_id: wan-a
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 30
+                        priority: 0
+                        expires_at: '2026-04-06T12:40:00Z'
+                        revoked: false
         '400':
           description: Invalid endpoint-card revoke request
           content:
@@ -1559,11 +1728,54 @@ paths:
               $ref: '#/components/schemas/DmParallelDialRequest'
       responses:
         '200':
-          description: Parallel dial orchestration result
+          description: >-
+            Parallel dial orchestration result. `ready` means the fastest reachable
+            endpoint won and slower candidates were cancelled; `blocked` means no
+            direct path could be attempted or all attempts failed, with remediation
+            explaining the cause.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmParallelDialResponse'
+              examples:
+                connectedWinner:
+                  summary: Fastest reachable endpoint wins and slower attempts are cancelled
+                  value:
+                    status: ready
+                    reason_code: parallel_dial_connected
+                    transport_profile: direct_only
+                    winner_endpoint_id: lan-a
+                    canceled_endpoint_ids: [wan-b, wan-a]
+                    attempts:
+                      - endpoint_id: lan-a
+                        endpoint_hint: udp://192.168.1.20:4040
+                        estimated_rtt_ms: 9
+                        status: connected
+                        cancellation_reason: null
+                      - endpoint_id: wan-b
+                        endpoint_hint: tcp://198.51.100.20:4041
+                        estimated_rtt_ms: 40
+                        status: cancelled
+                        cancellation_reason: winner_selected
+                    remediation:
+                      - Parallel dial selected the fastest reachable endpoint card.
+                blockedExhausted:
+                  summary: All candidate endpoints failed, so direct dial remains blocked
+                  value:
+                    status: blocked
+                    reason_code: parallel_dial_exhausted
+                    transport_profile: direct_only
+                    winner_endpoint_id: null
+                    canceled_endpoint_ids: []
+                    attempts:
+                      - endpoint_id: wan-a
+                        endpoint_hint: udp://203.0.113.20:4040
+                        estimated_rtt_ms: 70
+                        status: failed
+                        cancellation_reason: dial_unreachable
+                    remediation:
+                      - All attempted endpoint cards were unreachable.
+                      - Refresh endpoint cards and retry direct connection.
         '400':
           description: Invalid parallel-dial request
           content:

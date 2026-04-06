@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-06 broadened route-scoped parity across auth/social surfaces by correcting auth example drift, adding tracked examples for auth/friends/block-mute routes, and tightening success-body documentation for DM fanout and server-channel lifecycle responses.
+- Latest meaningful change: 2026-04-06 broadened route-scoped parity across auth/social surfaces, and tightened success-body documentation across DM control, server-channel lifecycle, social-graph handshake, and DM connectivity setup/control routes.
 
 ## Purpose
 
@@ -66,7 +66,7 @@
 8. Close out success content parity breadth
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.
 - First target files: `services/api-rs/src/transport/http/handlers/health.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
-- Status: validator support is in place and first-pass cleanup landed; DM fanout/profile-device control responses, the server-channel message lifecycle, and the social-graph handshake family now have branch-specific success descriptions/examples, with remaining work limited to simpler residual success payload families rather than missing core capability.
+- Status: validator support is in place and first-pass cleanup landed; DM fanout/profile-device control responses, the server-channel message lifecycle, the social-graph handshake family, and DM connectivity setup/control routes now have branch-specific success descriptions/examples, with remaining work limited to simpler residual success payload families rather than missing core capability.
 
 9. Separate internal-auth parity from session-auth parity
 - Add a dedicated validator path for internal-token-protected endpoints rather than treating them as a one-off documented header.
