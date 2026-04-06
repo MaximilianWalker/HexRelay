@@ -440,6 +440,39 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 }
 
 #[tokio::test]
+async fn discovery_trims_scope_before_enum_validation() {
+    let actor = unique_identity("usr-discovery-trim-actor");
+    let shared_peer = unique_identity("usr-discovery-trim-peer");
+
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
+    else {
+        return;
+    };
+
+    seed_server_membership(&pool, "srv-trim", "Trimmed", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "srv-trim", "Trimmed", &shared_peer, false, false, 0).await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=%20shared_server%20")
+        .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
+        .body(Body::empty())
+        .expect("build trimmed-scope discovery request");
+
+    let response = app.oneshot(request).await.expect("trimmed-scope discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read trimmed-scope discovery body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode trimmed-scope discovery payload");
+
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0].identity_id, shared_peer);
+}
+
+#[tokio::test]
 async fn discovery_excludes_configured_denylist() {
     let state = AppState::new(
         TEST_NODE_FINGERPRINT.to_string(),

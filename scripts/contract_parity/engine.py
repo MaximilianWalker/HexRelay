@@ -327,7 +327,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 'schema_type': 'string',
                 'required': False,
                 'enum': ('global', 'shared_server'),
-                'semantics': ('default:global',),
+                'semantics': ('default:global', 'trim-before-enum'),
             },
             'query': {
                 'schema_type': 'string',

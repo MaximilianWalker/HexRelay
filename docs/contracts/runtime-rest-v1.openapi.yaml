@@ -965,6 +965,7 @@ paths:
             enum: [global, shared_server]
           x-hexrelay-query-semantics:
             - default:global
+            - trim-before-enum
         - in: query
           name: query
           schema:
