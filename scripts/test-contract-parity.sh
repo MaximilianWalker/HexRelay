@@ -53,6 +53,7 @@ run_fixture fail-internal-auth-example 1 "internal_token_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
+run_fixture fail-session-auth-401 1 "missing a 401 response"
 run_fixture fail-success-content 1 "documents no success schema"
 run_fixture fail-missing-example 1 "thread_not_found"
 
