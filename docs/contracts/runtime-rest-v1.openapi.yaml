@@ -1413,6 +1413,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmProfileDeviceHeartbeatResponse'
+              examples:
+                normalizedDeviceSnapshot:
+                  summary: Full sorted device snapshot after heartbeat upsert
+                  value:
+                    identity_id: usr-jules-p
+                    devices:
+                      - device_id: desktop-main
+                        active: true
+                        last_seen_at: '2026-04-06T12:00:00Z'
+                      - device_id: phone-main
+                        active: false
+                        last_seen_at: '2026-04-06T11:58:00Z'
         '400':
           description: Invalid profile-device heartbeat request
           content:
@@ -1451,6 +1463,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
+              examples:
+                readyFanout:
+                  summary: Active devices receive the payload while source or inactive devices are skipped
+                  value:
+                    status: ready
+                    reason_code: fanout_ok
+                    transport_profile: direct_only
+                    fanout_count: 2
+                    delivered_device_ids: [desktop-main, phone-main]
+                    skipped_device_ids: [tablet-idle]
+                blockedNoActiveDevices:
+                  summary: Fanout remains a 200 response but reports a blocked branch with no active targets
+                  value:
+                    status: blocked
+                    reason_code: fanout_no_active_devices
+                    transport_profile: direct_only
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: []
+                blockedBacklogFull:
+                  summary: Fanout is blocked when the bounded replay backlog is already full
+                  value:
+                    status: blocked
+                    reason_code: fanout_backlog_full
+                    transport_profile: direct_only
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: [phone-main]
         '400':
           description: Invalid fanout dispatch request
           content:
@@ -1489,6 +1529,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutCatchUpResponse'
+              examples:
+                readyReplay:
+                  summary: Late-activated device replays missed messages and advances cursor
+                  value:
+                    status: ready
+                    reason_code: fanout_catch_up_ok
+                    transport_profile: direct_only
+                    device_id: phone-main
+                    replay_count: 1
+                    next_cursor: '1'
+                    deduped_message_ids: []
+                    items:
+                      - cursor: '1'
+                        message_id: msg-2001
+                        ciphertext: enc:late-2001
+                        source_device_id: null
+                readyNoMissed:
+                  summary: Device is current so replay remains a 200 response with no items and unchanged cursor
+                  value:
+                    status: ready
+                    reason_code: fanout_catch_up_no_missed
+                    transport_profile: direct_only
+                    device_id: phone-main
+                    replay_count: 0
+                    next_cursor: '2'
+                    deduped_message_ids: []
+                    items: []
+                blockedDeviceInactive:
+                  summary: Inactive or unknown devices return a blocked branch with zero replay state
+                  value:
+                    status: blocked
+                    reason_code: fanout_device_inactive
+                    transport_profile: direct_only
+                    device_id: desktop-main
+                    replay_count: 0
+                    next_cursor: '0'
+                    deduped_message_ids: []
+                    items: []
         '400':
           description: Invalid fanout catch-up request
           content:
