@@ -36,7 +36,7 @@
 2. Close out response schema parity breadth
 - Verify routed `200`/`201` JSON responses point at the correct OpenAPI schema ref for the returned DTO.
 - Start with `services/api-rs/src/transport/http/handlers/auth.rs`, `services/api-rs/src/transport/http/handlers/presence.rs`, `services/api-rs/src/transport/http/handlers/server_channels.rs`, and `services/api-rs/src/transport/http/handlers/dm.rs`.
-- Status: validator support is in place, regression fixtures cover alias and direct mismatch paths, and the primary auth/presence/server-channel/DM routes sampled so far appear aligned; remaining work is breadth closeout rather than missing validator capability.
+- Status: validator support is in place, regression fixtures cover alias and direct mismatch paths, and the current routed JSON success families now appear top-level aligned after the server-channel naming cleanup; remaining work is narrow follow-up only if nested/schema-shape drift or a new routed alias family appears.
 
 3. Add internal header parity
 - Enforce non-CSRF request-header documentation for runtime-required headers.
