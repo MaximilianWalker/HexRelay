@@ -23,7 +23,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthVerifyResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid auth verification request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                algorithmInvalid:
+                  summary: Registered identity key uses an unsupported algorithm
+                  value:
+                    code: algorithm_invalid
+                    message: registered algorithm must be ed25519
+                signatureInvalid:
+                  summary: Signature encoding is malformed
+                  value:
+                    code: signature_invalid
+                    message: signature must be 64-byte hex or base64
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -66,13 +81,13 @@ components:
       schema:
         type: string
   responses:
-    BadRequest:
-      description: Bad request
     Unauthorized:
       description: Unauthorized
     InternalServerError:
       description: Internal server error
   schemas:
+    ApiError:
+      type: object
     AuthVerifyRequest:
       type: object
     AuthVerifyResponse:

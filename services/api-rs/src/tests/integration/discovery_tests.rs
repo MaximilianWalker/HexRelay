@@ -285,6 +285,48 @@ async fn discovery_rate_limits_queries() {
 }
 
 #[tokio::test]
+async fn discovery_rejects_invalid_scope() {
+    let state = AppState::default();
+    let expires_at = Utc::now() + Duration::hours(1);
+    state.sessions.write().expect("session write lock").insert(
+        "sess-invalid-scope".to_string(),
+        SessionRecord {
+            identity_id: "usr-scope".to_string(),
+            expires_at,
+        },
+    );
+
+    let token = issue_session_token(
+        "sess-invalid-scope",
+        "usr-scope",
+        expires_at.timestamp(),
+        &state.active_signing_key_id,
+        state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active signing key"),
+    );
+
+    let app = build_app(state);
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=planetary")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .expect("build invalid discovery request");
+
+    let response = app.oneshot(request).await.expect("invalid discovery response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid discovery body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid discovery payload");
+    assert_eq!(payload["code"], "scope_invalid");
+}
+
+#[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
     let actor = unique_identity("usr-discovery-shared-actor");
     let shared_peer = unique_identity("usr-discovery-shared-peer");

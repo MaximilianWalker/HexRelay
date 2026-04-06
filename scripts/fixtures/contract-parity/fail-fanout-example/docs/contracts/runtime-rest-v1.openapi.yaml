@@ -1,0 +1,56 @@
+openapi: 3.1.0
+paths:
+  /v1/dm/fanout/dispatch:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmFanoutDispatchRequest'
+      responses:
+        '200':
+          description: Fanout result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmFanoutDispatchResponse'
+        '400':
+          description: Invalid fanout dispatch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - fanout_invalid
+    DmFanoutDispatchRequest:
+      type: object
+    DmFanoutDispatchResponse:
+      type: object

@@ -56,7 +56,7 @@
 6. Add route-scoped error example parity
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.
 - First cleanup target: `/v1/friends/requests/{request_id}/accept` in `docs/contracts/runtime-rest-v1.openapi.yaml`.
-- Status: grouped pass now covers friend-request mutation/bootstrap routes, invite lifecycle routes, server membership read routes, DM thread/history read routes, and DM control-plane bad-request examples.
+- Status: grouped pass now covers friend-request mutation/bootstrap routes, invite lifecycle routes, auth verify/discovery validation routes, server membership read routes, DM thread/history read routes, DM control-plane bad-request examples, and DM fanout validation examples.
 
 7. Expand query semantics beyond the tracked rule table
 - Cover more query/filter semantics where runtime behavior is stable enough to assert mechanically.

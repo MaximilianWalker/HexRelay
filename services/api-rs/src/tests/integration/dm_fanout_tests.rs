@@ -332,3 +332,31 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
     assert_eq!(payload["reason_code"], "fanout_ok");
     assert_eq!(payload["fanout_count"], 1);
 }
+
+#[tokio::test]
+async fn fanout_dispatch_rejects_invalid_payload() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"recipient_identity_id":"bad id","message_id":"msg-invalid","ciphertext":"enc:test"}"#,
+        ))
+        .expect("build invalid fanout dispatch request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid fanout dispatch response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid fanout dispatch body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid fanout dispatch body");
+    assert_eq!(payload["code"], "fanout_invalid");
+}

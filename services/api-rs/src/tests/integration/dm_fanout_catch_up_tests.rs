@@ -367,3 +367,29 @@ async fn fanout_catch_up_rejects_cursor_beyond_delivery_tail() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode catch-up body");
     assert_eq!(payload["code"], "cursor_out_of_range");
 }
+
+#[tokio::test]
+async fn fanout_catch_up_rejects_invalid_payload() {
+    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"device_id":"   "}"#))
+        .expect("build invalid fanout catch-up request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid fanout catch-up response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read invalid fanout catch-up body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode invalid fanout catch-up body");
+    assert_eq!(payload["code"], "fanout_invalid");
+}

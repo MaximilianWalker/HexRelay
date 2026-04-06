@@ -991,3 +991,55 @@ async fn rejects_expired_challenge_verification() {
     let response = app.oneshot(verify_request).await.expect("verify response");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn verify_rejects_malformed_signature() {
+    let state = AppState::default();
+
+    state
+        .identity_keys
+        .write()
+        .expect("acquire identity key write lock")
+        .insert(
+            "user-bad-signature".to_string(),
+            RegisteredIdentityKey {
+                public_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    .to_string(),
+                algorithm: "ed25519".to_string(),
+            },
+        );
+
+    state
+        .auth_challenges
+        .write()
+        .expect("acquire challenge write lock")
+        .insert(
+            "challenge-bad-signature".to_string(),
+            AuthChallengeRecord {
+                identity_id: "user-bad-signature".to_string(),
+                nonce: "deadbeef".to_string(),
+                expires_at: Utc::now() + Duration::minutes(5),
+            },
+        );
+
+    let app = build_app(state);
+
+    let verify_request = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/verify")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"identity_id":"user-bad-signature","challenge_id":"challenge-bad-signature","signature":"not-valid-base64"}"#,
+        ))
+        .expect("build malformed verify request");
+
+    let response = app.oneshot(verify_request).await.expect("verify response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read malformed verify body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode malformed verify body");
+    assert_eq!(payload["code"], "signature_invalid");
+}

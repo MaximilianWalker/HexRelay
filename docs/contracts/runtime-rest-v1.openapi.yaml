@@ -69,17 +69,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
-          description: Invalid mark-read payload
+          description: Invalid auth verification request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                lastReadSeqInvalid:
-                  summary: last_read_seq is outside the supported range
+                algorithmInvalid:
+                  summary: Registered identity key uses an unsupported algorithm
                   value:
-                    code: last_read_seq_invalid
-                    message: last_read_seq is out of range
+                    code: algorithm_invalid
+                    message: registered algorithm must be ed25519
+                signatureInvalid:
+                  summary: Signature encoding is malformed
+                  value:
+                    code: signature_invalid
+                    message: signature must be 64-byte hex or base64
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -111,17 +116,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthVerifyResponse'
         '400':
-          description: Invalid mark-read payload
+          description: Invalid auth verification request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                lastReadSeqInvalid:
-                  summary: last_read_seq is outside the supported range
+                algorithmInvalid:
+                  summary: Registered identity key uses an unsupported algorithm
                   value:
-                    code: last_read_seq_invalid
-                    message: last_read_seq is out of range
+                    code: algorithm_invalid
+                    message: registered algorithm must be ed25519
+                signatureInvalid:
+                  summary: Signature encoding is malformed
+                  value:
+                    code: signature_invalid
+                    message: signature must be 64-byte hex or base64
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -156,7 +166,17 @@ paths:
               schema:
                 type: string
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid fanout dispatch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutInvalid:
+                  summary: Fanout dispatch payload is invalid
+                  value:
+                    code: fanout_invalid
+                    message: recipient_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -955,17 +975,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiscoveryUserListResponse'
         '400':
-          description: Invalid mark-read payload
+          description: Invalid discovery query
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                lastReadSeqInvalid:
-                  summary: last_read_seq is outside the supported range
+                scopeInvalid:
+                  summary: Discovery scope is unsupported
                   value:
-                    code: last_read_seq_invalid
-                    message: last_read_seq is out of range
+                    code: scope_invalid
+                    message: scope must be either global or shared_server
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -1417,7 +1437,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid fanout dispatch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutInvalid:
+                  summary: Fanout dispatch payload is invalid
+                  value:
+                    code: fanout_invalid
+                    message: recipient_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1445,7 +1475,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/DmFanoutCatchUpResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid fanout catch-up request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutInvalid:
+                  summary: Fanout catch-up payload is invalid
+                  value:
+                    code: fanout_invalid
+                    message: device_id must be non-empty and <= 64 chars
+                cursorOutOfRange:
+                  summary: Cursor is beyond the stored delivery tail
+                  value:
+                    code: cursor_out_of_range
+                    message: cursor is beyond the current delivery tail
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':

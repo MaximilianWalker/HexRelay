@@ -172,10 +172,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/connectivity/endpoint-cards/revoke'),
         ('POST', '/v1/dm/connectivity/parallel-dial'),
         ('POST', '/v1/dm/profile-devices/heartbeat'),
+        ('POST', '/v1/dm/fanout/dispatch'),
+        ('POST', '/v1/dm/fanout/catch-up'),
         ('POST', '/v1/invites'),
         ('POST', '/v1/contact-invites'),
+        ('POST', '/v1/auth/verify'),
         ('POST', '/v1/invites/redeem'),
         ('POST', '/v1/contact-invites/redeem'),
+        ('GET', '/v1/discovery/users'),
         ('GET', '/v1/servers/{server_id}'),
         ('GET', '/v1/servers/{server_id}/channels'),
         ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
@@ -209,6 +213,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/profile-devices/heartbeat'): {'profile_device_invalid'},
         ('POST', '/v1/invites'): {'invite_invalid'},
         ('POST', '/v1/contact-invites'): {'invite_invalid'},
+        ('POST', '/v1/auth/verify'): {'algorithm_invalid', 'signature_invalid'},
         ('POST', '/v1/invites/redeem'): {
             'invite_invalid',
             'fingerprint_mismatch',
@@ -222,6 +227,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'blocked_user',
             'friend_request_exists',
         },
+        ('GET', '/v1/discovery/users'): {'scope_invalid'},
         ('GET', '/v1/servers/{server_id}'): {'server_access_denied'},
         ('GET', '/v1/servers/{server_id}/channels'): {'server_access_denied'},
         ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
@@ -231,6 +237,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('GET', '/v1/dm/threads'): {'cursor_invalid'},
         ('GET', '/v1/dm/threads/{thread_id}/messages'): {'cursor_invalid', 'thread_not_found'},
         ('POST', '/v1/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
+        ('POST', '/v1/dm/fanout/dispatch'): {'fanout_invalid'},
+        ('POST', '/v1/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
         ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
