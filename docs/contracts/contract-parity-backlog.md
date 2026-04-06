@@ -46,7 +46,7 @@
 4. Add auth response-header and cookie parity
 - Enforce documented `Set-Cookie` and cookie-clearing behavior for auth session routes.
 - First target: `/v1/auth/verify` and `/v1/auth/sessions/revoke` in `services/api-rs/src/transport/http/handlers/auth.rs`.
-- Status: in progress.
+- Status: in progress; first pass now checks issue-vs-clear `Set-Cookie` semantics for `hexrelay_session` and `hexrelay_csrf` on auth verify/revoke responses.
 
 5. Add route-scoped `ApiError.code` parity
 - Check the concrete error codes each route can emit instead of validating only the global `ApiError.code` enum inventory.

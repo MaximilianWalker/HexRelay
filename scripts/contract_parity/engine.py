@@ -136,6 +136,20 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'runtime_markers': ('append_cookie(',),
         },
     }
+    TRACKED_RESPONSE_COOKIE_ACTIONS = {
+        'issue:hexrelay_session': (
+            r'build_session_cookie_value\(\s*session_cookie_name\(\)',
+        ),
+        'issue:hexrelay_csrf': (
+            r'build_session_cookie_value\(\s*csrf_cookie_name\(\)',
+        ),
+        'clear:hexrelay_session': (
+            r'build_expired_cookie\(\s*session_cookie_name\(\)',
+        ),
+        'clear:hexrelay_csrf': (
+            r'build_expired_cookie\(\s*csrf_cookie_name\(\)',
+        ),
+    }
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
         ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
         ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
@@ -305,6 +319,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_body_schema': extract_response_body_schema(return_type),
                     'request_headers': extract_runtime_request_headers(params, body),
                     'response_headers': extract_runtime_response_headers(body),
+                    'response_cookie_actions': extract_runtime_response_cookie_actions(body),
                     'has_path_params': 'Path<' in params,
                     'query_type': extract_query_type(params),
                     'implied_error_statuses': auth_semantics['implied_error_statuses'],
@@ -361,6 +376,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return headers
 
 
+    def extract_runtime_response_cookie_actions(body: str):
+        actions = set()
+        for action, patterns in TRACKED_RESPONSE_COOKIE_ACTIONS.items():
+            if any(re.search(pattern, body, re.S) for pattern in patterns):
+                actions.add(action)
+        return actions
+
+
     def infer_response_headers(handler_id, functions, local_lookup, stack=None):
         if stack is None:
             stack = set()
@@ -381,6 +404,28 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             )
 
         return headers
+
+
+    def infer_response_cookie_actions(handler_id, functions, local_lookup, stack=None):
+        if stack is None:
+            stack = set()
+        if handler_id in stack:
+            return set()
+
+        function = functions.get(handler_id)
+        if not function:
+            return set()
+
+        actions = set(function.get('response_cookie_actions', set()))
+        body = function.get('body', '')
+        helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+        helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+        for callee_id in sorted(helper_ids):
+            actions.update(
+                infer_response_cookie_actions(callee_id, functions, local_lookup, stack | {handler_id})
+            )
+
+        return actions
 
 
     def infer_error_codes(handler_id, functions, local_lookup, stack=None, follow_helpers=True):
@@ -710,6 +755,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_headers': infer_response_headers(
                         handler_id, function_semantics, local_lookup
                     ),
+                    'response_cookie_actions': infer_response_cookie_actions(
+                        handler_id, function_semantics, local_lookup
+                    ),
                     'error_codes': infer_error_codes(
                         handler_id,
                         function_semantics,
@@ -765,6 +813,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         in_parameters_block = False
         in_response_headers = False
         current_response_header_status = None
+        current_response_header_name = None
+        in_response_cookie_actions = False
         current_error_status = None
         in_error_examples = False
         in_error_example_value = False
@@ -794,6 +844,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_parameters_block = False
                 in_response_headers = False
                 current_response_header_status = None
+                current_response_header_name = None
+                in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
@@ -814,6 +866,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_parameters_block = False
                 in_response_headers = False
                 current_response_header_status = None
+                current_response_header_name = None
+                in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
@@ -827,6 +881,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_schemas': {},
                     'request_headers': set(),
                     'response_headers': {},
+                    'response_cookie_actions': {},
                     'error_example_codes': {},
                     'path_parameters': set(),
                     'query_parameters': set(),
@@ -859,18 +914,29 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 in_response_headers = False
                 current_response_header_status = None
+                current_response_header_name = None
+                in_response_cookie_actions = False
             elif current_response_status and not re.match(r'^ {8,}', line):
                 current_response_status = None
                 in_response_json = False
                 in_response_schema = False
                 in_response_headers = False
                 current_response_header_status = None
+                current_response_header_name = None
+                in_response_cookie_actions = False
             if current_error_status and re.match(r"^        '(?:2\d\d|4\d\d|5\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
             if in_response_headers and not re.match(r'^ {10,}', line):
                 in_response_headers = False
+                current_response_header_name = None
+                in_response_cookie_actions = False
+            if current_response_header_name and not re.match(r'^ {14,}', line):
+                current_response_header_name = None
+                in_response_cookie_actions = False
+            if in_response_cookie_actions and not re.match(r'^ {16,}', line):
+                in_response_cookie_actions = False
             if in_parameters_block and not re.match(r'^ {8,}', line):
                 in_parameters_block = False
             if in_error_example_value and not re.match(r'^ {18,}', line):
@@ -1010,7 +1076,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 continue
             response_header_match = re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)
             if in_response_headers and response_header_match:
+                current_response_header_name = response_header_match.group(1)
+                in_response_cookie_actions = False
                 semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
+                continue
+            if current_response_header_name == 'Set-Cookie' and re.match(r'^              x-hexrelay-cookie-actions:\s*$', line):
+                in_response_cookie_actions = True
+                semantics[(current_method, current_path)]['response_cookie_actions'].setdefault(current_response_header_status, set())
+                continue
+            cookie_action_match = re.match(r'^                - ([A-Za-z0-9:_-]+)\s*$', line)
+            if in_response_cookie_actions and cookie_action_match:
+                semantics[(current_method, current_path)]['response_cookie_actions'].setdefault(current_response_header_status, set()).add(cookie_action_match.group(1))
                 continue
             if current_response_status and re.match(r'^ {12}application/json:\s*$', line):
                 in_response_json = True
@@ -1123,6 +1199,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             )
             for header_name in missing_response_headers:
                 errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
+            runtime_cookie_actions = runtime['response_cookie_actions']
+            documented_cookie_actions = contract['response_cookie_actions'].get(runtime['success_status'], set())
+            if runtime_cookie_actions or documented_cookie_actions:
+                if runtime_cookie_actions != documented_cookie_actions:
+                    documented = ', '.join(sorted(documented_cookie_actions)) or '<none>'
+                    expected = ', '.join(sorted(runtime_cookie_actions)) or '<none>'
+                    errors.append(f"::error::{method} {path} returns Set-Cookie actions [{expected}] for HTTP {runtime['success_status']} at runtime but documents [{documented}] in {contract_path}.")
         if runtime['error_codes']:
             documented_error_codes = set()
             for status_code in runtime['error_statuses']:

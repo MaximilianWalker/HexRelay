@@ -101,6 +101,9 @@ paths:
               description: |
                 Returns `hexrelay_session` (HttpOnly auth cookie) and
                 `hexrelay_csrf` (double-submit CSRF cookie).
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
               schema:
                 type: string
           content:
@@ -147,6 +150,9 @@ paths:
               description: |
                 Clears both `hexrelay_session` and `hexrelay_csrf` cookies when the
                 active session is revoked.
+              x-hexrelay-cookie-actions:
+                - clear:hexrelay_session
+                - clear:hexrelay_csrf
               schema:
                 type: string
         '400':
