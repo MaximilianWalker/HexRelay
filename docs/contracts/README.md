@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-06 closed the main contract-parity program across request/response schema breadth, route-scoped examples, query semantics, regression fixtures, and success-body documentation for the current runtime route set.
+- Latest meaningful change: 2026-04-06 folded the finished parity closeout state into this index and removed the standalone parity backlog document.
 
 ## Purpose
 
@@ -27,7 +27,15 @@
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; realtime signaling remains self-targeted loopback only until recipient fanout exists.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
-- Contract-parity closeout and future trigger conditions: `docs/contracts/contract-parity-backlog.md`
+
+## Contract Parity Status
+
+- Contract parity is effectively complete for the current runtime route set.
+- The current route set is covered across request/response schemas, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- Resume parity work only when:
+  - new runtime routes or DTO families land,
+  - new stable query or success semantics become worth enforcing mechanically,
+  - validator logic gains a genuinely new branch that needs regression coverage.
 
 ## Target-State Model Contracts
 
