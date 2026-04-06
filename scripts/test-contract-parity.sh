@@ -63,6 +63,7 @@ run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
+run_fixture fail-server-channel-example-status 1 "missing tracked HTTP 400 route-level error examples for ApiError codes [reply_target_invalid]"
 run_fixture fail-session-auth-401 1 "missing a 401 response"
 run_fixture fail-session-auth-security 1 "documents security schemes [CookieAuth] instead of [BearerAuth, CookieAuth]"
 run_fixture fail-session-auth-500 1 "missing a 500 response"

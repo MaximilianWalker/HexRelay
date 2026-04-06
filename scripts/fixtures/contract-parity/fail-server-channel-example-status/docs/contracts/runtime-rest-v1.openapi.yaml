@@ -1,0 +1,106 @@
+openapi: 3.1.0
+paths:
+  /v1/servers/{server_id}/channels/{channel_id}/messages:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: server_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: channel_id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerChannelMessageCreateRequest'
+      responses:
+        '201':
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerChannelMessageRecord'
+        '400':
+          description: Invalid message payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                messageContentInvalid:
+                  value:
+                    code: message_content_invalid
+                    message: message content must not be empty
+                mentionInvalid:
+                  value:
+                    code: mention_invalid
+                    message: mention identity ids must be unique
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Server access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                serverAccessDenied:
+                  value:
+                    code: server_access_denied
+                    message: channel membership is required
+                misplacedReplyTargetInvalid:
+                  value:
+                    code: reply_target_invalid
+                    message: reply target must belong to the same channel
+        '404':
+          description: Channel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                channelNotFound:
+                  value:
+                    code: channel_not_found
+                    message: server channel was not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - message_content_invalid
+            - mention_invalid
+            - reply_target_invalid
+            - server_access_denied
+            - channel_not_found
+            - storage_unavailable
+    ServerChannelMessageCreateRequest:
+      type: object
+    ServerChannelMessageRecord:
+      type: object
