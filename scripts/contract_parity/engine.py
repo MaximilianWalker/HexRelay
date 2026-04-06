@@ -271,9 +271,24 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'favorites_only': {'schema_type': 'boolean', 'required': False},
         },
         'DiscoveryUserListQuery': {
-            'scope': {'schema_type': 'string', 'required': False, 'enum': ('global', 'shared_server')},
-            'query': {'schema_type': 'string', 'required': False},
-            'limit': {'schema_type': 'integer', 'required': False},
+            'scope': {
+                'schema_type': 'string',
+                'required': False,
+                'enum': ('global', 'shared_server'),
+                'semantics': ('default:global',),
+            },
+            'query': {
+                'schema_type': 'string',
+                'required': False,
+                'semantics': ('blank-means-omitted', 'case-insensitive'),
+            },
+            'limit': {
+                'schema_type': 'integer',
+                'required': False,
+                'minimum': 1,
+                'maximum': 50,
+                'semantics': ('default:20', 'clamp:1:50'),
+            },
         },
     }
     REQUEST_SCHEMA_ALIASES = {
@@ -1063,6 +1078,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             'enum': set(),
                             'minimum': None,
                             'maximum': None,
+                            'semantics': set(),
                         },
                     )
                 continue
@@ -1078,6 +1094,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 continue
             if current_query_schema_parameter and not re.match(r'^            ', line):
                 current_query_schema_parameter = None
+            if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          x-hexrelay-query-semantics:\s*$', line):
+                semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = True
+                continue
+            if current_parameter_in == 'query' and current_parameter_name:
+                in_semantics = semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name].get('_in_semantics', False)
+                semantic_match = re.match(r'^            - ([A-Za-z0-9:_-]+)\s*$', line)
+                if in_semantics and semantic_match:
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['semantics'].add(semantic_match.group(1))
+                    continue
+                if in_semantics and not re.match(r'^            ', line):
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = False
             if current_query_schema_parameter:
                 type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
                 if type_match:
@@ -1298,6 +1325,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 documented_bound = contract_query.get(bound_name)
                 if runtime_bound is not None and runtime_bound != documented_bound:
                     errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with {bound_name} `{runtime_bound}` at runtime but documents `{documented_bound}` in {contract_path}.")
+            runtime_semantics = set(runtime_query.get('semantics', ()))
+            documented_semantics = set(contract_query.get('semantics', set()))
+            if runtime_semantics and runtime_semantics != documented_semantics:
+                documented = ', '.join(sorted(documented_semantics)) or '<none>'
+                expected = ', '.join(sorted(runtime_semantics))
+                errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with semantics [{expected}] at runtime but documents [{documented}] in {contract_path}.")
         missing_error_responses = sorted(runtime['error_statuses'] - contract['error_responses'])
         for status_code in missing_error_responses:
             errors.append(f"::error::{method} {path} can return HTTP {status_code} at runtime but is missing that error response in {contract_path}.")

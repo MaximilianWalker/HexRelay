@@ -43,6 +43,7 @@ run_fixture() {
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
+run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
 run_fixture fail-fanout-example 1 "fanout_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"

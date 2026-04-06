@@ -1,0 +1,57 @@
+openapi: 3.1.0
+paths:
+  /v1/discovery/users:
+    get:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: scope
+          schema:
+            type: string
+            enum: [global, shared_server]
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Discovery list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryUserListResponse'
+        '400':
+          description: Invalid discovery query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                scopeInvalid:
+                  summary: Discovery scope is unsupported
+                  value:
+                    code: scope_invalid
+                    message: scope must be either global or shared_server
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+    DiscoveryUserListResponse:
+      type: object

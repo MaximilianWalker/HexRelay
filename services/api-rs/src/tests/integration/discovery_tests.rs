@@ -327,6 +327,72 @@ async fn discovery_rejects_invalid_scope() {
 }
 
 #[tokio::test]
+async fn discovery_ignores_blank_query_and_clamps_large_limit() {
+    let actor = unique_identity("usr-discovery-query-actor");
+    let allowed_a = unique_identity("usr-discovery-query-alpha");
+    let allowed_b = unique_identity("usr-discovery-query-beta");
+
+    let Some((_app, _tokens, pool)) =
+        app_with_database_and_sessions(&[&actor, &allowed_a, &allowed_b]).await
+    else {
+        return;
+    };
+
+    let state = AppState::new(
+        TEST_NODE_FINGERPRINT.to_string(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        "http://127.0.0.1:8081".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_db_pool(pool.clone());
+
+    ensure_db_identity_key(&pool, &actor).await;
+    ensure_db_identity_key(&pool, &allowed_a).await;
+    ensure_db_identity_key(&pool, &allowed_b).await;
+
+    let token = issue_db_session_cookie(&pool, &state, &actor).await;
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/discovery/users?scope=global&query=%20%20%20&limit=999")
+        .header("cookie", format!("hexrelay_session={token}"))
+        .body(Body::empty())
+        .expect("build blank-query discovery request");
+
+    let response = app.oneshot(request).await.expect("blank-query discovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read blank-query discovery body");
+    let payload: DiscoveryUserListResponse =
+        serde_json::from_slice(&body).expect("decode blank-query discovery payload");
+
+    assert_eq!(payload.items.len(), 2);
+}
+
+#[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
     let actor = unique_identity("usr-discovery-shared-actor");
     let shared_peer = unique_identity("usr-discovery-shared-peer");

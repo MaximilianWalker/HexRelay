@@ -957,16 +957,24 @@ paths:
           schema:
             type: string
             enum: [global, shared_server]
+          x-hexrelay-query-semantics:
+            - default:global
         - in: query
           name: query
           schema:
             type: string
+          x-hexrelay-query-semantics:
+            - blank-means-omitted
+            - case-insensitive
         - in: query
           name: limit
           schema:
             type: integer
             minimum: 1
             maximum: 50
+          x-hexrelay-query-semantics:
+            - default:20
+            - clamp:1:50
       responses:
         '200':
           description: Discovery list response
