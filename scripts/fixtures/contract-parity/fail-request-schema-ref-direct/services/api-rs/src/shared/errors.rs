@@ -1,0 +1,27 @@
+pub type ApiResult<T> = Result<T, (axum::http::StatusCode, axum::Json<ApiError>)>;
+
+pub fn bad_request(code: &str, message: &str) -> (axum::http::StatusCode, axum::Json<ApiError>) {
+    (
+        axum::http::StatusCode::BAD_REQUEST,
+        axum::Json(ApiError { code, message }),
+    )
+}
+
+pub fn conflict(code: &str, message: &str) -> (axum::http::StatusCode, axum::Json<ApiError>) {
+    (
+        axum::http::StatusCode::CONFLICT,
+        axum::Json(ApiError { code, message }),
+    )
+}
+
+pub fn internal_error(code: &str, message: &str) -> (axum::http::StatusCode, axum::Json<ApiError>) {
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        axum::Json(ApiError { code, message }),
+    )
+}
+
+pub struct ApiError {
+    pub code: &'static str,
+    pub message: &'static str,
+}
