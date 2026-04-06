@@ -1,0 +1,55 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/verify:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthVerifyRequest'
+      responses:
+        '200':
+          description: Session issued
+          headers:
+            Set-Cookie:
+              description: Session and csrf cookies issued
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVerifyResponse'
+        '400':
+          description: Invalid auth verification request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                algorithmInvalid:
+                  summary: Registered identity key uses an unsupported algorithm
+                  value:
+                    code: algorithm_invalid
+                    message: registered algorithm must be ed25519
+                signatureInvalid:
+                  summary: Signature encoding is malformed
+                  value:
+                    code: signature_invalid
+                    message: signature must be 64-byte hex or base64
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+    AuthVerifyRequest:
+      type: object
+    AuthVerifyResponse:
+      type: object
