@@ -23,40 +23,40 @@
 
 ## Current Coverage Snapshot
 
-- Covered well: route inventory, realtime inventory, global error-code inventory, session auth/security parity, CSRF parameter parity, request-body presence, success-status presence, selected error-status presence, path/query parameter presence, and tracked query semantics for requiredness/type/enum/reject-backed bounds.
-- Still weak: exact schema refs and body shape, header/cookie semantics, route-scoped `ApiError.code` parity, broader query semantics, and success-content parity.
+- Covered well: route inventory, realtime inventory, global error-code inventory, session auth/security parity, internal-auth/header parity for the internal presence watcher route, CSRF parameter parity, request-body presence, request/response schema-ref parity, success-status presence, selected error-status presence, path/query parameter presence, auth cookie semantics, route-scoped `ApiError.code` parity for high-signal routes, broad route-scoped error-example parity, deterministic regression fixtures, and tracked query semantics for requiredness/type/enum/reject-backed bounds plus first-pass discovery normalization/default semantics.
+- Still weak: full API-wide breadth closeout for schema/error-example coverage, broader query semantics beyond the currently safe rule set, and exhaustive success-content parity closeout.
 
 ## Prioritized Todo List
 
 1. Add request schema parity
 - Verify each routed `Json<T>` request body maps to the correct OpenAPI schema ref, not just that `requestBody` exists.
 - Start with high-churn surfaces in `services/api-rs/src/transport/http/handlers/dm.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
-- Status: in progress.
+- Status: validator support is in place and the main DM/friends/block-mute surfaces now appear aligned; remaining work is breadth closeout rather than core capability.
 
 2. Add response schema parity
 - Verify routed `200`/`201` JSON responses point at the correct OpenAPI schema ref for the returned DTO.
 - Start with `services/api-rs/src/transport/http/handlers/auth.rs`, `services/api-rs/src/transport/http/handlers/presence.rs`, `services/api-rs/src/transport/http/handlers/server_channels.rs`, and `services/api-rs/src/transport/http/handlers/dm.rs`.
-- Status: in progress.
+- Status: validator support is in place and the primary auth/presence/server-channel/DM routes sampled so far appear aligned; remaining work is breadth closeout rather than missing validator capability.
 
 3. Add internal header parity
 - Enforce non-CSRF request-header documentation for runtime-required headers.
 - First target: `x-hexrelay-internal-token` on `/v1/internal/presence/watchers/{identity_id}` from `services/api-rs/src/transport/http/handlers/presence.rs`.
-- Status: in progress.
+- Status: completed for the currently known internal-token route surface.
 
 4. Add auth response-header and cookie parity
 - Enforce documented `Set-Cookie` and cookie-clearing behavior for auth session routes.
 - First target: `/v1/auth/verify` and `/v1/auth/sessions/revoke` in `services/api-rs/src/transport/http/handlers/auth.rs`.
-- Status: in progress; first pass now checks issue-vs-clear `Set-Cookie` semantics for `hexrelay_session` and `hexrelay_csrf` on auth verify/revoke responses.
+- Status: completed for auth verify/revoke cookie issue-vs-clear semantics on `hexrelay_session` and `hexrelay_csrf`.
 
 5. Add route-scoped `ApiError.code` parity
 - Check the concrete error codes each route can emit instead of validating only the global `ApiError.code` enum inventory.
 - First target routes: friend-request transitions in `services/api-rs/src/transport/http/handlers/friends.rs` and message mutation routes in `services/api-rs/src/transport/http/handlers/server_channels.rs`.
-- Status: first pass completed for the initial high-signal route set.
+- Status: strong grouped pass completed for initial high-signal routes; remaining work is breadth expansion only where additional value is found.
 
 6. Add route-scoped error example parity
 - Validate that documented route-level `401`/`403`/`404` examples and descriptions match runtime failure meaning, not just status presence.
 - First cleanup target: `/v1/friends/requests/{request_id}/accept` in `docs/contracts/runtime-rest-v1.openapi.yaml`.
-- Status: grouped pass now covers friend-request mutation/bootstrap routes, invite lifecycle routes, auth verify/discovery validation routes, server membership read routes, DM thread/history read routes, DM control-plane bad-request examples, and DM fanout validation examples.
+- Status: broad grouped pass now covers friend-request mutation/bootstrap routes, invite lifecycle routes, auth verify/discovery validation routes, server membership read routes, DM thread/history read routes, DM control-plane bad-request examples, DM fanout validation examples, and internal-auth `401` examples; remaining work is breadth closeout.
 
 7. Expand query semantics beyond the tracked rule table
 - Cover more query/filter semantics where runtime behavior is stable enough to assert mechanically.
@@ -66,16 +66,17 @@
 8. Add success content parity
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.
 - First target files: `services/api-rs/src/transport/http/handlers/health.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
-- Status: in progress; first pass now checks both runtime no-body success paths with documented schemas and runtime JSON success paths with missing documented content.
+- Status: validator support is in place and first-pass cleanup landed; remaining work is breadth closeout rather than missing core capability.
 
 9. Separate internal-auth parity from session-auth parity
 - Add a dedicated validator path for internal-token-protected endpoints rather than treating them as a one-off documented header.
 - Start with `services/api-rs/src/transport/http/handlers/presence.rs` and the matching OpenAPI route block.
-- Status: in progress; first pass now treats the internal presence watcher route as internal-token auth and requires a concrete `internal_token_invalid` route-level example.
+- Status: completed for the current internal presence watcher route family, including dedicated header/security handling and required `internal_token_invalid` example coverage.
 
 10. Add validator regression fixtures or golden-route tests
 - Add a small deterministic test layer around the validator so future parity expansions do not regress silently.
 - Cover tricky handlers first: `auth.rs`, `friends.rs`, `dm.rs`, `server_channels.rs`, and `presence.rs`.
+- Status: in progress; fixtures now cover missing route examples, auth cookie semantics, discovery query semantics, DM control-plane examples, invite create examples, and DM fanout validation, with the next pass focused on schema/content/internal-auth regression gaps.
 
 ## Recommended Order
 

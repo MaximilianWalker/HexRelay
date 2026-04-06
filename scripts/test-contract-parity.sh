@@ -47,6 +47,8 @@ run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
 run_fixture fail-fanout-example 1 "fanout_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"
+run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
+run_fixture fail-success-content 1 "documents no success schema"
 run_fixture fail-missing-example 1 "thread_not_found"
 
 printf '[contract-parity-test] Fixture regressions passed\n'
