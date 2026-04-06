@@ -545,11 +545,40 @@ paths:
             maximum: 100
       responses:
         '200':
-          description: Server-channel message history page
+          description: >-
+            Server-channel message history page. Deleted messages remain visible as
+            tombstone records in `items`, and `next_cursor` is only present when
+            older history still exists beyond the returned page.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessagePage'
+              examples:
+                historyPageWithTombstone:
+                  summary: History page keeps deleted messages visible as tombstones
+                  value:
+                    items:
+                      - message_id: scm-3
+                        channel_id: chn-general
+                        author_id: usr-nora-k
+                        channel_seq: 3
+                        content: latest update
+                        reply_to_message_id: null
+                        mentions: []
+                        created_at: '2026-04-06T12:03:00Z'
+                        edited_at: null
+                        deleted_at: null
+                      - message_id: scm-2
+                        channel_id: chn-general
+                        author_id: usr-jules-p
+                        channel_seq: 2
+                        content: ''
+                        reply_to_message_id: null
+                        mentions: []
+                        created_at: '2026-04-06T12:02:00Z'
+                        edited_at: null
+                        deleted_at: '2026-04-06T12:05:00Z'
+                    next_cursor: '2'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -618,11 +647,42 @@ paths:
               $ref: '#/components/schemas/ServerChannelMessageCreateRequest'
       responses:
         '201':
-          description: Message created
+          description: >-
+            Message created. Returns the persisted canonical message record with an
+            assigned `message_id`, monotonic `channel_seq`, normalized
+            `reply_to_message_id`, and validated mention set. Persistence success
+            is reported even when downstream realtime fanout later fails.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                createdMessage:
+                  summary: Persisted canonical message record after create
+                  value:
+                    message_id: scm-3
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 3
+                    content: ship it
+                    reply_to_message_id: scm-2
+                    mentions: [usr-jules-p]
+                    created_at: '2026-04-06T12:03:00Z'
+                    edited_at: null
+                    deleted_at: null
+                blankReplyNormalized:
+                  summary: Blank reply target is normalized to null before persistence
+                  value:
+                    message_id: scm-4
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 4
+                    content: blank reply target
+                    reply_to_message_id: null
+                    mentions: []
+                    created_at: '2026-04-06T12:04:00Z'
+                    edited_at: null
+                    deleted_at: null
         '400':
           description: Invalid message payload
           content:
@@ -717,11 +777,41 @@ paths:
               $ref: '#/components/schemas/ServerChannelMessageEditRequest'
       responses:
         '200':
-          description: Message updated
+          description: >-
+            Message updated. Returns the stored canonical message record for both
+            changed edits and no-op edits; changed edits set `edited_at`, while
+            no-op edits preserve the existing record and leave `edited_at` unset.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                editedMessage:
+                  summary: Changed edit updates content, mentions, and edited timestamp
+                  value:
+                    message_id: scm-1
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 1
+                    content: edited content
+                    reply_to_message_id: null
+                    mentions: [usr-jules-p]
+                    created_at: '2026-04-06T12:00:00Z'
+                    edited_at: '2026-04-06T12:06:00Z'
+                    deleted_at: null
+                noOpEdit:
+                  summary: No-op edit still returns success with unchanged stored record
+                  value:
+                    message_id: scm-2
+                    channel_id: chn-general
+                    author_id: usr-jules-p
+                    channel_seq: 2
+                    content: welcome aboard
+                    reply_to_message_id: null
+                    mentions: [usr-nora-k]
+                    created_at: '2026-04-06T12:01:00Z'
+                    edited_at: null
+                    deleted_at: null
         '400':
           description: Invalid message payload
           content:
@@ -832,11 +922,29 @@ paths:
             type: string
       responses:
         '200':
-          description: Message tombstoned
+          description: >-
+            Message tombstoned. Returns the canonical tombstone record rather than
+            an ack: `content` is scrubbed to an empty string, `mentions` becomes
+            empty, `deleted_at` is populated, and repeated deletes remain
+            idempotent while returning the same tombstone-shaped success body.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessage'
+              examples:
+                tombstoneRecord:
+                  summary: First delete returns the scrubbed tombstone state kept in history
+                  value:
+                    message_id: scm-1
+                    channel_id: chn-general
+                    author_id: usr-nora-k
+                    channel_seq: 1
+                    content: ''
+                    reply_to_message_id: null
+                    mentions: []
+                    created_at: '2026-04-06T12:00:00Z'
+                    edited_at: null
+                    deleted_at: '2026-04-06T12:07:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

@@ -66,7 +66,7 @@
 8. Close out success content parity breadth
 - Enforce that JSON success routes document response content and true no-content routes stay `204` without body docs.
 - First target files: `services/api-rs/src/transport/http/handlers/health.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
-- Status: validator support is in place and first-pass cleanup landed; DM fanout/profile-device control responses now have branch-specific success examples and property descriptions, with remaining work limited to other under-described success payload families rather than missing core capability.
+- Status: validator support is in place and first-pass cleanup landed; DM fanout/profile-device control responses plus the server-channel message lifecycle now have branch-specific success descriptions/examples, with remaining work limited to other under-described success payload families rather than missing core capability.
 
 9. Separate internal-auth parity from session-auth parity
 - Add a dedicated validator path for internal-token-protected endpoints rather than treating them as a one-off documented header.
