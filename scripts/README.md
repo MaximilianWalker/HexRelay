@@ -1,21 +1,18 @@
 # Scripts
 
-Workspace automation scripts.
+Workspace automation entrypoints live here, but the canonical workflow and gate
+documentation now lives in `docs/operations/contributor-guide.md`.
 
-## Available scripts
+Use this directory as implementation detail; use the contributor guide as the
+source of truth for:
 
-- `setup.sh`: installs web dependencies and fetches Rust crates.
-- `run.sh`: starts infra, API, realtime, and web dev servers.
-- `test.sh`: runs Rust + web quality gates.
+- local validation commands
+- PR gate expectations
+- smoke/bootstrap prerequisites
+- delivery and release workflow
 
-Use root targets:
+Common entrypoints still include:
 
-- `make setup`
-- `make run`
-- `make test`
-
-Or npm scripts:
-
-- `npm run setup`
-- `npm run run`
-- `npm run test`
+- `scripts/setup.sh`
+- `scripts/run.sh`
+- `scripts/test.sh`
