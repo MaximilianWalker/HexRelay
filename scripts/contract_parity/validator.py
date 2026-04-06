@@ -87,8 +87,9 @@ def compare_inventory(label: str, runtime_inventory: str, contract_inventory: st
 
 
 def has_required_version_field(path: str, field: str) -> bool:
-    return pathlib.Path(path).read_text().startswith(f"{field}:") or any(
-        line.startswith(f"{field}:") for line in pathlib.Path(path).read_text().splitlines()
+    contents = pathlib.Path(path).read_text()
+    return contents.startswith(f"{field}:") or any(
+        line.startswith(f"{field}:") for line in contents.splitlines()
     )
 
 
