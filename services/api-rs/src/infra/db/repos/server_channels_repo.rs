@@ -1,6 +1,6 @@
 use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 
-use crate::models::{ServerChannelMessageRecord, ServerChannelSummary};
+use crate::models::{ServerChannelMessage, ServerChannelSummary};
 
 pub struct ServerChannelInsertParams<'a> {
     pub channel_id: &'a str,
@@ -43,12 +43,12 @@ pub struct UpdateServerChannelMessageParams {
 }
 
 pub struct UpdateServerChannelMessageResult {
-    pub message: ServerChannelMessageRecord,
+    pub message: ServerChannelMessage,
     pub changed: bool,
 }
 
 pub struct SoftDeleteServerChannelMessageResult {
-    pub message: ServerChannelMessageRecord,
+    pub message: ServerChannelMessage,
     pub changed: bool,
 }
 
@@ -253,7 +253,7 @@ pub async fn list_server_channel_messages(
     channel_id: &str,
     cursor: Option<u64>,
     limit: usize,
-) -> Result<Option<Vec<ServerChannelMessageRecord>>, sqlx::Error> {
+) -> Result<Option<Vec<ServerChannelMessage>>, sqlx::Error> {
     if !server_channel_exists(pool, server_id, channel_id).await? {
         return Ok(None);
     }
@@ -327,7 +327,7 @@ pub async fn list_server_channel_messages(
 pub async fn create_server_channel_message(
     pool: &PgPool,
     params: CreateServerChannelMessageParams,
-) -> Result<ServerChannelMessageRecord, CreateServerChannelMessageError> {
+) -> Result<ServerChannelMessage, CreateServerChannelMessageError> {
     let mut tx = pool.begin().await?;
 
     let next_seq = sqlx::query_scalar::<_, i64>(
@@ -794,10 +794,10 @@ async fn fetch_message_row(
 
 fn map_server_channel_message_row(
     row: sqlx::postgres::PgRow,
-) -> Result<ServerChannelMessageRecord, sqlx::Error> {
+) -> Result<ServerChannelMessage, sqlx::Error> {
     let channel_seq = row.try_get::<i64, _>("channel_seq")?;
 
-    Ok(ServerChannelMessageRecord {
+    Ok(ServerChannelMessage {
         message_id: row.try_get::<String, _>("message_id")?,
         channel_id: row.try_get::<String, _>("channel_id")?,
         author_id: row.try_get::<String, _>("author_id")?,

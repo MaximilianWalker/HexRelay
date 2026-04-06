@@ -20,7 +20,7 @@ use crate::{
     models::{
         ApiError, ServerChannelListResponse, ServerChannelMessageCreateRequest,
         ServerChannelMessageEditRequest, ServerChannelMessageListQuery, ServerChannelMessagePage,
-        ServerChannelMessageRecord,
+        ServerChannelMessage,
     },
     shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
@@ -114,7 +114,7 @@ pub async fn create_server_channel_message(
     auth: AuthSession,
     headers: HeaderMap,
     Json(payload): Json<ServerChannelMessageCreateRequest>,
-) -> ApiResult<(StatusCode, Json<crate::models::ServerChannelMessageRecord>)> {
+) -> ApiResult<(StatusCode, Json<crate::models::ServerChannelMessage>)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
 
     let content = normalize_message_content(&payload.content)?;
@@ -160,7 +160,7 @@ pub async fn edit_server_channel_message(
     headers: HeaderMap,
     Path((_, _, message_id)): Path<(String, String, String)>,
     Json(payload): Json<ServerChannelMessageEditRequest>,
-) -> ApiResult<Json<ServerChannelMessageRecord>> {
+) -> ApiResult<Json<ServerChannelMessage>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
 
     let content = normalize_message_content(&payload.content)?;
@@ -225,7 +225,7 @@ pub async fn soft_delete_server_channel_message(
     auth: AuthSession,
     headers: HeaderMap,
     Path((_, _, message_id)): Path<(String, String, String)>,
-) -> ApiResult<Json<ServerChannelMessageRecord>> {
+) -> ApiResult<Json<ServerChannelMessage>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
 
     let pool = state.db_pool.as_ref().ok_or_else(|| {
@@ -282,7 +282,7 @@ async fn notify_channel_message_created(
     state: &AppState,
     pool: &sqlx::PgPool,
     server_id: &str,
-    message: &ServerChannelMessageRecord,
+    message: &ServerChannelMessage,
 ) {
     let recipients = match list_server_event_recipients(pool, server_id).await {
         Ok(value) => value,
@@ -314,7 +314,7 @@ async fn notify_channel_message_updated(
     state: &AppState,
     pool: &sqlx::PgPool,
     server_id: &str,
-    message: &ServerChannelMessageRecord,
+    message: &ServerChannelMessage,
 ) {
     let recipients = match list_server_event_recipients(pool, server_id).await {
         Ok(value) => value,
@@ -350,7 +350,7 @@ async fn notify_channel_message_deleted(
     state: &AppState,
     pool: &sqlx::PgPool,
     server_id: &str,
-    message: &ServerChannelMessageRecord,
+    message: &ServerChannelMessage,
 ) {
     let recipients = match list_server_event_recipients(pool, server_id).await {
         Ok(value) => value,
