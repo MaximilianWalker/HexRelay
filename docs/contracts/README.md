@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-06
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-04 started grouped schema and header parity hardening for request/response body refs, internal auth headers, and auth cookie response headers.
+- Latest meaningful change: 2026-04-06 closed the main contract-parity program across request/response schema breadth, route-scoped examples, query semantics, regression fixtures, and success-body documentation for the current runtime route set.
 
 ## Purpose
 

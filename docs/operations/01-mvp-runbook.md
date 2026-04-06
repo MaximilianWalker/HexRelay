@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-06
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-03 narrowed this runbook to operational procedures and pointed full runtime variable inventory to the canonical config reference.
+- Latest meaningful change: 2026-04-06 clarified smoke/bootstrap prerequisites for local and dedicated validation after public identity registration became default-closed.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -46,6 +46,7 @@
   2. Start API service and verify `GET /health` returns 200.
   3. Start realtime service and verify `GET /health` returns 200.
   4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
+     - Smoke/bootstrap note: current smoke identity bootstrap requires `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` for the smoke environment only; keep the default fail-closed outside smoke/bootstrap flows.
   5. If voice/TURN scenarios are in scope, validate coturn reachability with the constrained-network profile (`docs/planning/turn-nat-test-profile.md`).
 
 ## Desktop Local-First Baseline
@@ -57,6 +58,7 @@
   3. Verify `curl -fsS "http://127.0.0.1:8080/health"`
   4. Verify `curl -fsS "http://127.0.0.1:8081/health"`
   5. Run `npm --prefix apps/web run e2e:smoke`
+     - If smoke needs fresh public identity bootstrap, set `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` only for that local smoke session.
 - Triage baseline:
   - If API health fails, inspect local API service output first.
   - If realtime health fails, inspect local realtime output and API `/v1/auth/sessions/validate` path.
@@ -99,6 +101,8 @@ curl -fsS "http://$REALTIME_BIND/health"
 ```bash
 npm --prefix apps/web run e2e:smoke
 ```
+
+- If the smoke flow needs fresh public identity bootstrap, export `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` only for that smoke run and return it to the default fail-closed value afterward.
 
 ### Dedicated Server Env and Secret Checklist
 

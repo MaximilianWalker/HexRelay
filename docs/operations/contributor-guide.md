@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-06 broadened contract-parity guidance so request-schema breadth is now aligned across the currently routed JSON bodies, while auth/invite, DM connectivity, social-graph handshake, and remaining simple read/list routes document richer success semantics.
+- Latest meaningful change: 2026-04-06 refreshed readiness guidance after the contract-parity closeout, including smoke prerequisites and current deferred-item wording.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery and fixture-backed runtime surfaces.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery, broader realtime semantic contract validation beyond inventory parity, DM replay-backlog durability decisions, multi-instance limiter equivalence, and a few standing governance/process watches.
 
 ## Local Development Prerequisites
 
@@ -51,6 +51,7 @@
   - Verify links and paths resolve.
   - Keep metadata and `last_updated` fields accurate.
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
+  - If docs mention smoke/bootstrap flows, state any required temporary config opt-ins explicitly rather than assuming CI-only knowledge.
 - For code changes:
   - Run lint, tests, and build for touched projects.
   - Run `npm run security` before opening a PR as the fast local Rust-audit gate.
