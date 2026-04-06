@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-06 broadened contract-parity guidance so auth/invite, DM connectivity, social-graph handshake, and remaining simple read/list routes document richer success semantics, while auth/social routes keep cleaner route-scoped error examples and directory/discovery query surfaces document normalization semantics.
+- Latest meaningful change: 2026-04-06 broadened contract-parity guidance so request-schema breadth is now aligned across the currently routed JSON bodies, while auth/invite, DM connectivity, social-graph handshake, and remaining simple read/list routes document richer success semantics.
 
 ## Purpose
 

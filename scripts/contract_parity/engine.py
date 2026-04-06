@@ -157,7 +157,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
-        ('POST', '/v1/auth/identity-key'),
+        ('POST', '/v1/identity/keys/register'),
         ('POST', '/v1/auth/challenge'),
         ('POST', '/v1/auth/sessions/revoke'),
         ('GET', '/v1/friends/requests'),
@@ -198,7 +198,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
-        ('POST', '/v1/auth/identity-key'): {
+        ('POST', '/v1/identity/keys/register'): {
             'algorithm_invalid',
             'identity_invalid',
             'public_key_invalid',
@@ -290,7 +290,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
-        ('POST', '/v1/auth/identity-key'): {
+        ('POST', '/v1/identity/keys/register'): {
             '400': {'algorithm_invalid', 'identity_invalid', 'public_key_invalid'},
             '403': {'identity_registration_disabled'},
             '409': {'identity_exists'},
@@ -401,9 +401,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             },
         },
     }
-    REQUEST_SCHEMA_ALIASES = {
-        'FriendRequestCreate': 'FriendRequestCreateRequest',
-    }
+    REQUEST_SCHEMA_ALIASES = {}
     RESPONSE_SCHEMA_ALIASES = {
         'ServerChannelMessageRecord': 'ServerChannelMessage',
     }

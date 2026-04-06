@@ -13,7 +13,7 @@
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-06 broadened route-scoped parity across auth/social surfaces, and tightened success-body documentation across auth/invite, DM control, server-channel lifecycle, social-graph handshake, DM connectivity setup/control, and the remaining simple block/list/read routes.
+- Latest meaningful change: 2026-04-06 closed the last real request-schema breadth exception by aligning the friend-request create DTO name with the contract and removing the stale validator route special-case.
 
 ## Purpose
 
@@ -31,7 +31,7 @@
 1. Close out request schema parity breadth
 - Verify each routed `Json<T>` request body maps to the correct OpenAPI schema ref, not just that `requestBody` exists.
 - Start with high-churn surfaces in `services/api-rs/src/transport/http/handlers/dm.rs`, `services/api-rs/src/transport/http/handlers/friends.rs`, and `services/api-rs/src/transport/http/handlers/block_mute.rs`.
-- Status: validator support is in place, regression fixtures cover alias and direct mismatch paths, and the main DM/friends/block-mute surfaces now appear aligned; remaining work is breadth closeout rather than core capability.
+- Status: completed for the currently routed JSON request-body surfaces; the last real breadth exception (`FriendRequestCreate` vs `FriendRequestCreateRequest`) is now aligned and the stale validator route key for identity registration is corrected.
 
 2. Close out response schema parity breadth
 - Verify routed `200`/`201` JSON responses point at the correct OpenAPI schema ref for the returned DTO.

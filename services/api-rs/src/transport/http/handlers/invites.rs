@@ -18,7 +18,7 @@ use crate::{
         invites_repo,
     },
     models::{
-        ContactInviteRedeemRequest, FriendRequestCreate, FriendRequestRecord, InviteCreateRequest,
+        ContactInviteRedeemRequest, FriendRequestCreateRequest, FriendRequestRecord, InviteCreateRequest,
         InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
     shared::errors::{
@@ -419,7 +419,7 @@ pub async fn redeem_contact_invite(
 
     let friend_request = friends_repo::create_friend_request_in_tx(
         &mut tx,
-        FriendRequestCreate {
+        FriendRequestCreateRequest {
             requester_identity_id: auth.identity_id.clone(),
             target_identity_id: inviter_identity_id.clone(),
         },

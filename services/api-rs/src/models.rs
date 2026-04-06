@@ -567,7 +567,7 @@ pub struct IdentityBootstrapBundle {
 }
 
 #[derive(Deserialize)]
-pub struct FriendRequestCreate {
+pub struct FriendRequestCreateRequest {
     pub requester_identity_id: String,
     pub target_identity_id: String,
 }

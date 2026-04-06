@@ -1,7 +1,7 @@
 use axum::{extract::State, http::{HeaderMap, StatusCode}, Json};
 
 use crate::{
-    models::{FriendRequestCreate, FriendRequestRecord},
+    models::{FriendRequestCreateRequest, FriendRequestRecord},
     shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
@@ -11,7 +11,7 @@ pub async fn create_friend_request(
     State(_state): State<AppState>,
     auth: AuthSession,
     headers: HeaderMap,
-    Json(payload): Json<FriendRequestCreate>,
+    Json(payload): Json<FriendRequestCreateRequest>,
 ) -> ApiResult<(StatusCode, Json<FriendRequestRecord>)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     if payload.requester_identity_id != auth.identity_id {
