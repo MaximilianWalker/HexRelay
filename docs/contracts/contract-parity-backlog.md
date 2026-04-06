@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: draft
 - Scope: repository
-- last_updated: 2026-04-04
+- last_updated: 2026-04-06
 - Source of truth: `docs/contracts/contract-parity-backlog.md`
 
 ## Quick Context
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
 - Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
-- Latest meaningful change: 2026-04-04 expanded success-content parity and cleaned unrelated contract drift exposed by the broader parity passes.
+- Latest meaningful change: 2026-04-06 expanded regression fixture coverage for request/response schema alias handling, direct request-schema mismatches, missing auth/status branches, CSRF/request-body gaps, and no-content success responses.
 
 ## Purpose
 
@@ -23,7 +23,7 @@
 
 ## Current Coverage Snapshot
 
-- Covered well: route inventory, realtime inventory, global error-code inventory, session auth/security parity, internal-auth/header parity for the internal presence watcher route, CSRF parameter parity, request-body presence, request/response schema-ref parity, success-status presence, selected error-status presence, path/query parameter presence, auth cookie semantics, route-scoped `ApiError.code` parity for high-signal routes, broad route-scoped error-example parity, deterministic regression fixtures, and tracked query semantics for requiredness/type/enum/reject-backed bounds plus first-pass discovery normalization/default semantics.
+- Covered well: route inventory, realtime inventory, global error-code inventory, session auth/security parity, internal-auth/header parity for the internal presence watcher route, CSRF parameter parity, request-body presence, request/response schema-ref parity including request/response alias normalization and direct mismatch regressions, success-status presence, selected error-status presence, path/query parameter presence, auth cookie semantics, route-scoped `ApiError.code` parity for high-signal routes, broad route-scoped error-example parity, deterministic regression fixtures for missing auth/status/schema/content branches, and tracked query semantics for requiredness/type/enum/reject-backed bounds plus first-pass discovery normalization/default semantics.
 - Still weak: full API-wide breadth closeout for schema/error-example coverage, broader query semantics beyond the currently safe rule set, and exhaustive success-content parity closeout.
 
 ## Prioritized Todo List
@@ -76,7 +76,7 @@
 10. Add validator regression fixtures or golden-route tests
 - Add a small deterministic test layer around the validator so future parity expansions do not regress silently.
 - Cover tricky handlers first: `auth.rs`, `friends.rs`, `dm.rs`, `server_channels.rs`, and `presence.rs`.
-- Status: in progress; fixtures now cover missing route examples, auth cookie semantics, discovery query semantics, DM control-plane examples, invite create examples, and DM fanout validation, with the next pass focused on schema/content/internal-auth regression gaps.
+- Status: in progress; fixtures now cover missing route examples, auth cookie semantics, discovery query semantics, DM control-plane examples, invite create examples, DM fanout validation, internal-auth/header gaps, missing 401/500 branches, request/response schema alias handling, direct request-schema mismatch, requestBody/CSRF gaps, and no-content success-schema regressions. Remaining work is targeted breadth closeout and any still-unprotected helper/delegate branches with real regression value.
 
 ## Recommended Order
 
