@@ -95,6 +95,7 @@ Required local checks (run before opening PR):
 - `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
+- `bash scripts/test-contract-parity.sh`
 - `./scripts/validate-dm-transport-policy.sh`
 - `./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
 - Rust `fmt`/`clippy`/tests and coverage gate command
@@ -115,6 +116,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
+bash scripts/test-contract-parity.sh
 ./scripts/validate-dm-transport-policy.sh
 ./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
 bash scripts/validate-cargo-audit-ignore.sh

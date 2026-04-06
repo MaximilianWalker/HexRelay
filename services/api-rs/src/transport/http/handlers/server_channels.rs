@@ -18,9 +18,9 @@ use crate::{
     },
     infra::db::repos::servers_repo,
     models::{
-        ApiError, ServerChannelListResponse, ServerChannelMessageCreateRequest,
-        ServerChannelMessageEditRequest, ServerChannelMessageListQuery, ServerChannelMessagePage,
-        ServerChannelMessage,
+        ApiError, ServerChannelListResponse, ServerChannelMessage,
+        ServerChannelMessageCreateRequest, ServerChannelMessageEditRequest,
+        ServerChannelMessageListQuery, ServerChannelMessagePage,
     },
     shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,

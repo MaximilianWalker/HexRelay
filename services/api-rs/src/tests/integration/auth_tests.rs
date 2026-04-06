@@ -759,13 +759,17 @@ async fn verifies_auth_challenge_and_revokes_session() {
     assert!(
         revoked_cookie_headers
             .iter()
-            .any(|value| value.starts_with("hexrelay_session=") && value.contains("Max-Age=0") && value.contains("HttpOnly")),
+            .any(|value| value.starts_with("hexrelay_session=")
+                && value.contains("Max-Age=0")
+                && value.contains("HttpOnly")),
         "revoke response should clear the HttpOnly session cookie"
     );
     assert!(
         revoked_cookie_headers
             .iter()
-            .any(|value| value.starts_with("hexrelay_csrf=") && value.contains("Max-Age=0") && !value.contains("HttpOnly")),
+            .any(|value| value.starts_with("hexrelay_csrf=")
+                && value.contains("Max-Age=0")
+                && !value.contains("HttpOnly")),
         "revoke response should clear the non-HttpOnly csrf cookie"
     );
 }

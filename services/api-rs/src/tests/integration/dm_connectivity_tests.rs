@@ -223,7 +223,10 @@ async fn rejects_invalid_preflight_request() {
         ))
         .expect("build invalid preflight request");
 
-    let response = app.oneshot(request).await.expect("invalid preflight response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid preflight response");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let body = to_bytes(response.into_body(), usize::MAX)

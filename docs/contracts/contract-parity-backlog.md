@@ -12,7 +12,7 @@
 ## Quick Context
 
 - Primary working backlog for remaining runtime-vs-contract parity hardening.
-- Use this file to decide the next meaningful `scripts/validate-contract-parity.sh` slices.
+- Use this file to decide the next meaningful contract-parity maintenance slices.
 - Latest meaningful change: 2026-04-06 closed the last real request-schema breadth exception by aligning the friend-request create DTO name with the contract and removing the stale validator route special-case.
 
 ## Purpose

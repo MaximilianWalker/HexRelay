@@ -93,7 +93,10 @@ async fn rejects_invalid_wan_wizard_request() {
         .body(Body::from(r#"{"network_profile":"relay_required"}"#))
         .expect("build invalid wan wizard request");
 
-    let response = app.oneshot(request).await.expect("invalid wan wizard response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid wan wizard response");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let body = to_bytes(response.into_body(), usize::MAX)

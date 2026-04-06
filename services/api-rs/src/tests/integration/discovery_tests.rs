@@ -315,7 +315,10 @@ async fn discovery_rejects_invalid_scope() {
         .body(Body::empty())
         .expect("build invalid discovery request");
 
-    let response = app.oneshot(request).await.expect("invalid discovery response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("invalid discovery response");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let body = to_bytes(response.into_body(), usize::MAX)
@@ -380,7 +383,10 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
         .body(Body::empty())
         .expect("build blank-query discovery request");
 
-    let response = app.oneshot(request).await.expect("blank-query discovery response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("blank-query discovery response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)
@@ -459,7 +465,10 @@ async fn discovery_trims_scope_before_enum_validation() {
         .body(Body::empty())
         .expect("build trimmed-scope discovery request");
 
-    let response = app.oneshot(request).await.expect("trimmed-scope discovery response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("trimmed-scope discovery response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)

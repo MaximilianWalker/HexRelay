@@ -18,8 +18,8 @@ use crate::{
         invites_repo,
     },
     models::{
-        ContactInviteRedeemRequest, FriendRequestCreateRequest, FriendRequestRecord, InviteCreateRequest,
-        InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
+        ContactInviteRedeemRequest, FriendRequestCreateRequest, FriendRequestRecord,
+        InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
     shared::errors::{
         bad_request, conflict, forbidden, internal_error, too_many_requests, ApiResult,
