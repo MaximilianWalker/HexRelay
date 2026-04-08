@@ -32,9 +32,9 @@ info:
     live transitions only for recipients that had an active profiled connection when the
     original event was published.
     Clients may also opt into selected websocket payload migrations with
-    `?event_version=2` on the websocket URL. Today that opt-in affects only
-    `presence.updated`, which emits `identity_id` instead of the legacy `user_id`
-    field while default connections remain on v1.
+    `?event_version=2` on the websocket URL. Today that opt-in affects
+    `presence.updated` plus `channel.message.created|updated|deleted`, which emit
+    canonical identity/server naming while default connections remain on v1.
 defaultContentType: application/json
 channels:
   callSignalOffer:
@@ -69,16 +69,22 @@ channels:
     messages:
       channelMessageCreatedV1:
         $ref: '#/components/messages/ChannelMessageCreatedV1'
+      channelMessageCreatedV2:
+        $ref: '#/components/messages/ChannelMessageCreatedV2'
   channelMessageUpdated:
     address: channel.message.updated
     messages:
       channelMessageUpdatedV1:
         $ref: '#/components/messages/ChannelMessageUpdatedV1'
+      channelMessageUpdatedV2:
+        $ref: '#/components/messages/ChannelMessageUpdatedV2'
   channelMessageDeleted:
     address: channel.message.deleted
     messages:
       channelMessageDeletedV1:
         $ref: '#/components/messages/ChannelMessageDeletedV1'
+      channelMessageDeletedV2:
+        $ref: '#/components/messages/ChannelMessageDeletedV2'
   error:
     address: error
     messages:
@@ -122,18 +128,21 @@ operations:
       $ref: '#/channels/channelMessageCreated'
     messages:
       - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV2'
   receiveChannelMessageUpdated:
     action: receive
     channel:
       $ref: '#/channels/channelMessageUpdated'
     messages:
       - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
+      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV2'
   receiveChannelMessageDeleted:
     action: receive
     channel:
       $ref: '#/channels/channelMessageDeleted'
     messages:
       - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
+      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV2'
   receiveError:
     action: receive
     channel:
@@ -163,12 +172,21 @@ components:
     ChannelMessageCreatedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
+    ChannelMessageCreatedV2:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageCreatedEventV2'
     ChannelMessageUpdatedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
+    ChannelMessageUpdatedV2:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageUpdatedEventV2'
     ChannelMessageDeletedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
+    ChannelMessageDeletedV2:
+      payload:
+        $ref: '#/components/schemas/ChannelMessageDeletedEventV2'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -394,6 +412,46 @@ components:
           properties:
             event_type: { const: channel.message.updated }
             data: { $ref: '#/components/schemas/ChannelMessageUpdatedDataV1' }
+    ChannelMessageCreatedDataV2:
+      type: object
+      additionalProperties: false
+      required: [message_id, server_id, channel_id, sender_identity_id, created_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        server_id: { type: string }
+        channel_id: { type: string }
+        sender_identity_id: { type: string }
+        created_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageCreatedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          properties:
+            event_type: { const: channel.message.created }
+            data: { $ref: '#/components/schemas/ChannelMessageCreatedDataV2' }
+    ChannelMessageUpdatedDataV2:
+      type: object
+      additionalProperties: false
+      required: [message_id, server_id, channel_id, editor_identity_id, edited_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        server_id: { type: string }
+        channel_id: { type: string }
+        editor_identity_id: { type: string }
+        edited_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageUpdatedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          properties:
+            event_type: { const: channel.message.updated }
+            data: { $ref: '#/components/schemas/ChannelMessageUpdatedDataV2' }
     ChannelMessageDeletedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -401,3 +459,23 @@ components:
           properties:
             event_type: { const: channel.message.deleted }
             data: { $ref: '#/components/schemas/ChannelMessageDeletedDataV1' }
+    ChannelMessageDeletedDataV2:
+      type: object
+      additionalProperties: false
+      required: [message_id, server_id, channel_id, deleter_identity_id, deleted_at, channel_seq]
+      properties:
+        message_id: { type: string }
+        server_id: { type: string }
+        channel_id: { type: string }
+        deleter_identity_id: { type: string }
+        deleted_at: { type: string, format: date-time }
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageDeletedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          properties:
+            event_type: { const: channel.message.deleted }
+            data: { $ref: '#/components/schemas/ChannelMessageDeletedDataV2' }

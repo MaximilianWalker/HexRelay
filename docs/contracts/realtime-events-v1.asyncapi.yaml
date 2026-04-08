@@ -11,8 +11,8 @@ info:
     DM events are direct user-to-user transport events and are not relayed
     by guild/community servers.
     Versioned websocket payload migration is expected over time; current runtime
-    uses opt-in `event_version=2` only for `presence.updated`, while channel and
-    signaling vocabulary migration remains deferred.
+    uses opt-in `event_version=2` for `presence.updated` and server-channel
+    message events, while signaling vocabulary migration remains deferred.
 defaultContentType: application/json
 servers:
   staging:
@@ -274,6 +274,28 @@ components:
               sender_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               created_at: 2026-03-04T14:53:00Z
               channel_seq: 922
+    ChannelMessageCreatedV2:
+      name: ChannelMessageCreatedV2
+      title: Channel Message Created v2
+      summary: Published when an opted-in connection requests canonical server and identity naming.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageCreatedEventV2'
+      examples:
+        - name: server_channel_message_v2
+          payload:
+            event_id: a7408485-73c0-48d1-b4ff-8794de5a6f84
+            event_type: channel.message.created
+            event_version: 2
+            occurred_at: 2026-03-04T14:53:00Z
+            correlation_id: 0202c016-b114-47c1-a45b-8e8ecf5408d2
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              sender_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              created_at: 2026-03-04T14:53:00Z
+              channel_seq: 922
     ChannelMessageUpdatedV1:
       name: ChannelMessageUpdatedV1
       title: Channel Message Updated
@@ -296,6 +318,28 @@ components:
               editor_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               edited_at: 2026-03-04T14:54:00Z
               channel_seq: 923
+    ChannelMessageUpdatedV2:
+      name: ChannelMessageUpdatedV2
+      title: Channel Message Updated v2
+      summary: Published when an opted-in connection requests canonical server and identity naming.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageUpdatedEventV2'
+      examples:
+        - name: server_channel_edit_v2
+          payload:
+            event_id: 93edaf67-a89e-4822-9685-69f8f8c50ea6
+            event_type: channel.message.updated
+            event_version: 2
+            occurred_at: 2026-03-04T14:54:00Z
+            correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              editor_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              edited_at: 2026-03-04T14:54:00Z
+              channel_seq: 923
     ChannelMessageDeletedV1:
       name: ChannelMessageDeletedV1
       title: Channel Message Deleted
@@ -316,6 +360,28 @@ components:
               guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
               channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
               deleted_by: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              deleted_at: 2026-03-04T14:55:00Z
+              channel_seq: 924
+    ChannelMessageDeletedV2:
+      name: ChannelMessageDeletedV2
+      title: Channel Message Deleted v2
+      summary: Published when an opted-in connection requests canonical server and identity naming.
+      payload:
+        $ref: '#/components/schemas/ChannelMessageDeletedEventV2'
+      examples:
+        - name: server_channel_delete_v2
+          payload:
+            event_id: 31dbed6a-1865-473f-a194-c23f8fe5b163
+            event_type: channel.message.deleted
+            event_version: 2
+            occurred_at: 2026-03-04T14:55:00Z
+            correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
+            producer: guild-message-service
+            data:
+              message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
+              deleter_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               deleted_at: 2026-03-04T14:55:00Z
               channel_seq: 924
   schemas:
@@ -653,6 +719,46 @@ components:
               const: channel.message.created
             data:
               $ref: '#/components/schemas/ChannelMessageCreatedDataV1'
+    ChannelMessageCreatedDataV2:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - server_id
+        - channel_id
+        - sender_identity_id
+        - created_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        sender_identity_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageCreatedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.created
+            data:
+              $ref: '#/components/schemas/ChannelMessageCreatedDataV2'
     ChannelMessageUpdatedDataV1:
       type: object
       additionalProperties: false
@@ -693,6 +799,46 @@ components:
               const: channel.message.updated
             data:
               $ref: '#/components/schemas/ChannelMessageUpdatedDataV1'
+    ChannelMessageUpdatedDataV2:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - server_id
+        - channel_id
+        - editor_identity_id
+        - edited_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        editor_identity_id:
+          type: string
+          format: uuid
+        edited_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageUpdatedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.updated
+            data:
+              $ref: '#/components/schemas/ChannelMessageUpdatedDataV2'
     ChannelMessageDeletedDataV1:
       type: object
       additionalProperties: false
@@ -733,3 +879,43 @@ components:
               const: channel.message.deleted
             data:
               $ref: '#/components/schemas/ChannelMessageDeletedDataV1'
+    ChannelMessageDeletedDataV2:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - server_id
+        - channel_id
+        - deleter_identity_id
+        - deleted_at
+        - channel_seq
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        channel_id:
+          type: string
+          format: uuid
+        deleter_identity_id:
+          type: string
+          format: uuid
+        deleted_at:
+          type: string
+          format: date-time
+        channel_seq:
+          type: integer
+          minimum: 1
+    ChannelMessageDeletedEventV2:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV2'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: channel.message.deleted
+            data:
+              $ref: '#/components/schemas/ChannelMessageDeletedDataV2'

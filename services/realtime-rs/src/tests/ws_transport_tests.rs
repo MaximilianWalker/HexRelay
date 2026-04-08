@@ -587,6 +587,38 @@ async fn recv_channel_event(
     .expect("channel event timeout")
 }
 
+async fn recv_channel_event_with_version(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_event_type: &str,
+    expected_version: u8,
+    expected_message_id: &str,
+) -> Value {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let message = socket
+                .next()
+                .await
+                .expect("channel event")
+                .expect("ws frame");
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: Value = serde_json::from_str(&text).expect("decode channel payload");
+            if payload["event_type"] == expected_event_type
+                && payload["event_version"] == expected_version
+                && payload["data"]["message_id"] == expected_message_id
+            {
+                break payload;
+            }
+        }
+    })
+    .await
+    .expect("channel event timeout")
+}
+
 async fn wait_for_channel_replay_event(
     client: &redis::Client,
     recipient_identity_id: &str,
@@ -2030,6 +2062,100 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
         .close(None)
         .await
         .expect("close second reconnected late device");
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+}
+
+#[tokio::test]
+async fn websocket_channel_message_created_supports_opt_in_v2_fields() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    let viewer_identity_id = "usr-channel-v2-viewer";
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([(
+            "Bearer viewer-token".to_string(),
+            viewer_identity_id.to_string(),
+        )]),
+        HashMap::new(),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state.clone()).await;
+
+    let mut primary_device = connect_ws_with_token_device_and_event_version(
+        &ws_url,
+        "viewer-token",
+        "device-primary",
+        2,
+    )
+    .await;
+    let _ = primary_device.next().await;
+
+    publish_channel_message_created(
+        &state,
+        PublishChannelMessageCreatedInput {
+            message_id: "msg-v2-1".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            sender_id: "usr-sender".to_string(),
+            created_at: Some("2026-03-23T05:00:00Z".to_string()),
+            channel_seq: 7,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message created");
+
+    let live_payload = recv_channel_event_with_version(
+        &mut primary_device,
+        "channel.message.created",
+        2,
+        "msg-v2-1",
+    )
+    .await;
+    assert_eq!(live_payload["data"]["server_id"], "guild-1");
+    assert_eq!(live_payload["data"]["sender_identity_id"], "usr-sender");
+    assert!(live_payload["data"].get("guild_id").is_none());
+    assert!(live_payload["data"].get("sender_id").is_none());
+
+    let mut late_device =
+        connect_ws_with_token_device_and_event_version(&ws_url, "viewer-token", "device-late", 2)
+            .await;
+    let _ = late_device.next().await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
+    let hydrated_payload =
+        recv_channel_event_with_version(&mut late_device, "channel.message.created", 2, "msg-v2-1")
+            .await;
+    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["sender_identity_id"], "usr-sender");
+    assert!(hydrated_payload["data"].get("guild_id").is_none());
+
+    primary_device
+        .close(None)
+        .await
+        .expect("close primary device");
+    late_device.close(None).await.expect("close late device");
     clear_channel_keys(&redis_client, viewer_identity_id).await;
 }
 

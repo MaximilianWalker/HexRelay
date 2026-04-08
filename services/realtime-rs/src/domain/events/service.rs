@@ -281,6 +281,37 @@ pub fn build_channel_message_created_event(
     })
 }
 
+pub fn build_channel_message_created_event_v2(
+    message_id: &str,
+    server_id: &str,
+    channel_id: &str,
+    sender_identity_id: &str,
+    created_at: &str,
+    channel_seq: u64,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "channel.message.created".to_string(),
+        event_version: 2,
+        occurred_at: created_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-channel".to_string(),
+        data: serde_json::json!({
+            "message_id": message_id,
+            "server_id": server_id,
+            "channel_id": channel_id,
+            "sender_identity_id": sender_identity_id,
+            "created_at": created_at,
+            "channel_seq": channel_seq,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
 pub fn build_channel_message_updated_event(
     message_id: &str,
     guild_id: &str,
@@ -312,6 +343,37 @@ pub fn build_channel_message_updated_event(
     })
 }
 
+pub fn build_channel_message_updated_event_v2(
+    message_id: &str,
+    server_id: &str,
+    channel_id: &str,
+    editor_identity_id: &str,
+    edited_at: &str,
+    channel_seq: u64,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "channel.message.updated".to_string(),
+        event_version: 2,
+        occurred_at: edited_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-channel".to_string(),
+        data: serde_json::json!({
+            "message_id": message_id,
+            "server_id": server_id,
+            "channel_id": channel_id,
+            "editor_identity_id": editor_identity_id,
+            "edited_at": edited_at,
+            "channel_seq": channel_seq,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
 pub fn build_channel_message_deleted_event(
     message_id: &str,
     guild_id: &str,
@@ -333,6 +395,37 @@ pub fn build_channel_message_deleted_event(
             "guild_id": guild_id,
             "channel_id": channel_id,
             "deleted_by": deleted_by,
+            "deleted_at": deleted_at,
+            "channel_seq": channel_seq,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
+pub fn build_channel_message_deleted_event_v2(
+    message_id: &str,
+    server_id: &str,
+    channel_id: &str,
+    deleter_identity_id: &str,
+    deleted_at: &str,
+    channel_seq: u64,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "channel.message.deleted".to_string(),
+        event_version: 2,
+        occurred_at: deleted_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-channel".to_string(),
+        data: serde_json::json!({
+            "message_id": message_id,
+            "server_id": server_id,
+            "channel_id": channel_id,
+            "deleter_identity_id": deleter_identity_id,
             "deleted_at": deleted_at,
             "channel_seq": channel_seq,
         }),
