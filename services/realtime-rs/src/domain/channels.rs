@@ -95,36 +95,6 @@ pub struct ChannelMessageDeletedEnvelope {
     pub data: ChannelMessageDeletedData,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-pub struct ChannelMessageCreatedDataV2 {
-    pub message_id: String,
-    pub server_id: String,
-    pub channel_id: String,
-    pub sender_identity_id: String,
-    pub created_at: String,
-    pub channel_seq: u64,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct ChannelMessageUpdatedDataV2 {
-    pub message_id: String,
-    pub server_id: String,
-    pub channel_id: String,
-    pub editor_identity_id: String,
-    pub edited_at: String,
-    pub channel_seq: u64,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct ChannelMessageDeletedDataV2 {
-    pub message_id: String,
-    pub server_id: String,
-    pub channel_id: String,
-    pub deleter_identity_id: String,
-    pub deleted_at: String,
-    pub channel_seq: u64,
-}
-
 #[derive(Deserialize)]
 struct ChannelPubsubEnvelope {
     event_type: String,
@@ -732,8 +702,7 @@ async fn dispatch_channel_event_locally(
             .copied();
 
         for (connection_id, entry) in connections.iter() {
-            let connection_payload = upgrade_channel_event(payload, entry.schema_version);
-            match entry.sender.try_send(connection_payload) {
+            match entry.sender.try_send(payload.to_string()) {
                 Ok(()) => {
                     if let (Some(device_id), Some(cursor)) =
                         (entry.device_id.as_ref(), recipient_cursor)
@@ -797,76 +766,6 @@ async fn dispatch_channel_event_locally(
         {
             warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live channel device cursor");
         }
-    }
-}
-
-fn upgrade_channel_event(payload: &str, schema_version: u8) -> String {
-    if schema_version <= 1 {
-        return payload.to_string();
-    }
-
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(payload) else {
-        return payload.to_string();
-    };
-
-    let Some(event_type) = parsed["event_type"].as_str() else {
-        return payload.to_string();
-    };
-    if parsed["event_version"] != 1 {
-        return payload.to_string();
-    }
-
-    let correlation_id = parsed["correlation_id"].as_str().map(str::to_string);
-    match event_type {
-        "channel.message.created" => {
-            let Ok(data) =
-                serde_json::from_value::<ChannelMessageCreatedData>(parsed["data"].clone())
-            else {
-                return payload.to_string();
-            };
-            crate::domain::events::service::build_channel_message_created_event_v2(
-                &data.message_id,
-                &data.guild_id,
-                &data.channel_id,
-                &data.sender_id,
-                &data.created_at,
-                data.channel_seq,
-                correlation_id,
-            )
-        }
-        "channel.message.updated" => {
-            let Ok(data) =
-                serde_json::from_value::<ChannelMessageUpdatedData>(parsed["data"].clone())
-            else {
-                return payload.to_string();
-            };
-            crate::domain::events::service::build_channel_message_updated_event_v2(
-                &data.message_id,
-                &data.guild_id,
-                &data.channel_id,
-                &data.editor_id,
-                &data.edited_at,
-                data.channel_seq,
-                correlation_id,
-            )
-        }
-        "channel.message.deleted" => {
-            let Ok(data) =
-                serde_json::from_value::<ChannelMessageDeletedData>(parsed["data"].clone())
-            else {
-                return payload.to_string();
-            };
-            crate::domain::events::service::build_channel_message_deleted_event_v2(
-                &data.message_id,
-                &data.guild_id,
-                &data.channel_id,
-                &data.deleted_by,
-                &data.deleted_at,
-                data.channel_seq,
-                correlation_id,
-            )
-        }
-        _ => payload.to_string(),
     }
 }
 
