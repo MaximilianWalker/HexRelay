@@ -722,7 +722,7 @@ async fn internal_channel_publish_routes_require_internal_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "sender_id": "usr-1",
                 "created_at": "2026-03-26T01:00:00Z",
@@ -747,7 +747,7 @@ async fn internal_channel_publish_routes_require_internal_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "editor_id": "usr-1",
                 "edited_at": "2026-03-26T01:10:00Z",
@@ -772,7 +772,7 @@ async fn internal_channel_publish_routes_require_internal_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "deleted_by": "usr-1",
                 "deleted_at": "2026-03-26T01:20:00Z",
@@ -822,7 +822,7 @@ async fn internal_channel_publish_rejects_presence_watcher_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "sender_id": "usr-1",
                 "created_at": "2026-03-26T01:00:00Z",
@@ -851,7 +851,7 @@ async fn internal_channel_publish_rejects_presence_watcher_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "editor_id": "usr-1",
                 "edited_at": "2026-03-26T01:10:00Z",
@@ -880,7 +880,7 @@ async fn internal_channel_publish_rejects_presence_watcher_token() {
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "deleted_by": "usr-1",
                 "deleted_at": "2026-03-26T01:20:00Z",
@@ -930,7 +930,7 @@ async fn internal_channel_publish_returns_bad_gateway_when_redis_is_unavailable(
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "sender_id": "usr-1",
                 "created_at": "2026-03-26T01:00:00Z",
@@ -959,7 +959,7 @@ async fn internal_channel_publish_returns_bad_gateway_when_redis_is_unavailable(
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "editor_id": "usr-1",
                 "edited_at": "2026-03-26T01:10:00Z",
@@ -988,7 +988,7 @@ async fn internal_channel_publish_returns_bad_gateway_when_redis_is_unavailable(
         .body(Body::from(
             serde_json::json!({
                 "message_id": "msg-internal",
-                "guild_id": "guild-1",
+                "server_id": "server-1",
                 "channel_id": "channel-1",
                 "deleted_by": "usr-1",
                 "deleted_at": "2026-03-26T01:20:00Z",

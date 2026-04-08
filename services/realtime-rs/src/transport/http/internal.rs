@@ -17,7 +17,8 @@ use crate::{
 #[derive(Deserialize)]
 pub struct ChannelMessageCreatedDispatchRequest {
     pub message_id: String,
-    pub guild_id: String,
+    #[serde(alias = "guild_id")]
+    pub server_id: String,
     pub channel_id: String,
     pub sender_id: String,
     pub created_at: String,
@@ -28,7 +29,8 @@ pub struct ChannelMessageCreatedDispatchRequest {
 #[derive(Deserialize)]
 pub struct ChannelMessageUpdatedDispatchRequest {
     pub message_id: String,
-    pub guild_id: String,
+    #[serde(alias = "guild_id")]
+    pub server_id: String,
     pub channel_id: String,
     pub editor_id: String,
     pub edited_at: String,
@@ -39,7 +41,8 @@ pub struct ChannelMessageUpdatedDispatchRequest {
 #[derive(Deserialize)]
 pub struct ChannelMessageDeletedDispatchRequest {
     pub message_id: String,
-    pub guild_id: String,
+    #[serde(alias = "guild_id")]
+    pub server_id: String,
     pub channel_id: String,
     pub deleted_by: String,
     pub deleted_at: String,
@@ -60,7 +63,7 @@ pub async fn publish_channel_message_created_internal(
         &state,
         PublishChannelMessageCreatedInput {
             message_id: payload.message_id,
-            guild_id: payload.guild_id,
+            guild_id: payload.server_id,
             channel_id: payload.channel_id,
             sender_id: payload.sender_id,
             created_at: Some(payload.created_at),
@@ -88,7 +91,7 @@ pub async fn publish_channel_message_updated_internal(
         &state,
         PublishChannelMessageUpdatedInput {
             message_id: payload.message_id,
-            guild_id: payload.guild_id,
+            guild_id: payload.server_id,
             channel_id: payload.channel_id,
             editor_id: payload.editor_id,
             edited_at: Some(payload.edited_at),
@@ -116,7 +119,7 @@ pub async fn publish_channel_message_deleted_internal(
         &state,
         PublishChannelMessageDeletedInput {
             message_id: payload.message_id,
-            guild_id: payload.guild_id,
+            guild_id: payload.server_id,
             channel_id: payload.channel_id,
             deleted_by: payload.deleted_by,
             deleted_at: Some(payload.deleted_at),
