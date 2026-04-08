@@ -20,9 +20,9 @@ const CHANNEL_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ChannelMessageCreatedData {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
-    pub sender_id: String,
+    pub sender_identity_id: String,
     pub created_at: String,
     pub channel_seq: u64,
 }
@@ -30,9 +30,9 @@ pub struct ChannelMessageCreatedData {
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ChannelMessageUpdatedData {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
-    pub editor_id: String,
+    pub editor_identity_id: String,
     pub edited_at: String,
     pub channel_seq: u64,
 }
@@ -40,9 +40,9 @@ pub struct ChannelMessageUpdatedData {
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ChannelMessageDeletedData {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
-    pub deleted_by: String,
+    pub deleter_identity_id: String,
     pub deleted_at: String,
     pub channel_seq: u64,
 }
@@ -197,9 +197,9 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         let client_payload =
                             crate::domain::events::service::build_channel_message_created_event(
                                 &data.message_id,
-                                &data.guild_id,
+                                &data.server_id,
                                 &data.channel_id,
-                                &data.sender_id,
+                                &data.sender_identity_id,
                                 &data.created_at,
                                 data.channel_seq,
                                 Some(event.correlation_id.clone()),
@@ -227,9 +227,9 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         let client_payload =
                             crate::domain::events::service::build_channel_message_updated_event(
                                 &data.message_id,
-                                &data.guild_id,
+                                &data.server_id,
                                 &data.channel_id,
-                                &data.editor_id,
+                                &data.editor_identity_id,
                                 &data.edited_at,
                                 data.channel_seq,
                                 Some(event.correlation_id.clone()),
@@ -257,9 +257,9 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         let client_payload =
                             crate::domain::events::service::build_channel_message_deleted_event(
                                 &data.message_id,
-                                &data.guild_id,
+                                &data.server_id,
                                 &data.channel_id,
-                                &data.deleted_by,
+                                &data.deleter_identity_id,
                                 &data.deleted_at,
                                 data.channel_seq,
                                 Some(event.correlation_id.clone()),
@@ -428,9 +428,9 @@ pub async fn publish_channel_message_created(
         recipient_cursors,
         data: ChannelMessageCreatedData {
             message_id: input.message_id,
-            guild_id: input.guild_id,
+            server_id: input.guild_id,
             channel_id: input.channel_id,
-            sender_id: input.sender_id,
+            sender_identity_id: input.sender_id,
             created_at,
             channel_seq: input.channel_seq,
         },
@@ -513,9 +513,9 @@ pub async fn publish_channel_message_updated(
         recipient_cursors,
         data: ChannelMessageUpdatedData {
             message_id: input.message_id,
-            guild_id: input.guild_id,
+            server_id: input.guild_id,
             channel_id: input.channel_id,
-            editor_id: input.editor_id,
+            editor_identity_id: input.editor_id,
             edited_at,
             channel_seq: input.channel_seq,
         },
@@ -598,9 +598,9 @@ pub async fn publish_channel_message_deleted(
         recipient_cursors,
         data: ChannelMessageDeletedData {
             message_id: input.message_id,
-            guild_id: input.guild_id,
+            server_id: input.guild_id,
             channel_id: input.channel_id,
-            deleted_by: input.deleted_by,
+            deleter_identity_id: input.deleted_by,
             deleted_at,
             channel_seq: input.channel_seq,
         },

@@ -182,9 +182,9 @@ pub fn build_presence_updated_event(
 
 pub fn build_channel_message_created_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    sender_id: &str,
+    sender_identity_id: &str,
     created_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -198,9 +198,9 @@ pub fn build_channel_message_created_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "sender_id": sender_id,
+            "sender_identity_id": sender_identity_id,
             "created_at": created_at,
             "channel_seq": channel_seq,
         }),
@@ -213,9 +213,9 @@ pub fn build_channel_message_created_event(
 
 pub fn build_channel_message_updated_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    editor_id: &str,
+    editor_identity_id: &str,
     edited_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -229,9 +229,9 @@ pub fn build_channel_message_updated_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "editor_id": editor_id,
+            "editor_identity_id": editor_identity_id,
             "edited_at": edited_at,
             "channel_seq": channel_seq,
         }),
@@ -244,9 +244,9 @@ pub fn build_channel_message_updated_event(
 
 pub fn build_channel_message_deleted_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    deleted_by: &str,
+    deleter_identity_id: &str,
     deleted_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -260,9 +260,9 @@ pub fn build_channel_message_deleted_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "deleted_by": deleted_by,
+            "deleter_identity_id": deleter_identity_id,
             "deleted_at": deleted_at,
             "channel_seq": channel_seq,
         }),

@@ -264,16 +264,12 @@ components:
     ChannelMessageCreatedDataV1:
       type: object
       additionalProperties: false
-      required: [message_id, guild_id, channel_id, sender_id, created_at, channel_seq]
-      description: >-
-        Current runtime compatibility payload. `guild_id` and `sender_id` are
-        still the emitted websocket field names today even though newer REST
-        surfaces prefer `server_id` and `identity_id` terminology.
+      required: [message_id, server_id, channel_id, sender_identity_id, created_at, channel_seq]
       properties:
         message_id: { type: string }
-        guild_id: { type: string }
+        server_id: { type: string }
         channel_id: { type: string }
-        sender_id: { type: string }
+        sender_identity_id: { type: string }
         created_at: { type: string, format: date-time }
         channel_seq:
           type: integer
@@ -281,16 +277,12 @@ components:
     ChannelMessageUpdatedDataV1:
       type: object
       additionalProperties: false
-      required: [message_id, guild_id, channel_id, editor_id, edited_at, channel_seq]
-      description: >-
-        Current runtime compatibility payload. `guild_id` remains the emitted
-        websocket field name today even though newer REST surfaces prefer
-        `server_id` terminology.
+      required: [message_id, server_id, channel_id, editor_identity_id, edited_at, channel_seq]
       properties:
         message_id: { type: string }
-        guild_id: { type: string }
+        server_id: { type: string }
         channel_id: { type: string }
-        editor_id: { type: string }
+        editor_identity_id: { type: string }
         edited_at: { type: string, format: date-time }
         channel_seq:
           type: integer
@@ -298,16 +290,12 @@ components:
     ChannelMessageDeletedDataV1:
       type: object
       additionalProperties: false
-      required: [message_id, guild_id, channel_id, deleted_by, deleted_at, channel_seq]
-      description: >-
-        Current runtime compatibility payload. `guild_id` remains the emitted
-        websocket field name today even though newer REST surfaces prefer
-        `server_id` terminology.
+      required: [message_id, server_id, channel_id, deleter_identity_id, deleted_at, channel_seq]
       properties:
         message_id: { type: string }
-        guild_id: { type: string }
+        server_id: { type: string }
         channel_id: { type: string }
-        deleted_by: { type: string }
+        deleter_identity_id: { type: string }
         deleted_at: { type: string, format: date-time }
         channel_seq:
           type: integer

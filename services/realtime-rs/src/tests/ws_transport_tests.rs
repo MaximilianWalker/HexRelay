@@ -1524,6 +1524,8 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 7);
+    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(replay_payload["data"]["sender_identity_id"], "usr-sender");
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1539,6 +1541,8 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         hydrated_payload["data"]["created_at"],
         replay_payload["data"]["created_at"]
     );
+    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["sender_identity_id"], "usr-sender");
 
     late_device
         .close(None)
@@ -1634,6 +1638,8 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 8);
+    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(replay_payload["data"]["editor_identity_id"], "usr-editor");
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1649,6 +1655,8 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         hydrated_payload["data"]["edited_at"],
         replay_payload["data"]["edited_at"]
     );
+    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["editor_identity_id"], "usr-editor");
 
     late_device
         .close(None)
@@ -1744,6 +1752,11 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 9);
+    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(
+        replay_payload["data"]["deleter_identity_id"],
+        "usr-moderator"
+    );
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1758,6 +1771,11 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
     assert_eq!(
         hydrated_payload["data"]["deleted_at"],
         replay_payload["data"]["deleted_at"]
+    );
+    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(
+        hydrated_payload["data"]["deleter_identity_id"],
+        "usr-moderator"
     );
 
     late_device
