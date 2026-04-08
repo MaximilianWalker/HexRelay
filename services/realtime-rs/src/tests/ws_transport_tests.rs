@@ -734,10 +734,60 @@ async fn internal_channel_publish_routes_require_internal_token() {
         .expect("build internal publish request");
 
     let response = app
+        .clone()
         .oneshot(request)
         .await
         .expect("internal publish response");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let update_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/updated")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "editor_id": "usr-1",
+                "edited_at": "2026-03-26T01:10:00Z",
+                "channel_seq": 2,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal update request");
+
+    let update_response = app
+        .clone()
+        .oneshot(update_request)
+        .await
+        .expect("internal update response");
+    assert_eq!(update_response.status(), StatusCode::UNAUTHORIZED);
+
+    let delete_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/deleted")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "deleted_by": "usr-1",
+                "deleted_at": "2026-03-26T01:20:00Z",
+                "channel_seq": 3,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal delete request");
+
+    let delete_response = app
+        .oneshot(delete_request)
+        .await
+        .expect("internal delete response");
+    assert_eq!(delete_response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -784,10 +834,68 @@ async fn internal_channel_publish_rejects_presence_watcher_token() {
         .expect("build internal publish request");
 
     let response = app
+        .clone()
         .oneshot(request)
         .await
         .expect("internal publish response");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let update_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/updated")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-presence-watcher-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "editor_id": "usr-1",
+                "edited_at": "2026-03-26T01:10:00Z",
+                "channel_seq": 2,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal update request");
+
+    let update_response = app
+        .clone()
+        .oneshot(update_request)
+        .await
+        .expect("internal update response");
+    assert_eq!(update_response.status(), StatusCode::UNAUTHORIZED);
+
+    let delete_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/deleted")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-presence-watcher-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "deleted_by": "usr-1",
+                "deleted_at": "2026-03-26T01:20:00Z",
+                "channel_seq": 3,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal delete request");
+
+    let delete_response = app
+        .oneshot(delete_request)
+        .await
+        .expect("internal delete response");
+    assert_eq!(delete_response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -834,10 +942,68 @@ async fn internal_channel_publish_returns_bad_gateway_when_redis_is_unavailable(
         .expect("build internal publish request");
 
     let response = app
+        .clone()
         .oneshot(request)
         .await
         .expect("internal publish response");
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+
+    let update_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/updated")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "editor_id": "usr-1",
+                "edited_at": "2026-03-26T01:10:00Z",
+                "channel_seq": 2,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal update request");
+
+    let update_response = app
+        .clone()
+        .oneshot(update_request)
+        .await
+        .expect("internal update response");
+    assert_eq!(update_response.status(), StatusCode::BAD_GATEWAY);
+
+    let delete_request = Request::builder()
+        .method("POST")
+        .uri("/internal/channels/messages/deleted")
+        .header("content-type", "application/json")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .body(Body::from(
+            serde_json::json!({
+                "message_id": "msg-internal",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "deleted_by": "usr-1",
+                "deleted_at": "2026-03-26T01:20:00Z",
+                "channel_seq": 3,
+                "recipients": ["usr-1"]
+            })
+            .to_string(),
+        ))
+        .expect("build internal delete request");
+
+    let delete_response = app
+        .oneshot(delete_request)
+        .await
+        .expect("internal delete response");
+    assert_eq!(delete_response.status(), StatusCode::BAD_GATEWAY);
 }
 
 #[allow(clippy::too_many_arguments)]

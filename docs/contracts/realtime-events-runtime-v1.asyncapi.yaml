@@ -254,6 +254,10 @@ components:
       type: object
       additionalProperties: false
       required: [user_id, status, updated_at, presence_seq]
+      description: >-
+        Current runtime compatibility payload. `user_id` is the live websocket
+        field name today even though newer REST/runtime surfaces prefer
+        `identity_id` terminology.
       properties:
         user_id: { type: string }
         status: { type: string, enum: [online, offline] }
@@ -265,6 +269,10 @@ components:
       type: object
       additionalProperties: false
       required: [message_id, guild_id, channel_id, sender_id, created_at, channel_seq]
+      description: >-
+        Current runtime compatibility payload. `guild_id` and `sender_id` are
+        still the emitted websocket field names today even though newer REST
+        surfaces prefer `server_id` and `identity_id` terminology.
       properties:
         message_id: { type: string }
         guild_id: { type: string }
@@ -278,6 +286,10 @@ components:
       type: object
       additionalProperties: false
       required: [message_id, guild_id, channel_id, editor_id, edited_at, channel_seq]
+      description: >-
+        Current runtime compatibility payload. `guild_id` remains the emitted
+        websocket field name today even though newer REST surfaces prefer
+        `server_id` terminology.
       properties:
         message_id: { type: string }
         guild_id: { type: string }
@@ -291,6 +303,10 @@ components:
       type: object
       additionalProperties: false
       required: [message_id, guild_id, channel_id, deleted_by, deleted_at, channel_seq]
+      description: >-
+        Current runtime compatibility payload. `guild_id` remains the emitted
+        websocket field name today even though newer REST surfaces prefer
+        `server_id` terminology.
       properties:
         message_id: { type: string }
         guild_id: { type: string }

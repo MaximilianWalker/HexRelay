@@ -450,6 +450,76 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_payload_maps_updated_kind_to_internal_path() {
+        let recipients = vec!["usr-1".to_string(), "usr-2".to_string()];
+        let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Updated(
+            ChannelMessageUpdatedDispatchRequest {
+                message_id: "msg-2",
+                guild_id: "guild-1",
+                channel_id: "channel-1",
+                editor_id: "usr-2",
+                edited_at: "2026-03-26T02:00:00Z",
+                channel_seq: 2,
+                recipients: &recipients,
+            },
+        ))
+        .expect("encode payload");
+
+        let dispatch =
+            RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
+        assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_UPDATED_PATH);
+        let body_value: serde_json::Value =
+            serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
+        assert_eq!(
+            body_value,
+            serde_json::json!({
+                "message_id": "msg-2",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "editor_id": "usr-2",
+                "edited_at": "2026-03-26T02:00:00Z",
+                "channel_seq": 2,
+                "recipients": ["usr-1", "usr-2"]
+            })
+        );
+    }
+
+    #[test]
+    fn dispatch_payload_maps_deleted_kind_to_internal_path() {
+        let recipients = vec!["usr-2".to_string()];
+        let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Deleted(
+            ChannelMessageDeletedDispatchRequest {
+                message_id: "msg-3",
+                guild_id: "guild-1",
+                channel_id: "channel-1",
+                deleted_by: "usr-2",
+                deleted_at: "2026-03-26T03:00:00Z",
+                channel_seq: 3,
+                recipients: &recipients,
+            },
+        ))
+        .expect("encode payload");
+
+        let dispatch =
+            RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
+        assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_DELETED_PATH);
+        let body_value: serde_json::Value =
+            serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
+        assert_eq!(
+            body_value,
+            serde_json::json!({
+                "message_id": "msg-3",
+                "guild_id": "guild-1",
+                "channel_id": "channel-1",
+                "deleted_by": "usr-2",
+                "deleted_at": "2026-03-26T03:00:00Z",
+                "channel_seq": 3,
+                "recipients": ["usr-2"]
+            })
+        );
+    }
+
+    #[test]
     fn dispatch_payload_rejects_unknown_kind() {
         let payload = br#"{"kind":"unknown","body":{"message_id":"msg-1"}}"#;
 
