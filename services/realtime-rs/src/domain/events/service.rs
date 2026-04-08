@@ -57,6 +57,22 @@ struct RealtimeErrorData {
     message: String,
 }
 
+#[derive(Deserialize)]
+struct PresenceUpdatedDataV1 {
+    user_id: String,
+    status: String,
+    updated_at: String,
+    presence_seq: u64,
+}
+
+#[derive(Serialize)]
+struct PresenceUpdatedDataV2<'a> {
+    identity_id: &'a str,
+    status: &'a str,
+    updated_at: &'a str,
+    presence_seq: u64,
+}
+
 pub fn connection_ready_banner() -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
@@ -178,6 +194,60 @@ pub fn build_presence_updated_event(
     serde_json::to_string(&envelope).unwrap_or_else(|_| {
         build_error_event("event_serialize_failed", "failed to serialize event")
     })
+}
+
+pub fn build_presence_updated_event_v2(
+    identity_id: &str,
+    status: &str,
+    updated_at: &str,
+    presence_seq: u64,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "presence.updated".to_string(),
+        event_version: 2,
+        occurred_at: updated_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-presence".to_string(),
+        data: PresenceUpdatedDataV2 {
+            identity_id,
+            status,
+            updated_at,
+            presence_seq,
+        },
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
+pub fn upgrade_presence_updated_event(payload: &str, schema_version: u8) -> String {
+    if schema_version <= 1 {
+        return payload.to_string();
+    }
+
+    let Ok(parsed) = serde_json::from_str::<Value>(payload) else {
+        return payload.to_string();
+    };
+
+    if parsed["event_type"] != "presence.updated" || parsed["event_version"] != 1 {
+        return payload.to_string();
+    }
+
+    let correlation_id = parsed["correlation_id"].as_str().map(str::to_string);
+    let Ok(data) = serde_json::from_value::<PresenceUpdatedDataV1>(parsed["data"].clone()) else {
+        return payload.to_string();
+    };
+
+    build_presence_updated_event_v2(
+        &data.user_id,
+        &data.status,
+        &data.updated_at,
+        data.presence_seq,
+        correlation_id,
+    )
 }
 
 pub fn build_channel_message_created_event(
@@ -308,7 +378,10 @@ pub(crate) fn build_error_event(code: &str, message: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_error_event, connection_ready_banner, route_inbound_event};
+    use super::{
+        build_error_event, build_presence_updated_event, connection_ready_banner,
+        route_inbound_event, upgrade_presence_updated_event,
+    };
     use serde_json::Value;
 
     #[test]
@@ -371,5 +444,25 @@ mod tests {
             assert_eq!(envelope["event_type"], "error");
             assert_eq!(envelope["data"]["code"], "event_unsupported");
         }
+    }
+
+    #[test]
+    fn upgrade_presence_updated_event_promotes_v1_payload_to_v2() {
+        let payload = build_presence_updated_event(
+            "usr-1",
+            "online",
+            "2026-04-06T12:00:00Z",
+            7,
+            Some("corr-1".to_string()),
+        );
+
+        let upgraded = upgrade_presence_updated_event(&payload, 2);
+        let event: Value = serde_json::from_str(&upgraded).expect("decode upgraded presence event");
+
+        assert_eq!(event["event_type"], "presence.updated");
+        assert_eq!(event["event_version"], 2);
+        assert_eq!(event["correlation_id"], "corr-1");
+        assert_eq!(event["data"]["identity_id"], "usr-1");
+        assert!(event["data"].get("user_id").is_none());
     }
 }

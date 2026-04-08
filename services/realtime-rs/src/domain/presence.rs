@@ -276,6 +276,7 @@ pub async fn hydrate_presence_backlog_if_needed(
     state: &AppState,
     identity_id: &str,
     device_id: Option<&str>,
+    schema_version: u8,
     outbound_tx: &Sender<String>,
 ) {
     let Some(device_id) = device_id else {
@@ -327,7 +328,11 @@ pub async fn hydrate_presence_backlog_if_needed(
         .into_iter()
         .filter(|entry| entry.cursor > current_cursor)
     {
-        match outbound_tx.try_send(entry.payload.clone()) {
+        let payload = crate::domain::events::service::upgrade_presence_updated_event(
+            &entry.payload,
+            schema_version,
+        );
+        match outbound_tx.try_send(payload) {
             Ok(()) => {
                 latest_cursor = latest_cursor.max(entry.cursor);
             }
@@ -659,7 +664,11 @@ async fn dispatch_presence_event_locally(
             .copied();
 
         for (connection_id, entry) in connections.iter() {
-            match entry.sender.try_send(payload.to_string()) {
+            let connection_payload = crate::domain::events::service::upgrade_presence_updated_event(
+                payload,
+                entry.schema_version,
+            );
+            match entry.sender.try_send(connection_payload) {
                 Ok(()) => {
                     if let (Some(device_id), Some(cursor)) =
                         (entry.device_id.as_ref(), watcher_cursor)
@@ -872,6 +881,7 @@ mod tests {
                     crate::state::ConnectionSenderEntry {
                         sender: open_tx,
                         device_id: Some("device-a".to_string()),
+                        schema_version: 1,
                     },
                 ),
                 (
@@ -879,6 +889,7 @@ mod tests {
                     crate::state::ConnectionSenderEntry {
                         sender: stale_tx,
                         device_id: Some("device-b".to_string()),
+                        schema_version: 1,
                     },
                 ),
             ]),
@@ -933,6 +944,7 @@ mod tests {
                 crate::state::ConnectionSenderEntry {
                     sender: full_tx,
                     device_id: Some("device-a".to_string()),
+                    schema_version: 1,
                 },
             )]),
         );
