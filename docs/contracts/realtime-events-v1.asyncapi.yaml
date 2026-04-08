@@ -174,7 +174,7 @@ components:
             correlation_id: 721be58b-65f0-43fd-bec8-3f8671b3d5c2
             producer: realtime-gateway
             data:
-              user_id: 8a76fb90-4049-49de-9b8e-d1277f6c0ac4
+              identity_id: 8a76fb90-4049-49de-9b8e-d1277f6c0ac4
               status: online
               updated_at: 2026-03-04T14:52:00Z
               presence_seq: 120
@@ -348,12 +348,12 @@ components:
       type: object
       additionalProperties: false
       required:
-        - user_id
+        - identity_id
         - status
         - updated_at
         - presence_seq
       properties:
-        user_id:
+        identity_id:
           type: string
           format: uuid
         status:

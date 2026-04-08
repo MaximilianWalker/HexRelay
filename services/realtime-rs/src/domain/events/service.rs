@@ -154,7 +154,7 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
 }
 
 pub fn build_presence_updated_event(
-    user_id: &str,
+    identity_id: &str,
     status: &str,
     updated_at: &str,
     presence_seq: u64,
@@ -168,7 +168,7 @@ pub fn build_presence_updated_event(
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-presence".to_string(),
         data: serde_json::json!({
-            "user_id": user_id,
+            "identity_id": identity_id,
             "status": status,
             "updated_at": updated_at,
             "presence_seq": presence_seq,

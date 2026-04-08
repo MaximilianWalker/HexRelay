@@ -253,13 +253,9 @@ components:
     PresenceUpdatedDataV1:
       type: object
       additionalProperties: false
-      required: [user_id, status, updated_at, presence_seq]
-      description: >-
-        Current runtime compatibility payload. `user_id` is the live websocket
-        field name today even though newer REST/runtime surfaces prefer
-        `identity_id` terminology.
+      required: [identity_id, status, updated_at, presence_seq]
       properties:
-        user_id: { type: string }
+        identity_id: { type: string }
         status: { type: string, enum: [online, offline] }
         updated_at: { type: string, format: date-time }
         presence_seq:

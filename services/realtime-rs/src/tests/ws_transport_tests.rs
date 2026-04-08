@@ -358,7 +358,7 @@ async fn recv_presence_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-    expected_user_id: &str,
+    expected_identity_id: &str,
     expected_status: &str,
 ) -> Value {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
@@ -375,7 +375,7 @@ async fn recv_presence_event(
         };
         let payload: Value = serde_json::from_str(&text).expect("decode websocket payload");
         if payload["event_type"] == "presence.updated"
-            && payload["data"]["user_id"] == expected_user_id
+            && payload["data"]["identity_id"] == expected_identity_id
             && payload["data"]["status"] == expected_status
         {
             return payload;
@@ -403,7 +403,7 @@ async fn assert_no_presence_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-    expected_user_id: &str,
+    expected_identity_id: &str,
     expected_status: &str,
     timeout: Duration,
 ) {
@@ -422,11 +422,11 @@ async fn assert_no_presence_event(
                 Err(_) => continue,
             };
             if payload["event_type"] == "presence.updated"
-                && payload["data"]["user_id"] == expected_user_id
+                && payload["data"]["identity_id"] == expected_identity_id
                 && payload["data"]["status"] == expected_status
             {
                 panic!(
-                    "unexpected duplicate presence event for user={expected_user_id} status={expected_status}: {text}"
+                    "unexpected duplicate presence event for identity={expected_identity_id} status={expected_status}: {text}"
                 );
             }
         }

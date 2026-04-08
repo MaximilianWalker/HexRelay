@@ -28,7 +28,7 @@ const PRESENCE_REPLAY_LOG_MAX_ENTRIES: usize = 128;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct PresenceUpdatedData {
-    pub user_id: String,
+    pub identity_id: String,
     pub status: String,
     pub updated_at: String,
     pub presence_seq: u64,
@@ -238,7 +238,7 @@ pub fn spawn_presence_subscriber(state: AppState) {
                 };
 
                 let client_payload = crate::domain::events::service::build_presence_updated_event(
-                    &event.data.user_id,
+                    &event.data.identity_id,
                     &event.data.status,
                     &event.data.updated_at,
                     event.data.presence_seq,
@@ -525,7 +525,7 @@ async fn publish_presence_edge_direct(
         watchers,
         watcher_cursors,
         data: PresenceUpdatedData {
-            user_id: identity_id.to_string(),
+            identity_id: identity_id.to_string(),
             status: status.to_string(),
             updated_at,
             presence_seq,
