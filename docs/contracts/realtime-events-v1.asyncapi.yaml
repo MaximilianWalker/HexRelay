@@ -10,9 +10,6 @@ info:
     realtime runtime behavior.
     DM events are direct user-to-user transport events and are not relayed
     by guild/community servers.
-    Versioned websocket payload migration is expected over time; current runtime
-    uses opt-in `event_version=2` only for `presence.updated`, while channel and
-    signaling vocabulary migration remains deferred.
 defaultContentType: application/json
 servers:
   staging:
@@ -26,8 +23,6 @@ channels:
     messages:
       presenceUpdatedV1:
         $ref: '#/components/messages/PresenceUpdatedV1'
-      presenceUpdatedV2:
-        $ref: '#/components/messages/PresenceUpdatedV2'
   dmMessageCreated:
     address: dm.message.created
     description: Direct peer DM message creation event.
@@ -89,7 +84,6 @@ operations:
       $ref: '#/channels/presenceUpdated'
     messages:
       - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
-      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV2'
   receiveDmMessageCreated:
     action: receive
     channel:
@@ -350,37 +344,6 @@ components:
           type: string
           minLength: 2
           maxLength: 64
-    EventEnvelopeV2:
-      type: object
-      additionalProperties: false
-      required:
-        - event_id
-        - event_type
-        - event_version
-        - occurred_at
-        - correlation_id
-        - producer
-      properties:
-        event_id:
-          type: string
-          format: uuid
-        event_type:
-          type: string
-          minLength: 3
-          maxLength: 128
-        event_version:
-          type: integer
-          enum: [2]
-        occurred_at:
-          type: string
-          format: date-time
-        correlation_id:
-          type: string
-          format: uuid
-        producer:
-          type: string
-          minLength: 2
-          maxLength: 64
     PresenceUpdatedDataV1:
       type: object
       additionalProperties: false
@@ -413,38 +376,6 @@ components:
               const: presence.updated
             data:
               $ref: '#/components/schemas/PresenceUpdatedDataV1'
-    PresenceUpdatedDataV2:
-      type: object
-      additionalProperties: false
-      required:
-        - identity_id
-        - status
-        - updated_at
-        - presence_seq
-      properties:
-        identity_id:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum: [online, idle, dnd, offline]
-        updated_at:
-          type: string
-          format: date-time
-        presence_seq:
-          type: integer
-          minimum: 1
-    PresenceUpdatedEventV2:
-      allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV2'
-        - type: object
-          additionalProperties: false
-          required: [data]
-          properties:
-            event_type:
-              const: presence.updated
-            data:
-              $ref: '#/components/schemas/PresenceUpdatedDataV2'
     DmMessageCreatedDataV1:
       type: object
       additionalProperties: false

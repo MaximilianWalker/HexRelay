@@ -330,15 +330,6 @@ async fn connect_ws_with_token(
     socket
 }
 
-async fn connect_ws_with_token_and_event_version(
-    ws_url: &str,
-    token: &str,
-    event_version: u8,
-) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
-    let versioned_url = format!("{ws_url}?event_version={event_version}");
-    connect_ws_with_token(&versioned_url, token).await
-}
-
 async fn connect_ws_with_token_and_device(
     ws_url: &str,
     token: &str,
@@ -363,16 +354,6 @@ async fn connect_ws_with_token_and_device(
     socket
 }
 
-async fn connect_ws_with_token_device_and_event_version(
-    ws_url: &str,
-    token: &str,
-    device_id: &str,
-    event_version: u8,
-) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
-    let versioned_url = format!("{ws_url}?event_version={event_version}");
-    connect_ws_with_token_and_device(&versioned_url, token, device_id).await
-}
-
 async fn recv_presence_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -395,42 +376,6 @@ async fn recv_presence_event(
         let payload: Value = serde_json::from_str(&text).expect("decode websocket payload");
         if payload["event_type"] == "presence.updated"
             && payload["data"]["user_id"] == expected_user_id
-            && payload["data"]["status"] == expected_status
-        {
-            return payload;
-        }
-    }
-}
-
-async fn recv_presence_event_with_version(
-    socket: &mut tokio_tungstenite::WebSocketStream<
-        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-    >,
-    expected_version: u8,
-    expected_identity_id: &str,
-    expected_status: &str,
-) -> Value {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let message = tokio::time::timeout(remaining, socket.next())
-            .await
-            .expect("presence event timeout")
-            .expect("socket message")
-            .expect("ws frame");
-        let text = match message {
-            WsMessage::Text(value) => value,
-            _ => continue,
-        };
-        let payload: Value = serde_json::from_str(&text).expect("decode websocket payload");
-        let field_name = if expected_version == 2 {
-            "identity_id"
-        } else {
-            "user_id"
-        };
-        if payload["event_type"] == "presence.updated"
-            && payload["event_version"] == expected_version
-            && payload["data"][field_name] == expected_identity_id
             && payload["data"]["status"] == expected_status
         {
             return payload;
@@ -1511,196 +1456,6 @@ async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnectin
         .expect("close second reconnected late device");
     clear_presence_keys(&redis_client, "usr-offline-subject").await;
     clear_presence_keys(&redis_client, "usr-offline-viewer").await;
-}
-
-#[tokio::test]
-async fn websocket_presence_updates_support_opt_in_v2_identity_fields() {
-    let Some(redis_client) = prepared_redis_client().await else {
-        return;
-    };
-
-    clear_presence_keys(&redis_client, "usr-v2-subject").await;
-    clear_presence_keys(&redis_client, "usr-v2-watcher").await;
-
-    let api_base = start_presence_api_stub(
-        HashMap::from([
-            (
-                "Bearer subject-token".to_string(),
-                "usr-v2-subject".to_string(),
-            ),
-            (
-                "Bearer watcher-token".to_string(),
-                "usr-v2-watcher".to_string(),
-            ),
-        ]),
-        HashMap::from([(
-            "usr-v2-subject".to_string(),
-            vec!["usr-v2-subject".to_string(), "usr-v2-watcher".to_string()],
-        )]),
-        "hexrelay-dev-presence-watcher-token-change-me",
-    )
-    .await;
-
-    let state = AppState::new(
-        api_base,
-        test_allowed_origins(),
-        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
-        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
-        Some(redis_client.clone()),
-        false,
-        60,
-        60,
-        16384,
-        120,
-        60,
-        3,
-        0,
-        10000,
-    )
-    .expect("build app state");
-    let ws_url = start_ws_server_with_state(state.clone()).await;
-
-    let mut watcher_socket =
-        connect_ws_with_token_and_event_version(&ws_url, "watcher-token", 2).await;
-    let _ = watcher_socket.next().await;
-    let _ =
-        recv_presence_event_with_version(&mut watcher_socket, 2, "usr-v2-watcher", "online").await;
-
-    let mut subject_socket =
-        connect_ws_with_token_and_event_version(&ws_url, "subject-token", 2).await;
-    let _ = subject_socket.next().await;
-
-    let online_payload =
-        recv_presence_event_with_version(&mut watcher_socket, 2, "usr-v2-subject", "online").await;
-    assert_eq!(online_payload["data"]["identity_id"], "usr-v2-subject");
-    assert!(online_payload["data"].get("user_id").is_none());
-
-    subject_socket
-        .close(None)
-        .await
-        .expect("close subject socket");
-    let offline_payload =
-        recv_presence_event_with_version(&mut watcher_socket, 2, "usr-v2-subject", "offline").await;
-    assert_eq!(offline_payload["data"]["identity_id"], "usr-v2-subject");
-    assert!(offline_payload["data"].get("user_id").is_none());
-
-    watcher_socket
-        .close(None)
-        .await
-        .expect("close watcher socket");
-    clear_presence_keys(&redis_client, "usr-v2-subject").await;
-    clear_presence_keys(&redis_client, "usr-v2-watcher").await;
-}
-
-#[tokio::test]
-async fn websocket_presence_hydration_respects_opt_in_v2_identity_fields() {
-    let Some(redis_client) = prepared_redis_client().await else {
-        return;
-    };
-
-    clear_presence_keys(&redis_client, "usr-v2-hydrate-subject").await;
-    clear_presence_keys(&redis_client, "usr-v2-hydrate-viewer").await;
-
-    let api_base = start_presence_api_stub(
-        HashMap::from([
-            (
-                "Bearer subject-token".to_string(),
-                "usr-v2-hydrate-subject".to_string(),
-            ),
-            (
-                "Bearer viewer-token".to_string(),
-                "usr-v2-hydrate-viewer".to_string(),
-            ),
-        ]),
-        HashMap::from([(
-            "usr-v2-hydrate-subject".to_string(),
-            vec!["usr-v2-hydrate-viewer".to_string()],
-        )]),
-        "hexrelay-dev-presence-watcher-token-change-me",
-    )
-    .await;
-
-    let state = AppState::new(
-        api_base,
-        test_allowed_origins(),
-        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
-        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
-        Some(redis_client.clone()),
-        false,
-        60,
-        60,
-        16384,
-        120,
-        60,
-        3,
-        0,
-        10000,
-    )
-    .expect("build app state");
-    let ws_url = start_ws_server_with_state(state.clone()).await;
-
-    let mut primary_device = connect_ws_with_token_device_and_event_version(
-        &ws_url,
-        "viewer-token",
-        "device-primary",
-        2,
-    )
-    .await;
-    let _ = primary_device.next().await;
-    wait_for_registered_device(&state, "usr-v2-hydrate-viewer", "device-primary").await;
-
-    let mut subject_socket =
-        connect_ws_with_token_and_event_version(&ws_url, "subject-token", 2).await;
-    let _ = subject_socket.next().await;
-
-    let online_payload = recv_presence_event_with_version(
-        &mut primary_device,
-        2,
-        "usr-v2-hydrate-subject",
-        "online",
-    )
-    .await;
-    let online_seq = online_payload["data"]["presence_seq"]
-        .as_u64()
-        .expect("online seq");
-
-    let mut late_device =
-        connect_ws_with_token_device_and_event_version(&ws_url, "viewer-token", "device-late", 2)
-            .await;
-    let _ = late_device.next().await;
-
-    let hydrated_payload =
-        recv_presence_event_with_version(&mut late_device, 2, "usr-v2-hydrate-subject", "online")
-            .await;
-    assert_eq!(hydrated_payload["data"]["presence_seq"], online_seq);
-    assert!(hydrated_payload["data"].get("user_id").is_none());
-
-    subject_socket
-        .close(None)
-        .await
-        .expect("close subject socket");
-    let offline_primary = recv_presence_event_with_version(
-        &mut primary_device,
-        2,
-        "usr-v2-hydrate-subject",
-        "offline",
-    )
-    .await;
-    let offline_late =
-        recv_presence_event_with_version(&mut late_device, 2, "usr-v2-hydrate-subject", "offline")
-            .await;
-    assert_eq!(
-        offline_primary["data"]["presence_seq"],
-        offline_late["data"]["presence_seq"]
-    );
-
-    primary_device
-        .close(None)
-        .await
-        .expect("close primary device");
-    late_device.close(None).await.expect("close late device");
-    clear_presence_keys(&redis_client, "usr-v2-hydrate-subject").await;
-    clear_presence_keys(&redis_client, "usr-v2-hydrate-viewer").await;
 }
 
 #[tokio::test]

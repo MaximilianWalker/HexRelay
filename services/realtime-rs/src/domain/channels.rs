@@ -806,7 +806,6 @@ mod tests {
                 crate::state::ConnectionSenderEntry {
                     sender: full_tx,
                     device_id: Some("device-a".to_string()),
-                    schema_version: 1,
                 },
             )]),
         );

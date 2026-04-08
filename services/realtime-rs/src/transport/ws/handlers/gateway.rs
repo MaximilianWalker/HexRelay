@@ -1,7 +1,6 @@
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     extract::ConnectInfo,
-    extract::Query,
     extract::State,
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -20,14 +19,6 @@ use uuid::Uuid;
 use crate::state::{AppState, ConnectionSenderEntry};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
-const DEFAULT_SCHEMA_VERSION: u8 = 1;
-const MAX_SCHEMA_VERSION: u8 = 2;
-
-#[derive(Deserialize, Default)]
-pub struct WsQuery {
-    #[serde(default)]
-    pub event_version: Option<u8>,
-}
 
 pub async fn health() -> &'static str {
     "ok"
@@ -36,7 +27,6 @@ pub async fn health() -> &'static str {
 pub async fn ws_handler(
     State(state): State<AppState>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
-    Query(query): Query<WsQuery>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
@@ -78,7 +68,6 @@ pub async fn ws_handler(
     };
 
     let device_id = websocket_device_id(&headers);
-    let schema_version = websocket_schema_version(&query).unwrap_or(DEFAULT_SCHEMA_VERSION);
 
     if !try_acquire_connection_slot(&state, &session.identity_id).await {
         warn!(
@@ -117,7 +106,6 @@ pub async fn ws_handler(
             identity_id,
             connection_id,
             device_id,
-            schema_version,
         )
     })
 }
@@ -128,7 +116,6 @@ async fn handle_socket(
     session_identity_id: String,
     connection_id: String,
     device_id: Option<String>,
-    schema_version: u8,
 ) {
     let (mut sender, mut receiver) = socket.split();
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
@@ -139,7 +126,6 @@ async fn handle_socket(
         &connection_id,
         outbound_tx.clone(),
         device_id.clone(),
-        schema_version,
     )
     .await;
 
@@ -156,7 +142,6 @@ async fn handle_socket(
         &state,
         &session_identity_id,
         device_id.as_deref(),
-        schema_version,
         &outbound_tx,
     )
     .await;
@@ -282,15 +267,6 @@ fn websocket_device_id(headers: &HeaderMap) -> Option<String> {
         .get("x-hexrelay-device-id")
         .and_then(|value| value.to_str().ok())
         .and_then(validate_device_id)
-}
-
-fn websocket_schema_version(query: &WsQuery) -> Option<u8> {
-    match query.event_version {
-        Some(value) if (DEFAULT_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&value) => {
-            Some(value)
-        }
-        _ => None,
-    }
 }
 
 fn validate_device_id(raw: &str) -> Option<String> {
@@ -612,16 +588,11 @@ async fn register_connection_sender(
     connection_id: &str,
     sender: mpsc::Sender<String>,
     device_id: Option<String>,
-    schema_version: u8,
 ) {
     let mut guard = state.connection_senders.lock().await;
     guard.entry(identity_id.to_string()).or_default().insert(
         connection_id.to_string(),
-        ConnectionSenderEntry {
-            sender,
-            device_id,
-            schema_version,
-        },
+        ConnectionSenderEntry { sender, device_id },
     );
 }
 

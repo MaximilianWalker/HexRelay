@@ -9,7 +9,6 @@ use crate::transport::ws::middleware::rate_limit::RateLimiter;
 pub struct ConnectionSenderEntry {
     pub sender: Sender<String>,
     pub device_id: Option<String>,
-    pub schema_version: u8,
 }
 
 pub type ConnectionSenderMap = HashMap<String, HashMap<String, ConnectionSenderEntry>>;

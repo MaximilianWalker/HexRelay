@@ -524,7 +524,6 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
             ConnectionSenderEntry {
                 sender,
                 device_id: Some("device-primary".to_string()),
-                schema_version: 1,
             },
         )]),
     );

@@ -31,10 +31,6 @@ info:
     When present, late-joining profile devices receive missed supported events before new
     live transitions only for recipients that had an active profiled connection when the
     original event was published.
-    Clients may also opt into selected websocket payload migrations with
-    `?event_version=2` on the websocket URL. Today that opt-in affects only
-    `presence.updated`, which emits `identity_id` instead of the legacy `user_id`
-    field while default connections remain on v1.
 defaultContentType: application/json
 channels:
   callSignalOffer:
@@ -62,8 +58,6 @@ channels:
     messages:
       presenceUpdatedV1:
         $ref: '#/components/messages/PresenceUpdatedV1'
-      presenceUpdatedV2:
-        $ref: '#/components/messages/PresenceUpdatedV2'
   channelMessageCreated:
     address: channel.message.created
     messages:
@@ -115,7 +109,6 @@ operations:
       $ref: '#/channels/presenceUpdated'
     messages:
       - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
-      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV2'
   receiveChannelMessageCreated:
     action: receive
     channel:
@@ -157,9 +150,6 @@ components:
     PresenceUpdatedV1:
       payload:
         $ref: '#/components/schemas/PresenceUpdatedEventV1'
-    PresenceUpdatedV2:
-      payload:
-        $ref: '#/components/schemas/PresenceUpdatedEventV2'
     ChannelMessageCreatedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
@@ -181,17 +171,6 @@ components:
         event_id: { type: string }
         event_type: { type: string }
         event_version: { type: integer, enum: [1] }
-        occurred_at: { type: string, format: date-time }
-        correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel] }
-    EventEnvelopeV2:
-      type: object
-      additionalProperties: false
-      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
-      properties:
-        event_id: { type: string }
-        event_type: { type: string }
-        event_version: { type: integer, enum: [2] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
         producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel] }
@@ -358,28 +337,6 @@ components:
           properties:
             event_type: { const: presence.updated }
             data: { $ref: '#/components/schemas/PresenceUpdatedDataV1' }
-    PresenceUpdatedDataV2:
-      type: object
-      additionalProperties: false
-      required: [identity_id, status, updated_at, presence_seq]
-      description: >-
-        Opt-in runtime payload selected by `?event_version=2` on websocket
-        connect. This is the canonicalized presence shape using `identity_id`
-        instead of the legacy `user_id` field.
-      properties:
-        identity_id: { type: string }
-        status: { type: string, enum: [online, offline] }
-        updated_at: { type: string, format: date-time }
-        presence_seq:
-          type: integer
-          minimum: 1
-    PresenceUpdatedEventV2:
-      allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV2'
-        - type: object
-          properties:
-            event_type: { const: presence.updated }
-            data: { $ref: '#/components/schemas/PresenceUpdatedDataV2' }
     ChannelMessageCreatedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
