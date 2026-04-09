@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed canonical routing after the DM reliability hardening work changed contract, product, architecture, and migration-evidence authorities.
+- Latest meaningful change: 2026-04-09 refreshed canonical routing after the DM durability hardening follow-up aligned contract/planning authority and closed DM sequencing/readability issues.
 
 ## Purpose
 

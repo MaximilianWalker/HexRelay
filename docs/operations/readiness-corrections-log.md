@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-09
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-04-06 fixed CI fixture regressions so the parity test harness can create local commits without relying on runner git identity.
+- Latest meaningful change: 2026-04-09 recorded DM durability hardening follow-ups for docs authority alignment, per-thread sequence serialization, and DB-only dispatch cleanup.
 
 ## Purpose
 
