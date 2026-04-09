@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn routes_valid_answer_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed answer");
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn routes_valid_ice_candidate_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed candidate");
@@ -360,9 +360,9 @@ mod tests {
     #[test]
     fn rejects_cross_identity_recipient_targeting_until_delivery_exists() {
         let payloads = [
-            r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.answer","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","candidate":"candidate:1"}}"#,
+            r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","candidate":"candidate:1"}}"#,
         ];
 
         for payload in payloads {

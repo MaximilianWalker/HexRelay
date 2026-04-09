@@ -46,7 +46,10 @@ struct DmParallelDialResp {
 
 #[tokio::test]
 async fn block_user_and_list_returns_blocked_entry() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // Block usr-b
     let req = Request::builder()
@@ -84,7 +87,10 @@ async fn block_user_and_list_returns_blocked_entry() {
 
 #[tokio::test]
 async fn unblock_user_removes_from_list() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // Block then unblock
     let req = Request::builder()
@@ -265,7 +271,10 @@ async fn self_mute_returns_400() {
 
 #[tokio::test]
 async fn block_prevents_dm_fanout_dispatch() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // Block usr-b
     let req = Request::builder()
@@ -301,7 +310,10 @@ async fn block_prevents_dm_fanout_dispatch() {
 
 #[tokio::test]
 async fn reverse_block_prevents_dm_fanout_dispatch() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // usr-b blocks usr-a (reverse direction)
     let req = Request::builder()

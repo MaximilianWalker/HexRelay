@@ -19,7 +19,11 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
 
 #[tokio::test]
 async fn fanout_catch_up_replays_messages_for_late_activated_device() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
     let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
@@ -97,7 +101,11 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 
 #[tokio::test]
 async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
     let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
@@ -204,7 +212,11 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
 
 #[tokio::test]
 async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+    else {
+        return;
+    };
     let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
