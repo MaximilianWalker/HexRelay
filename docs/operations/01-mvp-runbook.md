@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-10
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-06 clarified smoke/bootstrap prerequisites for local and dedicated validation after public identity registration became default-closed.
+- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-node only and that realtime websocket abuse controls remain process-local.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -39,7 +39,7 @@
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
 - Runtime config authority: `docs/reference/runtime-config-reference.md`.
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
-- Realtime limiter scope: websocket connect/message limits are process-local; multi-instance deployments must apply sticky routing or edge/global limiting to preserve equivalent abuse controls.
+- Realtime websocket abuse controls are process-local: both websocket connect/message limits and per-identity connection caps are enforced inside each `realtime-rs` process. The currently validated dedicated deployment shape is single-node; multi-instance deployments remain an operator-managed watch item and must verify sticky routing plus edge/global limiting before they can claim equivalent behavior.
 - Minimum environment: see `docs/reference/runtime-config-reference.md` for the complete variable inventory and production validation rules.
 - Startup sequence:
   1. Start database dependencies.

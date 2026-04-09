@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-09
+- last_updated: 2026-04-10
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-09 aligned contributor guidance with the current active watch summary, removed stale DM durability caveats, and matched docs-index freshness wording to the enforced CI rule.
+- Latest meaningful change: 2026-04-10 expanded contract-parity guidance to include the new selected realtime semantic checks while preserving the open broader semantic-depth watch.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime limiter deployment sensitivity, web coverage policy, and docs-governance/process watches.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, web coverage policy, and docs-governance/process watches.
 
 ## Local Development Prerequisites
 
@@ -50,7 +50,7 @@
 - For docs-only changes:
   - Verify links and paths resolve.
   - Keep metadata and `last_updated` fields accurate.
-  - If any canonical doc under `docs/` changes, refresh `docs/README.md` metadata in the same PR because `docs-index-freshness-check` enforces that repo-wide rule.
+- If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` changes, refresh `docs/README.md` metadata in the same PR because `docs-index-freshness-check` enforces that repo-wide rule.
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
   - If docs mention smoke/bootstrap flows, state any required temporary config opt-ins explicitly rather than assuming CI-only knowledge.
 - For code changes:
@@ -77,7 +77,7 @@
 
 - GitHub Actions workflow `/.github/workflows/ci.yml` is the canonical MVP gate for Rust and web checks.
 - Required jobs include `security-audit`, `rust-check`, `web-check`, `migration-evidence-check`, `evidence-provenance-check`, `contract-parity-check`, `dm-transport-policy-check`, `docs-index-freshness-check`, `rust-coverage-gate`, and `integration-smoke`.
-- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and non-auth local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, query-parameter semantic parity for requiredness, schema type, enum domains, blank-search normalization, case-insensitive matching, trim-before-enum normalization, and reject-backed numeric bounds on the main filter/pagination surfaces, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths, and route-level error-example parity for the tracked high-signal auth/social/DM/server routes. Success-body closeout work should keep documenting branch-specific `200`/`201` payload meaning where one schema serves multiple runtime outcomes, lifecycle states, idempotent success paths, setup-result branches, intentionally indistinguishable auth flows, or sorted/empty-list read semantics.
+- `contract-parity-check` now covers route/event/error inventory, exact `CookieAuth`/`BearerAuth` security-scheme parity for routed handlers that use `AuthSession` or the server-membership authorization extractors, selected auth/CSRF/storage semantics, `401` response presence for session-auth routes and direct unauthorized runtime emitters plus local failure helpers, `500` response presence for session-auth storage paths and non-auth local `internal_error(...)` helper/delegate flows, `400` response presence for local parse/normalize/validation helper/delegate flows including GET cursor and limit parsing, query-parameter semantic parity for requiredness, schema type, enum domains, blank-search normalization, case-insensitive matching, trim-before-enum normalization, and reject-backed numeric bounds on the main filter/pagination surfaces, extractor-backed `403`/`404` error-response presence for server-membership authorization routes, OpenAPI path/query parameter presence for routed handlers that directly use `Path<...>` or `Query<...>` extractors, OpenAPI `requestBody` presence for routed API handlers that accept `Json<...>` request extractors, high-signal success-response presence for routed handlers with confidently inferred `2xx` outcomes, selected routed error-response presence for directly emitted `400`/`403`/`404`/`409`/`429` paths, route-level error-example parity for the tracked high-signal auth/social/DM/server routes, and selected realtime semantic parity for the receive-side `realtime.connected`, `presence.updated`, and server-channel message event envelopes. Success-body closeout work should keep documenting branch-specific `200`/`201` payload meaning where one schema serves multiple runtime outcomes, lifecycle states, idempotent success paths, setup-result branches, intentionally indistinguishable auth flows, or sorted/empty-list read semantics.
 - Current enforced backend coverage threshold is 80% and must remain paired with meaningful test additions when enforcement changes.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.

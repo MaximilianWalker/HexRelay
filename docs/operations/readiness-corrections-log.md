@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-09
+- last_updated: 2026-04-10
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-04-09 completed the active-watch cleanup by making the summary exhaustive, removing stale DM durability caveats from entry docs, and aligning docs-index freshness wording with the enforced CI rule.
+- Latest meaningful change: 2026-04-10 added selected receive-side realtime semantic parity checks to contract-parity CI and recorded the remaining deeper semantic-depth watch accurately.
 
 ## Purpose
 
@@ -31,7 +31,7 @@
 
 ## Active Watch Summary
 
-- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory and selected semantic checks.
+- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory, selected REST semantic checks, and selected receive-side realtime semantic checks.
   - owner=maintainers
   - decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity
   - exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond inventory matching
@@ -47,17 +47,16 @@
   - owner=web-maintainers
   - decision_trigger=next CI hardening cycle or a concrete web regression that passes under the current threshold
   - exit_criteria=web coverage policy is explicitly re-evaluated and either raised with accompanying tests or documented as intentionally lower with accepted rationale
-- `docs`: docs-index freshness policy wording in docs must match the strict metadata-refresh rule enforced by CI.
-  - owner=maintainers
-  - decision_trigger=next docs-governance cleanup or repeated contributor confusion around docs-index churn
-  - exit_criteria=`docs/README.md`, contributor guidance, and `scripts/validate-docs-index-freshness.sh` all describe the same freshness trigger without ambiguity
-- `workflow`: multi-instance realtime abuse-control equivalence remains deployment-sensitive because websocket limiter scope is still process-local.
+- `workflow`: multi-instance realtime websocket abuse-control equivalence remains deployment-sensitive because rate limits and per-identity connection caps are still process-local.
   - owner=platform-maintainers
   - decision_trigger=deployment topology or limiter scope changes
   - exit_criteria=runbook includes validated production topology patterns and deployment checklist sign-off
 
 ## Entries
 
+- 2026-04-10 | `ci` | Contract parity still left the realtime runtime contract under-enforced after the REST semantic passes: AsyncAPI inventory and error-code parity existed, but CI could still miss drift in selected receive-side websocket envelope/data semantics like `realtime.connected`, `presence.updated`, and server-channel message events | added `validate_realtime_semantic_contracts(...)` in `scripts/contract_parity/engine.py`, invoked it from `scripts/contract_parity/validator.py`, added `fail-realtime-envelope-semantics` fixture coverage plus `scripts/test-contract-parity.sh` wiring, and refreshed contracts/contributor docs to describe the stronger gate accurately | contract-parity CI now enforces selected receive-side realtime envelope/data semantics in addition to inventory/error-code parity, shrinking the remaining semantic-depth watch without claiming full realtime/runtime-proof coverage | `closed`
+- 2026-04-10 | `docs` | Docs-index freshness policy wording in docs remained narrower than the actual CI validator and the active watch log had become internally contradictory after the previous cleanup pass | aligned `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validate-docs-index-freshness.sh`, then removed the now-resolved active watch summary entry | docs governance now uses one unambiguous docs-index freshness trigger across canonical docs and CI enforcement | `closed`
+- 2026-04-10 | `workflow` | Dedicated deployment guidance warned about process-local realtime limiter scope but still under-described the broader operator impact: per-identity websocket connection caps are process-local too, and the validated topology boundary was implicit rather than checklist-driven | tightened `docs/operations/01-mvp-runbook.md` and `docs/operations/02-dedicated-server-deployment.md` to make the current single-node validation boundary explicit and added rollout sign-off language for sticky routing plus edge/global limiting when operators deviate into multi-instance realtime | dedicated deployment docs now describe the actual process-local websocket abuse-control boundary more precisely while the broader multi-instance watch remains open pending validated topology evidence | `closed`
 - 2026-04-06 | `ci` | After wiring fixture regressions into CI, the contract-parity job still failed because `scripts/test-contract-parity.sh` created temporary git commits without an author identity, which GitHub runners do not configure by default | updated `scripts/test-contract-parity.sh` to create fixture commits with explicit per-command `user.name` and `user.email` values instead of relying on ambient git identity | the fixture regression suite now runs cleanly in CI and stays independent of runner-specific git config | `closed`
 - 2026-04-06 | `ci` | The parity closeout added a real fixture regression suite, but CI and local parity guidance still ran only `scripts/validate-contract-parity.sh`, and the shell entrypoint still carried a large unreachable stale copy of the old validator implementation after `exec` | reduced `scripts/validate-contract-parity.sh` to the real thin wrapper only, added `bash scripts/test-contract-parity.sh` to `.github/workflows/ci.yml` and `docs/operations/contributor-guide.md`, and aligned `docs/contracts/README.md` wording with the package-based validator layout | fixture-backed parity regressions now run before merge, and future validator edits no longer risk landing in dead shell-script code that never executes | `closed`
 - 2026-04-06 | `docs` | Post-closeout docs still had stale freshness/navigation and operator guidance drift: `docs/contracts/README.md` metadata lagged its own latest-change note, `docs/README.md` omitted the contracts subtree from topology, contributor guidance still referenced outdated deferred-item framing, and smoke docs did not say that public identity registration must be temporarily enabled for smoke/bootstrap flows | updated `docs/contracts/README.md`, `docs/README.md`, `docs/operations/contributor-guide.md`, `docs/operations/01-mvp-runbook.md`, and `docs/operations/02-dedicated-server-deployment.md` to sync freshness metadata, restore contract-tree routing, clarify current open-watch wording, and document smoke-only `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` prerequisites | canonical docs now match the actual parity-closeout state and make smoke/bootstrap prerequisites explicit instead of relying on CI-only knowledge | `closed`
