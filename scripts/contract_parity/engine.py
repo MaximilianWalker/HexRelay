@@ -1564,8 +1564,6 @@ def _parse_realtime_contract_semantics(contract_text: str, event_schema_name: st
     event_type_match = re.search(r'event_type:\s*\{\s*const:\s*([^\s}]+)\s*\}', event_block)
     return {
         'envelope_required': set(_parse_inline_list(envelope_block, 'required')),
-        'allowed_producers': set(_parse_inline_list(envelope_block, 'enum')),
-        'allowed_versions': set(_parse_inline_list(envelope_block, 'enum')),
         'event_type': event_type_match.group(1) if event_type_match else None,
         'data_required': set(_parse_inline_list(data_block, 'required')),
     }
