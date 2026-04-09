@@ -45,7 +45,6 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
-const DM_FANOUT_MAX_LOG_ENTRIES: usize = 1024;
 
 #[derive(Serialize, Deserialize)]
 struct PairingEnvelopeClaims {
@@ -879,6 +878,13 @@ pub async fn run_dm_active_fanout(
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
 
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "durable dm delivery requires configured database storage",
+        )
+    })?;
+
     let recipient_identity_id = payload.recipient_identity_id.trim();
 
     if is_blocked_bidirectional(&state, &auth.identity_id, recipient_identity_id)? {
@@ -1042,101 +1048,74 @@ pub async fn run_dm_active_fanout(
         )
     };
 
-    let delivery_record = if let Some(pool) = state.db_pool.as_ref() {
-        let mut tx = pool.begin().await.map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to start dm acceptance transaction",
-            )
-        })?;
-        let thread_id = dm_history_repo::ensure_direct_dm_thread_in_tx(
-            &mut tx,
-            &auth.identity_id,
-            recipient_identity_id,
+    let mut tx = pool.begin().await.map_err(|_| {
+        internal_error(
+            "storage_unavailable",
+            "failed to start dm acceptance transaction",
         )
+    })?;
+    let thread_id = dm_history_repo::ensure_direct_dm_thread_in_tx(
+        &mut tx,
+        &auth.identity_id,
+        recipient_identity_id,
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to ensure dm thread"))?;
+    let seq = dm_history_repo::next_dm_message_seq_in_tx(&mut tx, &thread_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to ensure dm thread"))?;
-        let seq = dm_history_repo::next_dm_message_seq_in_tx(&mut tx, &thread_id)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to allocate dm message seq")
-            })?;
-        let created_at = Utc::now().to_rfc3339();
-        dm_history_repo::insert_dm_message_in_tx(
-            &mut tx,
-            dm_history_repo::DmMessageInsertParams {
-                message_id: &message_id,
-                thread_id: &thread_id,
-                author_id: &auth.identity_id,
-                seq,
-                ciphertext: &payload.ciphertext,
-                created_at: &created_at,
-                edited_at: None,
-            },
+        .map_err(|_| internal_error("storage_unavailable", "failed to allocate dm message seq"))?;
+    let created_at = Utc::now().to_rfc3339();
+    dm_history_repo::insert_dm_message_in_tx(
+        &mut tx,
+        dm_history_repo::DmMessageInsertParams {
+            message_id: &message_id,
+            thread_id: &thread_id,
+            author_id: &auth.identity_id,
+            seq,
+            ciphertext: &payload.ciphertext,
+            created_at: &created_at,
+            edited_at: None,
+        },
+    )
+    .await
+    .map_err(|_| {
+        internal_error(
+            "storage_unavailable",
+            "failed to persist dm message history",
         )
+    })?;
+    let cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, recipient_identity_id)
         .await
-        .map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to persist dm message history",
-            )
-        })?;
-        let cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, recipient_identity_id)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to advance fanout cursor")
-            })?;
-        let record = DmFanoutDeliveryRecord {
-            cursor,
-            message_id: message_id.clone(),
-            sender_identity_id: auth.identity_id.clone(),
-            ciphertext: payload.ciphertext.clone(),
-            source_device_id: source_device_id.clone(),
-            delivery_state: delivery_state.clone(),
-            reachability_state: reachability_state.clone(),
-            delivered_device_ids: delivered_device_ids.clone(),
-        };
-        dm_repo::append_dm_fanout_delivery_record_in_tx(
-            &mut tx,
-            recipient_identity_id,
-            &thread_id,
-            &record,
-        )
-        .await
-        .map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to persist dm delivery metadata",
-            )
-        })?;
-        tx.commit().await.map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to commit dm acceptance transaction",
-            )
-        })?;
-        record
-    } else {
-        let fanout_delivery_log = state
-            .dm_fanout_delivery_log
-            .read()
-            .expect("acquire dm fanout delivery log read lock");
-        let cursor = fanout_delivery_log
-            .get(recipient_identity_id)
-            .and_then(|delivery_log| delivery_log.last())
-            .map(|record| record.cursor.saturating_add(1))
-            .unwrap_or(1);
-        DmFanoutDeliveryRecord {
-            cursor,
-            message_id: message_id.clone(),
-            sender_identity_id: auth.identity_id.clone(),
-            ciphertext: payload.ciphertext.clone(),
-            source_device_id: source_device_id.clone(),
-            delivery_state: delivery_state.clone(),
-            reachability_state: reachability_state.clone(),
-            delivered_device_ids: delivered_device_ids.clone(),
-        }
+        .map_err(|_| internal_error("storage_unavailable", "failed to advance fanout cursor"))?;
+    let delivery_record = DmFanoutDeliveryRecord {
+        cursor,
+        message_id: message_id.clone(),
+        sender_identity_id: auth.identity_id.clone(),
+        ciphertext: payload.ciphertext.clone(),
+        source_device_id: source_device_id.clone(),
+        delivery_state: delivery_state.clone(),
+        reachability_state: reachability_state.clone(),
+        delivered_device_ids: delivered_device_ids.clone(),
     };
+    dm_repo::append_dm_fanout_delivery_record_in_tx(
+        &mut tx,
+        recipient_identity_id,
+        &thread_id,
+        &delivery_record,
+    )
+    .await
+    .map_err(|_| {
+        internal_error(
+            "storage_unavailable",
+            "failed to persist dm delivery metadata",
+        )
+    })?;
+    tx.commit().await.map_err(|_| {
+        internal_error(
+            "storage_unavailable",
+            "failed to commit dm acceptance transaction",
+        )
+    })?;
 
     let mut fanout_delivery_log = state
         .dm_fanout_delivery_log
@@ -1148,19 +1127,6 @@ pub async fn run_dm_active_fanout(
     if min_cursor > 0 {
         delivery_log.retain(|record| record.cursor > min_cursor);
     }
-    if state.db_pool.is_none() && delivery_log.len() >= DM_FANOUT_MAX_LOG_ENTRIES {
-        return Ok(Json(DmFanoutDispatchResponse {
-            status: "blocked".to_string(),
-            reason_code: "fanout_backlog_full".to_string(),
-            transport_profile: "direct_only".to_string(),
-            delivery_state: "rejected".to_string(),
-            reachability_state: "unknown".to_string(),
-            fanout_count: 0,
-            delivered_device_ids: vec![],
-            skipped_device_ids,
-        }));
-    }
-
     delivery_log.push(delivery_record);
 
     Ok(Json(DmFanoutDispatchResponse {

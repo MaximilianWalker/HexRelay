@@ -2013,17 +2013,6 @@ paths:
                     fanout_count: 0
                     delivered_device_ids: []
                     skipped_device_ids: []
-                blockedBacklogFull:
-                  summary: In-memory-only runtime rejects delivery when bounded replay storage is already full
-                  value:
-                    status: blocked
-                    reason_code: fanout_backlog_full
-                    transport_profile: direct_only
-                    delivery_state: rejected
-                    reachability_state: unknown
-                    fanout_count: 0
-                    delivered_device_ids: []
-                    skipped_device_ids: [phone-main]
         '400':
           description: Invalid fanout dispatch request
           content:
@@ -3546,7 +3535,7 @@ components:
           enum: [accepted, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_pending_delivery, fanout_backlog_full, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
+          enum: [fanout_ok, fanout_pending_delivery, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
         transport_profile:
           type: string
           enum: [direct_only]
