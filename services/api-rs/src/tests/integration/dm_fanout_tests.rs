@@ -123,7 +123,9 @@ async fn fanout_dispatch_skips_source_device_when_present() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["fanout_count"], 1);
     assert_eq!(payload["delivered_device_ids"][0], "phone-main");
     assert!(payload["skipped_device_ids"]
