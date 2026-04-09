@@ -72,6 +72,10 @@ const MIGRATIONS: &[Migration] = &[
         "0017_server_channels_and_messages",
         include_str!("../migrations/0017_server_channels_and_messages.sql"),
     ),
+    (
+        "0018_dm_durable_delivery_log",
+        include_str!("../migrations/0018_dm_durable_delivery_log.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

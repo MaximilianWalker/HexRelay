@@ -1982,14 +1982,17 @@ paths:
               $ref: '#/components/schemas/DmFanoutDispatchRequest'
       responses:
         '200':
-          description: DM active-device fanout result
+          description: >-
+            DM active-device fanout result. Success means the message has already
+            been durably accepted into canonical DM history and durable delivery
+            metadata before active-device delivery is evaluated.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
               examples:
                 readyFanout:
-                  summary: Active devices receive the payload while source or inactive devices are skipped
+                  summary: Active devices receive the payload while source or inactive devices are skipped after durable acceptance
                   value:
                     status: ready
                     reason_code: fanout_ok
@@ -2034,7 +2037,10 @@ paths:
   /v1/dm/fanout/catch-up:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
-      description: Profile-device convergence replay under direct-only DM policy; per-device cursor checkpoints persist when configured storage is available, while replay payload backlog remains bounded in-memory and relay fallback stays disallowed.
+      description: >-
+        Profile-device convergence replay under direct-only DM policy;
+        canonical accepted DM history and delivery metadata persist when
+        configured storage is available, while relay fallback stays disallowed.
       security:
         - CookieAuth: []
         - BearerAuth: []

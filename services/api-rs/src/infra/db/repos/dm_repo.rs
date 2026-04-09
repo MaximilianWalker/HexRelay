@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 
-use crate::models::{DmEndpointCardRecord, DmPolicy, DmProfileDeviceRecord};
+use crate::models::{
+    DmEndpointCardRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
+};
 
 pub async fn consume_dm_pairing_nonce(
     pool: &PgPool,
@@ -310,6 +312,29 @@ pub async fn advance_dm_fanout_stream_head(
         .map_err(|_| sqlx::Error::Protocol("latest_cursor must be non-negative".into()))
 }
 
+pub async fn advance_dm_fanout_stream_head_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    identity_id: &str,
+) -> Result<u64, sqlx::Error> {
+    let row = sqlx::query(
+        "
+        INSERT INTO dm_fanout_stream_heads (identity_id, latest_cursor, updated_at)
+        VALUES ($1, 1, NOW())
+        ON CONFLICT (identity_id) DO UPDATE
+        SET latest_cursor = dm_fanout_stream_heads.latest_cursor + 1,
+            updated_at = NOW()
+        RETURNING latest_cursor
+        ",
+    )
+    .bind(identity_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let latest_cursor = row.try_get::<i64, _>("latest_cursor")?;
+    u64::try_from(latest_cursor)
+        .map_err(|_| sqlx::Error::Protocol("latest_cursor must be non-negative".into()))
+}
+
 pub async fn get_dm_fanout_device_cursor(
     pool: &PgPool,
     identity_id: &str,
@@ -389,6 +414,94 @@ pub async fn list_dm_fanout_device_cursors(
                 u64::try_from(cursor)
                     .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
             ))
+        })
+        .collect()
+}
+
+pub async fn append_dm_fanout_delivery_record_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    identity_id: &str,
+    thread_id: &str,
+    record: &DmFanoutDeliveryRecord,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_delivery_log (
+            identity_id,
+            cursor,
+            thread_id,
+            message_id,
+            sender_identity_id,
+            ciphertext,
+            source_device_id,
+            delivered_device_ids,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+        ON CONFLICT (identity_id, cursor) DO UPDATE
+        SET thread_id = EXCLUDED.thread_id,
+            message_id = EXCLUDED.message_id,
+            sender_identity_id = EXCLUDED.sender_identity_id,
+            ciphertext = EXCLUDED.ciphertext,
+            source_device_id = EXCLUDED.source_device_id,
+            delivered_device_ids = EXCLUDED.delivered_device_ids,
+            created_at = NOW()
+        ",
+    )
+    .bind(identity_id)
+    .bind(
+        i64::try_from(record.cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
+    )
+    .bind(thread_id)
+    .bind(&record.message_id)
+    .bind(&record.sender_identity_id)
+    .bind(&record.ciphertext)
+    .bind(&record.source_device_id)
+    .bind(
+        serde_json::to_string(&record.delivered_device_ids)
+            .map_err(|_| sqlx::Error::Protocol("failed to encode delivered_device_ids".into()))?,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn list_dm_fanout_delivery_records(
+    pool: &PgPool,
+    identity_id: &str,
+) -> Result<Vec<DmFanoutDeliveryRecord>, sqlx::Error> {
+    let rows = sqlx::query(
+        "
+        SELECT cursor, message_id, sender_identity_id, ciphertext, source_device_id, delivered_device_ids
+        FROM dm_fanout_delivery_log
+        WHERE identity_id = $1
+        ORDER BY cursor ASC
+        ",
+    )
+    .bind(identity_id)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            let cursor = row.try_get::<i64, _>("cursor")?;
+            let delivered_device_ids_json =
+                row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
+            let delivered_device_ids =
+                serde_json::from_value::<Vec<String>>(delivered_device_ids_json).map_err(|_| {
+                    sqlx::Error::Protocol("invalid delivered_device_ids json".into())
+                })?;
+            Ok(DmFanoutDeliveryRecord {
+                cursor: u64::try_from(cursor)
+                    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
+                message_id: row.try_get::<String, _>("message_id")?,
+                sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
+                ciphertext: row.try_get::<String, _>("ciphertext")?,
+                source_device_id: row.try_get::<Option<String>, _>("source_device_id")?,
+                delivered_device_ids,
+            })
         })
         .collect()
 }

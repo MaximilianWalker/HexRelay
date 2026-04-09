@@ -352,6 +352,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         .expect("fanout dispatch response");
     assert_eq!(dispatch_response.status(), StatusCode::OK);
 
+    let Some(restarted_app) = app_with_database().await else {
+        return;
+    };
+
     let activate_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/profile-devices/heartbeat")
@@ -363,12 +367,55 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
         .expect("build activation request");
-    let activate_response = app
+    let activate_response = restarted_app
         .clone()
         .oneshot(activate_request)
         .await
         .expect("activation response");
     assert_eq!(activate_response.status(), StatusCode::OK);
+
+    let thread_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/threads?limit=10")
+        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
+        .body(Body::empty())
+        .expect("build thread list request after restart");
+    let thread_response = restarted_app
+        .clone()
+        .oneshot(thread_request)
+        .await
+        .expect("thread list response after restart");
+    assert_eq!(thread_response.status(), StatusCode::OK);
+
+    let thread_body = to_bytes(thread_response.into_body(), usize::MAX)
+        .await
+        .expect("read thread list body after restart");
+    let thread_payload: serde_json::Value =
+        serde_json::from_slice(&thread_body).expect("decode thread list payload after restart");
+    let thread_id = thread_payload["items"][0]["thread_id"]
+        .as_str()
+        .expect("thread id after restart")
+        .to_string();
+
+    let messages_request = Request::builder()
+        .method("GET")
+        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
+        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
+        .body(Body::empty())
+        .expect("build thread messages request after restart");
+    let messages_response = restarted_app
+        .clone()
+        .oneshot(messages_request)
+        .await
+        .expect("thread messages response after restart");
+    assert_eq!(messages_response.status(), StatusCode::OK);
+
+    let messages_body = to_bytes(messages_response.into_body(), usize::MAX)
+        .await
+        .expect("read thread messages body after restart");
+    let messages_payload: serde_json::Value = serde_json::from_slice(&messages_body)
+        .expect("decode thread messages payload after restart");
+    assert_eq!(messages_payload["items"][0]["message_id"], "msg-restart");
 
     let catch_up_request = Request::builder()
         .method("POST")
@@ -381,7 +428,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(r#"{"device_id":"phone-main"}"#))
         .expect("build catch-up request");
-    let catch_up_response = app
+    let catch_up_response = restarted_app
         .clone()
         .oneshot(catch_up_request)
         .await
@@ -395,10 +442,6 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         serde_json::from_slice(&first_body).expect("decode first catch-up body");
     assert_eq!(first_payload["replay_count"], 1);
     assert_eq!(first_payload["next_cursor"], "1");
-
-    let Some(restarted_app) = app_with_database().await else {
-        return;
-    };
 
     let second_catch_up_request = Request::builder()
         .method("POST")
