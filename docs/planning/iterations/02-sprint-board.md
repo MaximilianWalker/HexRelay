@@ -195,8 +195,8 @@ Week 6:
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
 - Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
-- Broad multi-device DM convergence is not a remaining MVP gap either; the only unresolved follow-up is replay payload durability across restart/backlog loss, which still needs an explicit architecture decision.
-- Durable DM history is now backed by local/user-owned runtime persistence; replay-backlog durability remains the separate unresolved DM storage follow-up.
+- Broad multi-device DM convergence is not a remaining MVP gap; accepted DM payloads now persist with durable canonical history plus replay metadata under the current runtime design.
+- Durable DM history and replay metadata are now backed by local/user-owned runtime persistence; any future DM storage work should be treated as expansion or architecture evolution, not as a still-open MVP durability caveat.
 - Recipient-targeted realtime signaling remains a separate realtime routing follow-up for live call signaling; it should not be conflated with DM convergence, presence discovery, or payload delivery semantics.
 - DM/group DM and guild channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.

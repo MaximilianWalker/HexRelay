@@ -152,6 +152,5 @@ impl Default for AppState {
             },
             false,
         )
-        .with_public_identity_registration(true)
     }
 }

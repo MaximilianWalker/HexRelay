@@ -156,14 +156,6 @@ pub async fn insert_server_channel_message(
             deleted_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz)
-        ON CONFLICT (message_id) DO UPDATE
-        SET author_id = EXCLUDED.author_id,
-            channel_seq = EXCLUDED.channel_seq,
-            content = EXCLUDED.content,
-            reply_to_message_id = EXCLUDED.reply_to_message_id,
-            created_at = EXCLUDED.created_at,
-            edited_at = EXCLUDED.edited_at,
-            deleted_at = EXCLUDED.deleted_at
         ",
     )
     .bind(params.message_id)

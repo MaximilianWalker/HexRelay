@@ -26,7 +26,7 @@ async fn returns_default_dm_policy_for_new_identity() {
 
 #[tokio::test]
 async fn updates_dm_policy_and_persists_for_identity() {
-    let app = build_app(AppState::default());
+    let app = build_app(AppState::default().with_public_identity_registration(true));
     let (session_cookie, app) = authenticate_identity(app, "usr-dm-policy").await;
 
     let update_request = Request::builder()
@@ -71,7 +71,7 @@ async fn updates_dm_policy_and_persists_for_identity() {
 
 #[tokio::test]
 async fn rejects_invalid_dm_policy_update() {
-    let app = build_app(AppState::default());
+    let app = build_app(AppState::default().with_public_identity_registration(true));
     let (session_cookie, app) = authenticate_identity(app, "usr-dm-invalid").await;
 
     let request = Request::builder()

@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-04-09 recorded DM durability hardening follow-ups for docs authority alignment, per-thread sequence serialization, and DB-only dispatch cleanup.
+- Latest meaningful change: 2026-04-09 completed the active-watch cleanup by making the summary exhaustive, removing stale DM durability caveats from entry docs, and aligning docs-index freshness wording with the enforced CI rule.
 
 ## Purpose
 
@@ -43,14 +43,18 @@
   - owner=maintainers
   - decision_trigger=readiness finding on reproducibility/parity wording reappears
   - exit_criteria=two consecutive readiness passes report no reproducibility/parity wording findings
+- `ci`: web coverage thresholds remain materially weaker than backend readiness gates and need an explicit policy decision before any change.
+  - owner=web-maintainers
+  - decision_trigger=next CI hardening cycle or a concrete web regression that passes under the current threshold
+  - exit_criteria=web coverage policy is explicitly re-evaluated and either raised with accompanying tests or documented as intentionally lower with accepted rationale
+- `docs`: docs-index freshness policy wording in docs must match the strict metadata-refresh rule enforced by CI.
+  - owner=maintainers
+  - decision_trigger=next docs-governance cleanup or repeated contributor confusion around docs-index churn
+  - exit_criteria=`docs/README.md`, contributor guidance, and `scripts/validate-docs-index-freshness.sh` all describe the same freshness trigger without ambiguity
 - `workflow`: multi-instance realtime abuse-control equivalence remains deployment-sensitive because websocket limiter scope is still process-local.
   - owner=platform-maintainers
   - decision_trigger=deployment topology or limiter scope changes
   - exit_criteria=runbook includes validated production topology patterns and deployment checklist sign-off
-- `ci`: coverage threshold changes remain policy-sensitive and must ship with meaningful test additions rather than isolated threshold tuning.
-  - owner=api-maintainers
-  - decision_trigger=proposal to change enforced coverage threshold
-  - exit_criteria=coverage threshold policy is stable across two iterations without reopening
 
 ## Entries
 
@@ -223,3 +227,4 @@
 - 2026-04-09 | `docs` | DM durability docs drifted after reliability hardening and left a contradiction between canonical fanout acceptance semantics and older metadata-only/server-nonpersistent wording | aligned `docs/contracts/runtime-rest-v1.openapi.yaml`, `docs/planning/infra-free-dm-connectivity-execution-plan.md`, and the prior readiness entry so canonical docs consistently describe direct-only DM fanout success as durable acceptance into canonical encrypted DM history plus delivery metadata | DM durability/docs authority now matches shipped behavior without implying relay fallback or the older metadata-only server-state model | `closed`
 - 2026-04-09 | `api-rs` | DM message sequence allocation used `MAX(seq) + 1` without serializing per-thread writers, allowing concurrent sends to race on `UNIQUE (thread_id, seq)` and fail intermittently | added per-thread `FOR UPDATE` locking in `services/api-rs/src/infra/db/repos/dm_history_repo.rs` before allocating the next sequence and added concurrent regression coverage in `services/api-rs/src/tests/integration/dm_fanout_tests.rs` | concurrent DM sends into the same thread now serialize sequence allocation and no longer rely on unique-violation luck | `closed`
 - 2026-04-09 | `api-rs` | `run_dm_active_fanout` still carried unreachable in-memory device/cursor fallback branches after the route became explicitly DB-only, obscuring the true runtime contract | removed the dead fallback branches from `services/api-rs/src/transport/http/handlers/dm.rs` and revalidated the full `api-rs` test/clippy/fmt suite | DM dispatch now reads as a single DB-backed acceptance path, reducing dead logic and ambiguity around unsupported no-storage behavior | `closed`
+- 2026-04-09 | `docs` | Readiness entry docs drifted again after the DM hardening pass: the active watch summary omitted the open web-coverage and docs-index-freshness watches, while `README.md`, `docs/operations/contributor-guide.md`, and `docs/planning/iterations/02-sprint-board.md` still described replay-backlog durability as unresolved after the durability/docs alignment closed that gap | updated `docs/operations/readiness-corrections-log.md`, `README.md`, `docs/README.md`, `docs/operations/contributor-guide.md`, `docs/planning/iterations/02-sprint-board.md`, and `docs/planning/05-iteration-log.md` to make the summary exhaustive, align docs-index freshness wording with CI, and remove stale DM durability caveats from repo entry docs | readiness entry points now route contributors through one current watch authority instead of repeating stale caveats or an incomplete summary | `closed`

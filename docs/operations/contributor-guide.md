@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-09
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-06 refreshed readiness guidance after the contract-parity closeout, including smoke prerequisites and current deferred-item wording.
+- Latest meaningful change: 2026-04-09 aligned contributor guidance with the current active watch summary, removed stale DM durability caveats, and matched docs-index freshness wording to the enforced CI rule.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; known deferred items still include recipient-targeted realtime signaling delivery, broader realtime semantic contract validation beyond inventory parity, DM replay-backlog durability decisions, multi-instance limiter equivalence, and a few standing governance/process watches.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime limiter deployment sensitivity, web coverage policy, and docs-governance/process watches.
 
 ## Local Development Prerequisites
 
@@ -50,6 +50,7 @@
 - For docs-only changes:
   - Verify links and paths resolve.
   - Keep metadata and `last_updated` fields accurate.
+  - If any canonical doc under `docs/` changes, refresh `docs/README.md` metadata in the same PR because `docs-index-freshness-check` enforces that repo-wide rule.
   - Confirm canonical source-of-truth boundaries are still respected (no duplicate authority across docs).
   - If docs mention smoke/bootstrap flows, state any required temporary config opt-ins explicitly rather than assuming CI-only knowledge.
 - For code changes:

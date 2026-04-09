@@ -271,6 +271,73 @@ async fn returns_not_found_for_unknown_server_channel() {
 }
 
 #[tokio::test]
+async fn seed_server_channel_rejects_duplicate_message_ids() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = format!("srv-seed-dup-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-seed-dup-{}", Uuid::new_v4().simple());
+    let author_id = unique_identity("usr-seed-dup");
+    let message_id = format!("scm-seed-dup-{}", Uuid::new_v4().simple());
+
+    seed_server_membership(&pool, &server_id, "Channels", &author_id, false, false, 0).await;
+    server_channels_repo::insert_server_channel(
+        &pool,
+        server_channels_repo::ServerChannelInsertParams {
+            channel_id: &channel_id,
+            server_id: &server_id,
+            name: "general",
+            kind: "text",
+        },
+    )
+    .await
+    .expect("insert server channel");
+    ensure_db_identity_key(&pool, &author_id).await;
+
+    server_channels_repo::insert_server_channel_message(
+        &pool,
+        server_channels_repo::ServerChannelMessageInsertParams {
+            message_id: &message_id,
+            channel_id: &channel_id,
+            author_id: &author_id,
+            channel_seq: 1,
+            content: "first version",
+            reply_to_message_id: None,
+            created_at: "2026-04-09T19:20:00Z",
+            edited_at: None,
+            deleted_at: None,
+        },
+        &[],
+    )
+    .await
+    .expect("insert first seeded server channel message");
+
+    let error = server_channels_repo::insert_server_channel_message(
+        &pool,
+        server_channels_repo::ServerChannelMessageInsertParams {
+            message_id: &message_id,
+            channel_id: &channel_id,
+            author_id: &author_id,
+            channel_seq: 2,
+            content: "rewritten version",
+            reply_to_message_id: None,
+            created_at: "2026-04-09T19:21:00Z",
+            edited_at: None,
+            deleted_at: None,
+        },
+        &[],
+    )
+    .await
+    .expect_err("duplicate seeded message_id should fail");
+
+    let db_error = error
+        .as_database_error()
+        .expect("duplicate seed should return database error");
+    assert_eq!(db_error.constraint(), Some("server_channel_messages_pkey"));
+}
+
+#[tokio::test]
 async fn rejects_server_channel_message_create_when_channel_is_not_in_requested_server() {
     let Some(pool) = prepared_database_pool().await else {
         return;

@@ -21,7 +21,7 @@ async fn main() {
     };
 
     if config.require_api_health_on_start {
-        if let Err(err) = wait_for_api_health(&config.api_base_url).await {
+        if let Err(err) = wait_for_api_readiness(&config.api_base_url).await {
             error!(error = %err, "realtime startup aborted due to unreachable API upstream");
             std::process::exit(1);
         }
@@ -88,27 +88,126 @@ async fn main() {
     }
 }
 
-async fn wait_for_api_health(api_base_url: &str) -> Result<(), String> {
+async fn wait_for_api_readiness(api_base_url: &str) -> Result<(), String> {
     const MAX_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
     const RETRY_SLEEP: std::time::Duration = std::time::Duration::from_millis(500);
 
-    let url = format!("{}/health", api_base_url.trim_end_matches('/'));
+    let api_base_url = api_base_url.trim_end_matches('/');
     let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(1))
         .timeout(std::time::Duration::from_secs(1))
         .build()
         .map_err(|err| format!("failed to build health preflight client: {err}"))?;
 
+    wait_for_api_endpoint(
+        &client,
+        &format!("{api_base_url}/health"),
+        "api health check",
+        MAX_WAIT,
+        RETRY_SLEEP,
+        |status| status.is_success(),
+    )
+    .await?;
+
+    wait_for_api_endpoint(
+        &client,
+        &format!("{api_base_url}/v1/auth/sessions/validate"),
+        "api session validation readiness check",
+        MAX_WAIT,
+        RETRY_SLEEP,
+        |status| {
+            status.is_success()
+                || status == reqwest::StatusCode::UNAUTHORIZED
+                || status == reqwest::StatusCode::FORBIDDEN
+        },
+    )
+    .await
+}
+
+async fn wait_for_api_endpoint<F>(
+    client: &reqwest::Client,
+    url: &str,
+    check_name: &str,
+    max_wait: std::time::Duration,
+    retry_sleep: std::time::Duration,
+    ready: F,
+) -> Result<(), String>
+where
+    F: Fn(reqwest::StatusCode) -> bool,
+{
     let start = std::time::Instant::now();
-    while start.elapsed() < MAX_WAIT {
-        match client.get(&url).send().await {
-            Ok(response) if response.status().is_success() => return Ok(()),
-            Ok(_) | Err(_) => tokio::time::sleep(RETRY_SLEEP).await,
+    while start.elapsed() < max_wait {
+        match client.get(url).send().await {
+            Ok(response) if ready(response.status()) => return Ok(()),
+            Ok(_) | Err(_) => tokio::time::sleep(retry_sleep).await,
         }
     }
 
     Err(format!(
-        "api health check failed at {url} after {:?}",
+        "{check_name} failed at {url} after {:?}",
         start.elapsed()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wait_for_api_readiness;
+    use axum::{extract::State, http::StatusCode, routing::get, Router};
+    use tokio::net::TcpListener;
+
+    #[derive(Clone)]
+    struct ApiReadinessStubState {
+        health_status: StatusCode,
+        validate_status: StatusCode,
+    }
+
+    async fn start_api_readiness_stub(
+        health_status: StatusCode,
+        validate_status: StatusCode,
+    ) -> String {
+        async fn health(State(state): State<ApiReadinessStubState>) -> StatusCode {
+            state.health_status
+        }
+
+        async fn validate(State(state): State<ApiReadinessStubState>) -> StatusCode {
+            state.validate_status
+        }
+
+        let app = Router::new()
+            .route("/health", get(health))
+            .route("/v1/auth/sessions/validate", get(validate))
+            .with_state(ApiReadinessStubState {
+                health_status,
+                validate_status,
+            });
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind readiness stub listener");
+        let address = listener.local_addr().expect("read readiness stub address");
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("serve readiness stub API");
+        });
+
+        format!("http://{}", address)
+    }
+
+    #[tokio::test]
+    async fn startup_readiness_accepts_reachable_session_validation_surface() {
+        let api_base = start_api_readiness_stub(StatusCode::OK, StatusCode::UNAUTHORIZED).await;
+
+        assert!(wait_for_api_readiness(&api_base).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn startup_readiness_rejects_unavailable_session_validation_surface() {
+        let api_base =
+            start_api_readiness_stub(StatusCode::OK, StatusCode::SERVICE_UNAVAILABLE).await;
+
+        let error = wait_for_api_readiness(&api_base)
+            .await
+            .expect_err("session validation readiness should fail");
+        assert!(error.contains("session validation readiness check"));
+    }
 }

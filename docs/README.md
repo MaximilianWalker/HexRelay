@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed canonical routing after the readiness hardening pass added DM message-id integrity docs coverage, clarified architecture/planning authority, and recorded the active watch summary linkage.
+- Latest meaningful change: 2026-04-09 refreshed readiness routing again by making the active watch summary exhaustive, removing stale DM durability caveats from entry docs, and aligning freshness wording with the enforced docs-index CI rule.
 
 ## Purpose
 
@@ -75,7 +75,7 @@
 
 ## Lightweight Governance
 
-- If canonical docs change, update `last_updated` and affected links in this file in the same PR.
+- If any canonical doc under `docs/` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
 - If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
