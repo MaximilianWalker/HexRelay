@@ -16,6 +16,7 @@ operations:
       supported_targeting:
         - self_only
       rejection_codes:
+        - event_version_unsupported
         - event_invalid
         - event_unsupported
   sendCallSignalAnswer:
@@ -106,4 +107,5 @@ components:
           enum:
             - event_identity_mismatch
             - event_invalid
+            - event_version_unsupported
             - event_unsupported

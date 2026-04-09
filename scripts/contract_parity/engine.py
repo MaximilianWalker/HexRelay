@@ -1611,6 +1611,13 @@ def _parse_asyncapi_flag_list(block: str, field_name: str) -> set[str]:
     return values
 
 
+def _parse_asyncapi_bool_field(block: str, field_name: str) -> bool | None:
+    match = re.search(rf'^\s{{6}}{re.escape(field_name)}:\s*(true|false)\s*$', block, re.M)
+    if not match:
+        return None
+    return match.group(1) == 'true'
+
+
 def _parse_realtime_signal_contract_semantics(contract_text: str, operation_name: str) -> dict[str, object] | None:
     operation_block = _extract_asyncapi_operation_block(contract_text, operation_name)
     if operation_block is None:
@@ -1621,8 +1628,9 @@ def _parse_realtime_signal_contract_semantics(contract_text: str, operation_name
         return None
 
     return {
-        'requires_session_identity_from_match': bool(
-            re.search(r'^\s{6}requires_session_identity_from_match:\s*true\s*$', operation_block, re.M)
+        'requires_session_identity_from_match': _parse_asyncapi_bool_field(
+            operation_block,
+            'requires_session_identity_from_match',
         ),
         'supported_targeting': _parse_asyncapi_flag_list(operation_block, 'supported_targeting'),
         'rejection_codes': _parse_asyncapi_flag_list(operation_block, 'rejection_codes'),
@@ -1631,7 +1639,7 @@ def _parse_realtime_signal_contract_semantics(contract_text: str, operation_name
 
 def _parse_signal_runtime_semantics(function_block: str, event_name: str) -> dict[str, object] | None:
     event_case_match = re.search(
-        rf'"{re.escape(event_name)}"\s*=>\s*(.*?)(?=\n\s*"call\.signal\.|\n\s*_\s*=>)',
+        rf'"{re.escape(event_name)}"\s*=>\s*(.*?)(?=\n\s*"[^"]+"\s*=>|\n\s*_\s*=>)',
         function_block,
         re.S,
     )
@@ -1639,10 +1647,16 @@ def _parse_signal_runtime_semantics(function_block: str, event_name: str) -> dic
         return None
 
     event_case = event_case_match.group(1)
+    rejection_codes = set(re.findall(r'build_error_event\(\s*"([^"]+)"', event_case))
     return {
-        'requires_session_identity_from_match': 'from_identity_id does not match authenticated session' in event_case,
-        'supports_self_targeting_only': 'recipient-targeted signaling delivery not implemented' in event_case,
-        'rejection_codes': set(re.findall(r'build_error_event\(\s*"([^"]+)"', event_case)),
+        'requires_session_identity_from_match': bool(
+            re.search(r'\bfrom_identity_id\s*!=\s*session_identity_id\b', event_case)
+        ),
+        'supports_self_targeting_only': bool(
+            re.search(r'\bto_identity_id\s*!=\s*session_identity_id\b', event_case)
+            and 'event_unsupported' in rejection_codes
+        ),
+        'rejection_codes': rejection_codes,
     }
 
 
@@ -1811,9 +1825,14 @@ def validate_realtime_signal_semantics(contract_path_str: str, runtime_path_str:
             )
             continue
 
-        if runtime_semantics['requires_session_identity_from_match'] != contract_semantics['requires_session_identity_from_match']:
+        documented_identity_match = contract_semantics['requires_session_identity_from_match']
+        if documented_identity_match is None:
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` is tracked for signaling semantic parity, but `{spec['contract_operation']}` is missing `requires_session_identity_from_match` in {contract_path}."
+            )
+        elif runtime_semantics['requires_session_identity_from_match'] != documented_identity_match:
             expected = 'requires' if runtime_semantics['requires_session_identity_from_match'] else 'does not require'
-            documented = 'requires' if contract_semantics['requires_session_identity_from_match'] else 'does not require'
+            documented = 'requires' if documented_identity_match else 'does not require'
             errors.append(
                 f"::error::Realtime runtime event `{event_name}` {expected} from_identity_id/session-identity parity at runtime but {documented} it in {contract_path}."
             )
@@ -1828,11 +1847,19 @@ def validate_realtime_signal_semantics(contract_path_str: str, runtime_path_str:
             )
 
         documented_rejections = contract_semantics['rejection_codes']
+        runtime_rejections = runtime_semantics['rejection_codes']
         missing_rejections = runtime_semantics['rejection_codes'] - documented_rejections
         if missing_rejections:
             missing = ', '.join(sorted(missing_rejections))
             errors.append(
                 f"::error::Realtime runtime event `{event_name}` can reject with [{missing}] at runtime but {contract_path} omits them from `{spec['contract_operation']}` signaling semantics."
+            )
+
+        extra_rejections = documented_rejections - runtime_rejections
+        if extra_rejections:
+            extra = ', '.join(sorted(extra_rejections))
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` documents rejection codes [{extra}] in `{spec['contract_operation']}` signaling semantics, but the runtime branch cannot emit them in {contract_path}."
             )
 
     if errors:
