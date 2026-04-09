@@ -4035,6 +4035,7 @@ components:
             - parallel_dial_invalid
             - profile_device_invalid
             - fanout_invalid
+            - fanout_message_id_conflict
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied

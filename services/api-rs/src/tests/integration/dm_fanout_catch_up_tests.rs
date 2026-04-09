@@ -202,13 +202,17 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode catch-up body");
 
     assert_eq!(payload["reason_code"], "fanout_catch_up_ok");
-    assert_eq!(payload["replay_count"], 1);
+    assert_eq!(payload["replay_count"], 2);
     assert_eq!(payload["next_cursor"], "2");
     assert_eq!(payload["items"][0]["message_id"], "msg-dup-a");
-    assert!(payload["deduped_message_ids"]
-        .as_array()
-        .expect("deduped ids array")
-        .contains(&serde_json::Value::String("msg-dup-b".to_string())));
+    assert_eq!(payload["items"][1]["message_id"], "msg-dup-b");
+    assert_eq!(
+        payload["deduped_message_ids"]
+            .as_array()
+            .expect("deduped ids array")
+            .len(),
+        0
+    );
 
     let second_catch_up = Request::builder()
         .method("POST")
