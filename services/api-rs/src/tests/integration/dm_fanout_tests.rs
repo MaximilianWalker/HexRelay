@@ -36,7 +36,10 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":{active}}}"#
@@ -97,7 +100,10 @@ async fn fanout_dispatch_skips_source_device_when_present() {
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":true}}"#
@@ -333,7 +339,8 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
 #[tokio::test]
 async fn fanout_dispatch_rejects_invalid_payload() {
     let sender = unique_identity("usr-nora-k");
-    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&[sender.as_str()]).await else {
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&[sender.as_str()]).await
+    else {
         return;
     };
 

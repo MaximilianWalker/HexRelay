@@ -953,39 +953,30 @@ pub async fn run_dm_active_fanout(
 
     let (mut delivered_device_ids, mut skipped_device_ids) = {
         if profile_devices.is_empty() {
-            return Ok(Json(DmFanoutDispatchResponse {
-                status: "accepted".to_string(),
-                reason_code: "fanout_pending_delivery".to_string(),
-                transport_profile: "direct_only".to_string(),
-                delivery_state: "pending_delivery".to_string(),
-                reachability_state: "unreachable".to_string(),
-                fanout_count: 0,
-                delivered_device_ids: vec![],
-                skipped_device_ids: vec![],
-            }));
-        }
+            (Vec::new(), Vec::new())
+        } else {
+            let mut delivered = Vec::new();
+            let mut skipped = Vec::new();
+            for record in profile_devices.values() {
+                if !record.active {
+                    skipped.push(record.device_id.clone());
+                    continue;
+                }
 
-        let mut delivered = Vec::new();
-        let mut skipped = Vec::new();
-        for record in profile_devices.values() {
-            if !record.active {
-                skipped.push(record.device_id.clone());
-                continue;
+                if source_device_id
+                    .as_ref()
+                    .map(|value| value == &record.device_id)
+                    .unwrap_or(false)
+                {
+                    skipped.push(record.device_id.clone());
+                    continue;
+                }
+
+                delivered.push(record.device_id.clone());
             }
 
-            if source_device_id
-                .as_ref()
-                .map(|value| value == &record.device_id)
-                .unwrap_or(false)
-            {
-                skipped.push(record.device_id.clone());
-                continue;
-            }
-
-            delivered.push(record.device_id.clone());
+            (delivered, skipped)
         }
-
-        (delivered, skipped)
     };
 
     delivered_device_ids.sort();
