@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-25
+- last_updated: 2026-04-09
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-03-25 started T4.3.1 as a backend-first server-channel message baseline, narrowing the first delivery slice to runtime read/create plus reply and mention persistence.
+- Latest meaningful change: 2026-04-09 recorded the readiness-governance cleanup that made active watch routing exhaustive and removed stale DM durability caveats from repo entry docs.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-09 (readiness-governance cleanup after DM durability hardening)
+
+- Area affected: Readiness routing, docs governance, and iteration/planning caveat authority.
+- Change summary:
+  - Made the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` exhaustive for the current open watches, including the web-coverage-policy and docs-index-freshness-policy watches.
+  - Removed stale entry-doc caveats that still described DM replay-backlog durability as unresolved after the DM durability/docs alignment had already closed that finding.
+  - Aligned `docs/README.md` and contributor guidance with the strict docs-index metadata refresh rule enforced by `scripts/validate-docs-index-freshness.sh`.
+- Rationale:
+  - Readiness entry points need one current watch authority; stale or incomplete caveats make planning and future audits drift-prone even when the underlying runtime/docs fixes are already complete.
+- Linked docs updated:
+  - `README.md`
+  - `docs/README.md`
+  - `docs/operations/contributor-guide.md`
+  - `docs/operations/readiness-corrections-log.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-25 (T4.3.1 backend-first server-channel baseline)
 

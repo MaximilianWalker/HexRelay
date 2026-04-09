@@ -1,8 +1,12 @@
 use super::*;
 
+fn app_with_public_identity_registration() -> axum::Router {
+    build_app(AppState::default().with_public_identity_registration(true))
+}
+
 #[tokio::test]
 async fn registers_identity_key_with_hex_key() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
         .uri("/v1/identity/keys/register")
@@ -18,7 +22,7 @@ async fn registers_identity_key_with_hex_key() {
 
 #[tokio::test]
 async fn rejects_duplicate_identity_registration() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
         .uri("/v1/identity/keys/register")
@@ -96,7 +100,7 @@ async fn rejects_public_identity_registration_when_disabled() {
 
 #[tokio::test]
 async fn rejects_invalid_algorithm() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
         .uri("/v1/identity/keys/register")
@@ -112,7 +116,7 @@ async fn rejects_invalid_algorithm() {
 
 #[tokio::test]
 async fn rejects_invalid_public_key_format() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
         .uri("/v1/identity/keys/register")
@@ -128,7 +132,7 @@ async fn rejects_invalid_public_key_format() {
 
 #[tokio::test]
 async fn rejects_identity_id_with_surrounding_whitespace() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
         .uri("/v1/identity/keys/register")
@@ -144,7 +148,7 @@ async fn rejects_identity_id_with_surrounding_whitespace() {
 
 #[tokio::test]
 async fn issues_auth_challenge_for_registered_identity() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let app = register_identity_expect_success(
         app,
         "user-1",
@@ -168,7 +172,7 @@ async fn issues_auth_challenge_for_registered_identity() {
 
 #[tokio::test]
 async fn issues_indistinguishable_challenge_for_unknown_identity() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let challenge_request = Request::builder()
         .method("POST")
         .uri("/v1/auth/challenge")
@@ -214,7 +218,7 @@ async fn issues_indistinguishable_challenge_for_unknown_identity() {
 
 #[tokio::test]
 async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguishable() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let rng = SystemRandom::new();
 
     let missing_challenge_request = Request::builder()
@@ -654,7 +658,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
 
 #[tokio::test]
 async fn verifies_auth_challenge_and_revokes_session() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
@@ -821,7 +825,7 @@ async fn rejects_session_revoke_with_mismatched_csrf_header() {
 
 #[tokio::test]
 async fn rejects_invalid_signature_on_verify() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");
@@ -884,7 +888,7 @@ async fn validates_session_with_header() {
 
 #[tokio::test]
 async fn rejects_replayed_challenge_verification() {
-    let app = build_app(AppState::default());
+    let app = app_with_public_identity_registration();
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
     let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("decode keypair");

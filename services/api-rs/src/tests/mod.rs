@@ -128,6 +128,10 @@ async fn register_identity_expect_success(
     app
 }
 
+fn test_state_with_public_identity_registration() -> AppState {
+    AppState::default().with_public_identity_registration(true)
+}
+
 async fn authenticate_identity(app: axum::Router, identity_id: &str) -> (String, axum::Router) {
     let rng = SystemRandom::new();
     let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate keypair");
@@ -291,14 +295,16 @@ async fn prepared_presence_redis_client() -> Option<redis::Client> {
 
 async fn app_with_database() -> Option<axum::Router> {
     let pool = prepared_database_pool().await?;
-    Some(build_app(AppState::default().with_db_pool(pool)))
+    Some(build_app(
+        test_state_with_public_identity_registration().with_db_pool(pool),
+    ))
 }
 
 async fn app_with_database_and_sessions(
     identity_ids: &[&str],
 ) -> Option<(axum::Router, HashMap<String, String>, sqlx::PgPool)> {
     let pool = prepared_database_pool().await?;
-    let state = AppState::default().with_db_pool(pool.clone());
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
     let mut tokens = HashMap::new();
 
     for identity_id in identity_ids {
@@ -509,7 +515,7 @@ async fn seed_server_channel(
 }
 
 fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, String>) {
-    let state = AppState::default();
+    let state = test_state_with_public_identity_registration();
     let mut bearer_tokens = HashMap::new();
 
     {
