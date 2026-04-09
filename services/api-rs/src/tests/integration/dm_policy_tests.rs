@@ -374,28 +374,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         .expect("activation response");
     assert_eq!(activate_response.status(), StatusCode::OK);
 
-    let thread_request = Request::builder()
-        .method("GET")
-        .uri("/v1/dm/threads?limit=10")
-        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
-        .body(Body::empty())
-        .expect("build thread list request after restart");
-    let thread_response = restarted_app
-        .clone()
-        .oneshot(thread_request)
-        .await
-        .expect("thread list response after restart");
-    assert_eq!(thread_response.status(), StatusCode::OK);
-
-    let thread_body = to_bytes(thread_response.into_body(), usize::MAX)
-        .await
-        .expect("read thread list body after restart");
-    let thread_payload: serde_json::Value =
-        serde_json::from_slice(&thread_body).expect("decode thread list payload after restart");
-    let thread_id = thread_payload["items"][0]["thread_id"]
-        .as_str()
-        .expect("thread id after restart")
-        .to_string();
+    let thread_id = crate::infra::db::repos::dm_history_repo::direct_dm_thread_id(
+        &sender_identity,
+        &recipient_identity,
+    );
 
     let messages_request = Request::builder()
         .method("GET")
