@@ -21,6 +21,8 @@ async fn main() {
     };
 
     if config.require_api_health_on_start {
+        // Despite the legacy name, this startup gate now performs a broader API
+        // readiness preflight, not only a /health probe.
         if let Err(err) = wait_for_api_readiness(&config.api_base_url).await {
             error!(error = %err, "realtime startup aborted due to unreachable API upstream");
             std::process::exit(1);
@@ -97,7 +99,7 @@ async fn wait_for_api_readiness(api_base_url: &str) -> Result<(), String> {
         .connect_timeout(std::time::Duration::from_secs(1))
         .timeout(std::time::Duration::from_secs(1))
         .build()
-        .map_err(|err| format!("failed to build health preflight client: {err}"))?;
+        .map_err(|err| format!("failed to build readiness preflight client: {err}"))?;
 
     wait_for_api_endpoint(
         &client,
@@ -115,11 +117,7 @@ async fn wait_for_api_readiness(api_base_url: &str) -> Result<(), String> {
         "api session validation readiness check",
         MAX_WAIT,
         RETRY_SLEEP,
-        |status| {
-            status.is_success()
-                || status == reqwest::StatusCode::UNAUTHORIZED
-                || status == reqwest::StatusCode::FORBIDDEN
-        },
+        |status| status.is_success() || status == reqwest::StatusCode::UNAUTHORIZED,
     )
     .await
 }
@@ -208,6 +206,16 @@ mod tests {
         let error = wait_for_api_readiness(&api_base)
             .await
             .expect_err("session validation readiness should fail");
+        assert!(error.contains("session validation readiness check"));
+    }
+
+    #[tokio::test]
+    async fn startup_readiness_rejects_forbidden_session_validation_surface() {
+        let api_base = start_api_readiness_stub(StatusCode::OK, StatusCode::FORBIDDEN).await;
+
+        let error = wait_for_api_readiness(&api_base)
+            .await
+            .expect_err("forbidden session validation readiness should fail");
         assert!(error.contains("session validation readiness check"));
     }
 }
