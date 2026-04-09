@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed contract-doc metadata after adding selected realtime semantic parity checks to CI and tightening parity-status routing.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after extending realtime contract parity to current send-side signaling semantics and updating contributor/readiness guidance.
 
 ## Purpose
 
