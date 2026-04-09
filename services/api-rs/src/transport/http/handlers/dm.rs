@@ -886,6 +886,8 @@ pub async fn run_dm_active_fanout(
             status: "blocked".to_string(),
             reason_code: "fanout_blocked_user".to_string(),
             transport_profile: "direct_only".to_string(),
+            delivery_state: "rejected".to_string(),
+            reachability_state: "blocked".to_string(),
             fanout_count: 0,
             delivered_device_ids: vec![],
             skipped_device_ids: vec![],
@@ -900,6 +902,8 @@ pub async fn run_dm_active_fanout(
                 status: "blocked".to_string(),
                 reason_code: "fanout_policy_blocked".to_string(),
                 transport_profile: "direct_only".to_string(),
+                delivery_state: "rejected".to_string(),
+                reachability_state: "blocked".to_string(),
                 fanout_count: 0,
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
@@ -910,6 +914,8 @@ pub async fn run_dm_active_fanout(
                 status: "blocked".to_string(),
                 reason_code: "fanout_same_server_context_required".to_string(),
                 transport_profile: "direct_only".to_string(),
+                delivery_state: "rejected".to_string(),
+                reachability_state: "blocked".to_string(),
                 fanout_count: 0,
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
@@ -942,9 +948,11 @@ pub async fn run_dm_active_fanout(
     let (mut delivered_device_ids, mut skipped_device_ids) = {
         if profile_devices.is_empty() {
             return Ok(Json(DmFanoutDispatchResponse {
-                status: "blocked".to_string(),
-                reason_code: "fanout_no_active_devices".to_string(),
+                status: "accepted".to_string(),
+                reason_code: "fanout_pending_delivery".to_string(),
                 transport_profile: "direct_only".to_string(),
+                delivery_state: "pending_delivery".to_string(),
+                reachability_state: "unreachable".to_string(),
                 fanout_count: 0,
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
@@ -979,9 +987,11 @@ pub async fn run_dm_active_fanout(
 
     if delivered_device_ids.is_empty() {
         return Ok(Json(DmFanoutDispatchResponse {
-            status: "blocked".to_string(),
-            reason_code: "fanout_no_active_devices".to_string(),
+            status: "accepted".to_string(),
+            reason_code: "fanout_pending_delivery".to_string(),
             transport_profile: "direct_only".to_string(),
+            delivery_state: "pending_delivery".to_string(),
+            reachability_state: "unreachable".to_string(),
             fanout_count: 0,
             delivered_device_ids,
             skipped_device_ids,
@@ -1018,6 +1028,20 @@ pub async fn run_dm_active_fanout(
     };
 
     let message_id = payload.message_id.trim().to_string();
+    let (delivery_state, reachability_state, reason_code) = if delivered_device_ids.is_empty() {
+        (
+            "pending_delivery".to_string(),
+            "unreachable".to_string(),
+            "fanout_pending_delivery".to_string(),
+        )
+    } else {
+        (
+            "delivered_to_active_devices".to_string(),
+            "reachable".to_string(),
+            "fanout_ok".to_string(),
+        )
+    };
+
     let delivery_record = if let Some(pool) = state.db_pool.as_ref() {
         let mut tx = pool.begin().await.map_err(|_| {
             internal_error(
@@ -1068,6 +1092,8 @@ pub async fn run_dm_active_fanout(
             sender_identity_id: auth.identity_id.clone(),
             ciphertext: payload.ciphertext.clone(),
             source_device_id: source_device_id.clone(),
+            delivery_state: delivery_state.clone(),
+            reachability_state: reachability_state.clone(),
             delivered_device_ids: delivered_device_ids.clone(),
         };
         dm_repo::append_dm_fanout_delivery_record_in_tx(
@@ -1106,6 +1132,8 @@ pub async fn run_dm_active_fanout(
             sender_identity_id: auth.identity_id.clone(),
             ciphertext: payload.ciphertext.clone(),
             source_device_id: source_device_id.clone(),
+            delivery_state: delivery_state.clone(),
+            reachability_state: reachability_state.clone(),
             delivered_device_ids: delivered_device_ids.clone(),
         }
     };
@@ -1120,11 +1148,13 @@ pub async fn run_dm_active_fanout(
     if min_cursor > 0 {
         delivery_log.retain(|record| record.cursor > min_cursor);
     }
-    if delivery_log.len() >= DM_FANOUT_MAX_LOG_ENTRIES {
+    if state.db_pool.is_none() && delivery_log.len() >= DM_FANOUT_MAX_LOG_ENTRIES {
         return Ok(Json(DmFanoutDispatchResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_backlog_full".to_string(),
             transport_profile: "direct_only".to_string(),
+            delivery_state: "rejected".to_string(),
+            reachability_state: "unknown".to_string(),
             fanout_count: 0,
             delivered_device_ids: vec![],
             skipped_device_ids,
@@ -1134,9 +1164,11 @@ pub async fn run_dm_active_fanout(
     delivery_log.push(delivery_record);
 
     Ok(Json(DmFanoutDispatchResponse {
-        status: "ready".to_string(),
-        reason_code: "fanout_ok".to_string(),
+        status: "accepted".to_string(),
+        reason_code,
         transport_profile: "direct_only".to_string(),
+        delivery_state,
+        reachability_state,
         fanout_count: delivered_device_ids.len() as u32,
         delivered_device_ids,
         skipped_device_ids,

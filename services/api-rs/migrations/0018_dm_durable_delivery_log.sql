@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS dm_fanout_delivery_log (
     sender_identity_id TEXT NOT NULL,
     ciphertext TEXT NOT NULL,
     source_device_id TEXT NULL,
+    delivery_state TEXT NOT NULL,
+    reachability_state TEXT NOT NULL,
     delivered_device_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (identity_id, cursor),

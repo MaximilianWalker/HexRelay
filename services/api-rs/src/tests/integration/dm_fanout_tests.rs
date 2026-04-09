@@ -61,7 +61,9 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["reason_code"], "fanout_ok");
     assert_eq!(payload["fanout_count"], 2);
 
@@ -144,8 +146,10 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "blocked");
-    assert_eq!(payload["reason_code"], "fanout_no_active_devices");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+    assert_eq!(payload["delivery_state"], "pending_delivery");
+    assert_eq!(payload["reachability_state"], "unreachable");
     assert_eq!(payload["fanout_count"], 0);
 }
 
@@ -207,6 +211,8 @@ async fn fanout_dispatch_blocks_when_backlog_reaches_capacity() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode blocked payload");
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_backlog_full");
+    assert_eq!(payload["delivery_state"], "rejected");
+    assert_eq!(payload["reachability_state"], "unknown");
     assert_eq!(payload["fanout_count"], 0);
 }
 
@@ -232,6 +238,8 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_policy_blocked");
+    assert_eq!(payload["delivery_state"], "rejected");
+    assert_eq!(payload["reachability_state"], "blocked");
 }
 
 #[tokio::test]
@@ -328,8 +336,10 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         .await
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_ok");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["fanout_count"], 1);
 }
 

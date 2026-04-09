@@ -471,6 +471,156 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 }
 
 #[tokio::test]
+async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_later() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let sender_identity = unique_identity("db-pending-sender");
+    let recipient_identity = unique_identity("db-pending-recipient");
+    let (sender_cookie, app) = authenticate_identity(app, &sender_identity).await;
+    let (recipient_cookie, app) = authenticate_identity(app, &recipient_identity).await;
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
+        .expect("build dm policy request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
+
+    let dispatch_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={sender_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"msg-pending","ciphertext":"enc:pending"}}"#,
+            recipient_identity
+        )))
+        .expect("build pending fanout dispatch request");
+    let dispatch_response = app
+        .clone()
+        .oneshot(dispatch_request)
+        .await
+        .expect("pending fanout dispatch response");
+    assert_eq!(dispatch_response.status(), StatusCode::OK);
+
+    let dispatch_body = to_bytes(dispatch_response.into_body(), usize::MAX)
+        .await
+        .expect("read pending dispatch body");
+    let dispatch_payload: serde_json::Value =
+        serde_json::from_slice(&dispatch_body).expect("decode pending dispatch payload");
+    assert_eq!(dispatch_payload["status"], "accepted");
+    assert_eq!(dispatch_payload["delivery_state"], "pending_delivery");
+    assert_eq!(dispatch_payload["reachability_state"], "unreachable");
+
+    let Some(restarted_app) = app_with_database().await else {
+        return;
+    };
+
+    let thread_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/threads?limit=10")
+        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
+        .body(Body::empty())
+        .expect("build thread list request after restart");
+    let thread_response = restarted_app
+        .clone()
+        .oneshot(thread_request)
+        .await
+        .expect("thread list response after restart");
+    assert_eq!(thread_response.status(), StatusCode::OK);
+
+    let thread_body = to_bytes(thread_response.into_body(), usize::MAX)
+        .await
+        .expect("read thread list body after restart");
+    let thread_payload: serde_json::Value =
+        serde_json::from_slice(&thread_body).expect("decode thread list payload after restart");
+    let thread_id = thread_payload["items"][0]["thread_id"]
+        .as_str()
+        .expect("thread id after restart")
+        .to_string();
+
+    let messages_request = Request::builder()
+        .method("GET")
+        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
+        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
+        .body(Body::empty())
+        .expect("build thread messages request after restart");
+    let messages_response = restarted_app
+        .clone()
+        .oneshot(messages_request)
+        .await
+        .expect("thread messages response after restart");
+    assert_eq!(messages_response.status(), StatusCode::OK);
+
+    let messages_body = to_bytes(messages_response.into_body(), usize::MAX)
+        .await
+        .expect("read thread messages body after restart");
+    let messages_payload: serde_json::Value = serde_json::from_slice(&messages_body)
+        .expect("decode thread messages payload after restart");
+    assert_eq!(messages_payload["items"][0]["message_id"], "msg-pending");
+
+    let activate_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/profile-devices/heartbeat")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
+        .expect("build activation request");
+    let activate_response = restarted_app
+        .clone()
+        .oneshot(activate_request)
+        .await
+        .expect("activation response");
+    assert_eq!(activate_response.status(), StatusCode::OK);
+
+    let catch_up_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/catch-up")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"device_id":"phone-main"}"#))
+        .expect("build catch-up request");
+    let catch_up_response = restarted_app
+        .oneshot(catch_up_request)
+        .await
+        .expect("catch-up response");
+    assert_eq!(catch_up_response.status(), StatusCode::OK);
+
+    let catch_up_body = to_bytes(catch_up_response.into_body(), usize::MAX)
+        .await
+        .expect("read catch-up body");
+    let catch_up_payload: serde_json::Value =
+        serde_json::from_slice(&catch_up_body).expect("decode catch-up payload");
+    assert_eq!(catch_up_payload["replay_count"], 1);
+    assert_eq!(catch_up_payload["items"][0]["message_id"], "msg-pending");
+}
+
+#[tokio::test]
 async fn rejects_invalid_profile_device_heartbeat() {
     let (app, tokens) = app_with_sessions(&["usr-device-invalid"]);
 
