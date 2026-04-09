@@ -32,7 +32,10 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":{active}}}"#
@@ -49,7 +52,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let dispatch = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"recipient_identity_id":"{}","message_id":"msg-2001","ciphertext":"enc:late-2001"}}"#,
@@ -66,7 +69,10 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let activate_phone = Request::builder()
         .method("POST")
         .uri("/v1/dm/profile-devices/heartbeat")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
         .expect("build profile device activation request");
@@ -80,7 +86,10 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let catch_up = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(r#"{"device_id":"phone-main"}"#))
         .expect("build fanout catch-up request");
@@ -117,7 +126,10 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":{active}}}"#
@@ -153,7 +165,10 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
     let activate_phone = Request::builder()
         .method("POST")
         .uri("/v1/dm/profile-devices/heartbeat")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
         .expect("build profile device activation request");
@@ -167,7 +182,10 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
     let catch_up = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(r#"{"device_id":"phone-main"}"#))
         .expect("build fanout catch-up request");
@@ -195,7 +213,10 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
     let second_catch_up = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(r#"{"device_id":"phone-main"}"#))
         .expect("build second fanout catch-up request");
@@ -231,7 +252,10 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":{active}}}"#
@@ -269,7 +293,10 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
     let activate_phone = Request::builder()
         .method("POST")
         .uri("/v1/dm/profile-devices/heartbeat")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from("{\"device_id\":\"phone-main\",\"active\":true}"))
         .expect("build profile device activation request");
@@ -283,7 +310,10 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
     let catch_up = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
-        .header("authorization", format!("Bearer {}", tokens[recipient.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(r#"{"device_id":"phone-main"}"#))
         .expect("build fanout catch-up request");
