@@ -46,7 +46,10 @@ struct DmParallelDialResp {
 
 #[tokio::test]
 async fn block_user_and_list_returns_blocked_entry() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // Block usr-b
     let req = Request::builder()
@@ -84,7 +87,10 @@ async fn block_user_and_list_returns_blocked_entry() {
 
 #[tokio::test]
 async fn unblock_user_removes_from_list() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    else {
+        return;
+    };
 
     // Block then unblock
     let req = Request::builder()
@@ -265,15 +271,27 @@ async fn self_mute_returns_400() {
 
 #[tokio::test]
 async fn block_prevents_dm_fanout_dispatch() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let sender = unique_identity("usr-a");
+    let recipient = unique_identity("usr-b");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
 
     // Block usr-b
     let req = Request::builder()
         .method("POST")
         .uri("/v1/users/block")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{}"}}"#,
+            recipient
+        )))
         .expect("build block request");
     let resp = app.clone().oneshot(req).await.expect("block response");
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -283,10 +301,14 @@ async fn block_prevents_dm_fanout_dispatch() {
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-b","ciphertext":"dGVzdA==","message_id":"msg-001"}"#,
-        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","ciphertext":"dGVzdA==","message_id":"msg-001"}}"#,
+            recipient
+        )))
         .expect("build fanout request");
     let resp = app.clone().oneshot(req).await.expect("fanout response");
     assert_eq!(resp.status(), StatusCode::OK);
@@ -301,15 +323,27 @@ async fn block_prevents_dm_fanout_dispatch() {
 
 #[tokio::test]
 async fn reverse_block_prevents_dm_fanout_dispatch() {
-    let (app, tokens) = app_with_sessions(&["usr-a", "usr-b"]);
+    let sender = unique_identity("usr-a");
+    let recipient = unique_identity("usr-b");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
 
     // usr-b blocks usr-a (reverse direction)
     let req = Request::builder()
         .method("POST")
         .uri("/v1/users/block")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-b"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{}"}}"#,
+            sender
+        )))
         .expect("build block request");
     let resp = app.clone().oneshot(req).await.expect("block response");
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -319,10 +353,14 @@ async fn reverse_block_prevents_dm_fanout_dispatch() {
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-b","ciphertext":"dGVzdA==","message_id":"msg-002"}"#,
-        ))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","ciphertext":"dGVzdA==","message_id":"msg-002"}}"#,
+            recipient
+        )))
         .expect("build fanout request");
     let resp = app.clone().oneshot(req).await.expect("fanout response");
     assert_eq!(resp.status(), StatusCode::OK);

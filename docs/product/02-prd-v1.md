@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-06
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement for both DM and server communication paths.
+- Latest meaningful change: 2026-04-06 clarified MVP DM reliability requirements around durable acceptance, bounded eventual catch-up, and reachability degradation.
 
 ## Product Summary
 
@@ -108,7 +108,7 @@ Build a communication stack where users and communities control identity, data l
 3. Client encrypts outbound DM payloads.
 4. Payload is transported over direct user-to-user channel (not via guild server relay and without infra-assisted NAT traversal dependency).
 5. Recipient client decrypts locally.
-6. If recipient is offline, sender keeps encrypted local outbox and retries on reconnect (best-effort, no guaranteed offline queue in MVP).
+6. If recipient is offline or currently unreachable, sender still keeps the accepted message in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
 7. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
 
 ### 4) New Device Restore
@@ -174,7 +174,7 @@ Build a communication stack where users and communities control identity, data l
   - Guild/community servers do not relay or store DM payloads.
   - DM connectivity must not depend on STUN, TURN, relay, or other always-on third-party/project-operated connectivity services.
   - DM runtime must expose deterministic connection failure reason codes with guided remediation actions.
-  - DM offline behavior is best-effort online delivery with encrypted local retry queue on sender device.
+  - DM send success must mean durable sender-side acceptance into canonical DM history, not merely an attempted live fanout.
   - Default DM policy allows incoming DMs only from friends/accepted requests.
   - Per-user override options: allow same-server members or anyone.
   - Incoming DM payloads must converge across all devices linked to a profile, including devices activated after first delivery.
@@ -184,6 +184,7 @@ Build a communication stack where users and communities control identity, data l
   - Connectivity preflight and troubleshooter states are required for failed direct attempts.
   - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.
+  - Delivery failures must downgrade current reachability assumptions without discarding accepted messages.
   - If direct connectivity cannot be established, product must fail explicitly with user guidance; infra fallback is out of scope.
 - Server communication multi-device convergence
   - Channel and presence events must fan out to all active devices linked to the authenticated profile.

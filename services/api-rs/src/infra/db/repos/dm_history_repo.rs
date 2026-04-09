@@ -1,4 +1,4 @@
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::models::{DmMessageRecord, DmThreadSummary};
 
@@ -22,6 +22,24 @@ pub struct DmMessageInsertParams<'a> {
     pub ciphertext: &'a str,
     pub created_at: &'a str,
     pub edited_at: Option<&'a str>,
+}
+
+pub fn direct_dm_thread_id(identity_a: &str, identity_b: &str) -> String {
+    let (left, right) = if identity_a <= identity_b {
+        (identity_a, identity_b)
+    } else {
+        (identity_b, identity_a)
+    };
+    format!("dm-{left}-{right}")
+}
+
+pub fn direct_dm_thread_title(identity_a: &str, identity_b: &str) -> String {
+    let (left, right) = if identity_a <= identity_b {
+        (identity_a, identity_b)
+    } else {
+        (identity_b, identity_a)
+    };
+    format!("{left} + {right}")
 }
 
 pub async fn insert_dm_thread(
@@ -94,6 +112,89 @@ pub async fn insert_dm_message(
     .bind(params.created_at)
     .bind(params.edited_at)
     .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn ensure_direct_dm_thread_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    identity_a: &str,
+    identity_b: &str,
+) -> Result<String, sqlx::Error> {
+    let thread_id = direct_dm_thread_id(identity_a, identity_b);
+    let title = direct_dm_thread_title(identity_a, identity_b);
+
+    sqlx::query(
+        "
+        INSERT INTO dm_threads (thread_id, kind, title)
+        VALUES ($1, 'dm', $2)
+        ON CONFLICT (thread_id) DO NOTHING
+        ",
+    )
+    .bind(&thread_id)
+    .bind(&title)
+    .execute(&mut **tx)
+    .await?;
+
+    for identity_id in [identity_a, identity_b] {
+        sqlx::query(
+            "
+            INSERT INTO dm_thread_participants (thread_id, identity_id, last_read_seq)
+            VALUES ($1, $2, 0)
+            ON CONFLICT (thread_id, identity_id) DO NOTHING
+            ",
+        )
+        .bind(&thread_id)
+        .bind(identity_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(thread_id)
+}
+
+pub async fn next_dm_message_seq_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    thread_id: &str,
+) -> Result<u64, sqlx::Error> {
+    let current = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(MAX(seq), 0) FROM dm_messages WHERE thread_id = $1",
+    )
+    .bind(thread_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let next = current
+        .checked_add(1)
+        .ok_or_else(|| sqlx::Error::Protocol("dm message seq overflow".into()))?;
+    u64::try_from(next).map_err(|_| sqlx::Error::Protocol("seq must be non-negative".into()))
+}
+
+pub async fn insert_dm_message_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    params: DmMessageInsertParams<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO dm_messages (message_id, thread_id, author_id, seq, ciphertext, created_at, edited_at)
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
+        ON CONFLICT (message_id) DO UPDATE
+        SET author_id = EXCLUDED.author_id,
+            seq = EXCLUDED.seq,
+            ciphertext = EXCLUDED.ciphertext,
+            created_at = EXCLUDED.created_at,
+            edited_at = EXCLUDED.edited_at
+        ",
+    )
+    .bind(params.message_id)
+    .bind(params.thread_id)
+    .bind(params.author_id)
+    .bind(i64::try_from(params.seq).map_err(|_| sqlx::Error::Protocol("seq too large for storage".into()))?)
+    .bind(params.ciphertext)
+    .bind(params.created_at)
+    .bind(params.edited_at)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())

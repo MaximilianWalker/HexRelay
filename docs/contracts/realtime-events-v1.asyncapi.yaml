@@ -174,7 +174,7 @@ components:
             correlation_id: 721be58b-65f0-43fd-bec8-3f8671b3d5c2
             producer: realtime-gateway
             data:
-              user_id: 8a76fb90-4049-49de-9b8e-d1277f6c0ac4
+              identity_id: 8a76fb90-4049-49de-9b8e-d1277f6c0ac4
               status: online
               updated_at: 2026-03-04T14:52:00Z
               presence_seq: 120
@@ -263,9 +263,9 @@ components:
             producer: guild-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
-              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
               channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
-              sender_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              sender_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               created_at: 2026-03-04T14:53:00Z
               channel_seq: 922
     ChannelMessageUpdatedV1:
@@ -285,9 +285,9 @@ components:
             producer: guild-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
-              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
               channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
-              editor_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              editor_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               edited_at: 2026-03-04T14:54:00Z
               channel_seq: 923
     ChannelMessageDeletedV1:
@@ -307,9 +307,9 @@ components:
             producer: guild-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
-              guild_id: 4706f568-0f95-4656-8d39-a8f5817845d5
+              server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
               channel_id: c9e4eda6-d4f0-4a6f-9d44-0f25783d6a2c
-              deleted_by: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
+              deleter_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               deleted_at: 2026-03-04T14:55:00Z
               channel_seq: 924
   schemas:
@@ -348,12 +348,12 @@ components:
       type: object
       additionalProperties: false
       required:
-        - user_id
+        - identity_id
         - status
         - updated_at
         - presence_seq
       properties:
-        user_id:
+        identity_id:
           type: string
           format: uuid
         status:
@@ -463,11 +463,11 @@ components:
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_offer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_offer]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         sdp_offer: { type: string, minLength: 16 }
     CallSignalOfferEventV1:
       allOf:
@@ -483,11 +483,11 @@ components:
     CallSignalAnswerDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_answer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_answer]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         sdp_answer: { type: string, minLength: 16 }
     CallSignalAnswerEventV1:
       allOf:
@@ -503,11 +503,11 @@ components:
     CallSignalIceCandidateDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, candidate]
+      required: [call_id, from_identity_id, to_identity_id, candidate]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         candidate: { type: string, minLength: 8 }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }
@@ -549,22 +549,22 @@ components:
       additionalProperties: false
       required:
         - message_id
-        - guild_id
+        - server_id
         - channel_id
-        - sender_id
+        - sender_identity_id
         - created_at
         - channel_seq
       properties:
         message_id:
           type: string
           format: uuid
-        guild_id:
+        server_id:
           type: string
           format: uuid
         channel_id:
           type: string
           format: uuid
-        sender_id:
+        sender_identity_id:
           type: string
           format: uuid
         created_at:
@@ -589,22 +589,22 @@ components:
       additionalProperties: false
       required:
         - message_id
-        - guild_id
+        - server_id
         - channel_id
-        - editor_id
+        - editor_identity_id
         - edited_at
         - channel_seq
       properties:
         message_id:
           type: string
           format: uuid
-        guild_id:
+        server_id:
           type: string
           format: uuid
         channel_id:
           type: string
           format: uuid
-        editor_id:
+        editor_identity_id:
           type: string
           format: uuid
         edited_at:
@@ -629,22 +629,22 @@ components:
       additionalProperties: false
       required:
         - message_id
-        - guild_id
+        - server_id
         - channel_id
-        - deleted_by
+        - deleter_identity_id
         - deleted_at
         - channel_seq
       properties:
         message_id:
           type: string
           format: uuid
-        guild_id:
+        server_id:
           type: string
           format: uuid
         channel_id:
           type: string
           format: uuid
-        deleted_by:
+        deleter_identity_id:
           type: string
           format: uuid
         deleted_at:

@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-09
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-06 refreshed contract-parity routing state after the closeout so the docs router and contract index now reflect the current runtime-contract maintenance baseline.
+- Latest meaningful change: 2026-04-09 refreshed canonical routing after the DM reliability hardening work changed contract, product, architecture, and migration-evidence authorities.
 
 ## Purpose
 

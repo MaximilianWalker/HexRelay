@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-06
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-03-16 locked profile-device eventual-sync requirement so DM and server communication converge across active and later-active devices.
+- Latest meaningful change: 2026-04-06 clarified MVP DM reliability as durable sender-side acceptance plus bounded eventual catch-up, with reachability tracked separately from message durability.
 
 ## 1) Product Intent and Constraints
 
@@ -63,7 +63,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked server invite policy allowing non-expiring multi-use invite links as an open-access pattern.
 - 2026-03-04: Locked privacy-first social policy: mediated friend requests, no default key/profile scraping, and opt-in DM permissions.
 - 2026-03-04: Locked DM transport to direct user-to-user channels; guild servers do not relay/store DM payloads.
-- 2026-03-04: Locked MVP DM offline policy to best-effort online delivery with encrypted local outbox retries.
+- 2026-03-04: Locked MVP DM offline policy to durable sender-side acceptance with bounded eventual catch-up and explicit reachability degradation rather than best-effort-only online delivery.
 - 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
 - 2026-03-12: Locked DM connectivity to infrastructure-free direct paths only (no STUN/TURN/relay dependency) with explicit failure guidance when direct connection is unavailable.
 - 2026-03-12: Locked profile-device convergence requirement: incoming communication must sync to all profile devices, including devices that become active after first delivery.
@@ -228,7 +228,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Transport: TLS for all client/server and server/server channels.
 - At-rest: database and blob encryption for node-stored data.
 - DMs: E2EE with forward secrecy over direct user-to-user channels (no guild server relay/storage for DM payloads).
-- Offline delivery policy (MVP): best-effort online delivery only; sender keeps encrypted local outbox and retries when recipient comes online.
+- Offline delivery policy (MVP): sender-side success means durable acceptance into canonical DM history; live delivery remains direct-only, repeated failures downgrade reachability assumptions, and later reconnects use bounded eventual catch-up rather than fire-and-forget retry semantics.
 - Keys: private keys remain client-controlled and encrypted at rest on device.
 
 ### Authentication Flow

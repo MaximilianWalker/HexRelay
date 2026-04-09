@@ -3,6 +3,7 @@ target/
 apps/web/.next/
 apps/web/coverage/
 infra/.env
+.run-logs/
 *.log
 **/__pycache__/
 *.pyc

@@ -19,8 +19,14 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
 
 #[tokio::test]
 async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
-    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
 
     for (device_id, active) in [
         ("desktop-main", true),
@@ -30,7 +36,10 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":{active}}}"#
@@ -47,11 +56,12 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
     let fanout_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-1001","ciphertext":"enc:abcd1234"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"msg-1001","ciphertext":"enc:abcd1234"}}"#,
+            recipient
+        )))
         .expect("build fanout request");
     let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
@@ -61,7 +71,9 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["reason_code"], "fanout_ok");
     assert_eq!(payload["fanout_count"], 2);
 
@@ -75,14 +87,23 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
 
 #[tokio::test]
 async fn fanout_dispatch_skips_source_device_when_present() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
-    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
 
     for device_id in ["desktop-main", "phone-main"] {
         let heartbeat = Request::builder()
             .method("POST")
             .uri("/v1/dm/profile-devices/heartbeat")
-            .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
+            .header(
+                "authorization",
+                format!("Bearer {}", tokens[recipient.as_str()]),
+            )
             .header("content-type", "application/json")
             .body(Body::from(format!(
                 r#"{{"device_id":"{device_id}","active":true}}"#
@@ -99,11 +120,12 @@ async fn fanout_dispatch_skips_source_device_when_present() {
     let fanout_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-1002","ciphertext":"enc:abcd9999","source_device_id":"desktop-main"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"msg-1002","ciphertext":"enc:abcd9999","source_device_id":"desktop-main"}}"#,
+            recipient
+        )))
         .expect("build fanout request");
     let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
@@ -113,7 +135,9 @@ async fn fanout_dispatch_skips_source_device_when_present() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["fanout_count"], 1);
     assert_eq!(payload["delivered_device_ids"][0], "phone-main");
     assert!(payload["skipped_device_ids"]
@@ -124,17 +148,21 @@ async fn fanout_dispatch_skips_source_device_when_present() {
 
 #[tokio::test]
 async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
-    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
 
     let fanout_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-1003","ciphertext":"enc:abcd5555"}"#,
-        ))
+        .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-1003","ciphertext":"enc:abcd5555"}}"#, recipient)))
         .expect("build fanout request");
     let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
@@ -144,74 +172,15 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
-    assert_eq!(payload["status"], "blocked");
-    assert_eq!(payload["reason_code"], "fanout_no_active_devices");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+    assert_eq!(payload["delivery_state"], "pending_delivery");
+    assert_eq!(payload["reachability_state"], "unreachable");
     assert_eq!(payload["fanout_count"], 0);
 }
 
 #[tokio::test]
-async fn fanout_dispatch_blocks_when_backlog_reaches_capacity() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
-    let app = set_dm_policy_anyone(app, &tokens["usr-jules-p"]).await;
-
-    let heartbeat = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
-        .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
-        .expect("build profile device heartbeat request");
-    let heartbeat_response = app
-        .clone()
-        .oneshot(heartbeat)
-        .await
-        .expect("profile device heartbeat response");
-    assert_eq!(heartbeat_response.status(), StatusCode::OK);
-
-    for index in 1..=1024 {
-        let fanout_request = Request::builder()
-            .method("POST")
-            .uri("/v1/dm/fanout/dispatch")
-            .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
-            .header("content-type", "application/json")
-            .body(Body::from(format!(
-                r#"{{"recipient_identity_id":"usr-jules-p","message_id":"msg-{index}","ciphertext":"enc:{index}"}}"#
-            )))
-            .expect("build fanout request");
-        let fanout_response = app
-            .clone()
-            .oneshot(fanout_request)
-            .await
-            .expect("fanout response while filling backlog");
-        assert_eq!(fanout_response.status(), StatusCode::OK);
-    }
-
-    let blocked_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
-        .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-overflow","ciphertext":"enc:overflow"}"#,
-        ))
-        .expect("build blocked fanout request");
-    let blocked_response = app
-        .oneshot(blocked_request)
-        .await
-        .expect("blocked fanout response");
-    assert_eq!(blocked_response.status(), StatusCode::OK);
-
-    let body = to_bytes(blocked_response.into_body(), usize::MAX)
-        .await
-        .expect("read blocked fanout body");
-    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode blocked payload");
-    assert_eq!(payload["status"], "blocked");
-    assert_eq!(payload["reason_code"], "fanout_backlog_full");
-    assert_eq!(payload["fanout_count"], 0);
-}
-
-#[tokio::test]
-async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
+async fn fanout_dispatch_requires_durable_storage() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
     let request = Request::builder()
@@ -220,8 +189,35 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-policy-blocked","ciphertext":"enc:block"}"#,
+            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-no-db","ciphertext":"enc:no-db"}"#,
         ))
+        .expect("build no-db fanout request");
+    let response = app.oneshot(request).await.expect("no-db fanout response");
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read no-db fanout body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode no-db payload");
+    assert_eq!(payload["code"], "storage_unavailable");
+}
+
+#[tokio::test]
+async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-policy-blocked","ciphertext":"enc:block"}}"#, recipient)))
         .expect("build fanout request");
     let response = app.oneshot(request).await.expect("fanout response");
     assert_eq!(response.status(), StatusCode::OK);
@@ -232,12 +228,16 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_policy_blocked");
+    assert_eq!(payload["delivery_state"], "rejected");
+    assert_eq!(payload["reachability_state"], "blocked");
 }
 
 #[tokio::test]
 async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_membership_is_shared() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
     let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-nora-k", "usr-jules-p"]).await
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
         return;
     };
@@ -246,7 +246,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         &pool,
         "srv-shared-lab",
         "Shared Lab",
-        "usr-nora-k",
+        sender.as_str(),
         false,
         false,
         0,
@@ -256,7 +256,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         &pool,
         "srv-shared-lab",
         "Shared Lab",
-        "usr-jules-p",
+        recipient.as_str(),
         false,
         false,
         0,
@@ -270,7 +270,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-jules-p"]
+                tokens[recipient.as_str()]
             ),
         )
         .header("x-csrf-token", "test-csrf")
@@ -291,7 +291,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-jules-p"]
+                tokens[recipient.as_str()]
             ),
         )
         .header("x-csrf-token", "test-csrf")
@@ -312,14 +312,15 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-nora-k"]
+                tokens[sender.as_str()]
             ),
         )
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"recipient_identity_id":"usr-jules-p","message_id":"msg-shared-server","ciphertext":"enc:shared"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"msg-shared-server","ciphertext":"enc:shared"}}"#,
+            recipient
+        )))
         .expect("build fanout request");
     let response = app.oneshot(request).await.expect("fanout response");
     assert_eq!(response.status(), StatusCode::OK);
@@ -328,19 +329,25 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         .await
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
-    assert_eq!(payload["status"], "ready");
+    assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_ok");
+    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
+    assert_eq!(payload["reachability_state"], "reachable");
     assert_eq!(payload["fanout_count"], 1);
 }
 
 #[tokio::test]
 async fn fanout_dispatch_rejects_invalid_payload() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
+    let sender = unique_identity("usr-nora-k");
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&[sender.as_str()]).await
+    else {
+        return;
+    };
 
     let request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"recipient_identity_id":"bad id","message_id":"msg-invalid","ciphertext":"enc:test"}"#,

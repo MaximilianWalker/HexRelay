@@ -409,6 +409,8 @@ pub struct DmFanoutDispatchResponse {
     pub status: String,
     pub reason_code: String,
     pub transport_profile: String,
+    pub delivery_state: String,
+    pub reachability_state: String,
     pub fanout_count: u32,
     pub delivered_device_ids: Vec<String>,
     pub skipped_device_ids: Vec<String>,
@@ -465,6 +467,8 @@ pub struct DmFanoutDeliveryRecord {
     pub sender_identity_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
+    pub delivery_state: String,
+    pub reachability_state: String,
     pub delivered_device_ids: Vec<String>,
 }
 

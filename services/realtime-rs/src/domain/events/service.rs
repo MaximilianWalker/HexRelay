@@ -15,24 +15,24 @@ struct RealtimeInboundEnvelope {
 #[derive(Deserialize, Serialize)]
 struct CallSignalOfferData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     sdp_offer: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct CallSignalAnswerData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     sdp_answer: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct CallSignalIceCandidateData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     candidate: String,
     #[serde(default)]
     sdp_mid: Option<String>,
@@ -87,14 +87,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
     match parsed.event_type.as_str() {
         "call.signal.offer" => match serde_json::from_value::<CallSignalOfferData>(parsed.data) {
             Ok(data) => {
-                if data.from_user_id != session_identity_id {
+                if data.from_identity_id != session_identity_id {
                     return build_error_event(
                         "event_identity_mismatch",
-                        "from_user_id does not match authenticated session",
+                        "from_identity_id does not match authenticated session",
                     );
                 }
 
-                if data.to_user_id != session_identity_id {
+                if data.to_identity_id != session_identity_id {
                     return build_error_event(
                         "event_unsupported",
                         "recipient-targeted signaling delivery not implemented",
@@ -107,14 +107,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         },
         "call.signal.answer" => match serde_json::from_value::<CallSignalAnswerData>(parsed.data) {
             Ok(data) => {
-                if data.from_user_id != session_identity_id {
+                if data.from_identity_id != session_identity_id {
                     return build_error_event(
                         "event_identity_mismatch",
-                        "from_user_id does not match authenticated session",
+                        "from_identity_id does not match authenticated session",
                     );
                 }
 
-                if data.to_user_id != session_identity_id {
+                if data.to_identity_id != session_identity_id {
                     return build_error_event(
                         "event_unsupported",
                         "recipient-targeted signaling delivery not implemented",
@@ -128,14 +128,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         "call.signal.ice_candidate" => {
             match serde_json::from_value::<CallSignalIceCandidateData>(parsed.data) {
                 Ok(data) => {
-                    if data.from_user_id != session_identity_id {
+                    if data.from_identity_id != session_identity_id {
                         return build_error_event(
                             "event_identity_mismatch",
-                            "from_user_id does not match authenticated session",
+                            "from_identity_id does not match authenticated session",
                         );
                     }
 
-                    if data.to_user_id != session_identity_id {
+                    if data.to_identity_id != session_identity_id {
                         return build_error_event(
                             "event_unsupported",
                             "recipient-targeted signaling delivery not implemented",
@@ -154,7 +154,7 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
 }
 
 pub fn build_presence_updated_event(
-    user_id: &str,
+    identity_id: &str,
     status: &str,
     updated_at: &str,
     presence_seq: u64,
@@ -168,7 +168,7 @@ pub fn build_presence_updated_event(
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-presence".to_string(),
         data: serde_json::json!({
-            "user_id": user_id,
+            "identity_id": identity_id,
             "status": status,
             "updated_at": updated_at,
             "presence_seq": presence_seq,
@@ -182,9 +182,9 @@ pub fn build_presence_updated_event(
 
 pub fn build_channel_message_created_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    sender_id: &str,
+    sender_identity_id: &str,
     created_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -198,9 +198,9 @@ pub fn build_channel_message_created_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "sender_id": sender_id,
+            "sender_identity_id": sender_identity_id,
             "created_at": created_at,
             "channel_seq": channel_seq,
         }),
@@ -213,9 +213,9 @@ pub fn build_channel_message_created_event(
 
 pub fn build_channel_message_updated_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    editor_id: &str,
+    editor_identity_id: &str,
     edited_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -229,9 +229,9 @@ pub fn build_channel_message_updated_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "editor_id": editor_id,
+            "editor_identity_id": editor_identity_id,
             "edited_at": edited_at,
             "channel_seq": channel_seq,
         }),
@@ -244,9 +244,9 @@ pub fn build_channel_message_updated_event(
 
 pub fn build_channel_message_deleted_event(
     message_id: &str,
-    guild_id: &str,
+    server_id: &str,
     channel_id: &str,
-    deleted_by: &str,
+    deleter_identity_id: &str,
     deleted_at: &str,
     channel_seq: u64,
     correlation_id: Option<String>,
@@ -260,9 +260,9 @@ pub fn build_channel_message_deleted_event(
         producer: "realtime-channel".to_string(),
         data: serde_json::json!({
             "message_id": message_id,
-            "guild_id": guild_id,
+            "server_id": server_id,
             "channel_id": channel_id,
-            "deleted_by": deleted_by,
+            "deleter_identity_id": deleter_identity_id,
             "deleted_at": deleted_at,
             "channel_seq": channel_seq,
         }),
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn routes_valid_answer_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed answer");
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn routes_valid_ice_candidate_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed candidate");
@@ -360,9 +360,9 @@ mod tests {
     #[test]
     fn rejects_cross_identity_recipient_targeting_until_delivery_exists() {
         let payloads = [
-            r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.answer","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-2","candidate":"candidate:1"}}"#,
+            r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","candidate":"candidate:1"}}"#,
         ];
 
         for payload in payloads {

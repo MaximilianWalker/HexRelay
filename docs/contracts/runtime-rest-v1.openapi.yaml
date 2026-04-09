@@ -1982,39 +1982,37 @@ paths:
               $ref: '#/components/schemas/DmFanoutDispatchRequest'
       responses:
         '200':
-          description: DM active-device fanout result
+          description: >-
+            DM active-device fanout result. Success means the message has already
+            been durably accepted into canonical DM history and durable delivery
+            metadata before active-device delivery is evaluated.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
               examples:
                 readyFanout:
-                  summary: Active devices receive the payload while source or inactive devices are skipped
+                  summary: Message is durably accepted and delivered immediately to currently reachable devices
                   value:
-                    status: ready
+                    status: accepted
                     reason_code: fanout_ok
                     transport_profile: direct_only
+                    delivery_state: delivered_to_active_devices
+                    reachability_state: reachable
                     fanout_count: 2
                     delivered_device_ids: [desktop-main, phone-main]
                     skipped_device_ids: [tablet-idle]
-                blockedNoActiveDevices:
-                  summary: Fanout remains a 200 response but reports a blocked branch with no active targets
+                acceptedPendingDelivery:
+                  summary: Message is durably accepted even when no devices are currently reachable
                   value:
-                    status: blocked
-                    reason_code: fanout_no_active_devices
+                    status: accepted
+                    reason_code: fanout_pending_delivery
                     transport_profile: direct_only
+                    delivery_state: pending_delivery
+                    reachability_state: unreachable
                     fanout_count: 0
                     delivered_device_ids: []
                     skipped_device_ids: []
-                blockedBacklogFull:
-                  summary: Fanout is blocked when the bounded replay backlog is already full
-                  value:
-                    status: blocked
-                    reason_code: fanout_backlog_full
-                    transport_profile: direct_only
-                    fanout_count: 0
-                    delivered_device_ids: []
-                    skipped_device_ids: [phone-main]
         '400':
           description: Invalid fanout dispatch request
           content:
@@ -2034,7 +2032,10 @@ paths:
   /v1/dm/fanout/catch-up:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
-      description: Profile-device convergence replay under direct-only DM policy; per-device cursor checkpoints persist when configured storage is available, while replay payload backlog remains bounded in-memory and relay fallback stays disallowed.
+      description: >-
+        Profile-device convergence replay under direct-only DM policy;
+        canonical accepted DM history and delivery metadata persist when
+        configured storage is available, while relay fallback stays disallowed.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -3523,31 +3524,39 @@ components:
         - status
         - reason_code
         - transport_profile
+        - delivery_state
+        - reachability_state
         - fanout_count
         - delivered_device_ids
         - skipped_device_ids
       properties:
         status:
           type: string
-          enum: [ready, blocked]
+          enum: [accepted, blocked]
         reason_code:
           type: string
-          enum: [fanout_ok, fanout_no_active_devices, fanout_backlog_full, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
+          enum: [fanout_ok, fanout_pending_delivery, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
         transport_profile:
           type: string
           enum: [direct_only]
+        delivery_state:
+          type: string
+          enum: [delivered_to_active_devices, pending_delivery, rejected]
+        reachability_state:
+          type: string
+          enum: [reachable, unreachable, blocked, unknown]
         fanout_count:
           type: integer
           minimum: 0
-          description: Number of recipient devices that will receive this payload in the ready branch; blocked branches report `0`.
+          description: Number of recipient devices that received immediate active-device delivery in this response; accepted-but-pending branches report `0`.
         delivered_device_ids:
           type: array
-          description: Sorted recipient device ids that will receive the payload for `status=ready`; empty for blocked branches.
+          description: Sorted recipient device ids that received immediate active-device delivery for this accepted message.
           items:
             type: string
         skipped_device_ids:
           type: array
-          description: Sorted device ids skipped because they were inactive or matched `source_device_id`; may remain populated when backlog saturation blocks delivery after target evaluation.
+          description: Sorted device ids skipped because they were inactive or matched `source_device_id`; may remain populated when delivery is pending or a no-storage in-memory backlog rejection occurs.
           items:
             type: string
     DmFanoutCatchUpRequest:

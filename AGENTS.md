@@ -21,6 +21,7 @@ Only project-specific constraints are defined here.
 - Do not introduce paywalled core communication features.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
+- For MVP-stage protocol and API work, prefer the cleanest single-shape design that can evolve later; avoid speculative versioning, dual-schema migrations, or compatibility layers unless an actual consumer or rollout constraint already makes them necessary.
 - Keep DM transport direct user-to-user; do not reintroduce guild/server relay for DM payloads.
 - Reject networking solutions that require always-on third-party or project-operated infrastructure for DM connectivity (for example STUN/TURN relay services).
 - Prefer infrastructure-free peer connectivity modes only; if direct connection cannot be established, fail explicitly with user guidance rather than introducing infra fallback.
