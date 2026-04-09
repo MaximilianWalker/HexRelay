@@ -6,14 +6,14 @@
 - Owner: Architecture, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-26
+- last_updated: 2026-04-06
 - Source of truth: `docs/architecture/04-communication-networking-layer-plan.md`
 
 ## Quick Context
 
 - Primary edit location for networking-layer architecture and execution across both direct DM and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-03-26 routed server-channel realtime dispatch through the shared `NodeClientTransport` adapter path while preserving DM direct-only transport boundaries.
+- Latest meaningful change: 2026-04-06 clarified MVP DM reliability semantics: durable sender-side acceptance, bounded eventual catch-up, and explicit reachability downgrades without message loss.
 
 ## Purpose
 
@@ -81,12 +81,15 @@
 
 - Profile-level requirement: all devices linked to a profile eventually converge to the same inbound communication state.
 - Convergence includes devices that were offline when first delivery occurred and become active later.
+- Successful DM send should mean durable sender-side acceptance, not merely an attempted live fanout.
 - Delivery model is two-phase:
   1. **Active-device fanout**: deliver to all currently reachable profile devices.
   2. **Deferred convergence**: replay to later-active devices using per-device cursor and idempotent dedupe.
 - Dedup identity is stable by `(message_id, profile_device_id)` for DM and `(event_id, profile_device_id)` for server-channel/presence.
 - DM convergence must preserve direct-only policy: no relay/server storage of DM payload content.
 - Server-channel/presence convergence is node-authoritative and must hydrate all profile devices by per-device cursor.
+- Live transport failure must not discard an accepted DM; it only changes current reachability assumptions and pending delivery state.
+- Presence and reachability are related but distinct: a device may still appear online while current direct delivery is degraded or unreachable.
 
 ## Scenario A: DM Direct Communication
 
@@ -101,15 +104,18 @@
 
 ### DM multi-device delivery requirements
 
+- Sender-side success must happen only after durable acceptance into sender-controlled canonical DM history.
 - Sender prepares per-recipient-device envelopes using recipient profile device manifest.
 - Recipient device that first receives message records profile sync cursor and replicates missing ranges to sibling devices when reachable.
 - Offline sibling devices must pull missed envelopes on activation from other profile devices using idempotent replay protocol.
 - Read-state reconciliation uses per-device cursor plus profile-level merge rule; convergence must be deterministic.
+- Repeated delivery failures should downgrade current reachability and suppress wasteful direct retry loops until new reachability evidence appears, but they must not erase accepted message history.
 
 ### DM-specific requirements
 
 - Allowed transport mode is `direct_only`.
 - Forbidden dependencies: STUN/TURN/relay connectivity services.
+- Reliability target is durable acceptance plus bounded eventual catch-up within the decentralized model, not best-effort fire-and-forget.
 - Supported reachability enhancers:
   - LAN discovery fast path (mDNS/multicast),
   - WAN direct setup wizard (UPnP/NAT-PMP/manual mapping),

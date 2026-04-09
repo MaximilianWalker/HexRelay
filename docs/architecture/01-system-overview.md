@@ -102,9 +102,9 @@ Detailed authorities:
   - sessions, invites, friends, server memberships, server-channel messages
   - server-side authz and policy decisions
 - ephemeral/shared runtime state
-  - Redis-backed replay logs, live cursors, presence snapshots, pubsub coordination
+  - Redis-backed live cursors, presence snapshots, pubsub coordination, and replay acceleration state
 - replicated but not primary truth
-  - realtime replay caches used for hydration convenience rather than primary message durability
+  - realtime replay acceleration state used for hydration convenience rather than primary message durability
 
 Detailed authority:
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
@@ -123,18 +123,25 @@ Detailed authority:
 - `DM connectivity`
   - metadata/bootstrap comes from API control-plane flows
   - payload transport remains direct peer-to-peer
+  - sender success semantics must mean durable sender-side acceptance, not merely attempted live fanout
 
 ## Current Guarantees and Non-Guarantees
 
 - durable
   - API-persisted server/channel state in Postgres
   - session and social-graph persistence handled by API-side durable stores
+- durable within the intended decentralized boundary
+  - accepted DM messages should remain durable message history rather than expire by delivery status alone
+  - delivery/replay guarantees should be defined in terms of durable acceptance plus bounded eventual catch-up, not instant reachability
 - best-effort
   - server-channel live websocket fanout after persistence
   - realtime delivery is not currently transactional with REST success and has no durable outbox/retry guarantee
-- bounded replay
-  - profile-device hydration depends on replay logs/cursors and current runtime retention rules
-  - replay is narrower than a universal guaranteed-delivery promise
+- bounded replay metadata
+  - replay caches, retry state, and transient transport metadata may be compacted or expired
+  - canonical messages should not be discarded just because delivery was delayed or already completed
+- reachability vs presence
+  - repeated failed delivery should downgrade current reachability assumptions without deleting the message
+  - a recipient may be online yet temporarily unreachable, so reachability should not silently redefine canonical message durability
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`
