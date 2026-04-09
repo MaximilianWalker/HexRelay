@@ -2041,6 +2041,18 @@ paths:
                   value:
                     code: fanout_invalid
                     message: recipient_identity_id must be 3-64 chars using letters, numbers, _ or -
+        '409':
+          description: Duplicate accepted DM message id conflicts with immutable history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutMessageIdConflict:
+                  summary: Message id is already bound to an accepted DM history entry
+                  value:
+                    code: fanout_message_id_conflict
+                    message: message_id already exists for an accepted DM
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
