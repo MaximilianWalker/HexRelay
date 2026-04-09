@@ -177,29 +177,29 @@ components:
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_offer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_offer]
       properties:
         call_id: { type: string }
-        from_user_id: { type: string }
-        to_user_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
         sdp_offer: { type: string }
     CallSignalAnswerDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_answer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_answer]
       properties:
         call_id: { type: string }
-        from_user_id: { type: string }
-        to_user_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
         sdp_answer: { type: string }
     CallSignalIceCandidateDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, candidate]
+      required: [call_id, from_identity_id, to_identity_id, candidate]
       properties:
         call_id: { type: string }
-        from_user_id: { type: string }
-        to_user_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
         candidate: { type: string }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }

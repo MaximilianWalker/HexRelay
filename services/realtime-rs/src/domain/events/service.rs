@@ -15,24 +15,24 @@ struct RealtimeInboundEnvelope {
 #[derive(Deserialize, Serialize)]
 struct CallSignalOfferData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     sdp_offer: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct CallSignalAnswerData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     sdp_answer: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct CallSignalIceCandidateData {
     call_id: String,
-    from_user_id: String,
-    to_user_id: String,
+    from_identity_id: String,
+    to_identity_id: String,
     candidate: String,
     #[serde(default)]
     sdp_mid: Option<String>,
@@ -87,14 +87,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
     match parsed.event_type.as_str() {
         "call.signal.offer" => match serde_json::from_value::<CallSignalOfferData>(parsed.data) {
             Ok(data) => {
-                if data.from_user_id != session_identity_id {
+                if data.from_identity_id != session_identity_id {
                     return build_error_event(
                         "event_identity_mismatch",
-                        "from_user_id does not match authenticated session",
+                        "from_identity_id does not match authenticated session",
                     );
                 }
 
-                if data.to_user_id != session_identity_id {
+                if data.to_identity_id != session_identity_id {
                     return build_error_event(
                         "event_unsupported",
                         "recipient-targeted signaling delivery not implemented",
@@ -107,14 +107,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         },
         "call.signal.answer" => match serde_json::from_value::<CallSignalAnswerData>(parsed.data) {
             Ok(data) => {
-                if data.from_user_id != session_identity_id {
+                if data.from_identity_id != session_identity_id {
                     return build_error_event(
                         "event_identity_mismatch",
-                        "from_user_id does not match authenticated session",
+                        "from_identity_id does not match authenticated session",
                     );
                 }
 
-                if data.to_user_id != session_identity_id {
+                if data.to_identity_id != session_identity_id {
                     return build_error_event(
                         "event_unsupported",
                         "recipient-targeted signaling delivery not implemented",
@@ -128,14 +128,14 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         "call.signal.ice_candidate" => {
             match serde_json::from_value::<CallSignalIceCandidateData>(parsed.data) {
                 Ok(data) => {
-                    if data.from_user_id != session_identity_id {
+                    if data.from_identity_id != session_identity_id {
                         return build_error_event(
                             "event_identity_mismatch",
-                            "from_user_id does not match authenticated session",
+                            "from_identity_id does not match authenticated session",
                         );
                     }
 
-                    if data.to_user_id != session_identity_id {
+                    if data.to_identity_id != session_identity_id {
                         return build_error_event(
                             "event_unsupported",
                             "recipient-targeted signaling delivery not implemented",

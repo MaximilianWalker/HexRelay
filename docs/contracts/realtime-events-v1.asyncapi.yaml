@@ -463,11 +463,11 @@ components:
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_offer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_offer]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         sdp_offer: { type: string, minLength: 16 }
     CallSignalOfferEventV1:
       allOf:
@@ -483,11 +483,11 @@ components:
     CallSignalAnswerDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, sdp_answer]
+      required: [call_id, from_identity_id, to_identity_id, sdp_answer]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         sdp_answer: { type: string, minLength: 16 }
     CallSignalAnswerEventV1:
       allOf:
@@ -503,11 +503,11 @@ components:
     CallSignalIceCandidateDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_user_id, to_user_id, candidate]
+      required: [call_id, from_identity_id, to_identity_id, candidate]
       properties:
         call_id: { type: string, format: uuid }
-        from_user_id: { type: string, format: uuid }
-        to_user_id: { type: string, format: uuid }
+        from_identity_id: { type: string, format: uuid }
+        to_identity_id: { type: string, format: uuid }
         candidate: { type: string, minLength: 8 }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }

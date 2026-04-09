@@ -1828,7 +1828,7 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-123","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-1","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-123","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -1874,7 +1874,7 @@ async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists(
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -1934,7 +1934,7 @@ fn returns_error_for_unsupported_event_type() {
 #[test]
 fn returns_error_for_identity_mismatch() {
     let response = route_inbound_event(
-        r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_user_id":"usr-b","to_user_id":"usr-a","sdp_offer":"v=0\r\n"}}"#,
+        r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-b","to_identity_id":"usr-a","sdp_offer":"v=0\r\n"}}"#,
         "usr-a",
     );
 
@@ -2212,7 +2212,7 @@ async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() 
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_user_id":"usr-1","to_user_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -2221,7 +2221,7 @@ async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() 
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-2","data":{"call_id":"call-2","from_user_id":"usr-1","to_user_id":"usr-c","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-2","data":{"call_id":"call-2","from_identity_id":"usr-1","to_identity_id":"usr-c","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
