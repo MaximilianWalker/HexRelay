@@ -581,6 +581,107 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 }
 
 #[tokio::test]
+async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphertext() {
+    let Some(app) = app_with_database().await else {
+        return;
+    };
+
+    let sender_identity = unique_identity("db-dup-sender");
+    let recipient_identity = unique_identity("db-dup-recipient");
+    let (sender_cookie, app) = authenticate_identity(app, &sender_identity).await;
+    let (recipient_cookie, app) = authenticate_identity(app, &recipient_identity).await;
+
+    let policy_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
+        .expect("build dm policy request");
+    let policy_response = app
+        .clone()
+        .oneshot(policy_request)
+        .await
+        .expect("dm policy response");
+    assert_eq!(policy_response.status(), StatusCode::OK);
+
+    let message_id = format!("msg-dup-{sender_identity}-{recipient_identity}");
+
+    let first_dispatch = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={sender_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:first"}}"#,
+            recipient_identity, message_id
+        )))
+        .expect("build first dispatch request");
+    let first_response = app
+        .clone()
+        .oneshot(first_dispatch)
+        .await
+        .expect("first dispatch response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+
+    let duplicate_dispatch = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={sender_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:rewritten"}}"#,
+            recipient_identity, message_id
+        )))
+        .expect("build duplicate dispatch request");
+    let duplicate_response = app
+        .clone()
+        .oneshot(duplicate_dispatch)
+        .await
+        .expect("duplicate dispatch response");
+    assert_eq!(duplicate_response.status(), StatusCode::CONFLICT);
+
+    let duplicate_body = to_bytes(duplicate_response.into_body(), usize::MAX)
+        .await
+        .expect("read duplicate response body");
+    let duplicate_payload: serde_json::Value =
+        serde_json::from_slice(&duplicate_body).expect("decode duplicate response body");
+    assert_eq!(duplicate_payload["code"], "fanout_message_id_conflict");
+
+    let pool = prepared_database_pool().await.expect("prepared DB pool");
+    let thread_id = crate::infra::db::repos::dm_history_repo::direct_dm_thread_id(
+        &sender_identity,
+        &recipient_identity,
+    );
+    let persisted_messages =
+        crate::infra::db::repos::dm_history_repo::list_dm_thread_messages_for_identity(
+            &pool,
+            &recipient_identity,
+            &thread_id,
+            None,
+            10,
+        )
+        .await
+        .expect("load persisted dm messages")
+        .expect("recipient thread exists");
+    assert_eq!(persisted_messages.len(), 1);
+    assert_eq!(persisted_messages[0].message_id, message_id);
+    assert_eq!(persisted_messages[0].ciphertext, "enc:first");
+}
+
+#[tokio::test]
 async fn rejects_invalid_profile_device_heartbeat() {
     let (app, tokens) = app_with_sessions(&["usr-device-invalid"]);
 

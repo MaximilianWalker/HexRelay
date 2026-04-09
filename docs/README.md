@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed canonical routing after the DM durability hardening follow-up aligned contract/planning authority and closed DM sequencing/readability issues.
+- Latest meaningful change: 2026-04-09 refreshed canonical routing after the readiness hardening pass added DM message-id integrity docs coverage, clarified architecture/planning authority, and recorded the active watch summary linkage.
 
 ## Purpose
 
@@ -24,7 +24,8 @@
 
 | Topic | Canonical document | Owner | Update trigger |
 |---|---|---|---|
-| Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
+| Product intent, scope, and non-architectural constraints | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, product constraints, privacy, or security decision changes |
+| Architecture baseline and whole-system runtime design authority | `docs/architecture/01-system-overview.md`, `docs/architecture/02-data-lifecycle-retention-replication.md`, `docs/architecture/04-communication-networking-layer-plan.md`, and relevant `docs/architecture/adr-*.md` | Architecture maintainers | Runtime boundaries, architecture baseline, trust zones, persistence ownership, or accepted design decisions change |
 | Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
@@ -67,7 +68,7 @@
 - `docs/product/`: product-level references and navigation
 - `docs/contracts/`: runtime and target-state contract artifacts plus contract maintenance indexes
 - `docs/planning/`: execution planning guidance and templates
-- `docs/architecture/`: architecture decision records (ADRs)
+- `docs/architecture/`: system overview, architecture specs, and decision records (ADRs)
 - `docs/operations/`: contributor and process operations
 - `docs/reference/`: shared definitions and reference material
 - `docs/testing/`: verification and evidence governance
@@ -82,6 +83,7 @@
 ## Canonical Layout
 
 - Product docs live under `docs/product/`.
+- Architecture authorities live under `docs/architecture/`.
 - Planning boards live under `docs/planning/iterations/`.
 - Shared reference docs live under `docs/reference/`.
 

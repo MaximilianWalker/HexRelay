@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-09
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-06 folded the finished parity closeout state into this index and removed the standalone parity backlog document.
+- Latest meaningful change: 2026-04-09 narrowed parity-status wording so the contracts index no longer overstates semantic validation closure.
 
 ## Purpose
 
@@ -30,8 +30,9 @@
 
 ## Contract Parity Status
 
-- Contract parity is effectively complete for the current runtime route set.
-- The current route set is covered across request/response schemas, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- Contract parity is strong for the current runtime route set, but it is not a full semantic/runtime-proof gate yet.
+- The current route set is covered across high-signal request/response inventory, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- Remaining readiness limitations still include broader request/response semantic validation beyond inventory parity and recipient-targeted realtime signaling delivery; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
 - Resume parity work only when:
   - new runtime routes or DTO families land,
   - new stable query or success semantics become worth enforcing mechanically,

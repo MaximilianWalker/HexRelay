@@ -186,12 +186,6 @@ pub async fn insert_dm_message_in_tx(
         "
         INSERT INTO dm_messages (message_id, thread_id, author_id, seq, ciphertext, created_at, edited_at)
         VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
-        ON CONFLICT (message_id) DO UPDATE
-        SET author_id = EXCLUDED.author_id,
-            seq = EXCLUDED.seq,
-            ciphertext = EXCLUDED.ciphertext,
-            created_at = EXCLUDED.created_at,
-            edited_at = EXCLUDED.edited_at
         ",
     )
     .bind(params.message_id)

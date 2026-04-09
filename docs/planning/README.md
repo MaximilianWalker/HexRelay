@@ -6,14 +6,16 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-12
+- last_updated: 2026-04-09
 - Source of truth: `docs/planning/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-12 added canonical cross-scenario networking architecture authority alongside DM connectivity execution planning.
+- Latest meaningful change: 2026-04-09 added the readiness caveat so planning docs stay aligned with active watch governance.
+
+- `Status: ready` means this index is the canonical planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before planning against unsettled behavior.
 
 ## Contents
 
