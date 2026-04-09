@@ -158,6 +158,13 @@ pub async fn next_dm_message_seq_in_tx(
     tx: &mut Transaction<'_, Postgres>,
     thread_id: &str,
 ) -> Result<u64, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT thread_id FROM dm_threads WHERE thread_id = $1 FOR UPDATE",
+    )
+    .bind(thread_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
     let current = sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(MAX(seq), 0) FROM dm_messages WHERE thread_id = $1",
     )

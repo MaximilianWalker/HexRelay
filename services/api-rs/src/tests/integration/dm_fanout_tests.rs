@@ -180,6 +180,96 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
 }
 
 #[tokio::test]
+async fn dm_message_seq_allocation_is_serialized_per_thread() {
+    let sender = unique_identity("usr-seq-sender");
+    let recipient = unique_identity("usr-seq-recipient");
+    let Some((_app, _tokens, pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+
+    let mut setup_tx = pool.begin().await.expect("begin seed transaction");
+    let thread_id =
+        dm_history_repo::ensure_direct_dm_thread_in_tx(&mut setup_tx, &sender, &recipient)
+            .await
+            .expect("ensure dm thread");
+    dm_history_repo::insert_dm_message_in_tx(
+        &mut setup_tx,
+        dm_history_repo::DmMessageInsertParams {
+            message_id: "msg-seq-seed",
+            thread_id: &thread_id,
+            author_id: &sender,
+            seq: 1,
+            ciphertext: "enc:seed",
+            created_at: "2026-01-01T00:00:00Z",
+            edited_at: None,
+        },
+    )
+    .await
+    .expect("seed first dm message");
+    setup_tx.commit().await.expect("commit seed transaction");
+
+    let pool_a = pool.clone();
+    let pool_b = pool.clone();
+    let thread_a = thread_id.clone();
+    let thread_b = thread_id.clone();
+    let sender_a = sender.clone();
+    let sender_b = sender.clone();
+
+    let (first, second) = tokio::join!(
+        async move {
+            let mut tx = pool_a.begin().await.expect("begin first tx");
+            let seq = dm_history_repo::next_dm_message_seq_in_tx(&mut tx, &thread_a)
+                .await
+                .expect("allocate first seq");
+            dm_history_repo::insert_dm_message_in_tx(
+                &mut tx,
+                dm_history_repo::DmMessageInsertParams {
+                    message_id: "msg-seq-a",
+                    thread_id: &thread_a,
+                    author_id: &sender_a,
+                    seq,
+                    ciphertext: "enc:a",
+                    created_at: "2026-01-01T00:00:01Z",
+                    edited_at: None,
+                },
+            )
+            .await
+            .expect("insert first concurrent message");
+            tx.commit().await.expect("commit first tx");
+            seq
+        },
+        async move {
+            let mut tx = pool_b.begin().await.expect("begin second tx");
+            let seq = dm_history_repo::next_dm_message_seq_in_tx(&mut tx, &thread_b)
+                .await
+                .expect("allocate second seq");
+            dm_history_repo::insert_dm_message_in_tx(
+                &mut tx,
+                dm_history_repo::DmMessageInsertParams {
+                    message_id: "msg-seq-b",
+                    thread_id: &thread_b,
+                    author_id: &sender_b,
+                    seq,
+                    ciphertext: "enc:b",
+                    created_at: "2026-01-01T00:00:02Z",
+                    edited_at: None,
+                },
+            )
+            .await
+            .expect("insert second concurrent message");
+            tx.commit().await.expect("commit second tx");
+            seq
+        }
+    );
+
+    let mut seqs = vec![first, second];
+    seqs.sort_unstable();
+    assert_eq!(seqs, vec![2, 3]);
+}
+
+#[tokio::test]
 async fn fanout_dispatch_requires_durable_storage() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
 
