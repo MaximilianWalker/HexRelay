@@ -6,7 +6,7 @@
 - Owner: Delivery, core, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-04-09
 - Source of truth: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of infrastructure-free DM connectivity.
 - Update this plan when direct-connect task sequencing, acceptance criteria, or risk controls change.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-16 expanded execution plan to include profile-device eventual-sync convergence for active and later-active devices.
+- Latest meaningful change: 2026-04-09 aligned DM durable-acceptance planning language with the current canonical encrypted history plus delivery-metadata model.
 
 ## Purpose
 
@@ -94,7 +94,7 @@
 - Profile-device convergence is already represented by active-device fanout plus later-active catch-up. Any future extension should be limited to self/profile device-state UX or authorized endpoint-card freshness, not broad device discovery semantics.
 - Contact-aware device discovery is also out of current MVP scope; if revisited, it must remain contact-authorized, pull-based, and limited to endpoint-card freshness metadata rather than friend-visible online/device presence.
 - Broad multi-device DM convergence is already covered by active-device fanout, per-device cursor persistence, and later-active catch-up. The only remaining follow-up is whether replay payload durability should stay memory-bounded, move to peer-only sibling-device sync, or be explicitly approved as bounded encrypted server-side storage.
-- Durable DM history should be treated separately from replay backlog durability: the intended direction is client-local or local-runtime-backed thread/message persistence, while server-side DM state remains metadata-only under the direct-only policy.
+- Durable DM history should be treated separately from replay backlog durability: current MVP semantics already durably accept canonical encrypted DM history plus delivery metadata before sender-visible success, while any future client-local or local-runtime-backed mirror remains a separate user-ownership/export concern rather than a blocker for sender-side reliability.
 - Recipient-targeted realtime signaling should also stay a separate routing track: it is a narrow authenticated websocket signaling feature for live call setup, not part of broad DM convergence or discovery scope.
 - `T4.1.8`: multi-endpoint race/connect report and endpoint revocation tests.
 - `T4.1.9`: DM active-device fanout matrix for multi-device profiles.

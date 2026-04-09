@@ -934,22 +934,12 @@ pub async fn run_dm_active_fanout(
         .as_ref()
         .map(|value| value.trim().to_string());
 
-    let profile_devices = if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::list_dm_profile_devices(pool, recipient_identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
-            .into_iter()
-            .map(|record| (record.device_id.clone(), record))
-            .collect::<std::collections::HashMap<_, _>>()
-    } else {
-        state
-            .dm_profile_devices
-            .read()
-            .expect("acquire dm profile devices read lock")
-            .get(recipient_identity_id)
-            .cloned()
-            .unwrap_or_default()
-    };
+    let profile_devices = dm_repo::list_dm_profile_devices(pool, recipient_identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
+        .into_iter()
+        .map(|record| (record.device_id.clone(), record))
+        .collect::<std::collections::HashMap<_, _>>();
 
     let (mut delivered_device_ids, mut skipped_device_ids) = {
         if profile_devices.is_empty() {
@@ -983,33 +973,17 @@ pub async fn run_dm_active_fanout(
     skipped_device_ids.sort();
 
     let known_device_ids = profile_devices.keys().cloned().collect::<Vec<_>>();
-    let min_cursor = if let Some(pool) = state.db_pool.as_ref() {
-        let persisted = dm_repo::list_dm_fanout_device_cursors(pool, recipient_identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursors"))?
-            .into_iter()
-            .collect::<std::collections::HashMap<_, _>>();
+    let persisted = dm_repo::list_dm_fanout_device_cursors(pool, recipient_identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursors"))?
+        .into_iter()
+        .collect::<std::collections::HashMap<_, _>>();
 
-        known_device_ids
-            .iter()
-            .map(|device_id| persisted.get(device_id).copied().unwrap_or(0))
-            .min()
-            .unwrap_or(0)
-    } else {
-        state
-            .dm_fanout_device_cursors
-            .read()
-            .expect("acquire dm fanout cursor read lock")
-            .get(recipient_identity_id)
-            .map(|cursors| {
-                known_device_ids
-                    .iter()
-                    .map(|device_id| cursors.get(device_id).copied().unwrap_or(0))
-                    .min()
-                    .unwrap_or(0)
-            })
-            .unwrap_or(0)
-    };
+    let min_cursor = known_device_ids
+        .iter()
+        .map(|device_id| persisted.get(device_id).copied().unwrap_or(0))
+        .min()
+        .unwrap_or(0);
 
     let message_id = payload.message_id.trim().to_string();
     let (delivery_state, reachability_state, reason_code) = if delivered_device_ids.is_empty() {

@@ -1968,7 +1968,11 @@ paths:
   /v1/dm/fanout/dispatch:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
-      description: Profile-device convergence primitive under direct-only DM policy; does not authorize relay fallback or persistent server-side DM payload storage.
+      description: >-
+        Profile-device convergence primitive under direct-only DM policy; does
+        not authorize relay fallback. Success means the encrypted DM payload is
+        durably accepted into canonical DM history plus delivery metadata before
+        active-device delivery is evaluated.
       security:
         - CookieAuth: []
         - BearerAuth: []
