@@ -982,19 +982,6 @@ pub async fn run_dm_active_fanout(
     delivered_device_ids.sort();
     skipped_device_ids.sort();
 
-    if delivered_device_ids.is_empty() {
-        return Ok(Json(DmFanoutDispatchResponse {
-            status: "accepted".to_string(),
-            reason_code: "fanout_pending_delivery".to_string(),
-            transport_profile: "direct_only".to_string(),
-            delivery_state: "pending_delivery".to_string(),
-            reachability_state: "unreachable".to_string(),
-            fanout_count: 0,
-            delivered_device_ids,
-            skipped_device_ids,
-        }));
-    }
-
     let known_device_ids = profile_devices.keys().cloned().collect::<Vec<_>>();
     let min_cursor = if let Some(pool) = state.db_pool.as_ref() {
         let persisted = dm_repo::list_dm_fanout_device_cursors(pool, recipient_identity_id)
