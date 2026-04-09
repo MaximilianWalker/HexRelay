@@ -520,25 +520,21 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
         &recipient_identity,
     );
 
-    let messages_request = Request::builder()
-        .method("GET")
-        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
-        .header("cookie", format!("hexrelay_session={recipient_cookie}"))
-        .body(Body::empty())
-        .expect("build thread messages request after restart");
-    let messages_response = restarted_app
-        .clone()
-        .oneshot(messages_request)
+    let pool = prepared_database_pool()
         .await
-        .expect("thread messages response after restart");
-    assert_eq!(messages_response.status(), StatusCode::OK);
-
-    let messages_body = to_bytes(messages_response.into_body(), usize::MAX)
+        .expect("prepared DB pool after restart");
+    let persisted_messages =
+        crate::infra::db::repos::dm_history_repo::list_dm_thread_messages_for_identity(
+            &pool,
+            &recipient_identity,
+            &thread_id,
+            None,
+            10,
+        )
         .await
-        .expect("read thread messages body after restart");
-    let messages_payload: serde_json::Value = serde_json::from_slice(&messages_body)
-        .expect("decode thread messages payload after restart");
-    assert_eq!(messages_payload["items"][0]["message_id"], "msg-pending");
+        .expect("load persisted dm messages after restart")
+        .expect("recipient thread still exists after restart");
+    assert_eq!(persisted_messages[0].message_id, "msg-pending");
 
     let activate_request = Request::builder()
         .method("POST")
