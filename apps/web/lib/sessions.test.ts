@@ -41,11 +41,8 @@ function buildWindow(provider?: SecureStoreProvider) {
 
 describe("sessions", () => {
   beforeEach(() => {
-    Object.assign(globalThis, {
-      atob: (value: string) => Buffer.from(value, "base64").toString("binary"),
-      btoa: (value: string) => Buffer.from(value, "binary").toString("base64"),
-    });
-
+    vi.stubGlobal("atob", (value: string) => Buffer.from(value, "base64").toString("binary"));
+    vi.stubGlobal("btoa", (value: string) => Buffer.from(value, "binary").toString("base64"));
     vi.spyOn(Date.prototype, "toISOString").mockReturnValue("2030-01-01T00:00:00Z");
     vi.stubGlobal("TextEncoder", TextEncoder);
     vi.stubGlobal("TextDecoder", TextDecoder);
@@ -53,6 +50,7 @@ describe("sessions", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     delete (globalThis as { window?: unknown }).window;
   });
 
