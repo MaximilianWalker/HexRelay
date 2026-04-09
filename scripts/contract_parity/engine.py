@@ -1451,6 +1451,213 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     return 0
 
+
+def _extract_rust_function_block(text: str, function_name: str) -> str | None:
+    match = re.search(
+        rf'(?:pub(?:\(crate\))?\s+)?fn\s+{re.escape(function_name)}\b[^{{]*\{{',
+        text,
+        re.S,
+    )
+    if not match:
+        return None
+
+    start = match.end() - 1
+    depth = 0
+    for index in range(start, len(text)):
+        char = text[index]
+        if char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+
+    return None
+
+
+def _extract_asyncapi_schema_block(text: str, schema_name: str) -> str | None:
+    lines = text.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        if re.match(rf'^\s{{4}}{re.escape(schema_name)}:\s*$', line):
+            start = index
+            break
+
+    if start is None:
+        return None
+
+    block = []
+    for line in lines[start:]:
+        if block and re.match(r'^\s{4}[A-Za-z].*:\s*$', line):
+            break
+        block.append(line)
+
+    return '\n'.join(block)
+
+
+def _parse_inline_list(block: str, field_name: str) -> list[str]:
+    match = re.search(rf'{re.escape(field_name)}:\s*\[([^\]]*)\]', block)
+    if not match:
+        return []
+    return [item.strip() for item in match.group(1).split(',') if item.strip()]
+
+
+def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
+    envelope_match = re.search(r'RealtimeOutboundEnvelope\s*\{(.*?)\n\s*\};', function_block, re.S)
+    if not envelope_match:
+        return None
+
+    envelope_block = envelope_match.group(1)
+    data_match = re.search(r'data:\s*serde_json::json!\(\s*\{(.*?)\}\s*\)', envelope_block, re.S)
+    return {
+        'envelope_fields': set(re.findall(r'\b([a-z_][a-z0-9_]*)\s*:', envelope_block)),
+        'event_type': next(iter(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
+        'event_version': next(iter(re.findall(r'event_version:\s*(\d+)', envelope_block)), None),
+        'producer': next(iter(re.findall(r'producer:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
+        'data_keys': set(re.findall(r'"([^"]+)"\s*:', data_match.group(1) if data_match else '')),
+    }
+
+
+def _parse_realtime_contract_semantics(contract_text: str, event_schema_name: str) -> dict[str, object] | None:
+    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelopeV1')
+    event_block = _extract_asyncapi_schema_block(contract_text, event_schema_name)
+    if envelope_block is None or event_block is None:
+        return None
+
+    data_ref_match = re.search(r"data:\s*\{\s*\$ref:\s*'#\/components\/schemas\/([^']+)'\s*\}", event_block)
+    if not data_ref_match:
+        return None
+
+    data_block = _extract_asyncapi_schema_block(contract_text, data_ref_match.group(1))
+    if data_block is None:
+        return None
+
+    event_type_match = re.search(r'event_type:\s*\{\s*const:\s*([^\s}]+)\s*\}', event_block)
+    return {
+        'envelope_required': set(_parse_inline_list(envelope_block, 'required')),
+        'allowed_producers': set(_parse_inline_list(envelope_block, 'enum')),
+        'allowed_versions': set(_parse_inline_list(envelope_block, 'enum')),
+        'event_type': event_type_match.group(1) if event_type_match else None,
+        'data_required': set(_parse_inline_list(data_block, 'required')),
+    }
+
+
+def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_str: str) -> int:
+    tracked_events = {
+        'realtime.connected': {
+            'runtime_fn': 'connection_ready_banner',
+            'contract_schema': 'RealtimeConnectedEventV1',
+        },
+        'presence.updated': {
+            'runtime_fn': 'build_presence_updated_event',
+            'contract_schema': 'PresenceUpdatedEventV1',
+        },
+        'channel.message.created': {
+            'runtime_fn': 'build_channel_message_created_event',
+            'contract_schema': 'ChannelMessageCreatedEventV1',
+        },
+        'channel.message.updated': {
+            'runtime_fn': 'build_channel_message_updated_event',
+            'contract_schema': 'ChannelMessageUpdatedEventV1',
+        },
+        'channel.message.deleted': {
+            'runtime_fn': 'build_channel_message_deleted_event',
+            'contract_schema': 'ChannelMessageDeletedEventV1',
+        },
+    }
+
+    contract_path = pathlib.Path(contract_path_str)
+    runtime_path = pathlib.Path(runtime_path_str)
+    contract_text = contract_path.read_text()
+    runtime_text = runtime_path.read_text()
+    runtime_inventory = set(extract_realtime_runtime_events(runtime_path_str).splitlines())
+    contract_inventory = set(extract_asyncapi_contract_events(contract_path_str).splitlines())
+    errors = []
+
+    tracked_event_names = set(tracked_events)
+    if not (runtime_inventory & tracked_event_names or contract_inventory & tracked_event_names):
+        return 0
+
+    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelopeV1')
+    if envelope_block is None:
+        print(f"::error::{contract_path} is missing EventEnvelopeV1 required for realtime semantic validation.")
+        return 1
+
+    envelope_required = set(_parse_inline_list(envelope_block, 'required'))
+    producer_match = re.search(r'producer:\s*\{\s*type:\s*string,\s*enum:\s*\[([^\]]*)\]', envelope_block)
+    allowed_producers = {
+        item.strip() for item in (producer_match.group(1).split(',') if producer_match else []) if item.strip()
+    }
+    version_match = re.search(r'event_version:\s*\{\s*type:\s*integer,\s*enum:\s*\[([^\]]*)\]', envelope_block)
+    allowed_versions = {
+        item.strip() for item in (version_match.group(1).split(',') if version_match else []) if item.strip()
+    }
+
+    for event_name, spec in tracked_events.items():
+        if event_name not in runtime_inventory and event_name not in contract_inventory:
+            continue
+
+        function_block = _extract_rust_function_block(runtime_text, spec['runtime_fn'])
+        if function_block is None:
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` is tracked for semantic parity, but `{spec['runtime_fn']}` was not found in {runtime_path}."
+            )
+            continue
+
+        runtime_semantics = _parse_realtime_builder(function_block)
+        if runtime_semantics is None:
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` is tracked for semantic parity, but `{spec['runtime_fn']}` does not build a parseable RealtimeOutboundEnvelope in {runtime_path}."
+            )
+            continue
+
+        contract_semantics = _parse_realtime_contract_semantics(contract_text, spec['contract_schema'])
+        if contract_semantics is None:
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` is tracked for semantic parity, but {contract_path} is missing the schema wiring for `{spec['contract_schema']}`."
+            )
+            continue
+
+        runtime_envelope_fields = runtime_semantics['envelope_fields']
+        if runtime_envelope_fields != envelope_required:
+            documented = ', '.join(sorted(envelope_required)) or '<none>'
+            actual = ', '.join(sorted(runtime_envelope_fields)) or '<none>'
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` uses envelope fields [{actual}] but documents [{documented}] in {contract_path}."
+            )
+
+        if runtime_semantics['event_type'] != contract_semantics['event_type']:
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` emits event_type `{runtime_semantics['event_type']}` but documents `{contract_semantics['event_type']}` in {contract_path}."
+            )
+
+        if runtime_semantics['event_version'] not in allowed_versions:
+            documented = ', '.join(sorted(allowed_versions)) or '<none>'
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` emits event_version `{runtime_semantics['event_version']}` but documents [{documented}] in {contract_path}."
+            )
+
+        if runtime_semantics['producer'] not in allowed_producers:
+            documented = ', '.join(sorted(allowed_producers)) or '<none>'
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` emits producer `{runtime_semantics['producer']}` but documents [{documented}] in {contract_path}."
+            )
+
+        runtime_data_keys = runtime_semantics['data_keys']
+        documented_data_keys = contract_semantics['data_required']
+        if runtime_data_keys != documented_data_keys:
+            documented = ', '.join(sorted(documented_data_keys)) or '<none>'
+            actual = ', '.join(sorted(runtime_data_keys)) or '<none>'
+            errors.append(
+                f"::error::Realtime runtime event `{event_name}` uses data fields [{actual}] but documents [{documented}] in {contract_path}."
+            )
+
+    if errors:
+        print('\n'.join(errors))
+        return 1
+
+    return 0
+
 def extract_realtime_runtime_events(path: str) -> str:
     text = pathlib.Path(path).read_text()
     events = set(re.findall(r'"(call\.signal\.[^"]+)"\s*=>', text))

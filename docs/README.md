@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 matched docs-index freshness wording to the validator exactly and tightened dedicated deployment guidance around process-local realtime abuse controls.
+- Latest meaningful change: 2026-04-10 refreshed contract-doc metadata after adding selected realtime semantic parity checks to CI and tightening parity-status routing.
 
 ## Purpose
 
