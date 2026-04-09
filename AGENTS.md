@@ -12,7 +12,7 @@ Only project-specific constraints are defined here.
 
 ## 2) Editing Boundaries
 
-- Keep architecture docs current in `docs/product/01-mvp-plan.md` when major decisions change.
+- Keep architecture docs current in the canonical `docs/architecture/*` authorities when major runtime or boundary decisions change; update `docs/product/01-mvp-plan.md` as well when those decisions change product scope or strategy.
 - Keep requirements and dependency/risk state current in `docs/product/02-prd-v1.md` and `docs/product/04-dependencies-risks.md` when behavior changes.
 - Prefer minimal diffs and avoid broad refactors during MVP setup.
 

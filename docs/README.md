@@ -67,7 +67,7 @@
 - `docs/product/`: product-level references and navigation
 - `docs/contracts/`: runtime and target-state contract artifacts plus contract maintenance indexes
 - `docs/planning/`: execution planning guidance and templates
-- `docs/architecture/`: architecture decision records (ADRs)
+- `docs/architecture/`: system overview, architecture specs, and decision records (ADRs)
 - `docs/operations/`: contributor and process operations
 - `docs/reference/`: shared definitions and reference material
 - `docs/testing/`: verification and evidence governance
@@ -82,6 +82,7 @@
 ## Canonical Layout
 
 - Product docs live under `docs/product/`.
+- Architecture authorities live under `docs/architecture/`.
 - Planning boards live under `docs/planning/iterations/`.
 - Shared reference docs live under `docs/reference/`.
 

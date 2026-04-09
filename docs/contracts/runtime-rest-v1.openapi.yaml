@@ -292,6 +292,18 @@ paths:
                     expires_at: '2026-04-07T12:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Duplicate DM message id conflicts with an already accepted message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                fanoutMessageIdConflict:
+                  summary: Message id has already been accepted and cannot rewrite DM history
+                  value:
+                    code: fanout_message_id_conflict
+                    message: message_id already exists for an accepted DM
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/invites:

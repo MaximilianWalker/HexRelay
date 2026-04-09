@@ -37,7 +37,7 @@ use crate::{
         DmThreadMarkReadResponse, DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest,
         DmWanWizardResponse,
     },
-    shared::errors::{bad_request, internal_error, ApiResult},
+    shared::errors::{bad_request, conflict, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -972,19 +972,6 @@ pub async fn run_dm_active_fanout(
     delivered_device_ids.sort();
     skipped_device_ids.sort();
 
-    let known_device_ids = profile_devices.keys().cloned().collect::<Vec<_>>();
-    let persisted = dm_repo::list_dm_fanout_device_cursors(pool, recipient_identity_id)
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursors"))?
-        .into_iter()
-        .collect::<std::collections::HashMap<_, _>>();
-
-    let min_cursor = known_device_ids
-        .iter()
-        .map(|device_id| persisted.get(device_id).copied().unwrap_or(0))
-        .min()
-        .unwrap_or(0);
-
     let message_id = payload.message_id.trim().to_string();
     let (delivery_state, reachability_state, reason_code) = if delivered_device_ids.is_empty() {
         (
@@ -1030,11 +1017,15 @@ pub async fn run_dm_active_fanout(
         },
     )
     .await
-    .map_err(|_| {
-        internal_error(
+    .map_err(|error| match error {
+        sqlx::Error::Database(db_error) if db_error.code().as_deref() == Some("23505") => conflict(
+            "fanout_message_id_conflict",
+            "message_id already exists for an accepted DM",
+        ),
+        _ => internal_error(
             "storage_unavailable",
             "failed to persist dm message history",
-        )
+        ),
     })?;
     let cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, recipient_identity_id)
         .await
@@ -1068,18 +1059,6 @@ pub async fn run_dm_active_fanout(
             "failed to commit dm acceptance transaction",
         )
     })?;
-
-    let mut fanout_delivery_log = state
-        .dm_fanout_delivery_log
-        .write()
-        .expect("acquire dm fanout delivery log write lock");
-    let delivery_log = fanout_delivery_log
-        .entry(recipient_identity_id.to_string())
-        .or_default();
-    if min_cursor > 0 {
-        delivery_log.retain(|record| record.cursor > min_cursor);
-    }
-    delivery_log.push(delivery_record);
 
     Ok(Json(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
