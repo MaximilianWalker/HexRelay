@@ -1018,10 +1018,15 @@ pub async fn run_dm_active_fanout(
     )
     .await
     .map_err(|error| match error {
-        sqlx::Error::Database(db_error) if db_error.code().as_deref() == Some("23505") => conflict(
-            "fanout_message_id_conflict",
-            "message_id already exists for an accepted DM",
-        ),
+        sqlx::Error::Database(db_error)
+            if db_error.code().as_deref() == Some("23505")
+                && db_error.constraint() == Some("dm_messages_pkey") =>
+        {
+            conflict(
+                "fanout_message_id_conflict",
+                "message_id already exists for an accepted DM",
+            )
+        }
         _ => internal_error(
             "storage_unavailable",
             "failed to persist dm message history",

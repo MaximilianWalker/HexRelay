@@ -609,6 +609,8 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
         .expect("dm policy response");
     assert_eq!(policy_response.status(), StatusCode::OK);
 
+    let message_id = format!("msg-dup-{sender_identity}-{recipient_identity}");
+
     let first_dispatch = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/dispatch")
@@ -619,8 +621,8 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-dup","ciphertext":"enc:first"}}"#,
-            recipient_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:first"}}"#,
+            recipient_identity, message_id
         )))
         .expect("build first dispatch request");
     let first_response = app
@@ -640,8 +642,8 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-dup","ciphertext":"enc:rewritten"}}"#,
-            recipient_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:rewritten"}}"#,
+            recipient_identity, message_id
         )))
         .expect("build duplicate dispatch request");
     let duplicate_response = app
@@ -675,7 +677,7 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
         .expect("load persisted dm messages")
         .expect("recipient thread exists");
     assert_eq!(persisted_messages.len(), 1);
-    assert_eq!(persisted_messages[0].message_id, "msg-dup");
+    assert_eq!(persisted_messages[0].message_id, message_id);
     assert_eq!(persisted_messages[0].ciphertext, "enc:first");
 }
 

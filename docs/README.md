@@ -24,7 +24,8 @@
 
 | Topic | Canonical document | Owner | Update trigger |
 |---|---|---|---|
-| Product intent, constraints, architecture baseline | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, constraints, architecture, privacy, or security decision changes |
+| Product intent, scope, and non-architectural constraints | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, product constraints, privacy, or security decision changes |
+| Architecture baseline and whole-system runtime design authority | `docs/architecture/01-system-overview.md`, `docs/architecture/02-data-lifecycle-retention-replication.md`, `docs/architecture/04-communication-networking-layer-plan.md`, and relevant `docs/architecture/adr-*.md` | Architecture maintainers | Runtime boundaries, architecture baseline, trust zones, persistence ownership, or accepted design decisions change |
 | Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
