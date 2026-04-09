@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed canonical routing after the DM durability hardening follow-up aligned contract/planning authority and closed DM sequencing/readability issues.
+- Latest meaningful change: 2026-04-09 refreshed canonical routing after the readiness hardening pass added DM message-id integrity docs coverage, clarified architecture/planning authority, and recorded the active watch summary linkage.
 
 ## Purpose
 

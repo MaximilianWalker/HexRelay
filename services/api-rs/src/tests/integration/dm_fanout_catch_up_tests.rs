@@ -143,15 +143,15 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
         assert_eq!(heartbeat_response.status(), StatusCode::OK);
     }
 
-    for _ in [0, 1] {
+    for message_id in ["msg-dup-a", "msg-dup-b"] {
         let dispatch = Request::builder()
             .method("POST")
             .uri("/v1/dm/fanout/dispatch")
             .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"recipient_identity_id":"{}","message_id":"msg-dup","ciphertext":"enc:dup-same","source_device_id":"sender-main"}}"#,
-                recipient
+                r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:dup-same","source_device_id":"sender-main"}}"#,
+                recipient, message_id
             )))
             .expect("build fanout dispatch request");
         let dispatch_response = app
@@ -204,11 +204,11 @@ async fn fanout_catch_up_dedupes_identical_replay_entries_and_advances_cursor() 
     assert_eq!(payload["reason_code"], "fanout_catch_up_ok");
     assert_eq!(payload["replay_count"], 1);
     assert_eq!(payload["next_cursor"], "2");
-    assert_eq!(payload["items"][0]["message_id"], "msg-dup");
+    assert_eq!(payload["items"][0]["message_id"], "msg-dup-a");
     assert!(payload["deduped_message_ids"]
         .as_array()
         .expect("deduped ids array")
-        .contains(&serde_json::Value::String("msg-dup".to_string())));
+        .contains(&serde_json::Value::String("msg-dup-b".to_string())));
 
     let second_catch_up = Request::builder()
         .method("POST")
@@ -269,9 +269,9 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
         assert_eq!(heartbeat_response.status(), StatusCode::OK);
     }
 
-    for (ciphertext, source_device_id) in [
-        ("enc:variant-1", "sender-main"),
-        ("enc:variant-2", "tablet-main"),
+    for (message_id, ciphertext, source_device_id) in [
+        ("msg-variant-1", "enc:variant-1", "sender-main"),
+        ("msg-variant-2", "enc:variant-2", "tablet-main"),
     ] {
         let dispatch = Request::builder()
             .method("POST")
@@ -279,7 +279,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
             .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"recipient_identity_id":"{recipient}","message_id":"msg-variant","ciphertext":"{ciphertext}","source_device_id":"{source_device_id}"}}"#
+                r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"{ciphertext}","source_device_id":"{source_device_id}"}}"#
             )))
             .expect("build fanout dispatch request");
         let dispatch_response = app
