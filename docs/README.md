@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed docs routing after extending realtime contract parity to current send-side signaling semantics and updating contributor/readiness guidance.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after raising the web coverage floor with new persona/session coverage and updating contributor readiness guidance.
 
 ## Purpose
 
