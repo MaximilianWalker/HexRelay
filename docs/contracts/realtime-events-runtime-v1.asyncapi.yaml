@@ -85,18 +85,42 @@ operations:
       $ref: '#/channels/callSignalOffer'
     messages:
       - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_invalid
+        - event_identity_mismatch
+        - event_unsupported
   sendCallSignalAnswer:
     action: send
     channel:
       $ref: '#/channels/callSignalAnswer'
     messages:
       - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_invalid
+        - event_identity_mismatch
+        - event_unsupported
   sendCallSignalIceCandidate:
     action: send
     channel:
       $ref: '#/channels/callSignalIceCandidate'
     messages:
       - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_invalid
+        - event_identity_mismatch
+        - event_unsupported
   receiveRealtimeConnected:
     action: receive
     channel:

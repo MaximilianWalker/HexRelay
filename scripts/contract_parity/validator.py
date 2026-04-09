@@ -161,6 +161,12 @@ def main(argv: list[str]) -> int:
     ) != 0:
         errors = True
 
+    if engine.validate_realtime_signal_semantics(
+        REALTIME_CONTRACT,
+        "services/realtime-rs/src/domain/events/service.rs",
+    ) != 0:
+        errors = True
+
     if errors:
         print("[contract-parity] Update runtime contract docs when API/realtime surface changes.")
         return 1

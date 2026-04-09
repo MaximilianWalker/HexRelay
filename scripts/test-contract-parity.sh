@@ -66,6 +66,7 @@ run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON su
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-realtime-envelope-semantics 1 'Realtime runtime event `realtime.connected` uses data fields [state] but documents [status]'
+run_fixture fail-realtime-signaling-semantics 1 'Realtime runtime event `call.signal.offer` requires from_identity_id/session-identity parity at runtime but does not require it'
 run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
 run_fixture fail-server-channel-example-status 1 "missing tracked HTTP 400 route-level error examples for ApiError codes [reply_target_invalid]"

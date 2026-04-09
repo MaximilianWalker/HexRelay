@@ -59,3 +59,7 @@ Only project-specific constraints are defined here.
   8. sync local `master`,
   9. delete local and remote feature branch.
 - Do not skip the check-watch step; merge only after required checks are green and conversation-resolution requirements are satisfied.
+- If `gh pr merge` reports that base-branch policy prohibits the merge even after required checks are green, inspect PR mergeability and active branch-protection requirements before retrying.
+- Treat unresolved review threads as a first-class merge blocker, even when they are outdated bot threads; resolve them explicitly when their feedback has already been addressed.
+- If GitHub reports `mergeable` but `mergeStateStatus` is still blocked, refresh PR state after resolving threads before retrying the merge.
+- After merge, verify the PR is merged, confirm local `master` matches `origin/master`, and confirm branch cleanup rather than assuming `--delete-branch` completed everything.

@@ -1,0 +1,109 @@
+asyncapi: 3.0.0
+channels:
+  callSignalOffer:
+    address: call.signal.offer
+  callSignalAnswer:
+    address: call.signal.answer
+  callSignalIceCandidate:
+    address: call.signal.ice_candidate
+operations:
+  sendCallSignalOffer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalOffer'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: false
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_invalid
+        - event_unsupported
+  sendCallSignalAnswer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalAnswer'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_identity_mismatch
+        - event_unsupported
+  sendCallSignalIceCandidate:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalIceCandidate'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_identity_mismatch
+        - event_unsupported
+components:
+  schemas:
+    EventEnvelopeV1:
+      type: object
+      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      properties:
+        event_id: { type: string }
+        event_type: { type: string }
+        event_version: { type: integer, enum: [1] }
+        occurred_at: { type: string }
+        correlation_id: { type: string }
+        producer: { type: string, enum: [realtime-gateway] }
+        data: {}
+    CallSignalOfferDataV1:
+      type: object
+      required: [call_id, from_identity_id, to_identity_id, sdp_offer]
+      properties:
+        call_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
+        sdp_offer: { type: string }
+    CallSignalAnswerDataV1:
+      type: object
+      required: [call_id, from_identity_id, to_identity_id, sdp_answer]
+      properties:
+        call_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
+        sdp_answer: { type: string }
+    CallSignalIceCandidateDataV1:
+      type: object
+      required: [call_id, from_identity_id, to_identity_id, candidate]
+      properties:
+        call_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
+        candidate: { type: string }
+    CallSignalOfferEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.offer }
+            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
+    CallSignalAnswerEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.answer }
+            data: { $ref: '#/components/schemas/CallSignalAnswerDataV1' }
+    CallSignalIceCandidateEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.ice_candidate }
+            data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }
+    ErrorDataV1:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - event_identity_mismatch
+            - event_invalid
+            - event_unsupported
