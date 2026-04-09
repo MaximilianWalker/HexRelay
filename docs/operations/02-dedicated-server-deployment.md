@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: needs-detail
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-04-10
 - Source of truth: `docs/operations/02-dedicated-server-deployment.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-04-06 clarified smoke/bootstrap prerequisites for dedicated deployments where public identity registration remains default-closed.
+- Latest meaningful change: 2026-04-10 clarified that only the single-node dedicated topology is currently validated and made the process-local websocket abuse-control constraints explicit for operators.
 
 ## Purpose
 
@@ -28,7 +28,7 @@
 - Known blockers/uncertainties remain around:
   - authoritative schema bootstrap/migration procedure
   - exact minimum required dependency set for all supported features
-  - multi-instance realtime abuse-control equivalence
+  - multi-instance realtime websocket abuse-control equivalence
 
 ## Supported Deployment Shape
 
@@ -41,6 +41,13 @@
   - horizontal realtime scaling as fully production-ready guidance
   - project-operated DM relay infrastructure
   - voice/media rollout beyond noting optional coturn scope
+
+## Current Deployment Validation Boundary
+
+- The currently validated dedicated topology is one `api-rs` instance plus one `realtime-rs` instance behind operator-managed ingress.
+- Multi-instance `realtime-rs` deployments remain outside the validated baseline because websocket abuse controls are still process-local.
+- Specifically, websocket rate limits and per-identity concurrent connection caps are enforced per `realtime-rs` process, not as shared global state.
+- If an operator experiments with multi-instance realtime anyway, they must treat it as deployment-specific validation work and verify sticky routing/session affinity plus edge/global limiting before claiming equivalent behavior.
 
 ## Runtime Authorities
 
@@ -112,6 +119,15 @@ npm --prefix apps/web run e2e:smoke
 7. Run remote smoke with explicit dedicated-deployment URLs/origin.
 8. Record operator evidence for health, smoke, and config review.
 
+### Deployment Checklist Sign-Off
+
+- Confirm the rollout matches the validated baseline shape: one `api-rs` instance and one `realtime-rs` instance.
+- Confirm `GET /health` succeeds for both services before smoke.
+- Confirm remote smoke passes with the dedicated deployment URLs and origin.
+- Confirm ingress/origin/TLS settings match the deployed browser-facing hosts.
+- If deployment is single-node, record that process-local realtime websocket abuse controls are accepted as-is for this rollout.
+- If deployment uses more than one `realtime-rs` instance, do not sign off until sticky routing/session affinity and edge/global websocket limiting have both been validated and recorded in deployment evidence.
+
 ## Ingress and Trust Boundary Expectations
 
 - TLS must terminate at ingress/reverse proxy.
@@ -132,7 +148,7 @@ npm --prefix apps/web run e2e:smoke
 
 - `blocked`: authoritative schema bootstrap/migration command flow is not yet documented in reviewed operator docs.
 - `needs-detail`: exact minimum dependency matrix for all optional scopes still needs sharper separation between required and optional services.
-- `watch`: multi-instance realtime limiter equivalence remains an open readiness item in `docs/operations/readiness-corrections-log.md`.
+- `watch`: multi-instance realtime websocket abuse-control equivalence remains an open readiness item in `docs/operations/readiness-corrections-log.md`.
 
 ## Related Documents
 

@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-09
+- last_updated: 2026-04-10
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-09 recorded the readiness-governance cleanup that made active watch routing exhaustive and removed stale DM durability caveats from repo entry docs.
+- Latest meaningful change: 2026-04-10 recorded the docs-governance cleanup that closed the docs-index freshness wording watch and tightened dedicated deployment guidance around process-local realtime websocket abuse controls.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-10 (docs-governance cleanup for freshness policy and dedicated deployment boundary)
+
+- Area affected: Docs governance, deployment guidance, and readiness watch routing.
+- Change summary:
+  - Closed the docs-index freshness wording watch by matching `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validate-docs-index-freshness.sh`.
+  - Tightened dedicated deployment guidance so the currently validated topology is explicitly single-node and realtime websocket abuse controls are clearly documented as process-local.
+  - Added dedicated deployment checklist sign-off language for operators who attempt multi-instance realtime topologies.
+- Rationale:
+  - Docs governance rules should match CI enforcement exactly, and operator docs should not imply multi-instance realtime equivalence when websocket abuse controls are still process-local.
+- Linked docs updated:
+  - `docs/README.md`
+  - `docs/operations/contributor-guide.md`
+  - `docs/operations/01-mvp-runbook.md`
+  - `docs/operations/02-dedicated-server-deployment.md`
+  - `docs/operations/readiness-corrections-log.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-04-09 (readiness-governance cleanup after DM durability hardening)
 

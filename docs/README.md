@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-09
+- last_updated: 2026-04-10
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed readiness routing again by making the active watch summary exhaustive, removing stale DM durability caveats from entry docs, and aligning freshness wording with the enforced docs-index CI rule.
+- Latest meaningful change: 2026-04-10 matched docs-index freshness wording to the validator exactly and tightened dedicated deployment guidance around process-local realtime abuse controls.
 
 ## Purpose
 
@@ -75,7 +75,7 @@
 
 ## Lightweight Governance
 
-- If any canonical doc under `docs/` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
+- If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
 - If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
