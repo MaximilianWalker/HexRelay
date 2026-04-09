@@ -1502,6 +1502,35 @@ def _parse_inline_list(block: str, field_name: str) -> list[str]:
     return [item.strip() for item in match.group(1).split(',') if item.strip()]
 
 
+def _extract_top_level_rust_fields(block: str) -> set[str]:
+    fields = set()
+    depth = 0
+    current = []
+
+    for char in block:
+        if depth == 0:
+            current.append(char)
+
+        if char in '({[':
+            depth += 1
+        elif char in ')}]':
+            depth = max(0, depth - 1)
+
+        if char == '\n':
+            line = ''.join(current).strip()
+            match = re.match(r'^([a-z_][a-z0-9_]*)\s*:', line)
+            if match:
+                fields.add(match.group(1))
+            current = []
+
+    trailing = ''.join(current).strip()
+    match = re.match(r'^([a-z_][a-z0-9_]*)\s*:', trailing)
+    if match:
+        fields.add(match.group(1))
+
+    return fields
+
+
 def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
     envelope_match = re.search(r'RealtimeOutboundEnvelope\s*\{(.*?)\n\s*\};', function_block, re.S)
     if not envelope_match:
@@ -1510,7 +1539,7 @@ def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
     envelope_block = envelope_match.group(1)
     data_match = re.search(r'data:\s*serde_json::json!\(\s*\{(.*?)\}\s*\)', envelope_block, re.S)
     return {
-        'envelope_fields': set(re.findall(r'\b([a-z_][a-z0-9_]*)\s*:', envelope_block)),
+        'envelope_fields': _extract_top_level_rust_fields(envelope_block),
         'event_type': next(iter(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
         'event_version': next(iter(re.findall(r'event_version:\s*(\d+)', envelope_block)), None),
         'producer': next(iter(re.findall(r'producer:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
