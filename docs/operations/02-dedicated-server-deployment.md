@@ -57,16 +57,18 @@
 
 ## Dependency Minimums
 
-- Required for the documented single-node baseline:
-  - Postgres
-  - `api-rs`
-  - `realtime-rs`
-  - ingress/reverse proxy with TLS termination
-- Required for the currently validated dedicated baseline:
-  - Redis
-- Optional depending on enabled scope:
-  - object storage for blob/media features
-  - coturn for voice/TURN validation or constrained-network media scope
+- Required for the reviewed single-node dedicated baseline:
+  - Postgres for durable API state and embedded migration/bootstrap.
+  - Redis for the currently reviewed realtime replay/presence convergence path.
+  - one `api-rs` instance.
+  - one `realtime-rs` instance.
+  - ingress/reverse proxy with TLS termination.
+- Required only when the corresponding feature scope is enabled:
+  - object storage for blob/media features.
+  - coturn for voice/TURN validation or constrained-network media scope.
+- Not part of the reviewed dedicated baseline:
+  - horizontally scaled `realtime-rs` topologies.
+  - project-operated DM relay infrastructure.
 
 ## Schema Bootstrap and Migration Authority
 
@@ -85,7 +87,7 @@
 ### Operator Procedure
 
 1. Provision Postgres and ensure the target database from `API_DATABASE_URL` exists and is writable by the `api-rs` service user.
-2. Provision Redis before starting either service; the validated dedicated baseline depends on Redis for realtime replay/presence convergence.
+2. Provision Redis before starting either service; the reviewed dedicated baseline depends on it for realtime replay/presence convergence.
 3. Start `api-rs` with the production `API_DATABASE_URL` and required auth/internal-token settings.
 4. Watch `api-rs` startup logs and do not continue until startup succeeds; a migration checksum mismatch or SQL apply error is a hard stop, not a warning.
 5. Verify `GET /health` on the API endpoint only after `api-rs` has completed startup.

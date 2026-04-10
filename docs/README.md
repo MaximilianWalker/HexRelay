@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed docs routing after completing the dedicated single-node migration/bootstrap procedure in the operator deployment guide.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after tightening the dedicated deployment dependency matrix for the reviewed single-node baseline.
 
 ## Purpose
 
