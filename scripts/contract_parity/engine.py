@@ -113,6 +113,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
     TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
+    TRACKED_ERROR_SCHEMA_STATUSES = {'400', '401', '403', '404', '409', '429', '500'}
+    API_ERROR_SCHEMA_NAME = 'ApiError'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
     INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
@@ -673,6 +675,113 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return structs
 
 
+    def extract_tracked_schema_fields(models_path: pathlib.Path):
+        tracked_schemas = {
+            'AuthVerifyRequest',
+            'AuthVerifyResponse',
+            'SessionValidateResponse',
+            'InviteCreateRequest',
+            'InviteCreateResponse',
+            'FriendRequestCreateRequest',
+            'DmFanoutDispatchRequest',
+            'DmFanoutDispatchResponse',
+        }
+        text = models_path.read_text()
+        structs = {}
+        struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
+        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
+
+        for match in struct_pattern.finditer(text):
+            name = match.group(1)
+            if name not in tracked_schemas:
+                continue
+            body = match.group(2)
+            fields = {}
+            for field_name, raw_type in field_pattern.findall(body):
+                option_match = re.fullmatch(r'Option<\s*([^>]+)\s*>', raw_type.strip())
+                fields[field_name] = {
+                    'required': option_match is None,
+                }
+            structs[name] = fields
+
+        return structs
+
+
+    def extract_openapi_tracked_schema_fields(contract_path: pathlib.Path):
+        tracked_schemas = {
+            'AuthVerifyRequest',
+            'AuthVerifyResponse',
+            'SessionValidateResponse',
+            'InviteCreateRequest',
+            'InviteCreateResponse',
+            'FriendRequestCreateRequest',
+            'DmFanoutDispatchRequest',
+            'DmFanoutDispatchResponse',
+        }
+        lines = contract_path.read_text().splitlines()
+        structs = {}
+        current_schema = None
+        current_required = set()
+        current_properties = set()
+        in_required = False
+        in_properties = False
+
+        for line in lines:
+            schema_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if schema_match:
+                if current_schema in tracked_schemas and current_properties:
+                    structs[current_schema] = {
+                        field_name: {'required': field_name in current_required}
+                        for field_name in current_properties | current_required
+                    }
+                current_schema = schema_match.group(1)
+                current_required = set()
+                current_properties = set()
+                in_required = False
+                in_properties = False
+                continue
+
+            if current_schema not in tracked_schemas:
+                continue
+
+            if re.match(r'^      required:\s*\[(.*)\]\s*$', line):
+                match = re.match(r'^      required:\s*\[(.*)\]\s*$', line)
+                current_required = {item.strip() for item in match.group(1).split(',') if item.strip()}
+                in_required = False
+                continue
+            if re.match(r'^      required:\s*$', line):
+                in_required = True
+                in_properties = False
+                continue
+            if in_required:
+                required_match = re.match(r'^        - ([A-Za-z0-9_]+)\s*$', line)
+                if required_match:
+                    current_required.add(required_match.group(1))
+                    continue
+                if not re.match(r'^        ', line):
+                    in_required = False
+
+            if re.match(r'^      properties:\s*$', line):
+                in_properties = True
+                in_required = False
+                continue
+            if in_properties:
+                property_match = re.match(r'^        ([A-Za-z0-9_]+):\s*$', line)
+                if property_match:
+                    current_properties.add(property_match.group(1))
+                    continue
+                if not re.match(r'^          ', line):
+                    in_properties = False
+
+        if current_schema in tracked_schemas and current_properties:
+            structs[current_schema] = {
+                field_name: {'required': field_name in current_required}
+                for field_name in current_properties | current_required
+            }
+
+        return structs
+
+
     def map_query_schema_type(raw_type: str):
         required = True
         inner_type = raw_type
@@ -958,6 +1067,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
+        response_components = {}
         semantics = {}
         in_paths = False
         current_path = None
@@ -979,6 +1089,43 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_error_status = None
         in_error_examples = False
         in_error_example_value = False
+
+        current_component_response = None
+        in_component_response_json = False
+        in_component_response_schema = False
+        in_component_responses = False
+
+        for line in lines:
+            if not in_component_responses:
+                if re.match(r'^  responses:\s*$', line):
+                    in_component_responses = True
+                continue
+
+            if re.match(r'^  schemas:\s*$', line):
+                break
+
+            response_component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if response_component_match:
+                current_component_response = response_component_match.group(1)
+                response_components.setdefault(current_component_response, None)
+                in_component_response_json = False
+                in_component_response_schema = False
+                continue
+
+            if current_component_response and re.match(r'^      content:\s*$', line):
+                continue
+            if current_component_response and re.match(r'^        application/json:\s*$', line):
+                in_component_response_json = True
+                in_component_response_schema = False
+                continue
+            if current_component_response and in_component_response_json and re.match(r'^          schema:\s*$', line):
+                in_component_response_schema = True
+                continue
+
+            component_schema_match = re.match(r"^            \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if current_component_response and in_component_response_schema and component_schema_match:
+                response_components[current_component_response] = component_schema_match.group(1)
+                continue
 
         for line in lines:
             if not in_paths:
@@ -1244,6 +1391,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_error_example_value = False
                 semantics[(current_method, current_path)]['success_responses'].add(current_response_status)
                 continue
+            error_response_status_match = re.match(r"^        '((?:4\d\d|5\d\d))':\s*$", line)
+            if error_response_status_match:
+                current_response_status = error_response_status_match.group(1)
+                in_response_json = False
+                in_response_schema = False
+                current_response_header_status = current_response_status
+                in_response_headers = False
             if current_response_header_status and re.match(r'^          headers:\s*$', line):
                 in_response_headers = True
                 continue
@@ -1271,6 +1425,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             response_schema_match = re.match(r"^ {16}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
             if current_response_status and in_response_schema and response_schema_match:
                 semantics[(current_method, current_path)]['response_schemas'][current_response_status] = response_schema_match.group(1)
+                continue
+            response_component_ref_match = re.match(r"^ {10}\$ref: '#/components/responses/([A-Za-z0-9_]+)'\s*$", line)
+            if current_response_status and response_component_ref_match:
+                component_name = response_component_ref_match.group(1)
+                component_schema = response_components.get(component_name)
+                if component_schema is not None:
+                    semantics[(current_method, current_path)]['response_schemas'][current_response_status] = component_schema
                 continue
 
             error_match = re.match(rf"^        '(({TRACKED_ERROR_EXAMPLE_STATUS_PATTERN}))':\s*$", line)
@@ -1305,7 +1466,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     contract_path = pathlib.Path(contract_path_str)
     router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
     handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
-    query_struct_fields = extract_query_struct_fields(pathlib.Path('services/api-rs/src/models.rs'))
+    models_path = pathlib.Path('services/api-rs/src/models.rs')
+    query_struct_fields = extract_query_struct_fields(models_path)
+    runtime_schema_fields = extract_tracked_schema_fields(models_path)
+    contract_schema_fields = extract_openapi_tracked_schema_fields(contract_path)
 
     function_semantics, route_handler_lookup, local_lookup = extract_function_blocks(handler_paths)
     runtime_semantics = extract_runtime_semantics(
@@ -1350,11 +1514,29 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
+        if runtime['request_body_schema'] in runtime_schema_fields and runtime['request_body_schema'] in contract_schema_fields:
+            runtime_required = {name for name, field in runtime_schema_fields[runtime['request_body_schema']].items() if field['required']}
+            documented_required = {name for name, field in contract_schema_fields[runtime['request_body_schema']].items() if field['required']}
+            if runtime_required != documented_required:
+                documented = ', '.join(sorted(documented_required)) or '<none>'
+                expected = ', '.join(sorted(runtime_required)) or '<none>'
+                errors.append(
+                    f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
+                )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented != runtime['response_body_schema']:
                 actual = documented or '<none>'
                 errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
+            elif runtime['response_body_schema'] in runtime_schema_fields and runtime['response_body_schema'] in contract_schema_fields:
+                runtime_required = {name for name, field in runtime_schema_fields[runtime['response_body_schema']].items() if field['required']}
+                documented_required = {name for name, field in contract_schema_fields[runtime['response_body_schema']].items() if field['required']}
+                if runtime_required != documented_required:
+                    documented_fields = ', '.join(sorted(documented_required)) or '<none>'
+                    expected_fields = ', '.join(sorted(runtime_required)) or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` with required fields [{expected_fields}] at runtime but documents [{documented_fields}] in {contract_path}."
+                    )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented is not None:
@@ -1442,6 +1624,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_error_responses = sorted(runtime['error_statuses'] - contract['error_responses'])
         for status_code in missing_error_responses:
             errors.append(f"::error::{method} {path} can return HTTP {status_code} at runtime but is missing that error response in {contract_path}.")
+        tracked_error_schema_statuses = sorted(runtime['error_statuses'] & TRACKED_ERROR_SCHEMA_STATUSES)
+        for status_code in tracked_error_schema_statuses:
+            documented = contract['response_schemas'].get(status_code)
+            if documented != API_ERROR_SCHEMA_NAME:
+                actual = documented or '<none>'
+                errors.append(
+                    f"::error::{method} {path} can return HTTP {status_code} with ApiError at runtime but documents schema `{actual}` instead of `{API_ERROR_SCHEMA_NAME}` in {contract_path}."
+                )
         if runtime['success_status'] and runtime['success_status'] not in contract['success_responses']:
             errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} at runtime but is missing that success response in {contract_path}.")
 
@@ -1545,6 +1735,13 @@ def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
         'producer': next(iter(re.findall(r'producer:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
         'data_keys': set(re.findall(r'"([^"]+)"\s*:', data_match.group(1) if data_match else '')),
     }
+
+
+def _parse_rust_struct_fields(runtime_text: str, struct_name: str) -> set[str]:
+    struct_match = re.search(rf'struct\s+{re.escape(struct_name)}\s*\{{(.*?)\n\}}', runtime_text, re.S)
+    if not struct_match:
+        return set()
+    return _extract_top_level_rust_fields(struct_match.group(1))
 
 
 def _parse_realtime_contract_semantics(contract_text: str, event_schema_name: str) -> dict[str, object] | None:
@@ -1660,8 +1857,47 @@ def _parse_signal_runtime_semantics(function_block: str, event_name: str) -> dic
     }
 
 
+def _extract_signal_payload_struct(runtime_text: str, event_name: str) -> str | None:
+    route_fn = _extract_rust_function_block(runtime_text, 'route_inbound_event')
+    if route_fn is None:
+        return None
+
+    event_case_match = re.search(
+        rf'"{re.escape(event_name)}"\s*=>\s*(.*?)(?=\n\s*"[^"]+"\s*=>|\n\s*_\s*=>)',
+        route_fn,
+        re.S,
+    )
+    if not event_case_match:
+        return None
+
+    payload_match = re.search(r'serde_json::from_value::<([A-Za-z0-9_]+)>\(parsed\.data\)', event_case_match.group(1))
+    if not payload_match:
+        return None
+
+    return payload_match.group(1)
+
+
 def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_str: str) -> int:
     tracked_events = {
+        'error': {
+            'runtime_fn': 'build_error_event',
+            'contract_schema': 'ErrorEventV1',
+        },
+        'call.signal.offer': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalOfferEventV1',
+            'function_args': 'call.signal.offer',
+        },
+        'call.signal.answer': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalAnswerEventV1',
+            'function_args': 'call.signal.answer',
+        },
+        'call.signal.ice_candidate': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalIceCandidateEventV1',
+            'function_args': 'call.signal.ice_candidate',
+        },
         'realtime.connected': {
             'runtime_fn': 'connection_ready_banner',
             'contract_schema': 'RealtimeConnectedEventV1',
@@ -1722,6 +1958,14 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
             )
             continue
 
+        if 'function_args' in spec:
+            function_block = function_block.replace('event_type.to_string()', f'"{spec["function_args"]}".to_string()')
+            function_block = function_block.replace('data,', 'data: serde_json::json!({}),')
+
+        if event_name == 'error':
+            function_block = re.sub(r'code:\s*code\.to_string\(\)', 'code: "event_invalid".to_string()', function_block)
+            function_block = re.sub(r'message:\s*message\.to_string\(\)', 'message: "invalid event envelope payload".to_string()', function_block)
+
         runtime_semantics = _parse_realtime_builder(function_block)
         if runtime_semantics is None:
             errors.append(
@@ -1762,6 +2006,12 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
             )
 
         runtime_data_keys = runtime_semantics['data_keys']
+        if event_name == 'error' and not runtime_data_keys:
+            runtime_data_keys = _parse_rust_struct_fields(runtime_text, 'RealtimeErrorData')
+        elif 'function_args' in spec and not runtime_data_keys:
+            payload_struct = _extract_signal_payload_struct(runtime_text, event_name)
+            if payload_struct:
+                runtime_data_keys = _parse_rust_struct_fields(runtime_text, payload_struct)
         documented_data_keys = contract_semantics['data_required']
         if runtime_data_keys != documented_data_keys:
             documented = ', '.join(sorted(documented_data_keys)) or '<none>'

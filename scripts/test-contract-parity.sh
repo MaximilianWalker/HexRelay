@@ -52,6 +52,7 @@ run_fixture pass-server-channel-example-status 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
 run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
+run_fixture fail-error-response-schema 1 'can return HTTP 400 with ApiError at runtime but documents schema `FriendRequestRecord` instead of `ApiError`'
 run_fixture fail-fanout-example 1 "fanout_invalid"
 run_fixture fail-helper-auth-401 1 "can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers"
 run_fixture fail-internal-auth-401 1 "requires internal-token auth at runtime but is missing a 401 response"
@@ -65,7 +66,10 @@ run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missin
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
+run_fixture fail-rest-schema-required-fields 1 'uses request schema `AuthVerifyRequest` with required fields [challenge_id, identity_id, signature] at runtime but documents [challenge_id, identity_id]'
+run_fixture fail-realtime-error-envelope-semantics 1 'Realtime runtime event `error` uses data fields [code, message] but documents [code]'
 run_fixture fail-realtime-envelope-semantics 1 'Realtime runtime event `realtime.connected` uses data fields [state] but documents [status]'
+run_fixture fail-realtime-signal-envelope-semantics 1 'Realtime runtime event `call.signal.offer` uses data fields [call_id, from_identity_id, sdp_offer, to_identity_id] but documents [call_id, from_identity_id, to_identity_id]'
 run_fixture fail-realtime-signaling-semantics 1 'Realtime runtime event `call.signal.offer` requires from_identity_id/session-identity parity at runtime but does not require it'
 run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"

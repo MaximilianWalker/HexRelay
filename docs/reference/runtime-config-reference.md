@@ -55,7 +55,7 @@
 | `API_CHANNEL_DISPATCH_INTERNAL_TOKEN` | dev default token | must be non-default | API -> realtime channel dispatch credential |
 | `API_PRESENCE_WATCHER_INTERNAL_TOKEN` | dev default token | must be non-default | realtime -> API presence watcher credential |
 | `API_REALTIME_BASE_URL` | `http://127.0.0.1:8081` | required | absolute URL; non-loopback hosts must use `https` |
-| `API_PRESENCE_REDIS_URL` | unset | optional | enables Redis-backed presence snapshot source |
+| `API_PRESENCE_REDIS_URL` | unset | optional config knob | enables Redis-backed presence snapshot source; required for the reviewed dedicated single-node deployment baseline |
 | `API_DISCOVERY_DENYLIST` | unset | optional | CSV denylist for discovery filtering |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
 | `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
@@ -81,7 +81,7 @@
 | `REALTIME_REQUIRE_API_HEALTH_ON_START` | `true` | optional | fail startup if API health is unavailable |
 | `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN` | dev default token | must be non-default | authorizes protected internal channel publish ingress |
 | `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN` | dev default token | must be non-default | outbound watcher lookup credential toward API |
-| `REALTIME_PRESENCE_REDIS_URL` | unset | optional | enables Redis-backed presence/replay authority |
+| `REALTIME_PRESENCE_REDIS_URL` | unset | optional config knob | enables Redis-backed presence/replay authority; required for the reviewed dedicated single-node deployment baseline |
 | `REALTIME_TRUST_PROXY_HEADERS` | `false` | optional | enable only behind trusted proxy/header sanitization |
 | `REALTIME_ALLOWED_ORIGINS` | `http://localhost:3002,http://127.0.0.1:3002` | required | websocket/browser origin allowlist |
 | `REALTIME_WS_CONNECT_RATE_LIMIT` | `60` | optional | positive integer |
@@ -106,6 +106,15 @@
 
 ## Dedicated Server Minimum
 
+- Reviewed dedicated single-node baseline services:
+  - Postgres
+  - Redis
+  - `api-rs`
+  - `realtime-rs`
+  - TLS-capable ingress/reverse proxy
+- Feature-scoped optional services:
+  - object storage when blob/media scope is enabled
+  - coturn when voice/TURN validation or constrained-network media scope is enabled
 - API secrets/config that must be reviewed explicitly:
   - `API_DATABASE_URL`
   - `API_SESSION_SIGNING_KEYS`
@@ -115,6 +124,7 @@
 - Realtime secrets/config that must be reviewed explicitly:
   - `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN`
   - `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN`
+- Redis URLs remain optional at pure config-validation time, but they are required for the reviewed dedicated single-node deployment baseline.
 - Dedicated deployments should also review:
   - origin allowlists
   - proxy-header trust flags

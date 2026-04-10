@@ -26,7 +26,6 @@
 - Current status is `needs-detail`.
 - This guide is execution-oriented for single-node dedicated deployment, but it is not yet fully complete.
 - Known blockers/uncertainties remain around:
-  - authoritative schema bootstrap/migration procedure
   - exact minimum required dependency set for all supported features
   - multi-instance realtime websocket abuse-control equivalence
 
@@ -58,16 +57,50 @@
 
 ## Dependency Minimums
 
-- Required for the documented single-node baseline:
-  - Postgres
-  - `api-rs`
-  - `realtime-rs`
-  - ingress/reverse proxy with TLS termination
-- Required for current realtime replay/presence convergence behavior:
-  - Redis
-- Optional depending on enabled scope:
-  - object storage for blob/media features
-  - coturn for voice/TURN validation or constrained-network media scope
+- Required for the reviewed single-node dedicated baseline:
+  - Postgres for durable API state and embedded migration/bootstrap.
+  - Redis for the currently reviewed realtime replay/presence convergence path.
+  - one `api-rs` instance.
+  - one `realtime-rs` instance.
+  - ingress/reverse proxy with TLS termination.
+- Required only when the corresponding feature scope is enabled:
+  - object storage for blob/media features.
+  - coturn for voice/TURN validation or constrained-network media scope.
+- Not part of the reviewed dedicated baseline:
+  - horizontally scaled `realtime-rs` topologies.
+  - project-operated DM relay infrastructure.
+
+## Schema Bootstrap and Migration Authority
+
+- The authoritative schema bootstrap/migration path for dedicated deployments is `api-rs` startup.
+- `services/api-rs/src/main.rs` calls `connect_and_prepare(&config.database_url)` before the HTTP listener starts.
+- `services/api-rs/src/db.rs` then:
+  - connects to Postgres,
+  - acquires the migration advisory lock,
+  - creates `schema_migrations` if needed,
+  - applies any unapplied embedded migrations in order,
+  - fails startup on migration checksum mismatch or migration apply failure,
+  - backfills legacy invite-token hashes after migrations,
+  - returns only after the database is prepared for runtime traffic.
+- There is no separate reviewed operator migration command in this repository yet; the supported single-node procedure is to let `api-rs` own schema preparation and to treat startup failure as the migration failure signal.
+
+### Operator Procedure
+
+1. Provision Postgres and ensure the target database from `API_DATABASE_URL` exists and is writable by the `api-rs` service user.
+2. Provision Redis before starting either service; the reviewed dedicated baseline depends on it for realtime replay/presence convergence.
+3. Start `api-rs` with the production `API_DATABASE_URL` and required auth/internal-token settings.
+4. Watch `api-rs` startup logs and do not continue until startup succeeds; a migration checksum mismatch or SQL apply error is a hard stop, not a warning.
+5. Verify `GET /health` on the API endpoint only after `api-rs` has completed startup.
+6. Start `realtime-rs` only after the API health probe is green.
+7. Verify `GET /health` on the realtime endpoint.
+8. Run remote smoke with explicit dedicated-deployment URLs/origin.
+9. Record operator evidence for API health, realtime health, smoke, and the migration state snapshot referenced by the runbook restore contract.
+
+### Failure Handling
+
+- If `api-rs` exits during startup because database initialization failed, stop the rollout and treat it as a migration/bootstrap failure.
+- Do not start `realtime-rs` against an API instance that has not completed startup successfully.
+- Use the runbook rollback procedure if a previously known-good deployment must be restored after migration/bootstrap failure.
 
 ## Secrets and Config Inputs
 
@@ -112,19 +145,21 @@ npm --prefix apps/web run e2e:smoke
 
 1. Provision Postgres and Redis.
 2. Prepare environment values for `api-rs` and `realtime-rs` using `docs/reference/runtime-config-reference.md`.
-3. Start `api-rs`.
+3. Start `api-rs` and wait for database initialization to complete successfully.
 4. Verify `GET /health` on the API endpoint.
 5. Start `realtime-rs`.
 6. Verify `GET /health` on the realtime endpoint.
 7. Run remote smoke with explicit dedicated-deployment URLs/origin.
-8. Record operator evidence for health, smoke, and config review.
+8. Record operator evidence for health, smoke, migration state, and config review.
 
 ### Deployment Checklist Sign-Off
 
 - Confirm the rollout matches the validated baseline shape: one `api-rs` instance and one `realtime-rs` instance.
+- Confirm `api-rs` completed database initialization successfully before starting `realtime-rs`.
 - Confirm `GET /health` succeeds for both services before smoke.
 - Confirm remote smoke passes with the dedicated deployment URLs and origin.
 - Confirm ingress/origin/TLS settings match the deployed browser-facing hosts.
+- Confirm the deployment evidence includes the migration state snapshot required by `docs/operations/01-mvp-runbook.md`.
 - If deployment is single-node, record that process-local realtime websocket abuse controls are accepted as-is for this rollout.
 - If deployment uses more than one `realtime-rs` instance, do not sign off until sticky routing/session affinity and edge/global websocket limiting have both been validated and recorded in deployment evidence.
 
@@ -146,7 +181,6 @@ npm --prefix apps/web run e2e:smoke
 
 ## Known Gaps
 
-- `blocked`: authoritative schema bootstrap/migration command flow is not yet documented in reviewed operator docs.
 - `needs-detail`: exact minimum dependency matrix for all optional scopes still needs sharper separation between required and optional services.
 - `watch`: multi-instance realtime websocket abuse-control equivalence remains an open readiness item in `docs/operations/readiness-corrections-log.md`.
 

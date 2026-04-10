@@ -219,7 +219,7 @@ components:
     CallSignalIceCandidateDataV1:
       type: object
       additionalProperties: false
-      required: [call_id, from_identity_id, to_identity_id, candidate]
+      required: [call_id, from_identity_id, to_identity_id, candidate, sdp_mid, sdp_mline_index]
       properties:
         call_id: { type: string }
         from_identity_id: { type: string }

@@ -148,6 +148,8 @@ npm --prefix apps/web run e2e:smoke
 5. Re-run smoke validation and archive logs for incident evidence.
 6. If auth grace mode was enabled during incident response, reset `REALTIME_WS_AUTH_GRACE_SECONDS=0` and verify websocket upgrades still pass under normal upstream validation.
 
+- Dedicated deployment note: the authoritative single-node schema bootstrap/migration procedure now lives in `docs/operations/02-dedicated-server-deployment.md`; treat `api-rs` startup database initialization failure as a rollout blocker before `realtime-rs` starts.
+
 ## Release Decision and Abort Thresholds
 
 - Release decision owner: current sprint technical owner (record explicit primary and backup names in deployment PR).
