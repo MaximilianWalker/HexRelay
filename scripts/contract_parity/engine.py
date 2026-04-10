@@ -675,6 +675,113 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return structs
 
 
+    def extract_tracked_schema_fields(models_path: pathlib.Path):
+        tracked_schemas = {
+            'AuthVerifyRequest',
+            'AuthVerifyResponse',
+            'SessionValidateResponse',
+            'InviteCreateRequest',
+            'InviteCreateResponse',
+            'FriendRequestCreateRequest',
+            'DmFanoutDispatchRequest',
+            'DmFanoutDispatchResponse',
+        }
+        text = models_path.read_text()
+        structs = {}
+        struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
+        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
+
+        for match in struct_pattern.finditer(text):
+            name = match.group(1)
+            if name not in tracked_schemas:
+                continue
+            body = match.group(2)
+            fields = {}
+            for field_name, raw_type in field_pattern.findall(body):
+                option_match = re.fullmatch(r'Option<\s*([^>]+)\s*>', raw_type.strip())
+                fields[field_name] = {
+                    'required': option_match is None,
+                }
+            structs[name] = fields
+
+        return structs
+
+
+    def extract_openapi_tracked_schema_fields(contract_path: pathlib.Path):
+        tracked_schemas = {
+            'AuthVerifyRequest',
+            'AuthVerifyResponse',
+            'SessionValidateResponse',
+            'InviteCreateRequest',
+            'InviteCreateResponse',
+            'FriendRequestCreateRequest',
+            'DmFanoutDispatchRequest',
+            'DmFanoutDispatchResponse',
+        }
+        lines = contract_path.read_text().splitlines()
+        structs = {}
+        current_schema = None
+        current_required = set()
+        current_properties = set()
+        in_required = False
+        in_properties = False
+
+        for line in lines:
+            schema_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if schema_match:
+                if current_schema in tracked_schemas and current_properties:
+                    structs[current_schema] = {
+                        field_name: {'required': field_name in current_required}
+                        for field_name in current_properties | current_required
+                    }
+                current_schema = schema_match.group(1)
+                current_required = set()
+                current_properties = set()
+                in_required = False
+                in_properties = False
+                continue
+
+            if current_schema not in tracked_schemas:
+                continue
+
+            if re.match(r'^      required:\s*\[(.*)\]\s*$', line):
+                match = re.match(r'^      required:\s*\[(.*)\]\s*$', line)
+                current_required = {item.strip() for item in match.group(1).split(',') if item.strip()}
+                in_required = False
+                continue
+            if re.match(r'^      required:\s*$', line):
+                in_required = True
+                in_properties = False
+                continue
+            if in_required:
+                required_match = re.match(r'^        - ([A-Za-z0-9_]+)\s*$', line)
+                if required_match:
+                    current_required.add(required_match.group(1))
+                    continue
+                if not re.match(r'^        ', line):
+                    in_required = False
+
+            if re.match(r'^      properties:\s*$', line):
+                in_properties = True
+                in_required = False
+                continue
+            if in_properties:
+                property_match = re.match(r'^        ([A-Za-z0-9_]+):\s*$', line)
+                if property_match:
+                    current_properties.add(property_match.group(1))
+                    continue
+                if not re.match(r'^          ', line):
+                    in_properties = False
+
+        if current_schema in tracked_schemas and current_properties:
+            structs[current_schema] = {
+                field_name: {'required': field_name in current_required}
+                for field_name in current_properties | current_required
+            }
+
+        return structs
+
+
     def map_query_schema_type(raw_type: str):
         required = True
         inner_type = raw_type
@@ -1359,7 +1466,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     contract_path = pathlib.Path(contract_path_str)
     router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
     handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
-    query_struct_fields = extract_query_struct_fields(pathlib.Path('services/api-rs/src/models.rs'))
+    models_path = pathlib.Path('services/api-rs/src/models.rs')
+    query_struct_fields = extract_query_struct_fields(models_path)
+    runtime_schema_fields = extract_tracked_schema_fields(models_path)
+    contract_schema_fields = extract_openapi_tracked_schema_fields(contract_path)
 
     function_semantics, route_handler_lookup, local_lookup = extract_function_blocks(handler_paths)
     runtime_semantics = extract_runtime_semantics(
@@ -1404,11 +1514,29 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
+        if runtime['request_body_schema'] in runtime_schema_fields and runtime['request_body_schema'] in contract_schema_fields:
+            runtime_required = {name for name, field in runtime_schema_fields[runtime['request_body_schema']].items() if field['required']}
+            documented_required = {name for name, field in contract_schema_fields[runtime['request_body_schema']].items() if field['required']}
+            if runtime_required != documented_required:
+                documented = ', '.join(sorted(documented_required)) or '<none>'
+                expected = ', '.join(sorted(runtime_required)) or '<none>'
+                errors.append(
+                    f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
+                )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented != runtime['response_body_schema']:
                 actual = documented or '<none>'
                 errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
+            elif runtime['response_body_schema'] in runtime_schema_fields and runtime['response_body_schema'] in contract_schema_fields:
+                runtime_required = {name for name, field in runtime_schema_fields[runtime['response_body_schema']].items() if field['required']}
+                documented_required = {name for name, field in contract_schema_fields[runtime['response_body_schema']].items() if field['required']}
+                if runtime_required != documented_required:
+                    documented_fields = ', '.join(sorted(documented_required)) or '<none>'
+                    expected_fields = ', '.join(sorted(runtime_required)) or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` with required fields [{expected_fields}] at runtime but documents [{documented_fields}] in {contract_path}."
+                    )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented is not None:

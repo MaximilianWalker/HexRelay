@@ -31,7 +31,7 @@
 ## Contract Parity Status
 
 - Contract parity is strong for the current runtime route set, but it is not a full semantic/runtime-proof gate yet.
-- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, tracked REST DTO required-field checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
 - Remaining readiness limitations still include broader request/response/auth-behavior semantics beyond the currently tracked REST/realtime slices; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
 - Resume parity work only when:
   - the open CI semantic-depth watch is being hardened,

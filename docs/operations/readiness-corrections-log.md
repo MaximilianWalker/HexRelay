@@ -13,7 +13,7 @@
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-04-10 completed the dedicated single-node migration/bootstrap procedure in the operator deployment guide and narrowed the remaining operator watch to dependency-detail plus multi-instance evidence gaps.
+- Latest meaningful change: 2026-04-10 extended contract-parity CI to enforce required-field parity for a tracked set of high-signal REST request/response DTO schemas.
 
 ## Purpose
 
@@ -31,7 +31,7 @@
 
 ## Active Watch Summary
 
-- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, selected receive-side realtime semantic checks, current send-side signaling auth/targeting checks, current send-side signaling success-envelope checks, and shared realtime error-envelope checks.
+- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, tracked REST DTO required-field checks, selected receive-side realtime semantic checks, current send-side signaling auth/targeting checks, current send-side signaling success-envelope checks, and shared realtime error-envelope checks.
   - owner=maintainers
   - decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity
   - exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond inventory matching

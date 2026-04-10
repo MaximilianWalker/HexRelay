@@ -1,0 +1,50 @@
+openapi: 3.1.0
+paths:
+  /v1/auth/verify:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthVerifyRequest'
+      responses:
+        '200':
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVerifyResponse'
+        '400':
+          description: Invalid verify payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+components:
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    AuthVerifyRequest:
+      type: object
+      required: [identity_id, challenge_id]
+      properties:
+        identity_id:
+          type: string
+        challenge_id:
+          type: string
+        signature:
+          type: string
+    AuthVerifyResponse:
+      type: object
+      required: [session_id, expires_at]
+      properties:
+        session_id:
+          type: string
+        expires_at:
+          type: string
