@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-10 extended the realtime semantic-parity gate to include current send-side signaling auth/targeting semantics in addition to the existing receive-side websocket envelope checks.
+- Latest meaningful change: 2026-04-10 extended the realtime semantic-parity gate to include current send-side signaling success-envelope parity and shared error-envelope parity in addition to the earlier receive-side and signaling-guard checks.
 
 ## Purpose
 
@@ -31,8 +31,8 @@
 ## Contract Parity Status
 
 - Contract parity is strong for the current runtime route set, but it is not a full semantic/runtime-proof gate yet.
-- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
-- Remaining readiness limitations still include broader request/response/auth-behavior semantics and deeper realtime semantic parity beyond the currently tracked receive-side events and send-side signaling guards; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
+- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- Remaining readiness limitations still include broader request/response/auth-behavior semantics beyond the currently tracked REST/realtime slices; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
 - Resume parity work only when:
   - the open CI semantic-depth watch is being hardened,
   - new runtime routes or DTO families land,

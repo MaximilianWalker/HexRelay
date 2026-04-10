@@ -1547,6 +1547,13 @@ def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
     }
 
 
+def _parse_rust_struct_fields(runtime_text: str, struct_name: str) -> set[str]:
+    struct_match = re.search(rf'struct\s+{re.escape(struct_name)}\s*\{{(.*?)\n\}}', runtime_text, re.S)
+    if not struct_match:
+        return set()
+    return _extract_top_level_rust_fields(struct_match.group(1))
+
+
 def _parse_realtime_contract_semantics(contract_text: str, event_schema_name: str) -> dict[str, object] | None:
     envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelopeV1')
     event_block = _extract_asyncapi_schema_block(contract_text, event_schema_name)
@@ -1660,8 +1667,47 @@ def _parse_signal_runtime_semantics(function_block: str, event_name: str) -> dic
     }
 
 
+def _extract_signal_payload_struct(runtime_text: str, event_name: str) -> str | None:
+    route_fn = _extract_rust_function_block(runtime_text, 'route_inbound_event')
+    if route_fn is None:
+        return None
+
+    event_case_match = re.search(
+        rf'"{re.escape(event_name)}"\s*=>\s*(.*?)(?=\n\s*"[^"]+"\s*=>|\n\s*_\s*=>)',
+        route_fn,
+        re.S,
+    )
+    if not event_case_match:
+        return None
+
+    payload_match = re.search(r'serde_json::from_value::<([A-Za-z0-9_]+)>\(parsed\.data\)', event_case_match.group(1))
+    if not payload_match:
+        return None
+
+    return payload_match.group(1)
+
+
 def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_str: str) -> int:
     tracked_events = {
+        'error': {
+            'runtime_fn': 'build_error_event',
+            'contract_schema': 'ErrorEventV1',
+        },
+        'call.signal.offer': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalOfferEventV1',
+            'function_args': 'call.signal.offer',
+        },
+        'call.signal.answer': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalAnswerEventV1',
+            'function_args': 'call.signal.answer',
+        },
+        'call.signal.ice_candidate': {
+            'runtime_fn': 'build_event',
+            'contract_schema': 'CallSignalIceCandidateEventV1',
+            'function_args': 'call.signal.ice_candidate',
+        },
         'realtime.connected': {
             'runtime_fn': 'connection_ready_banner',
             'contract_schema': 'RealtimeConnectedEventV1',
@@ -1722,6 +1768,14 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
             )
             continue
 
+        if 'function_args' in spec:
+            function_block = function_block.replace('event_type.to_string()', f'"{spec["function_args"]}".to_string()')
+            function_block = function_block.replace('data,', 'data: serde_json::json!({}),')
+
+        if event_name == 'error':
+            function_block = re.sub(r'code:\s*code\.to_string\(\)', 'code: "event_invalid".to_string()', function_block)
+            function_block = re.sub(r'message:\s*message\.to_string\(\)', 'message: "invalid event envelope payload".to_string()', function_block)
+
         runtime_semantics = _parse_realtime_builder(function_block)
         if runtime_semantics is None:
             errors.append(
@@ -1762,6 +1816,12 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
             )
 
         runtime_data_keys = runtime_semantics['data_keys']
+        if event_name == 'error' and not runtime_data_keys:
+            runtime_data_keys = _parse_rust_struct_fields(runtime_text, 'RealtimeErrorData')
+        elif 'function_args' in spec and not runtime_data_keys:
+            payload_struct = _extract_signal_payload_struct(runtime_text, event_name)
+            if payload_struct:
+                runtime_data_keys = _parse_rust_struct_fields(runtime_text, payload_struct)
         documented_data_keys = contract_semantics['data_required']
         if runtime_data_keys != documented_data_keys:
             documented = ', '.join(sorted(documented_data_keys)) or '<none>'

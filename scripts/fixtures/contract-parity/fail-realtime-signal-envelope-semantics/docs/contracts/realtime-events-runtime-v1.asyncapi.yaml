@@ -1,0 +1,50 @@
+asyncapi: 3.0.0
+channels:
+  callSignalOffer:
+    address: call.signal.offer
+operations:
+  sendCallSignalOffer:
+    action: send
+    channel:
+      $ref: '#/channels/callSignalOffer'
+    x-hexrelay-signaling-semantics:
+      requires_session_identity_from_match: true
+      supported_targeting:
+        - self_only
+      rejection_codes:
+        - event_invalid
+        - event_identity_mismatch
+        - event_unsupported
+components:
+  messages:
+    CallSignalOfferV1:
+      payload:
+        $ref: '#/components/schemas/CallSignalOfferEventV1'
+  schemas:
+    EventEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      properties:
+        event_id: { type: string }
+        event_type: { type: string }
+        event_version: { type: integer, enum: [1] }
+        occurred_at: { type: string, format: date-time }
+        correlation_id: { type: string }
+        producer: { type: string, enum: [realtime-gateway] }
+    CallSignalOfferDataV1:
+      type: object
+      additionalProperties: false
+      required: [call_id, from_identity_id, to_identity_id]
+      properties:
+        call_id: { type: string }
+        from_identity_id: { type: string }
+        to_identity_id: { type: string }
+        sdp_offer: { type: string }
+    CallSignalOfferEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: call.signal.offer }
+            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
