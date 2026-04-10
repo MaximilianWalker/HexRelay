@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed docs routing after extending contract parity to cover shared REST `ApiError` response schemas in addition to the earlier realtime semantic slices.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after completing the dedicated single-node migration/bootstrap procedure in the operator deployment guide.
 
 ## Purpose
 
