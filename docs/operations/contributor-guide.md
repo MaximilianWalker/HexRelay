@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, web coverage policy, and docs-governance/process watches.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, and docs-governance/process watches.
 
 ## Local Development Prerequisites
 

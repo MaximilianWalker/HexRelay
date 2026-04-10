@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed docs routing after extending realtime contract parity to cover current signaling success envelopes and shared error-envelope semantics.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after extending contract parity to cover shared REST `ApiError` response schemas in addition to the earlier realtime semantic slices.
 
 ## Purpose
 

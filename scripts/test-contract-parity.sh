@@ -52,6 +52,7 @@ run_fixture pass-server-channel-example-status 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
 run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
+run_fixture fail-error-response-schema 1 'can return HTTP 400 with ApiError at runtime but documents schema `FriendRequestRecord` instead of `ApiError`'
 run_fixture fail-fanout-example 1 "fanout_invalid"
 run_fixture fail-helper-auth-401 1 "can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers"
 run_fixture fail-internal-auth-401 1 "requires internal-token auth at runtime but is missing a 401 response"

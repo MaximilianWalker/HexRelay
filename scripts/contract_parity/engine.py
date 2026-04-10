@@ -113,6 +113,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     TRACKED_ERROR_STATUS_PATTERN = '|'.join(sorted(TRACKED_ERROR_STATUS_TOKENS))
     TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
+    TRACKED_ERROR_SCHEMA_STATUSES = {'400', '401', '403', '404', '409', '429', '500'}
+    API_ERROR_SCHEMA_NAME = 'ApiError'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
     INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
@@ -958,6 +960,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
+        response_components = {}
         semantics = {}
         in_paths = False
         current_path = None
@@ -979,6 +982,43 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_error_status = None
         in_error_examples = False
         in_error_example_value = False
+
+        current_component_response = None
+        in_component_response_json = False
+        in_component_response_schema = False
+        in_component_responses = False
+
+        for line in lines:
+            if not in_component_responses:
+                if re.match(r'^  responses:\s*$', line):
+                    in_component_responses = True
+                continue
+
+            if re.match(r'^  schemas:\s*$', line):
+                break
+
+            response_component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if response_component_match:
+                current_component_response = response_component_match.group(1)
+                response_components.setdefault(current_component_response, None)
+                in_component_response_json = False
+                in_component_response_schema = False
+                continue
+
+            if current_component_response and re.match(r'^      content:\s*$', line):
+                continue
+            if current_component_response and re.match(r'^        application/json:\s*$', line):
+                in_component_response_json = True
+                in_component_response_schema = False
+                continue
+            if current_component_response and in_component_response_json and re.match(r'^          schema:\s*$', line):
+                in_component_response_schema = True
+                continue
+
+            component_schema_match = re.match(r"^            \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if current_component_response and in_component_response_schema and component_schema_match:
+                response_components[current_component_response] = component_schema_match.group(1)
+                continue
 
         for line in lines:
             if not in_paths:
@@ -1244,6 +1284,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_error_example_value = False
                 semantics[(current_method, current_path)]['success_responses'].add(current_response_status)
                 continue
+            error_response_status_match = re.match(r"^        '((?:4\d\d|5\d\d))':\s*$", line)
+            if error_response_status_match:
+                current_response_status = error_response_status_match.group(1)
+                in_response_json = False
+                in_response_schema = False
+                current_response_header_status = current_response_status
+                in_response_headers = False
             if current_response_header_status and re.match(r'^          headers:\s*$', line):
                 in_response_headers = True
                 continue
@@ -1271,6 +1318,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             response_schema_match = re.match(r"^ {16}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
             if current_response_status and in_response_schema and response_schema_match:
                 semantics[(current_method, current_path)]['response_schemas'][current_response_status] = response_schema_match.group(1)
+                continue
+            response_component_ref_match = re.match(r"^ {10}\$ref: '#/components/responses/([A-Za-z0-9_]+)'\s*$", line)
+            if current_response_status and response_component_ref_match:
+                component_name = response_component_ref_match.group(1)
+                component_schema = response_components.get(component_name)
+                if component_schema is not None:
+                    semantics[(current_method, current_path)]['response_schemas'][current_response_status] = component_schema
                 continue
 
             error_match = re.match(rf"^        '(({TRACKED_ERROR_EXAMPLE_STATUS_PATTERN}))':\s*$", line)
@@ -1442,6 +1496,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_error_responses = sorted(runtime['error_statuses'] - contract['error_responses'])
         for status_code in missing_error_responses:
             errors.append(f"::error::{method} {path} can return HTTP {status_code} at runtime but is missing that error response in {contract_path}.")
+        tracked_error_schema_statuses = sorted(runtime['error_statuses'] & TRACKED_ERROR_SCHEMA_STATUSES)
+        for status_code in tracked_error_schema_statuses:
+            documented = contract['response_schemas'].get(status_code)
+            if documented != API_ERROR_SCHEMA_NAME:
+                actual = documented or '<none>'
+                errors.append(
+                    f"::error::{method} {path} can return HTTP {status_code} with ApiError at runtime but documents schema `{actual}` instead of `{API_ERROR_SCHEMA_NAME}` in {contract_path}."
+                )
         if runtime['success_status'] and runtime['success_status'] not in contract['success_responses']:
             errors.append(f"::error::{method} {path} returns HTTP {runtime['success_status']} at runtime but is missing that success response in {contract_path}.")
 
