@@ -1,9 +1,10 @@
 use communication_core::{
-    app::{CommunicationRouter, PolicyEngine},
-    domain::{
-        CommunicationMode, ConnectIntent, SendEnvelope, SessionProvenance,
+    app::CommunicationRouter,
+    domain::{CommunicationMode, SendEnvelope},
+    transport::{
+        DispatchingNodeClientTransport, NodeDispatch, TransportError,
+        UnsupportedDirectPeerTransport,
     },
-    transport::{DirectPeerTransport, NodeClientTransport, TransportError},
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -111,34 +112,15 @@ pub struct DispatchChannelMessageDeletedInput<'a> {
 }
 
 #[derive(Clone)]
-struct RealtimeNodeClientTransport {
+struct RealtimeNodeDispatchSender {
     http_client: reqwest::Client,
     realtime_base_url: String,
     internal_token: String,
 }
 
-struct UnusedDirectPeerTransport;
-
-impl DirectPeerTransport for UnusedDirectPeerTransport {
-    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Err(TransportError::ConnectFailed)
-    }
-
-    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        Err(TransportError::SendFailed)
-    }
-}
-
-impl NodeClientTransport for RealtimeNodeClientTransport {
-    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Ok(PolicyEngine::build_provenance(
-            intent.mode,
-            communication_core::TransportProfile::NodeClient,
-        ))
-    }
-
-    fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {
-        let dispatch = RealtimeNodeDispatch::from_payload(&envelope.payload)?;
+impl NodeDispatch for RealtimeNodeDispatchSender {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        let dispatch = RealtimeNodeDispatch::from_payload(payload)?;
         let http_client = self.http_client.clone();
         let url = format!(
             "{}{}",
@@ -380,12 +362,15 @@ fn dispatch_server_channel_payload(
 
     let router = CommunicationRouter::new(
         communication_core::PolicyContext::default(),
-        UnusedDirectPeerTransport,
-        RealtimeNodeClientTransport {
-            http_client: state.http_client.clone(),
-            realtime_base_url: state.realtime_base_url.clone(),
-            internal_token: state.channel_dispatch_internal_token.clone(),
-        },
+        UnsupportedDirectPeerTransport,
+        DispatchingNodeClientTransport::new(
+            CommunicationMode::ServerChannel,
+            RealtimeNodeDispatchSender {
+                http_client: state.http_client.clone(),
+                realtime_base_url: state.realtime_base_url.clone(),
+                internal_token: state.channel_dispatch_internal_token.clone(),
+            },
+        ),
     );
 
     router

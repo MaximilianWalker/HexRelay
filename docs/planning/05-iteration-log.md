@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 recorded `T4.0.1` closeout after shared communication-layer provenance wiring and evidence-path completion.
+- Latest meaningful change: 2026-04-11 recorded `T4.0.1` closeout and the first `T4.0.2` adapter-boundary slice for the current production node-client paths.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.0.2 node-client adapter boundary slice)
+
+- Area affected: Iteration 2 communication adapter rollout and planning traceability.
+- Change summary:
+  - Added shared adapter primitives in `crates/communication-core/src/transport/mod.rs`: `UnsupportedDirectPeerTransport`, `NodeDispatch`, and `DispatchingNodeClientTransport`.
+  - Routed the current production node-client send paths in `services/api-rs/src/domain/server_channels/realtime.rs` and `services/realtime-rs/src/domain/presence.rs` through the shared dispatching adapter instead of service-local `NodeClientTransport` implementations.
+  - Extended `communication-core` router tests to cover shared dispatching-adapter mode enforcement and payload forwarding semantics.
+  - Marked `T4.0.2` as in progress on the Iteration 2 sprint board.
+- Rationale:
+  - The currently exercised production adapter path is node-client transport, not direct peer transport. Centralizing that path first closes a real duplication gap and moves `T4.0.2` forward without inventing premature DM transport machinery.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-04-11 (T4.0.1 shared communication-layer closeout)
 

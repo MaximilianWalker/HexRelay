@@ -3,11 +3,12 @@ use std::collections::BTreeSet;
 use crate::state::AppState;
 use chrono::Utc;
 use communication_core::{
-    app::{CommunicationRouter, PolicyEngine},
-    domain::{
-        CommunicationMode, ConnectIntent, SendEnvelope, SessionProvenance,
+    app::CommunicationRouter,
+    domain::{CommunicationMode, SendEnvelope},
+    transport::{
+        DispatchingNodeClientTransport, NodeDispatch, TransportError,
+        UnsupportedDirectPeerTransport,
     },
-    transport::{DirectPeerTransport, NodeClientTransport, TransportError},
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -92,32 +93,13 @@ struct OwnedPresenceEdgeDispatchRequest {
 }
 
 #[derive(Clone)]
-struct LocalPresenceNodeClientTransport {
+struct LocalPresenceDispatchSender {
     state: AppState,
 }
 
-struct UnusedDirectPeerTransport;
-
-impl DirectPeerTransport for UnusedDirectPeerTransport {
-    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Err(TransportError::ConnectFailed)
-    }
-
-    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        Err(TransportError::SendFailed)
-    }
-}
-
-impl NodeClientTransport for LocalPresenceNodeClientTransport {
-    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Ok(PolicyEngine::build_provenance(
-            intent.mode,
-            communication_core::TransportProfile::NodeClient,
-        ))
-    }
-
-    fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {
-        let dispatch = PresenceNodeDispatch::from_payload(&envelope.payload)?;
+impl NodeDispatch for LocalPresenceDispatchSender {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        let dispatch = PresenceNodeDispatch::from_payload(payload)?;
         let state = self.state.clone();
         let handle =
             tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
@@ -366,10 +348,13 @@ async fn dispatch_presence_edge(
 
     let router = CommunicationRouter::new(
         communication_core::PolicyContext::default(),
-        UnusedDirectPeerTransport,
-        LocalPresenceNodeClientTransport {
-            state: state.clone(),
-        },
+        UnsupportedDirectPeerTransport,
+        DispatchingNodeClientTransport::new(
+            CommunicationMode::Presence,
+            LocalPresenceDispatchSender {
+                state: state.clone(),
+            },
+        ),
     );
 
     router
