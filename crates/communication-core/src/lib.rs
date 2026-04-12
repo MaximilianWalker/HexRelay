@@ -10,8 +10,8 @@ pub use domain::{
     PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
 pub use transport::{
-    DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch, TransportError,
-    UnsupportedDirectPeerTransport,
+    send_via_node_dispatch, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,
+    TransportError, UnsupportedDirectPeerTransport,
 };
 
 #[cfg(test)]

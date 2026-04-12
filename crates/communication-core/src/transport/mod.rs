@@ -1,6 +1,9 @@
 use crate::{
-    app::PolicyEngine,
-    domain::{CommunicationMode, ConnectIntent, SendEnvelope, SessionProvenance, TransportProfile},
+    app::{CommunicationError, CommunicationRouter, PolicyEngine},
+    domain::{
+        CommunicationMode, ConnectIntent, PolicyContext, SendEnvelope, SessionProvenance,
+        TransportProfile,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,4 +67,21 @@ where
 
         self.dispatch.send_payload(&envelope.payload)
     }
+}
+
+pub fn send_via_node_dispatch<D>(
+    mode: CommunicationMode,
+    policy: PolicyContext,
+    dispatch: D,
+    payload: Vec<u8>,
+) -> Result<(), CommunicationError>
+where
+    D: NodeDispatch,
+{
+    CommunicationRouter::new(
+        policy,
+        UnsupportedDirectPeerTransport,
+        DispatchingNodeClientTransport::new(mode, dispatch),
+    )
+    .send(&SendEnvelope { mode, payload })
 }

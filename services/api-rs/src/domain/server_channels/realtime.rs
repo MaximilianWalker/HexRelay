@@ -1,9 +1,8 @@
 use communication_core::{
-    app::CommunicationRouter,
-    domain::{CommunicationMode, SendEnvelope},
+    domain::CommunicationMode,
+    send_via_node_dispatch,
     transport::{
-        DispatchingNodeClientTransport, NodeDispatch, TransportError,
-        UnsupportedDirectPeerTransport,
+        NodeDispatch, TransportError,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -360,24 +359,16 @@ fn dispatch_server_channel_payload(
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
 
-    let router = CommunicationRouter::new(
+    send_via_node_dispatch(
+        CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
-        UnsupportedDirectPeerTransport,
-        DispatchingNodeClientTransport::new(
-            CommunicationMode::ServerChannel,
-            RealtimeNodeDispatchSender {
-                http_client: state.http_client.clone(),
-                realtime_base_url: state.realtime_base_url.clone(),
-                internal_token: state.channel_dispatch_internal_token.clone(),
-            },
-        ),
-    );
-
-    router
-        .send(&SendEnvelope {
-            mode: CommunicationMode::ServerChannel,
-            payload,
-        })
+        RealtimeNodeDispatchSender {
+            http_client: state.http_client.clone(),
+            realtime_base_url: state.realtime_base_url.clone(),
+            internal_token: state.channel_dispatch_internal_token.clone(),
+        },
+        payload,
+    )
         .map_err(|error| {
             format!(
                 "dispatch server channel event via NodeClientTransport: {:?}",

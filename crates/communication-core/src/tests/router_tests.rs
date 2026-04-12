@@ -9,8 +9,8 @@ use crate::domain::{
     SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{
-    DirectPeerTransport, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,
-    TransportError,
+    send_via_node_dispatch, DirectPeerTransport, DispatchingNodeClientTransport,
+    NodeClientTransport, NodeDispatch, TransportError,
 };
 
 #[derive(Clone)]
@@ -288,5 +288,25 @@ fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
     assert_eq!(
         payloads.lock().expect("acquire payload lock").as_slice(),
         &[b"presence".to_vec()]
+    );
+}
+
+#[test]
+fn send_via_node_dispatch_routes_through_shared_node_client_bootstrap() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let result = send_via_node_dispatch(
+        CommunicationMode::ServerChannel,
+        PolicyContext::default(),
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+        b"server".to_vec(),
+    );
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"server".to_vec()]
     );
 }

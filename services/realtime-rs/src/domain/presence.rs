@@ -3,11 +3,10 @@ use std::collections::BTreeSet;
 use crate::state::AppState;
 use chrono::Utc;
 use communication_core::{
-    app::CommunicationRouter,
-    domain::{CommunicationMode, SendEnvelope},
+    domain::CommunicationMode,
+    send_via_node_dispatch,
     transport::{
-        DispatchingNodeClientTransport, NodeDispatch, TransportError,
-        UnsupportedDirectPeerTransport,
+        NodeDispatch, TransportError,
     },
 };
 use futures::StreamExt;
@@ -346,22 +345,14 @@ async fn dispatch_presence_edge(
     ))
     .map_err(|error| format!("encode presence dispatch payload: {error}"))?;
 
-    let router = CommunicationRouter::new(
+    send_via_node_dispatch(
+        CommunicationMode::Presence,
         communication_core::PolicyContext::default(),
-        UnsupportedDirectPeerTransport,
-        DispatchingNodeClientTransport::new(
-            CommunicationMode::Presence,
-            LocalPresenceDispatchSender {
-                state: state.clone(),
-            },
-        ),
-    );
-
-    router
-        .send(&SendEnvelope {
-            mode: CommunicationMode::Presence,
-            payload,
-        })
+        LocalPresenceDispatchSender {
+            state: state.clone(),
+        },
+        payload,
+    )
         .map_err(|error| {
             format!(
                 "dispatch presence event via NodeClientTransport: {:?}",
