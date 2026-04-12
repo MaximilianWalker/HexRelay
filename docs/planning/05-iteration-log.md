@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 closed stale `T4.1.1` planning status after adding the final explicit group-DM thread-shape regression on top of the already-delivered DM thread/history runtime.
+- Latest meaningful change: 2026-04-11 closed stale `T4.1.2` planning status after adding the final explicit `same_server` policy readback regression on top of the already-delivered DM privacy-policy runtime.
 
 ## Purpose
 
@@ -29,6 +29,19 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.1.2 DM privacy-policy closeout)
+
+- Area affected: Iteration 2 DM privacy-policy delivery traceability.
+- Change summary:
+  - Confirmed the backend/runtime already delivers the `T4.1.2` acceptance criteria through the existing DM privacy-policy read/update endpoints, default `friends_only` behavior, persisted per-identity override state, and recipient-policy enforcement across DM preflight/fanout/parallel-dial paths.
+  - Added one missing explicit integration assertion in `services/api-rs/src/tests/integration/dm_policy_tests.rs` proving that `same_server` can be set via `POST /v1/dm/privacy-policy` and read back unchanged.
+  - Marked `T4.1.2` done on the Iteration 2 sprint board.
+- Rationale:
+  - The runtime behavior was already present; the real gap was stale planning status plus one missing explicit readback regression for the `same_server` policy value.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-04-11 (T4.1.1 DM thread/history closeout)
 

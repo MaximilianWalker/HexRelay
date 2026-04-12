@@ -70,6 +70,52 @@ async fn updates_dm_policy_and_persists_for_identity() {
 }
 
 #[tokio::test]
+async fn updates_dm_policy_to_same_server_and_reads_back_unchanged() {
+    let app = build_app(AppState::default().with_public_identity_registration(true));
+    let (session_cookie, app) = authenticate_identity(app, "usr-dm-same-server").await;
+
+    let update_request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/privacy-policy")
+        .header("content-type", "application/json")
+        .header(
+            "cookie",
+            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
+        )
+        .header("x-csrf-token", "test-csrf")
+        .body(Body::from(r#"{"inbound_policy":"same_server"}"#))
+        .expect("build same-server dm policy update request");
+
+    let update_response = app
+        .clone()
+        .oneshot(update_request)
+        .await
+        .expect("same-server dm policy update response");
+    assert_eq!(update_response.status(), StatusCode::OK);
+
+    let read_request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/privacy-policy")
+        .header("cookie", format!("hexrelay_session={session_cookie}"))
+        .body(Body::empty())
+        .expect("build same-server dm policy read request");
+
+    let read_response = app
+        .oneshot(read_request)
+        .await
+        .expect("same-server dm policy read response");
+    assert_eq!(read_response.status(), StatusCode::OK);
+
+    let read_body = to_bytes(read_response.into_body(), usize::MAX)
+        .await
+        .expect("read same-server dm policy response body");
+    let read_payload: serde_json::Value =
+        serde_json::from_slice(&read_body).expect("decode same-server dm policy response");
+    assert_eq!(read_payload["inbound_policy"], "same_server");
+    assert_eq!(read_payload["offline_delivery_mode"], "best_effort_online");
+}
+
+#[tokio::test]
 async fn rejects_invalid_dm_policy_update() {
     let app = build_app(AppState::default().with_public_identity_registration(true));
     let (session_cookie, app) = authenticate_identity(app, "usr-dm-invalid").await;
