@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-25
+- last_updated: 2026-04-10
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-03-25 T4.3.1 execution started as a backend-first server-channel message baseline, with runtime read/create endpoints scoped ahead of edit/delete and realtime fanout follow-ups.
+- Latest meaningful change: 2026-04-10 closed stale iteration-board status for delivered presence and discovery work, moving `T3.3.1` and `T3.4.1` into the Done column with their merged evidence.
 
 ## Iteration Scope
 
@@ -134,12 +134,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.3.2, T4.3.4 | `evidence/iteration-02/profile-device-sync/` | profile-device convergence suite |
 | T4.6.x | `evidence/iteration-02/navigation/` | UI checklist + screenshot review |
 
-## In Progress
-
-| ID | Task | Status | Notes |
-|---|---|---|---|
-| T3.4.1 | Implement global user discovery index and shared-server query | In progress | `/v1/discovery/users` landed for current-environment global/shared-server discovery with policy filtering; remaining work is delivery/merge bookkeeping |
-
 ## Done
 
 | ID | Task | Completed In | Notes |
@@ -150,6 +144,8 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | PR #49 | `GET /v1/friends/requests/:request_id/bootstrap` endpoint; bootstrap material shared only after acceptance; 5 integration tests; OpenAPI spec updated |
 | T3.1.4 | Implement contact invite share/scan UX (link + QR) | PR #50 | API client functions, QR code generation, robust link/token parsing, copy-to-clipboard, busy/error states; 3 unit tests |
 | T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout/preflight/parallel dial and friend request creation; policy tests and OpenAPI updated |
+| T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
+| T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/v1/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 
 ## Suggested Sprint Sequencing
 

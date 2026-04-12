@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-10 recorded the contract-parity hardening that added selected realtime semantic checks to CI and refreshed the readiness/docs routing around the remaining semantic-depth watch.
+- Latest meaningful change: 2026-04-10 closed stale planning status by recording delivered presence and discovery work in the Iteration 2 sprint board.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-10 (iteration-board closeout for delivered presence and discovery work)
+
+- Area affected: Iteration 2 planning status and delivery traceability.
+- Change summary:
+  - Marked `T3.3.1` as done on the Iteration 2 sprint board with merged evidence from PRs `#53-#54` and the Redis-backed reconnect/hydration coverage already present in `services/realtime-rs/src/tests/ws_transport_tests.rs`.
+  - Marked `T3.4.1` as done on the Iteration 2 sprint board with merged evidence from PR `#52` and follow-up discovery parity/policy hardening that already landed in the API/runtime contract and integration tests.
+  - Removed the stale `In Progress` bookkeeping entry that no longer matched the merged codebase.
+- Rationale:
+  - Planning status should match repository reality; leaving delivered stories marked as pending or in-progress distorts dependency sequencing and makes next-story selection worse.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-04-10 (docs-governance cleanup for freshness policy and dedicated deployment boundary)
 

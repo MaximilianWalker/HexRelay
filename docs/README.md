@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 refreshed docs routing after tightening the dedicated deployment dependency matrix for the reviewed single-node baseline.
+- Latest meaningful change: 2026-04-10 refreshed docs routing after closing stale Iteration 2 planning status for delivered presence and discovery work.
 
 ## Purpose
 
