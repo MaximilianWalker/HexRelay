@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 closed stale `T4.1.2` planning status after adding the final explicit `same_server` policy readback regression on top of the already-delivered DM privacy-policy runtime.
+- Latest meaningful change: 2026-04-11 closed `T4.1.3` after widening the DM transport policy CI guardrail to cover both runtime callsites and DM-related config/workflow surfaces.
 
 ## Purpose
 
@@ -29,6 +29,19 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.1.3 DM transport guardrail closeout)
+
+- Area affected: Iteration 2 DM transport policy enforcement and CI guardrails.
+- Change summary:
+  - Confirmed the runtime already enforced direct-only DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
+  - Expanded `scripts/validate-dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
+  - Marked `T4.1.3` done on the Iteration 2 sprint board.
+- Rationale:
+  - The story was only partially delivered: runtime behavior already matched policy, but the CI guardrail still missed forbidden config-style regressions. Widening the check closes the acceptance-criteria gap without inventing new transport behavior.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-04-11 (T4.1.2 DM privacy-policy closeout)
 
