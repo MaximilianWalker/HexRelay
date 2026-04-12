@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-04-11
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-10 closed stale iteration-board status for delivered presence and discovery work, moving `T3.3.1` and `T3.4.1` into the Done column with their merged evidence.
+- Latest meaningful change: 2026-04-11 marked `T4.0.1` done after finishing shared communication-layer provenance wiring and recording the Iteration 2 networking-layer evidence path.
 
 ## Iteration Scope
 
@@ -146,6 +146,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout/preflight/parallel dial and friend request creation; policy tests and OpenAPI updated |
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/v1/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
+| T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` now owns the shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and execution evidence is recorded under `evidence/iteration-02/networking-layer/` |
 
 ## Suggested Sprint Sequencing
 

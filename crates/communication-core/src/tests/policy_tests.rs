@@ -93,3 +93,39 @@ fn builds_policy_compliant_provenance_for_dm() {
         vec!["dm_direct_policy_compliant".to_string()]
     );
 }
+
+#[test]
+fn builds_policy_compliant_provenance_for_server_channel() {
+    let provenance = PolicyEngine::build_provenance(
+        CommunicationMode::ServerChannel,
+        TransportProfile::NodeClient,
+    );
+
+    assert_eq!(provenance.mode, CommunicationMode::ServerChannel);
+    assert_eq!(provenance.profile, TransportProfile::NodeClient);
+    assert_eq!(
+        provenance.reason_code,
+        CommunicationReasonCode::ServerChannelRouteSelected
+    );
+    assert_eq!(
+        provenance.policy_assertions,
+        vec!["server_channel_policy_compliant".to_string()]
+    );
+}
+
+#[test]
+fn builds_policy_compliant_provenance_for_presence() {
+    let provenance =
+        PolicyEngine::build_provenance(CommunicationMode::Presence, TransportProfile::NodeClient);
+
+    assert_eq!(provenance.mode, CommunicationMode::Presence);
+    assert_eq!(provenance.profile, TransportProfile::NodeClient);
+    assert_eq!(
+        provenance.reason_code,
+        CommunicationReasonCode::PresenceRouteSelected
+    );
+    assert_eq!(
+        provenance.policy_assertions,
+        vec!["presence_policy_compliant".to_string()]
+    );
+}

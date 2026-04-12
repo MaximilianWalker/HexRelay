@@ -1,8 +1,7 @@
 use communication_core::{
-    app::CommunicationRouter,
+    app::{CommunicationRouter, PolicyEngine},
     domain::{
-        CommunicationMode, CommunicationReasonCode, ConnectIntent, SendEnvelope, SessionProvenance,
-        TransportProfile,
+        CommunicationMode, ConnectIntent, SendEnvelope, SessionProvenance,
     },
     transport::{DirectPeerTransport, NodeClientTransport, TransportError},
 };
@@ -132,18 +131,10 @@ impl DirectPeerTransport for UnusedDirectPeerTransport {
 
 impl NodeClientTransport for RealtimeNodeClientTransport {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Ok(SessionProvenance {
-            mode: intent.mode,
-            profile: TransportProfile::NodeClient,
-            reason_code: match intent.mode {
-                CommunicationMode::ServerChannel => {
-                    CommunicationReasonCode::ServerChannelRouteSelected
-                }
-                CommunicationMode::Presence => CommunicationReasonCode::PresenceRouteSelected,
-                CommunicationMode::DmDirect => CommunicationReasonCode::DmDirectPolicyViolation,
-            },
-            policy_assertions: vec!["node_client_transport_selected".to_string()],
-        })
+        Ok(PolicyEngine::build_provenance(
+            intent.mode,
+            communication_core::TransportProfile::NodeClient,
+        ))
     }
 
     fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {

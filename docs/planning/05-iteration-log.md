@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-04-11
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-10 closed stale planning status by recording delivered presence and discovery work in the Iteration 2 sprint board.
+- Latest meaningful change: 2026-04-11 recorded `T4.0.1` closeout after shared communication-layer provenance wiring and evidence-path completion.
 
 ## Purpose
 
@@ -29,6 +29,22 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.0.1 shared communication-layer closeout)
+
+- Area affected: Iteration 2 communication-layer foundation and planning traceability.
+- Change summary:
+  - Replaced hand-rolled node-client provenance construction in current presence and server-channel integrations with `PolicyEngine::build_provenance(...)` from `crates/communication-core`.
+  - Extended `communication-core` policy tests to cover deterministic provenance for `server_channel` and `presence` alongside the existing DM route case.
+  - Marked `T4.0.1` done on the Iteration 2 sprint board and added the expected evidence path under `evidence/iteration-02/networking-layer/`.
+- Rationale:
+  - The shared communication-layer boundary was already mostly implemented; this closes the cleanest remaining gap by making current integrations consume the shared provenance logic instead of duplicating it, and by aligning planning status with the shipped core foundation.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/planning/README.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/README.md`
 
 ### 2026-04-10 (iteration-board closeout for delivered presence and discovery work)
 
