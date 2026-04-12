@@ -442,6 +442,51 @@ async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
 }
 
 #[tokio::test]
+async fn dm_thread_listing_returns_group_dm_shape_for_group_participants() {
+    let identities = DmFixtureIdentities::unique();
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&[identities.nora_id.as_str()]).await
+    else {
+        return;
+    };
+    seed_default_dm_history(&pool, &identities).await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/dm/threads?limit=10")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[identities.nora_id.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build group dm thread list request");
+
+    let response = app.oneshot(request).await.expect("group dm thread list response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read group dm thread list body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode group dm thread list body");
+    let items = payload["items"].as_array().expect("thread items array");
+
+    let group_dm = items
+        .iter()
+        .find(|item| item["kind"] == "group_dm")
+        .expect("group dm thread item");
+    let participant_ids = group_dm["participant_ids"]
+        .as_array()
+        .expect("group dm participant ids");
+
+    assert_eq!(group_dm["title"], "Atlas Draft Squad");
+    assert_eq!(participant_ids.len(), 3);
+    assert!(participant_ids.iter().any(|id| id == identities.nora_id.as_str()));
+    assert!(participant_ids.iter().any(|id| id == identities.mina_id.as_str()));
+    assert!(participant_ids.iter().any(|id| id == identities.alex_id.as_str()));
+}
+
+#[tokio::test]
 async fn dm_thread_messages_return_not_found_for_non_members() {
     let identities = DmFixtureIdentities::unique();
     let Some((app, tokens, pool)) =
