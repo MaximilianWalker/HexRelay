@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-11 closed `T4.1.3` after widening the DM transport policy CI guardrail from code-only callsites to the actual runtime/config surfaces that must never reintroduce infra-style DM fallback.
+- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by adding DM pairing API client support plus QR/share/import UI on the contacts surface.
 
 ## Iteration Scope
 
@@ -156,6 +156,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | T4.0.2 | Implement transport adapter boundaries (`DirectPeerTransport`, `NodeClientTransport`) | In progress | The current production node-client send paths for presence and server-channel dispatch now use a shared `DispatchingNodeClientTransport` plus centralized `UnsupportedDirectPeerTransport` from `communication-core`; remaining work is broader adapter rollout beyond the currently exercised node-client paths |
+| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/short-code bootstrap | In progress | Backend pairing envelope/signature/replay-expiry flow was already delivered; web now has DM pairing API methods, link parsing, QR/short-code share UI, and envelope import UI on the contacts surface, with remaining work focused on polish and any broader UX integration beyond this first coherent slice |
 
 ## Suggested Sprint Sequencing
 

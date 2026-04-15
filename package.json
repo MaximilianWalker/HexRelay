@@ -3,8 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "setup": "bash scripts/setup.sh",
-    "run": "bash scripts/run.sh",
+    "setup": "node scripts/setup.mjs",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup.ps1",
+    "run": "node scripts/run.mjs",
+    "run:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1",
     "test": "bash scripts/test.sh",
     "security": "bash scripts/ensure-cargo-audit.sh && cargo audit --deny warnings --ignore RUSTSEC-2023-0071"
   }

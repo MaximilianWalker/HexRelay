@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 closed `T4.1.3` after widening the DM transport policy CI guardrail to cover both runtime callsites and DM-related config/workflow surfaces.
+- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by wiring DM pairing QR/share/import flows into the contacts surface and web API layer.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.1.4 DM pairing web slice)
+
+- Area affected: Iteration 2 DM pairing/bootstrap web delivery.
+- Change summary:
+  - Added DM pairing API client methods in `apps/web/lib/api.ts` for pairing-envelope create/import.
+  - Added `apps/web/lib/dm-pairing.ts` helper utilities plus tests for `hexrelay://dm-pairing/...` link build/parse behavior.
+  - Added contacts-page UI for DM pairing share/import with QR rendering, short-code display, envelope-link copy, and import result feedback.
+  - Marked `T4.1.4` in progress on the Iteration 2 sprint board.
+- Rationale:
+  - `T4.1.4` is the first audited story whose Web half was genuinely missing. This slice delivers the smallest coherent web implementation on top of the already-shipped backend pairing flow.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-04-11 (T4.1.3 DM transport guardrail closeout)
 

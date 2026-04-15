@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   createContactInvite,
+  createDmPairingEnvelope,
   createFriendRequest,
   createInvite,
   declineFriendRequest,
   fetchContacts,
   fetchFriendRequests,
   fetchServers,
+  importDmPairingEnvelope,
   issueAuthChallenge,
   redeemContactInvite,
   redeemInvite,
@@ -298,5 +300,55 @@ describe("api auth transport", () => {
       expect(result.code).toBe("invite_expired");
       expect(result.message).toBe("Invite has expired");
     }
+  });
+
+  it("sends csrf and correct URL for DM pairing create", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          envelope: "pairing-envelope-abc",
+          short_code: "ABCD-1234",
+          expires_at: "2026-03-20T00:00:00Z",
+          pairing_nonce: "nonce-1",
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await createDmPairingEnvelope({
+      endpointHints: ["tcp://127.0.0.1:4040"],
+      expiresInSeconds: 300,
+    });
+
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/v1/dm/pairing-envelope");
+    expect(String(url)).not.toContain("/import");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(init?.body).toContain('"endpoint_hints":["tcp://127.0.0.1:4040"]');
+  });
+
+  it("sends csrf and correct URL for DM pairing import", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          inviter_identity_id: "usr-nora-k",
+          endpoint_hints: ["tcp://127.0.0.1:4040"],
+          imported_at: "2026-03-20T00:00:00Z",
+          expires_at: "2026-03-20T00:05:00Z",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await importDmPairingEnvelope({ envelope: "pairing-envelope-abc" });
+
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/v1/dm/pairing-envelope/import");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(init?.body).toBe('{"envelope":"pairing-envelope-abc"}');
   });
 });

@@ -64,6 +64,11 @@ Expected: commands resolve without errors and versions satisfy the required tool
 5. Run `npm run run` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
 
+- Windows-specific direct path if you want to bypass auto-detection explicitly:
+  - `npm run setup:windows`
+  - `npm run run:windows`
+  - the PowerShell runner automatically chooses conflict-free local ports and prints the actual API/realtime/web URLs when the stack is ready
+
 - Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
 
 ## First-Run Env Bootstrap (Copy/Paste)

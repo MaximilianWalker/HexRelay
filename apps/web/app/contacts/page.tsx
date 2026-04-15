@@ -7,12 +7,15 @@ import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   acceptFriendRequest,
   createContactInvite,
+  createDmPairingEnvelope,
   createFriendRequest,
   declineFriendRequest,
   fetchContacts,
   fetchFriendRequests,
+  importDmPairingEnvelope,
   redeemContactInvite,
 } from "@/lib/api";
+import { buildDmPairingLink, parseDmPairingInput } from "@/lib/dm-pairing";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -62,6 +65,24 @@ export default function ContactsPage() {
     status: string;
   } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [pairingEndpointHints, setPairingEndpointHints] = useState("");
+  const [pairingExpiresInSeconds, setPairingExpiresInSeconds] = useState("300");
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [pairingCopied, setPairingCopied] = useState(false);
+  const [createdPairing, setCreatedPairing] = useState<{
+    envelope: string;
+    short_code: string;
+    expires_at: string;
+    pairing_nonce: string;
+  } | null>(null);
+  const [pairingImportValue, setPairingImportValue] = useState("");
+  const [pairingImportBusy, setPairingImportBusy] = useState(false);
+  const [pairingImportResult, setPairingImportResult] = useState<{
+    inviter_identity_id: string;
+    endpoint_hints: string[];
+    imported_at: string;
+    expires_at: string;
+  } | null>(null);
 
   const identityId = useMemo(() => {
     const active = readActivePersonaId();
@@ -369,6 +390,91 @@ export default function ContactsPage() {
     }
   }
 
+  async function handleCreateDmPairing(): Promise<void> {
+    if (!hasSession) {
+      return;
+    }
+
+    const endpointHints = pairingEndpointHints
+      .split(/\r?\n|,/) 
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const expiresInSeconds = Number.parseInt(pairingExpiresInSeconds.trim(), 10);
+
+    if (endpointHints.length === 0) {
+      setActionMessage("pairing_invalid: at least one endpoint hint is required");
+      return;
+    }
+
+    setPairingBusy(true);
+    setActionMessage(null);
+    setPairingCopied(false);
+
+    try {
+      const result = await createDmPairingEnvelope({
+        endpointHints,
+        expiresInSeconds: Number.isFinite(expiresInSeconds) ? expiresInSeconds : undefined,
+      });
+
+      if (!result.ok) {
+        setActionMessage(`${result.code}: ${result.message}`);
+        return;
+      }
+
+      setCreatedPairing(result.data);
+      setPairingImportResult(null);
+      setActionMessage("dm_pairing_ready");
+    } catch {
+      setActionMessage("network_error: failed to create DM pairing envelope");
+    } finally {
+      setPairingBusy(false);
+    }
+  }
+
+  async function handleCopyPairingLink(): Promise<void> {
+    if (!createdPairing) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildDmPairingLink(createdPairing.envelope));
+      setPairingCopied(true);
+    } catch {
+      setActionMessage("clipboard_error: failed to copy DM pairing link");
+    }
+  }
+
+  async function handleImportDmPairing(): Promise<void> {
+    if (!hasSession) {
+      return;
+    }
+
+    const envelope = parseDmPairingInput(pairingImportValue);
+    if (!envelope) {
+      setActionMessage("pairing_invalid: envelope is required");
+      return;
+    }
+
+    setPairingImportBusy(true);
+    setActionMessage(null);
+
+    try {
+      const result = await importDmPairingEnvelope({ envelope });
+      if (!result.ok) {
+        setActionMessage(`${result.code}: ${result.message}`);
+        return;
+      }
+
+      setPairingImportResult(result.data);
+      setPairingImportValue("");
+      setActionMessage("dm_pairing_imported");
+    } catch {
+      setActionMessage("network_error: failed to import DM pairing envelope");
+    } finally {
+      setPairingImportBusy(false);
+    }
+  }
+
   const inboundPending = friendRequests.filter(
     (item) => item.target_identity_id === identityId && item.status === "pending",
   );
@@ -583,6 +689,86 @@ export default function ContactsPage() {
               </p>
               <p className={styles.meta}>
                 inviter: {redeemResult.requester_identity_id}
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        <div className={styles.state}>
+          <p>dm pairing — share</p>
+          <textarea
+            className={styles.search}
+            onChange={(event) => setPairingEndpointHints(event.target.value)}
+            placeholder="Endpoint hints, one per line or comma-separated (for example tcp://your-host:4040)"
+            rows={3}
+            value={pairingEndpointHints}
+          />
+          <input
+            className={styles.search}
+            onChange={(event) => setPairingExpiresInSeconds(event.target.value)}
+            placeholder="Expires in seconds"
+            value={pairingExpiresInSeconds}
+          />
+          <button
+            className={styles.pill}
+            disabled={pairingBusy}
+            onClick={() => void handleCreateDmPairing()}
+            type="button"
+          >
+            {pairingBusy ? "creating..." : "create dm pairing"}
+          </button>
+
+          {createdPairing ? (
+            <div className={styles.card} style={{ marginTop: 12 }}>
+              <p className={styles.title}>dm pairing ready</p>
+              <p className={styles.meta}>short code: {createdPairing.short_code}</p>
+              <p className={styles.meta}>expires: {createdPairing.expires_at}</p>
+              <p className={styles.meta}>nonce: {createdPairing.pairing_nonce}</p>
+              <p className={styles.meta} style={{ wordBreak: "break-all", marginTop: 6 }}>
+                {buildDmPairingLink(createdPairing.envelope)}
+              </p>
+              <div className={styles.row} style={{ marginTop: 8 }}>
+                <button
+                  className={styles.pill}
+                  onClick={() => void handleCopyPairingLink()}
+                  type="button"
+                >
+                  {pairingCopied ? "copied" : "copy pairing link"}
+                </button>
+              </div>
+              <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
+                <QRCodeSVG value={buildDmPairingLink(createdPairing.envelope)} level="M" size={160} />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className={styles.state}>
+          <p>dm pairing — import</p>
+          <textarea
+            className={styles.search}
+            onChange={(event) => setPairingImportValue(event.target.value)}
+            placeholder="Paste DM pairing envelope or link"
+            rows={3}
+            value={pairingImportValue}
+          />
+          <button
+            className={styles.pill}
+            disabled={pairingImportBusy}
+            onClick={() => void handleImportDmPairing()}
+            type="button"
+          >
+            {pairingImportBusy ? "importing..." : "import dm pairing"}
+          </button>
+
+          {pairingImportResult ? (
+            <div className={styles.card} style={{ marginTop: 12 }}>
+              <p className={styles.title}>dm pairing imported</p>
+              <p className={styles.meta}>inviter: {pairingImportResult.inviter_identity_id}</p>
+              <p className={styles.meta}>imported: {pairingImportResult.imported_at}</p>
+              <p className={styles.meta}>expires: {pairingImportResult.expires_at}</p>
+              <p className={styles.meta} style={{ wordBreak: "break-all", marginTop: 6 }}>
+                hints: {pairingImportResult.endpoint_hints.join(", ")}
               </p>
             </div>
           ) : null}
