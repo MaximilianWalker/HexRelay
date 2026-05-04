@@ -7,6 +7,15 @@ export type PersonaRecord = {
 
 const PERSONAS_KEY = "hexrelay.personas.v1";
 const ACTIVE_PERSONA_KEY = "hexrelay.active-persona.v1";
+const UI_PREFS_EVENT = "hexrelay-ui-preferences-changed";
+
+function notifyPersonaChange(): void {
+  if (typeof window.dispatchEvent !== "function") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(UI_PREFS_EVENT));
+}
 
 function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) {
@@ -55,6 +64,7 @@ export function ensurePersona(name: string): PersonaRecord {
     );
     window.localStorage.setItem(PERSONAS_KEY, JSON.stringify(next));
     window.localStorage.setItem(ACTIVE_PERSONA_KEY, updated.id);
+    notifyPersonaChange();
     return updated;
   }
 
@@ -67,6 +77,7 @@ export function ensurePersona(name: string): PersonaRecord {
 
   window.localStorage.setItem(PERSONAS_KEY, JSON.stringify([created, ...personas]));
   window.localStorage.setItem(ACTIVE_PERSONA_KEY, created.id);
+  notifyPersonaChange();
 
   return created;
 }
@@ -79,6 +90,7 @@ export function switchPersona(personaId: string): PersonaRecord[] {
 
   window.localStorage.setItem(PERSONAS_KEY, JSON.stringify(personas));
   window.localStorage.setItem(ACTIVE_PERSONA_KEY, personaId);
+  notifyPersonaChange();
 
   return personas;
 }
@@ -96,6 +108,8 @@ export function removePersona(personaId: string): PersonaRecord[] {
       window.localStorage.removeItem(ACTIVE_PERSONA_KEY);
     }
   }
+
+  notifyPersonaChange();
 
   return personas;
 }

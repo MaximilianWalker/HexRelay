@@ -4,11 +4,17 @@ export type TabRestoreMode = "pinned" | "all";
 const SIDEBAR_MODE_KEY = "hexrelay.ui.sidebar-mode.v1";
 const NAV_LAYOUT_KEY = "hexrelay.ui.nav-layout.v1";
 const TAB_RESTORE_MODE_KEY = "hexrelay.ui.tab-restore-mode.v1";
+const SOUND_MUTED_KEY = "hexrelay.ui.sound-muted.v1";
+const MICROPHONE_MUTED_KEY = "hexrelay.ui.microphone-muted.v1";
+const PERSONAS_KEY = "hexrelay.personas.v1";
+const ACTIVE_PERSONA_KEY = "hexrelay.active-persona.v1";
 const UI_PREFS_EVENT = "hexrelay-ui-preferences-changed";
 
 let fallbackNavLayout: NavLayout = "sidebar";
 let fallbackSidebarCollapsed = false;
 let fallbackTabRestoreMode: TabRestoreMode = "pinned";
+let fallbackSoundMuted = false;
+let fallbackMicrophoneMuted = false;
 
 function readStorageItem(key: string): string | null | undefined {
   if (typeof window === "undefined") {
@@ -48,7 +54,17 @@ export function subscribeWorkspacePreferences(onChange: () => void): () => void 
   }
 
   function handleStorage(event: StorageEvent): void {
-    if ([SIDEBAR_MODE_KEY, NAV_LAYOUT_KEY, TAB_RESTORE_MODE_KEY].includes(event.key ?? "")) {
+    if (
+      [
+        SIDEBAR_MODE_KEY,
+        NAV_LAYOUT_KEY,
+        TAB_RESTORE_MODE_KEY,
+        SOUND_MUTED_KEY,
+        MICROPHONE_MUTED_KEY,
+        PERSONAS_KEY,
+        ACTIVE_PERSONA_KEY,
+      ].includes(event.key ?? "")
+    ) {
       onChange();
     }
   }
@@ -100,5 +116,27 @@ export function readTabRestoreMode(): TabRestoreMode {
 export function setTabRestoreMode(value: TabRestoreMode): void {
   fallbackTabRestoreMode = value;
   writeStorageItem(TAB_RESTORE_MODE_KEY, value);
+  notifyWorkspacePreferenceChange();
+}
+
+export function readSoundMuted(): boolean {
+  const value = readStorageItem(SOUND_MUTED_KEY);
+  return value === undefined ? fallbackSoundMuted : value === "true";
+}
+
+export function setSoundMuted(value: boolean): void {
+  fallbackSoundMuted = value;
+  writeStorageItem(SOUND_MUTED_KEY, value ? "true" : "false");
+  notifyWorkspacePreferenceChange();
+}
+
+export function readMicrophoneMuted(): boolean {
+  const value = readStorageItem(MICROPHONE_MUTED_KEY);
+  return value === undefined ? fallbackMicrophoneMuted : value === "true";
+}
+
+export function setMicrophoneMuted(value: boolean): void {
+  fallbackMicrophoneMuted = value;
+  writeStorageItem(MICROPHONE_MUTED_KEY, value ? "true" : "false");
   notifyWorkspacePreferenceChange();
 }

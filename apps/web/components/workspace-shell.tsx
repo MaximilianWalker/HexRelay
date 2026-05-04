@@ -13,19 +13,28 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconMessageCircle,
+  IconMicrophone,
+  IconMicrophoneOff,
   IconPinned,
   IconPinnedOff,
   IconServer2,
   IconSettings,
+  IconVolume,
+  IconVolumeOff,
   IconX,
 } from "@tabler/icons-react";
 
+import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import {
+  readMicrophoneMuted,
   readNavLayout,
   readSidebarCollapsed,
+  readSoundMuted,
   readTabRestoreMode,
+  setMicrophoneMuted,
   setNavLayout,
   setSidebarCollapsed,
+  setSoundMuted,
   subscribeWorkspacePreferences,
   type NavLayout,
   type TabRestoreMode,
@@ -46,12 +55,59 @@ import styles from "./workspace-shell.module.css";
 type TabItem = {
   id: string;
   label: string;
+  icon?: typeof IconServer2;
 };
 
 const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
+const DEFAULT_PROFILE = JSON.stringify({ name: "your profile", status: "No active profile" });
+
+type ProfileSummary = {
+  name: string;
+  status: string;
+};
 
 function getTabIcon(tab: WorkspaceTab): typeof IconServer2 {
   return tab.kind === "dm" ? IconMessageCircle : IconServer2;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "?";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function readProfileSnapshot(): string {
+  try {
+    const personas = readPersonas();
+    const activeId = readActivePersonaId() ?? personas[0]?.id;
+    const persona = personas.find((item) => item.id === activeId) ?? personas[0];
+
+    if (!persona) {
+      return DEFAULT_PROFILE;
+    }
+
+    return JSON.stringify({ name: persona.name, status: "Ready" });
+  } catch {
+    return DEFAULT_PROFILE;
+  }
+}
+
+function parseProfileSnapshot(value: string): ProfileSummary {
+  try {
+    const parsed = JSON.parse(value) as Partial<ProfileSummary>;
+    return {
+      name: parsed.name || "your profile",
+      status: parsed.status || "No active profile",
+    };
+  } catch {
+    return { name: "your profile", status: "No active profile" };
+  }
 }
 
 export function WorkspaceShell({
@@ -71,6 +127,9 @@ export function WorkspaceShell({
   const router = useRouter();
   const navLayout = useSyncExternalStore<NavLayout>(subscribeWorkspacePreferences, readNavLayout, () => "sidebar");
   const collapsed = useSyncExternalStore(subscribeWorkspacePreferences, readSidebarCollapsed, () => false);
+  const soundMuted = useSyncExternalStore(subscribeWorkspacePreferences, readSoundMuted, () => false);
+  const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
+  const profileSnapshot = useSyncExternalStore(subscribeWorkspacePreferences, readProfileSnapshot, () => DEFAULT_PROFILE);
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -126,6 +185,9 @@ export function WorkspaceShell({
   const LayoutIcon = isTopbar ? IconLayoutSidebar : IconLayoutNavbar;
   const SidebarToggleIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse;
   const TopbarToggleIcon = collapsed ? IconLayoutNavbarExpand : IconLayoutNavbarCollapse;
+  const SoundIcon = soundMuted ? IconVolumeOff : IconVolume;
+  const MicrophoneIcon = microphoneMuted ? IconMicrophoneOff : IconMicrophone;
+  const profile = parseProfileSnapshot(profileSnapshot);
 
   function isActivePath(href: string): boolean {
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -158,6 +220,41 @@ export function WorkspaceShell({
     >
       <LayoutIcon className={styles.controlIcon} aria-hidden="true" />
     </button>
+  );
+
+  const profileControls = (
+    <>
+      <div className={styles.profileSummary} title={profile.name}>
+        <div className={styles.profileAvatar}>{getInitials(profile.name)}</div>
+        <div className={styles.profileDetails}>
+          <p className={styles.profileName}>{profile.name}</p>
+          <p className={styles.profileStatus}>{profile.status}</p>
+        </div>
+      </div>
+      <div className={styles.profileActions}>
+        <button
+          aria-label={soundMuted ? "Unmute sound" : "Mute sound"}
+          aria-pressed={soundMuted}
+          className={`${styles.iconButton} ${soundMuted ? styles.iconButtonActive : ""}`}
+          onClick={() => setSoundMuted(!soundMuted)}
+          title={soundMuted ? "Unmute sound" : "Mute sound"}
+          type="button"
+        >
+          <SoundIcon className={styles.controlIcon} aria-hidden="true" />
+        </button>
+        <button
+          aria-label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+          aria-pressed={microphoneMuted}
+          className={`${styles.iconButton} ${microphoneMuted ? styles.iconButtonActive : ""}`}
+          onClick={() => setMicrophoneMuted(!microphoneMuted)}
+          title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+          type="button"
+        >
+          <MicrophoneIcon className={styles.controlIcon} aria-hidden="true" />
+        </button>
+        {layoutSwitch}
+      </div>
+    </>
   );
 
   const workspaceTabItems =
@@ -232,7 +329,7 @@ export function WorkspaceShell({
               {workspaceTabItems}
             </div>
             <div className={styles.topbarControls}>
-              {layoutSwitch}
+              {profileControls}
               <button
                 aria-label={collapsed ? "Expand top bar" : "Collapse top bar"}
                 className={styles.iconButton}
@@ -255,7 +352,7 @@ export function WorkspaceShell({
 
             <div className={styles.workspaceSection}>{workspaceTabItems}</div>
             <div className={styles.sidebarControls}>
-              {layoutSwitch}
+              {profileControls}
               <button
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 className={styles.iconButton}
@@ -272,14 +369,19 @@ export function WorkspaceShell({
         <section className={styles.content}>
           <div className={styles.tabBar}>
             <div className={styles.tabs}>
-              {tabs.map((tab) => (
-                <div
-                  className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`}
-                  key={tab.id}
-                >
-                  {tab.label}
-                </div>
-              ))}
+              {tabs.map((tab) => {
+                const TabIcon = tab.icon;
+
+                return (
+                  <div
+                    className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`}
+                    key={tab.id}
+                  >
+                    {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
+                    <span className={styles.tabLabel}>{tab.label}</span>
+                  </div>
+                );
+              })}
             </div>
             {tabActions ? <div className={styles.tabActions}>{tabActions}</div> : null}
           </div>

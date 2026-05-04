@@ -143,8 +143,8 @@ export default function ContactMessagesPage() {
       activeTabId="contacts"
       subtitle={`Private conversation with ${title}`}
       tabs={[
-        { id: "contacts", label: "All contacts" },
-        { id: "messages", label: "Private chat" },
+        { id: "contacts", label: "All contacts", icon: IconUser },
+        { id: "messages", label: "Private chat", icon: IconMessageCircle },
       ]}
       title="Private Chat"
     >

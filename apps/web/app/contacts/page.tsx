@@ -616,9 +616,9 @@ export default function ContactsPage() {
       activeTabId="contacts"
       subtitle="People you know, contact requests, and simple invite tools"
       tabs={[
-        { id: "contacts", label: "All contacts" },
-        { id: "requests", label: "Requests" },
-        { id: "invites", label: "Invites" },
+        { id: "contacts", label: "All contacts", icon: IconUsers },
+        { id: "requests", label: "Requests", icon: IconClock },
+        { id: "invites", label: "Invites", icon: IconQrcode },
       ]}
       tabActions={
         <>

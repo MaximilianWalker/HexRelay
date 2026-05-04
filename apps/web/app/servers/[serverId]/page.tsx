@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { IconMessageCircle, IconServer2 } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 
@@ -17,8 +18,8 @@ export default function ServerWorkspacePage() {
       activeTabId="servers"
       subtitle={`Server workspace for ${serverId}`}
       tabs={[
-        { id: "servers", label: "Servers Hub" },
-        { id: "workspace", label: `Workspace: ${serverId}` },
+        { id: "servers", label: "Servers Hub", icon: IconServer2 },
+        { id: "workspace", label: `Workspace: ${serverId}`, icon: IconMessageCircle },
       ]}
       title="Server Workspace"
     >

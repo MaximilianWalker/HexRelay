@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { IconDeviceDesktop, IconLock, IconSettings } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
@@ -89,9 +90,9 @@ export default function SettingsPage() {
       activeTabId="settings"
       subtitle="Policy and device-level preferences"
       tabs={[
-        { id: "settings", label: "General" },
-        { id: "privacy", label: "Privacy" },
-        { id: "devices", label: "Devices" },
+        { id: "settings", label: "General", icon: IconSettings },
+        { id: "privacy", label: "Privacy", icon: IconLock },
+        { id: "devices", label: "Devices", icon: IconDeviceDesktop },
       ]}
       title="Settings"
     >
