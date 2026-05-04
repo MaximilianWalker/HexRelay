@@ -118,29 +118,6 @@ function Get-WebUrlFromLogs {
     return $FallbackUrl
 }
 
-function Get-ExistingWebUrlFromStderr {
-    param([string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-
-    $content = Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue
-    $sawExistingServer = $false
-    foreach ($line in $content) {
-        if ($line -match 'Another next dev server is already running') {
-            $sawExistingServer = $true
-            continue
-        }
-
-        if ($sawExistingServer -and $line -match 'Local:\s+(http://localhost:\d+)') {
-            return $Matches[1]
-        }
-    }
-
-    return $null
-}
-
 function Get-ExistingWebPidFromStderr {
     param([string]$Path)
 
@@ -235,6 +212,9 @@ Ensure-FileFromExample -Path 'services/realtime-rs/.env' -ExamplePath 'services/
 
 $apiEnv = Read-EnvFile 'services/api-rs/.env'
 $realtimeEnv = Read-EnvFile 'services/realtime-rs/.env'
+$infraEnv = Read-EnvFile 'infra/.env'
+$postgresUser = if ($infraEnv['POSTGRES_USER']) { $infraEnv['POSTGRES_USER'] } else { 'hexrelay' }
+$postgresDb = if ($infraEnv['POSTGRES_DB']) { $infraEnv['POSTGRES_DB'] } else { 'hexrelay' }
 
 $reservedPorts = [System.Collections.Generic.HashSet[int]]::new()
 $apiPort = Get-FreePort -PreferredPort 18080 -ReservedPorts $reservedPorts
@@ -261,7 +241,7 @@ Write-Host '[run.ps1] Starting local infrastructure'
 docker compose --env-file 'infra/.env' -f 'infra/docker-compose.yml' up -d postgres redis minio | Out-Null
 
 Wait-Until -Label 'postgres' -Probe {
-    docker compose --env-file 'infra/.env' -f 'infra/docker-compose.yml' exec -T postgres pg_isready -U 'hexrelay' -d 'hexrelay' *> $null
+    docker compose --env-file 'infra/.env' -f 'infra/docker-compose.yml' exec -T postgres pg_isready -U $postgresUser -d $postgresDb *> $null
     $LASTEXITCODE -eq 0
 }
 Wait-Until -Label 'redis' -Probe {
@@ -321,7 +301,7 @@ try {
         $stderrTail = Get-LogTail -Path $webStderrPath
         if ($stderrTail -match 'Another next dev server is already running') {
             $existingWebPid = Get-ExistingWebPidFromStderr -Path $webStderrPath
-            if ($existingWebPid -and $attempt -eq 1) {
+            if ($existingWebPid -and $attempt -lt 2) {
                 Write-Host "[run.ps1] Stopping stale Next dev server PID $existingWebPid and retrying web startup"
                 try {
                     taskkill /PID $existingWebPid /T /F *> $null
@@ -332,11 +312,11 @@ try {
                 continue
             }
 
-            $existingWebUrl = Get-ExistingWebUrlFromStderr -Path $webStderrPath
-            if ($existingWebUrl) {
-                $webBaseUrl = $existingWebUrl
+            if ($existingWebPid) {
+                throw "[run.ps1] Another Next dev server PID $existingWebPid is still running. Stop it and rerun npm run start."
             }
-            Write-Host '[run.ps1] Note: an existing Next dev server was already running; reusing its live URL.'
+
+            throw '[run.ps1] Another Next dev server is already running, but its PID could not be determined. Stop it and rerun npm run start.'
         }
         else {
             $webBaseUrl = Get-WebUrlFromLogs -Paths @($webStdoutPath, $webStderrPath) -FallbackUrl $webBaseUrl

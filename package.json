@@ -9,6 +9,7 @@
     "setup": "node scripts/setup.mjs",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup.ps1",
     "start": "node scripts/run.mjs",
+    "run": "npm run start",
     "start:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1",
     "test": "node scripts/test.mjs",
     "test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1",

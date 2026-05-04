@@ -270,6 +270,26 @@ fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
 }
 
 #[test]
+fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingNodeClientTransport::new(
+        CommunicationMode::Presence,
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+    );
+
+    let result = transport.connect(&ConnectIntent {
+        mode: CommunicationMode::ServerChannel,
+        target: ConnectTarget::NodeEndpoint {
+            endpoint: "https://node.invalid".to_string(),
+        },
+    });
+
+    assert_eq!(result, Err(TransportError::ConnectFailed));
+}
+
+#[test]
 fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
     let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
     let transport = DispatchingNodeClientTransport::new(

@@ -9,6 +9,13 @@ type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };
 
+export type DmInboundPolicy = "friends_only" | "same_server" | "anyone";
+
+export type DmPolicyResponse = {
+  inbound_policy: DmInboundPolicy;
+  offline_delivery_mode: string;
+};
+
 const CSRF_COOKIE = "hexrelay_csrf";
 
 function readCookie(name: string): string | null {
@@ -300,6 +307,30 @@ export async function declineFriendRequest(input: {
     `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
     { method: "POST" },
   );
+
+  return parseResponse(response);
+}
+
+export async function fetchDmPolicy(): Promise<ApiResult<DmPolicyResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+    method: "GET",
+  });
+
+  return parseResponse(response);
+}
+
+export async function updateDmPolicy(input: {
+  inboundPolicy: DmInboundPolicy;
+}): Promise<ApiResult<DmPolicyResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      inbound_policy: input.inboundPolicy,
+    }),
+  });
 
   return parseResponse(response);
 }

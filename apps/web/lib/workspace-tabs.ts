@@ -165,6 +165,14 @@ function writeAllTabs(tabs: WorkspaceTab[]): void {
   writeLocalStorageItem(ALL_TABS_KEY, serializeTabs(tabs));
 }
 
+function removeAllTab(tabId: string): void {
+  writeAllTabs(readAllTabs().filter((tab) => tab.id !== tabId));
+}
+
+function upsertAllTab(tab: WorkspaceTab): void {
+  writeAllTabs([...readAllTabs().filter((item) => item.id !== tab.id), tab]);
+}
+
 function readTabsForMode(mode: TabRestoreMode): WorkspaceTab[] {
   const pinned = readPinnedTabs();
   const unpinned = mode === "all" ? readAllTabs().filter((tab) => !tab.pinned) : readSessionTabs();
@@ -280,6 +288,7 @@ export function openWorkspaceTab(tab: WorkspaceTab): void {
 
 export function closeWorkspaceTab(tabId: string): void {
   persistTabs(readWorkspaceTabsSnapshot().filter((tab) => tab.id !== tabId));
+  removeAllTab(tabId);
   notifyTabsChange();
 }
 
@@ -287,12 +296,20 @@ export function toggleWorkspaceTabPinned(tabId: string): void {
   const next = readWorkspaceTabsSnapshot().map((tab) =>
     tab.id === tabId ? { ...tab, pinned: !tab.pinned } : tab,
   );
+  const toggled = next.find((tab) => tab.id === tabId);
+
   persistTabs(next);
+  if (toggled) {
+    upsertAllTab(toggled);
+  }
   notifyTabsChange();
 }
 
 export function syncWorkspaceTabsForRestoreMode(mode: TabRestoreMode): void {
-  const tabs = readWorkspaceTabsSnapshot();
+  const tabs =
+    mode === "all"
+      ? dedupeTabs([...readAllTabs(), ...readSessionTabs(), ...readPinnedTabs()])
+      : readWorkspaceTabsSnapshot();
   persistTabs(tabs, mode);
   notifyTabsChange();
   notifyWorkspacePreferenceChange();

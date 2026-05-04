@@ -54,6 +54,10 @@ where
     D: NodeDispatch,
 {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
+        if intent.mode != self.mode {
+            return Err(TransportError::ConnectFailed);
+        }
+
         Ok(PolicyEngine::build_provenance(
             intent.mode,
             TransportProfile::NodeClient,

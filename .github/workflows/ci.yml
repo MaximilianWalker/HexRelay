@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.15.0'
 
       - name: Install pinned cargo-audit
         run: bash scripts/ensure-cargo-audit.sh
@@ -222,7 +222,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.15.0'
 
       - name: Validate package manager lockfile and scripts
         working-directory: apps/web
@@ -379,7 +379,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.15.0'
 
       - name: Install web dependencies
         working-directory: apps/web

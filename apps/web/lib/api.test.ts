@@ -7,6 +7,7 @@ import {
   createFriendRequest,
   createInvite,
   declineFriendRequest,
+  fetchDmPolicy,
   fetchContacts,
   fetchFriendRequests,
   fetchServers,
@@ -16,6 +17,7 @@ import {
   redeemInvite,
   registerIdentityKey,
   revokeSession,
+  updateDmPolicy,
   verifyAuthChallenge,
 } from "./api";
 
@@ -350,5 +352,44 @@ describe("api auth transport", () => {
     const headers = new Headers(init?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
     expect(init?.body).toBe('{"envelope":"pairing-envelope-abc"}');
+  });
+
+  it("loads and updates the DM privacy policy", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            inbound_policy: "friends_only",
+            offline_delivery_mode: "best_effort_online",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            inbound_policy: "same_server",
+            offline_delivery_mode: "best_effort_online",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const loaded = await fetchDmPolicy();
+    const updated = await updateDmPolicy({ inboundPolicy: "same_server" });
+
+    expect(loaded.ok).toBe(true);
+    expect(updated.ok).toBe(true);
+    const [getUrl, getInit] = fetchMock.mock.calls[0] ?? [];
+    expect(String(getUrl)).toContain("/v1/dm/privacy-policy");
+    expect(getInit?.method).toBe("GET");
+    const [postUrl, postInit] = fetchMock.mock.calls[1] ?? [];
+    expect(String(postUrl)).toContain("/v1/dm/privacy-policy");
+    expect(postInit?.method).toBe("POST");
+    const headers = new Headers(postInit?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(headers.get("content-type")).toBe("application/json");
+    expect(postInit?.body).toBe('{"inbound_policy":"same_server"}');
   });
 });

@@ -111,6 +111,8 @@ function parseProfileSnapshot(value: string): ProfileSummary {
 }
 
 export function WorkspaceShell({
+  title,
+  subtitle,
   tabs,
   activeTabId,
   tabActions,
@@ -366,7 +368,15 @@ export function WorkspaceShell({
           </aside>
         )}
 
-        <section className={styles.content}>
+        <section
+          aria-describedby="workspace-page-subtitle"
+          aria-labelledby="workspace-page-title"
+          className={styles.content}
+        >
+          <header className={styles.visuallyHidden}>
+            <h1 id="workspace-page-title">{title}</h1>
+            <p id="workspace-page-subtitle">{subtitle}</p>
+          </header>
           <div className={styles.tabBar}>
             <div className={styles.tabs}>
               {tabs.map((tab) => {

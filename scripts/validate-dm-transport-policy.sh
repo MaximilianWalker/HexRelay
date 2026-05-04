@@ -3,20 +3,21 @@ set -euo pipefail
 
 runtime_forbidden_pattern='\b(stun|turn|coturn|webrtc|ice_server|dm_relay|relay_fallback)\b'
 config_forbidden_pattern='\b(dm_.*(stun|turn|relay)|dm_relay|relay_fallback|ice_server)\b'
+api_dm_validation_allowlist='DM_ENDPOINT_HINT_FORBIDDEN_SCHEMES|endpoint hints must not use relay-oriented schemes|turn://relay\.example\.com:3478|stun://192\.168\.1\.11:3478'
 
 matches=""
 
-core_matches="$(grep -RInE "${runtime_forbidden_pattern}" --include='*.rs' "crates/communication-core/src" || true)"
+core_matches="$(grep -RInEi "${runtime_forbidden_pattern}" --include='*.rs' "crates/communication-core/src" || true)"
 if [ -n "${core_matches}" ]; then
   matches+="${core_matches}"$'\n'
 fi
 
-api_dm_matches="$(grep -InE "${runtime_forbidden_pattern}" "services/api-rs/src/transport/http/handlers/dm.rs" || true)"
+api_dm_matches="$(grep -RInEi "${runtime_forbidden_pattern}" --include='*.rs' "services/api-rs/src" | grep -viE "${api_dm_validation_allowlist}" || true)"
 if [ -n "${api_dm_matches}" ]; then
   matches+="${api_dm_matches}"$'\n'
 fi
 
-config_matches="$(grep -InE "${config_forbidden_pattern}" \
+config_matches="$(grep -InEi "${config_forbidden_pattern}" \
   ".github/workflows/ci.yml" \
   "docs/reference/runtime-config-reference.md" \
   "services/api-rs/src/config.rs" \

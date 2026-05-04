@@ -1,9 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { IconDeviceDesktop, IconLock, IconSettings } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
+import {
+  fetchDmPolicy,
+  updateDmPolicy,
+  type DmInboundPolicy,
+} from "@/lib/api";
+import { readActivePersonaId, readPersonas } from "@/lib/personas";
+import { getPersonaSession } from "@/lib/sessions";
 import {
   readTabRestoreMode,
   setTabRestoreMode,
@@ -17,7 +24,7 @@ import styles from "../surfaces.module.css";
 const DM_POLICY_KEY = "hexrelay.settings.dm-policy.v1";
 const DM_POLICY_EVENT = "hexrelay-dm-policy-changed";
 
-type DmPolicy = "friends_only" | "same_server" | "anyone";
+type DmPolicy = DmInboundPolicy;
 
 let fallbackDmPolicy: DmPolicy = "friends_only";
 
@@ -45,7 +52,9 @@ function writeDmPolicy(next: DmPolicy): void {
     // Keep the in-memory value so settings remain usable without localStorage.
   }
 
-  window.dispatchEvent(new Event(DM_POLICY_EVENT));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(DM_POLICY_EVENT));
+  }
 }
 
 function subscribeDmPolicy(onChange: () => void): () => void {
@@ -75,9 +84,63 @@ export default function SettingsPage() {
     () => "pinned",
   );
   const dmPolicy = useSyncExternalStore<DmPolicy>(subscribeDmPolicy, readDmPolicy, () => "friends_only");
+  const personas = useMemo(() => readPersonas(), []);
+  const identityId = useMemo(() => readActivePersonaId() ?? personas[0]?.id ?? null, [personas]);
+  const hasSession = useMemo(() => (identityId ? getPersonaSession(identityId) !== null : false), [identityId]);
+  const [policyBusy, setPolicyBusy] = useState<DmPolicy | null>(null);
+  const [policyMessage, setPolicyMessage] = useState<string | null>(null);
 
-  function updatePolicy(next: DmPolicy): void {
-    writeDmPolicy(next);
+  useEffect(() => {
+    let active = true;
+
+    const run = async (): Promise<void> => {
+      if (!hasSession) {
+        setPolicyMessage("Create or select a profile before changing DM policy.");
+        return;
+      }
+
+      const result = await fetchDmPolicy();
+      if (!active) {
+        return;
+      }
+
+      if (result.ok) {
+        writeDmPolicy(result.data.inbound_policy);
+        setPolicyMessage(null);
+        return;
+      }
+
+      setPolicyMessage(result.message);
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [hasSession]);
+
+  async function updatePolicy(next: DmPolicy): Promise<void> {
+    if (!hasSession) {
+      setPolicyMessage("Create or select a profile before changing DM policy.");
+      return;
+    }
+
+    setPolicyBusy(next);
+    setPolicyMessage(null);
+
+    try {
+      const result = await updateDmPolicy({ inboundPolicy: next });
+      if (result.ok) {
+        writeDmPolicy(result.data.inbound_policy);
+        setPolicyMessage("DM inbound policy saved.");
+        return;
+      }
+
+      setPolicyMessage(result.message);
+    } finally {
+      setPolicyBusy(null);
+    }
   }
 
   function updateTabRestoreMode(next: TabRestoreMode): void {
@@ -105,28 +168,32 @@ export default function SettingsPage() {
               <button
                 aria-pressed={dmPolicy === "friends_only"}
                 className={`${styles.pill} ${dmPolicy === "friends_only" ? styles.pillActive : ""}`}
-                onClick={() => updatePolicy("friends_only")}
+                disabled={!hasSession || policyBusy !== null}
+                onClick={() => void updatePolicy("friends_only")}
                 type="button"
               >
-                Friends only
+                {policyBusy === "friends_only" ? "Saving..." : "Friends only"}
               </button>
               <button
                 aria-pressed={dmPolicy === "same_server"}
                 className={`${styles.pill} ${dmPolicy === "same_server" ? styles.pillActive : ""}`}
-                onClick={() => updatePolicy("same_server")}
+                disabled={!hasSession || policyBusy !== null}
+                onClick={() => void updatePolicy("same_server")}
                 type="button"
               >
-                Same server
+                {policyBusy === "same_server" ? "Saving..." : "Same server"}
               </button>
               <button
                 aria-pressed={dmPolicy === "anyone"}
                 className={`${styles.pill} ${dmPolicy === "anyone" ? styles.pillActive : ""}`}
-                onClick={() => updatePolicy("anyone")}
+                disabled={!hasSession || policyBusy !== null}
+                onClick={() => void updatePolicy("anyone")}
                 type="button"
               >
-                Anyone
+                {policyBusy === "anyone" ? "Saving..." : "Anyone"}
               </button>
             </div>
+            {policyMessage ? <p className={styles.meta}>{policyMessage}</p> : null}
           </article>
           <article className={styles.card}>
             <p className={styles.title}>Workspace tabs</p>
