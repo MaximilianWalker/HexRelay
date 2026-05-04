@@ -9,6 +9,13 @@ type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };
 
+export type DmInboundPolicy = "friends_only" | "same_server" | "anyone";
+
+export type DmPolicyResponse = {
+  inbound_policy: DmInboundPolicy;
+  offline_delivery_mode: string;
+};
+
 const CSRF_COOKIE = "hexrelay_csrf";
 
 function readCookie(name: string): string | null {
@@ -304,6 +311,30 @@ export async function declineFriendRequest(input: {
   return parseResponse(response);
 }
 
+export async function fetchDmPolicy(): Promise<ApiResult<DmPolicyResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+    method: "GET",
+  });
+
+  return parseResponse(response);
+}
+
+export async function updateDmPolicy(input: {
+  inboundPolicy: DmInboundPolicy;
+}): Promise<ApiResult<DmPolicyResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      inbound_policy: input.inboundPolicy,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
 export async function redeemInvite(input: {
   token: string;
   nodeFingerprint: string;
@@ -347,6 +378,57 @@ export async function createContactInvite(input: {
       expires_at: input.expiresAt,
     }),
   });
+
+  return parseResponse(response);
+}
+
+export async function createDmPairingEnvelope(input: {
+  endpointHints: string[];
+  expiresInSeconds?: number;
+}): Promise<
+  ApiResult<{
+    envelope: string;
+    short_code: string;
+    expires_at: string;
+    pairing_nonce: string;
+  }>
+> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/pairing-envelope`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      endpoint_hints: input.endpointHints,
+      expires_in_seconds: input.expiresInSeconds,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
+export async function importDmPairingEnvelope(input: {
+  envelope: string;
+}): Promise<
+  ApiResult<{
+    inviter_identity_id: string;
+    endpoint_hints: string[];
+    imported_at: string;
+    expires_at: string;
+  }>
+> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/pairing-envelope/import`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        envelope: input.envelope,
+      }),
+    },
+  );
 
   return parseResponse(response);
 }

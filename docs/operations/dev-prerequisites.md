@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-04-26
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-04-03 reduced env duplication by pointing bootstrap/setup readers to the canonical runtime config reference.
+- Latest meaningful change: 2026-04-26 aligned the local Node baseline with the checked-in `.nvmrc` and package engine constraints.
 
 ## Purpose
 
@@ -21,8 +21,8 @@
 
 ## Required Tooling
 
-- Node.js: 20.x (matches CI baseline).
-- npm: 10.x (or newer npm compatible with Node.js 20).
+- Node.js: `24.15.0` or newer (matches `.nvmrc` and package engine constraints).
+- npm: the version bundled with the supported Node.js release, or newer npm compatible with that Node.js version.
 - Rust toolchain: latest stable channel (enforced by `rust-toolchain.toml` with `rustfmt` and `clippy`).
 - Docker Engine: 24.x or newer.
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
@@ -33,8 +33,9 @@
 
 ### Platform Notes
 
-- Windows: use Git Bash or WSL for `scripts/*.sh` commands.
+- Windows: use the PowerShell-backed `npm run setup` / `npm run start` path for normal local development; use Git Bash or WSL only when running `scripts/*.sh` directly.
 - macOS/Linux: default system shell is sufficient.
+- The repository includes `.nvmrc` pinned to `24.15.0` for the default local toolchain baseline.
 
 ## Quick Verification
 
@@ -59,10 +60,16 @@ Expected: commands resolve without errors and versions satisfy the required tool
 
 1. Install required tooling.
 2. Run `npm run setup`.
-3. Confirm `services/api-rs/.env` and `services/realtime-rs/.env` exist (created automatically from `*.env.example` on first `npm run run`).
+3. Confirm `services/api-rs/.env` and `services/realtime-rs/.env` exist (created automatically from `*.env.example` on first `npm run start`).
 4. Review `docs/reference/runtime-config-reference.md` and set local signing keys in `services/api-rs/.env` (`API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID`).
-5. Run `npm run run` and confirm service startup succeeds.
+5. Run `npm run start` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
+
+- Windows-specific direct path if you want to bypass auto-detection explicitly:
+  - `npm run setup:windows`
+  - `npm run start:windows`
+  - `npm run test:windows`
+  - the PowerShell runner automatically chooses conflict-free local ports and prints the actual API/realtime/web URLs when the stack is ready
 
 - Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
 

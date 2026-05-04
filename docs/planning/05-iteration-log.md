@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-04-11
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-10 recorded the contract-parity hardening that added selected realtime semantic checks to CI and refreshed the readiness/docs routing around the remaining semantic-depth watch.
+- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by wiring DM pairing QR/share/import flows into the contacts surface and web API layer.
 
 ## Purpose
 
@@ -29,6 +29,103 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-04-11 (T4.1.4 DM pairing web slice)
+
+- Area affected: Iteration 2 DM pairing/bootstrap web delivery.
+- Change summary:
+  - Added DM pairing API client methods in `apps/web/lib/api.ts` for pairing-envelope create/import.
+  - Added `apps/web/lib/dm-pairing.ts` helper utilities plus tests for `hexrelay://dm-pairing/...` link build/parse behavior.
+  - Added contacts-page UI for DM pairing share/import with QR rendering, short-code display, envelope-link copy, and import result feedback.
+  - Marked `T4.1.4` in progress on the Iteration 2 sprint board.
+- Rationale:
+  - `T4.1.4` is the first audited story whose Web half was genuinely missing. This slice delivers the smallest coherent web implementation on top of the already-shipped backend pairing flow.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-04-11 (T4.1.3 DM transport guardrail closeout)
+
+- Area affected: Iteration 2 DM transport policy enforcement and CI guardrails.
+- Change summary:
+  - Confirmed the runtime already enforced direct-only DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
+  - Expanded `scripts/validate-dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
+  - Marked `T4.1.3` done on the Iteration 2 sprint board.
+- Rationale:
+  - The story was only partially delivered: runtime behavior already matched policy, but the CI guardrail still missed forbidden config-style regressions. Widening the check closes the acceptance-criteria gap without inventing new transport behavior.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-04-11 (T4.1.2 DM privacy-policy closeout)
+
+- Area affected: Iteration 2 DM privacy-policy delivery traceability.
+- Change summary:
+  - Confirmed the backend/runtime already delivers the `T4.1.2` acceptance criteria through the existing DM privacy-policy read/update endpoints, default `friends_only` behavior, persisted per-identity override state, and recipient-policy enforcement across DM preflight/fanout/parallel-dial paths.
+  - Added one missing explicit integration assertion in `services/api-rs/src/tests/integration/dm_policy_tests.rs` proving that `same_server` can be set via `POST /v1/dm/privacy-policy` and read back unchanged.
+  - Marked `T4.1.2` done on the Iteration 2 sprint board.
+- Rationale:
+  - The runtime behavior was already present; the real gap was stale planning status plus one missing explicit readback regression for the `same_server` policy value.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-04-11 (T4.1.1 DM thread/history closeout)
+
+- Area affected: Iteration 2 DM thread/history delivery traceability.
+- Change summary:
+  - Confirmed the backend/runtime already delivers the `T4.1.1` acceptance criteria through the existing DM thread list, DM message history pagination, and mark-read endpoints plus integration coverage.
+  - Added one missing explicit integration assertion in `services/api-rs/src/tests/integration/dm_threads_tests.rs` proving the returned thread list includes a `group_dm` item with the expected participant set.
+  - Marked `T4.1.1` done on the Iteration 2 sprint board.
+- Rationale:
+  - The runtime behavior was already present; the real gap was stale planning status plus one missing explicit regression around the `group_dm` response shape.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-04-11 (T4.0.2 node-client adapter boundary slice)
+
+- Area affected: Iteration 2 communication adapter rollout and planning traceability.
+- Change summary:
+  - Added shared adapter primitives in `crates/communication-core/src/transport/mod.rs`: `UnsupportedDirectPeerTransport`, `NodeDispatch`, and `DispatchingNodeClientTransport`.
+  - Routed the current production node-client send paths in `services/api-rs/src/domain/server_channels/realtime.rs` and `services/realtime-rs/src/domain/presence.rs` through the shared dispatching adapter instead of service-local `NodeClientTransport` implementations.
+  - Extended `communication-core` router tests to cover shared dispatching-adapter mode enforcement and payload forwarding semantics.
+  - Marked `T4.0.2` as in progress on the Iteration 2 sprint board.
+- Rationale:
+  - The currently exercised production adapter path is node-client transport, not direct peer transport. Centralizing that path first closes a real duplication gap and moves `T4.0.2` forward without inventing premature DM transport machinery.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+
+### 2026-04-11 (T4.0.1 shared communication-layer closeout)
+
+- Area affected: Iteration 2 communication-layer foundation and planning traceability.
+- Change summary:
+  - Replaced hand-rolled node-client provenance construction in current presence and server-channel integrations with `PolicyEngine::build_provenance(...)` from `crates/communication-core`.
+  - Extended `communication-core` policy tests to cover deterministic provenance for `server_channel` and `presence` alongside the existing DM route case.
+  - Marked `T4.0.1` done on the Iteration 2 sprint board and added the expected evidence path under `evidence/iteration-02/networking-layer/`.
+- Rationale:
+  - The shared communication-layer boundary was already mostly implemented; this closes the cleanest remaining gap by making current integrations consume the shared provenance logic instead of duplicating it, and by aligning planning status with the shipped core foundation.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/planning/README.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/README.md`
+
+### 2026-04-10 (iteration-board closeout for delivered presence and discovery work)
+
+- Area affected: Iteration 2 planning status and delivery traceability.
+- Change summary:
+  - Marked `T3.3.1` as done on the Iteration 2 sprint board with merged evidence from PRs `#53-#54` and the Redis-backed reconnect/hydration coverage already present in `services/realtime-rs/src/tests/ws_transport_tests.rs`.
+  - Marked `T3.4.1` as done on the Iteration 2 sprint board with merged evidence from PR `#52` and follow-up discovery parity/policy hardening that already landed in the API/runtime contract and integration tests.
+  - Removed the stale `In Progress` bookkeeping entry that no longer matched the merged codebase.
+- Rationale:
+  - Planning status should match repository reality; leaving delivered stories marked as pending or in-progress distorts dependency sequencing and makes next-story selection worse.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-04-10 (docs-governance cleanup for freshness policy and dedicated deployment boundary)
 

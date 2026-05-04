@@ -4,6 +4,7 @@ set -euo pipefail
 declare -A advisories=(
   ["RUSTSEC-2023-0071"]="2026-06-30"
   ["RUSTSEC-2026-0049"]="2026-09-30"
+  ["RUSTSEC-2026-0097"]="2026-08-31"
 )
 
 today_utc="$(date -u +%F)"

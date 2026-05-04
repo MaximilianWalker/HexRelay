@@ -1,10 +1,7 @@
 use communication_core::{
-    app::CommunicationRouter,
-    domain::{
-        CommunicationMode, CommunicationReasonCode, ConnectIntent, SendEnvelope, SessionProvenance,
-        TransportProfile,
-    },
-    transport::{DirectPeerTransport, NodeClientTransport, TransportError},
+    domain::CommunicationMode,
+    send_via_node_dispatch,
+    transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -112,42 +109,15 @@ pub struct DispatchChannelMessageDeletedInput<'a> {
 }
 
 #[derive(Clone)]
-struct RealtimeNodeClientTransport {
+struct RealtimeNodeDispatchSender {
     http_client: reqwest::Client,
     realtime_base_url: String,
     internal_token: String,
 }
 
-struct UnusedDirectPeerTransport;
-
-impl DirectPeerTransport for UnusedDirectPeerTransport {
-    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Err(TransportError::ConnectFailed)
-    }
-
-    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        Err(TransportError::SendFailed)
-    }
-}
-
-impl NodeClientTransport for RealtimeNodeClientTransport {
-    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Ok(SessionProvenance {
-            mode: intent.mode,
-            profile: TransportProfile::NodeClient,
-            reason_code: match intent.mode {
-                CommunicationMode::ServerChannel => {
-                    CommunicationReasonCode::ServerChannelRouteSelected
-                }
-                CommunicationMode::Presence => CommunicationReasonCode::PresenceRouteSelected,
-                CommunicationMode::DmDirect => CommunicationReasonCode::DmDirectPolicyViolation,
-            },
-            policy_assertions: vec!["node_client_transport_selected".to_string()],
-        })
-    }
-
-    fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {
-        let dispatch = RealtimeNodeDispatch::from_payload(&envelope.payload)?;
+impl NodeDispatch for RealtimeNodeDispatchSender {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        let dispatch = RealtimeNodeDispatch::from_payload(payload)?;
         let http_client = self.http_client.clone();
         let url = format!(
             "{}{}",
@@ -387,27 +357,22 @@ fn dispatch_server_channel_payload(
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
 
-    let router = CommunicationRouter::new(
+    send_via_node_dispatch(
+        CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
-        UnusedDirectPeerTransport,
-        RealtimeNodeClientTransport {
+        RealtimeNodeDispatchSender {
             http_client: state.http_client.clone(),
             realtime_base_url: state.realtime_base_url.clone(),
             internal_token: state.channel_dispatch_internal_token.clone(),
         },
-    );
-
-    router
-        .send(&SendEnvelope {
-            mode: CommunicationMode::ServerChannel,
-            payload,
-        })
-        .map_err(|error| {
-            format!(
-                "dispatch server channel event via NodeClientTransport: {:?}",
-                error.code
-            )
-        })
+        payload,
+    )
+    .map_err(|error| {
+        format!(
+            "dispatch server channel event via NodeClientTransport: {:?}",
+            error.code
+        )
+    })
 }
 
 #[cfg(test)]

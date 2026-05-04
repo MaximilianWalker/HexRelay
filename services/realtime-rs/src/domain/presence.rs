@@ -3,12 +3,9 @@ use std::collections::BTreeSet;
 use crate::state::AppState;
 use chrono::Utc;
 use communication_core::{
-    app::CommunicationRouter,
-    domain::{
-        CommunicationMode, CommunicationReasonCode, ConnectIntent, SendEnvelope, SessionProvenance,
-        TransportProfile,
-    },
-    transport::{DirectPeerTransport, NodeClientTransport, TransportError},
+    domain::CommunicationMode,
+    send_via_node_dispatch,
+    transport::{NodeDispatch, TransportError},
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -93,40 +90,13 @@ struct OwnedPresenceEdgeDispatchRequest {
 }
 
 #[derive(Clone)]
-struct LocalPresenceNodeClientTransport {
+struct LocalPresenceDispatchSender {
     state: AppState,
 }
 
-struct UnusedDirectPeerTransport;
-
-impl DirectPeerTransport for UnusedDirectPeerTransport {
-    fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Err(TransportError::ConnectFailed)
-    }
-
-    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        Err(TransportError::SendFailed)
-    }
-}
-
-impl NodeClientTransport for LocalPresenceNodeClientTransport {
-    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        Ok(SessionProvenance {
-            mode: intent.mode,
-            profile: TransportProfile::NodeClient,
-            reason_code: match intent.mode {
-                CommunicationMode::Presence => CommunicationReasonCode::PresenceRouteSelected,
-                CommunicationMode::ServerChannel => {
-                    CommunicationReasonCode::ServerChannelRouteSelected
-                }
-                CommunicationMode::DmDirect => CommunicationReasonCode::DmDirectPolicyViolation,
-            },
-            policy_assertions: vec!["node_client_transport_selected".to_string()],
-        })
-    }
-
-    fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError> {
-        let dispatch = PresenceNodeDispatch::from_payload(&envelope.payload)?;
+impl NodeDispatch for LocalPresenceDispatchSender {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        let dispatch = PresenceNodeDispatch::from_payload(payload)?;
         let state = self.state.clone();
         let handle =
             tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
@@ -373,25 +343,20 @@ async fn dispatch_presence_edge(
     ))
     .map_err(|error| format!("encode presence dispatch payload: {error}"))?;
 
-    let router = CommunicationRouter::new(
+    send_via_node_dispatch(
+        CommunicationMode::Presence,
         communication_core::PolicyContext::default(),
-        UnusedDirectPeerTransport,
-        LocalPresenceNodeClientTransport {
+        LocalPresenceDispatchSender {
             state: state.clone(),
         },
-    );
-
-    router
-        .send(&SendEnvelope {
-            mode: CommunicationMode::Presence,
-            payload,
-        })
-        .map_err(|error| {
-            format!(
-                "dispatch presence event via NodeClientTransport: {:?}",
-                error.code
-            )
-        })
+        payload,
+    )
+    .map_err(|error| {
+        format!(
+            "dispatch presence event via NodeClientTransport: {:?}",
+            error.code
+        )
+    })
 }
 
 async fn publish_presence_edge_direct(

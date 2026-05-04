@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useEffect } from "react";
 import Link from "next/link";
+import { IconMessageCircle, IconPinned, IconServer2 } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { fetchServers } from "@/lib/api";
@@ -117,9 +118,9 @@ export default function ServersPage() {
       activeTabId="servers"
       subtitle="Global servers hub with searchable cards and filters"
       tabs={[
-        { id: "servers", label: "Servers Hub" },
-        { id: "favorites", label: "Pinned" },
-        { id: "unread", label: "Unread" },
+        { id: "servers", label: "Servers Hub", icon: IconServer2 },
+        { id: "favorites", label: "Pinned", icon: IconPinned },
+        { id: "unread", label: "Unread", icon: IconMessageCircle },
       ]}
       title="Servers"
     >

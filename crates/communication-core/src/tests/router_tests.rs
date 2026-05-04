@@ -8,7 +8,10 @@ use crate::domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, PolicyContext,
     SendEnvelope, SessionProvenance, TransportProfile,
 };
-use crate::transport::{DirectPeerTransport, NodeClientTransport, TransportError};
+use crate::transport::{
+    send_via_node_dispatch, DirectPeerTransport, DispatchingNodeClientTransport,
+    NodeClientTransport, NodeDispatch, TransportError,
+};
 
 #[derive(Clone)]
 struct RecordingDirectPeer {
@@ -97,6 +100,20 @@ impl DirectPeerTransport for FailingDirectPeer {
 
     fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
         Err(TransportError::SendFailed)
+    }
+}
+
+struct RecordingDispatch {
+    payloads: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+}
+
+impl NodeDispatch for RecordingDispatch {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        self.payloads
+            .lock()
+            .expect("acquire payload lock")
+            .push(payload.to_vec());
+        Ok(())
     }
 }
 
@@ -230,5 +247,86 @@ fn rejects_non_direct_profile_for_dm_mode() {
             mode: CommunicationMode::DmDirect,
             profile: Some(TransportProfile::NodeClient),
         })
+    );
+}
+
+#[test]
+fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingNodeClientTransport::new(
+        CommunicationMode::Presence,
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+    );
+
+    let result = transport.send(&SendEnvelope {
+        mode: CommunicationMode::ServerChannel,
+        payload: b"hello".to_vec(),
+    });
+
+    assert_eq!(result, Err(TransportError::SendFailed));
+    assert!(payloads.lock().expect("acquire payload lock").is_empty());
+}
+
+#[test]
+fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingNodeClientTransport::new(
+        CommunicationMode::Presence,
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+    );
+
+    let result = transport.connect(&ConnectIntent {
+        mode: CommunicationMode::ServerChannel,
+        target: ConnectTarget::NodeEndpoint {
+            endpoint: "https://node.invalid".to_string(),
+        },
+    });
+
+    assert_eq!(result, Err(TransportError::ConnectFailed));
+}
+
+#[test]
+fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingNodeClientTransport::new(
+        CommunicationMode::Presence,
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+    );
+
+    let result = transport.send(&SendEnvelope {
+        mode: CommunicationMode::Presence,
+        payload: b"presence".to_vec(),
+    });
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"presence".to_vec()]
+    );
+}
+
+#[test]
+fn send_via_node_dispatch_routes_through_shared_node_client_bootstrap() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let result = send_via_node_dispatch(
+        CommunicationMode::ServerChannel,
+        PolicyContext::default(),
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+        b"server".to_vec(),
+    );
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"server".to_vec()]
     );
 }

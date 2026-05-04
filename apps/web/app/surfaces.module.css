@@ -6,11 +6,27 @@
 }
 
 .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid #c5d9ea;
   border-radius: 999px;
   padding: 8px 12px;
   background: #f4f9ff;
+  color: #1d3b57;
   font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pillActive {
+  border-color: #1f628f;
+  background: #1f628f;
+  color: #fff;
 }
 
 .search {
@@ -24,9 +40,40 @@
   font-family: inherit;
 }
 
+.inputWrap {
+  position: relative;
+}
+
+.inputWrap .search {
+  padding-left: 36px;
+}
+
+.inputIcon {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: #5d7891;
+  pointer-events: none;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  stroke-width: 1.8;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.contactGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 10px;
 }
 
@@ -35,6 +82,60 @@
   border-radius: 12px;
   padding: 12px;
   background: #f8fbff;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.avatar {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b7d0e8;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1d3b57;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.badge,
+.badgeMuted {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #b7d0e8;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #fff;
+  color: #1d3b57;
+  font-size: 0.74rem;
+}
+
+.badgeMuted {
+  border-color: #d2e0ed;
+  background: #f7fbff;
+  color: #5d7891;
+}
+
+.compactDetails {
+  margin-top: 10px;
+  color: #385c7e;
+  font-size: 0.82rem;
+}
+
+.compactDetails summary,
+.state summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 .title {
@@ -91,6 +192,10 @@
 
 @media (max-width: 920px) {
   .channelLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .contactGrid {
     grid-template-columns: 1fr;
   }
 }

@@ -52,20 +52,25 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - `docs/planning/iterations/README.md`
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
-  - One-command bootstrap via `npm run setup`
+  - One-command bootstrap via `npm run setup` (auto-detects Windows vs Unix)
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
-- One-command local startup via `npm run run` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
+- One-command local startup via `npm run start` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
+- Windows-specific direct path if you want to bypass auto-detection explicitly:
+  - `npm run setup:windows`
+  - `npm run start:windows`
+  - `npm run test:windows`
+  - the PowerShell runner automatically picks conflict-free local ports and prints the chosen API/realtime/web URLs when the stack is ready
 
 ### Pre-Dev Gate (Deterministic)
 
 1. **Terminal A**: run `npm run setup` once.
-2. **Terminal A**: run `npm run run` (keep it running; this starts local API/realtime/web processes).
-3. **Terminal B**: verify API health with `curl -fsS "http://127.0.0.1:8080/health"`.
-4. **Terminal B**: verify realtime health with `curl -fsS "http://127.0.0.1:8081/health"`.
-5. **Terminal C**: run `npm run test`.
+2. **Terminal A**: run `npm run start` (keep it running; this starts local API/realtime/web processes).
+3. **Terminal B**: verify API and realtime health using the URLs printed by `npm run start`.
+4. **Terminal C**: open the printed web URL and continue with local testing.
+5. **Terminal D**: run `npm run test`.
 
-Expected result: health checks return success and tests pass before starting feature implementation.
+Expected result: `npm run start` prints a ready stack summary with API/realtime/web URLs, health checks return success on those printed URLs, and tests pass before starting feature implementation.
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`

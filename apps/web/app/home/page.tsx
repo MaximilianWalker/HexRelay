@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
 import styles from "./home.module.css";
 import { WorkspaceShell } from "@/components/workspace-shell";
@@ -104,9 +105,9 @@ export default function HomePage() {
       activeTabId="home"
       subtitle="Recent activity and persona-scoped session control"
       tabs={[
-        { id: "home", label: "Home" },
-        { id: "alerts", label: "Alerts" },
-        { id: "resume", label: "Resume" },
+        { id: "home", label: "Home", icon: IconHome },
+        { id: "alerts", label: "Alerts", icon: IconInfoCircle },
+        { id: "resume", label: "Resume", icon: IconClock },
       ]}
       title="Home"
     >

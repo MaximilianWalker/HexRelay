@@ -3,6 +3,9 @@ target/
 apps/web/.next/
 apps/web/coverage/
 infra/.env
+.local-run/
+services/api-rs/.env
+services/realtime-rs/.env
 .run-logs/
 *.log
 **/__pycache__/
