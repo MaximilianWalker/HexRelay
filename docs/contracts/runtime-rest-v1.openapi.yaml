@@ -16,6 +16,8 @@ info:
     Server-channel message edit/delete author-authorization decisions also emit
     structured allow/deny/failure logs for node-owner debugging without changing
     response contracts.
+    Realtime/presence integration uses the shared communication-core node-client
+    adapter boundary without changing REST route or payload contracts.
 servers:
   - url: https://api.hexrelay.local
 paths:

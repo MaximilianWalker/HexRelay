@@ -34,7 +34,7 @@ fn parse_presence_statuses(
     values: Vec<Option<String>>,
 ) -> HashMap<String, String> {
     let mut statuses = HashMap::with_capacity(identity_ids.len());
-    for (identity_id, raw_value) in identity_ids.iter().zip(values.into_iter()) {
+    for (identity_id, raw_value) in identity_ids.iter().zip(values) {
         let Some(raw_value) = raw_value else {
             continue;
         };
