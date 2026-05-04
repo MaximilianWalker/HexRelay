@@ -1,9 +1,7 @@
 use communication_core::{
     domain::CommunicationMode,
     send_via_node_dispatch,
-    transport::{
-        NodeDispatch, TransportError,
-    },
+    transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -369,12 +367,12 @@ fn dispatch_server_channel_payload(
         },
         payload,
     )
-        .map_err(|error| {
-            format!(
-                "dispatch server channel event via NodeClientTransport: {:?}",
-                error.code
-            )
-        })
+    .map_err(|error| {
+        format!(
+            "dispatch server channel event via NodeClientTransport: {:?}",
+            error.code
+        )
+    })
 }
 
 #[cfg(test)]

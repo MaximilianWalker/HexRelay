@@ -73,6 +73,106 @@ function Wait-Until {
     throw "[run.ps1] $Label did not become ready after $Attempts attempts"
 }
 
+function Test-HttpOk {
+    param([string]$Url)
+
+    try {
+        return (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 $Url).StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
+function Get-LogTail {
+    param(
+        [string]$Path,
+        [int]$Tail = 20
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return ''
+    }
+
+    return ((Get-Content -LiteralPath $Path -Tail $Tail -ErrorAction SilentlyContinue) -join "`n")
+}
+
+function Get-WebUrlFromLogs {
+    param(
+        [string[]]$Paths,
+        [string]$FallbackUrl
+    )
+
+    foreach ($path in $Paths) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        $content = Get-Content -LiteralPath $path -ErrorAction SilentlyContinue
+        foreach ($line in $content) {
+            if ($line -match 'Local:\s+(http://localhost:\d+)') {
+                return $Matches[1]
+            }
+        }
+    }
+
+    return $FallbackUrl
+}
+
+function Get-ExistingWebUrlFromStderr {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $content = Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue
+    $sawExistingServer = $false
+    foreach ($line in $content) {
+        if ($line -match 'Another next dev server is already running') {
+            $sawExistingServer = $true
+            continue
+        }
+
+        if ($sawExistingServer -and $line -match 'Local:\s+(http://localhost:\d+)') {
+            return $Matches[1]
+        }
+    }
+
+    return $null
+}
+
+function Get-ExistingWebPidFromStderr {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $content = Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue
+    foreach ($line in $content) {
+        if ($line -match 'PID:\s+(\d+)') {
+            return [int]$Matches[1]
+        }
+    }
+
+    return $null
+}
+
+function Test-WebReady {
+    param([string]$Url)
+
+    if (Test-HttpOk $Url) {
+        return $true
+    }
+
+    $onboardingUrl = "$($Url.TrimEnd('/'))/onboarding/identity"
+    if (Test-HttpOk $onboardingUrl) {
+        return $true
+    }
+
+    return $false
+}
+
 function Start-CmdProcess {
     param(
         [string]$WorkingDirectory,
@@ -184,21 +284,13 @@ try {
     Write-Host '[run.ps1] Starting API service'
     $apiProcess = Start-CmdProcess -WorkingDirectory $root -EnvVars $apiEnv -Command 'cargo.exe run -p api-rs' -Name 'api-rs' -LogDir $logDir
     Wait-Until -Label 'api' -Probe {
-        try {
-            (Invoke-WebRequest -UseBasicParsing "$apiBaseUrl/health").StatusCode -eq 200
-        } catch {
-            $false
-        }
+        Test-HttpOk "$apiBaseUrl/health"
     }
 
     Write-Host '[run.ps1] Starting realtime service'
     $realtimeProcess = Start-CmdProcess -WorkingDirectory $root -EnvVars $realtimeEnv -Command 'cargo.exe run -p realtime-rs' -Name 'realtime-rs' -LogDir $logDir
     Wait-Until -Label 'realtime' -Probe {
-        try {
-            (Invoke-WebRequest -UseBasicParsing "$realtimeBaseUrl/health").StatusCode -eq 200
-        } catch {
-            $false
-        }
+        Test-HttpOk "$realtimeBaseUrl/health"
     }
 
     Write-Host '[run.ps1] Starting web dev server'
@@ -206,25 +298,102 @@ try {
         'NEXT_PUBLIC_API_BASE_URL' = $apiBaseUrl
         'NEXT_PUBLIC_REALTIME_WS_URL' = $realtimeWsUrl
     }
-    $webProcess = Start-WebProcess -Root $root -EnvVars $webEnv -Port $webPort -LogDir $logDir
-    Wait-Until -Label 'web' -Probe {
-        try {
-            (Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$webPort").StatusCode -eq 200
-        } catch {
-            $false
+    $webStdoutPath = Join-Path $logDir 'web.stdout.log'
+    $webStderrPath = Join-Path $logDir 'web.stderr.log'
+    $webBaseUrl = "http://localhost:$webPort"
+
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        $webProcess = Start-WebProcess -Root $root -EnvVars $webEnv -Port $webPort -LogDir $logDir
+        Wait-Until -Label 'web' -Probe {
+            $stdoutTail = Get-LogTail -Path $webStdoutPath
+            if ($stdoutTail -match 'Ready in') {
+                return $true
+            }
+
+            $stderrTailInner = Get-LogTail -Path $webStderrPath
+            if ($stderrTailInner -match 'Another next dev server is already running') {
+                return $true
+            }
+
+            Test-HttpOk $webBaseUrl
         }
+
+        $stderrTail = Get-LogTail -Path $webStderrPath
+        if ($stderrTail -match 'Another next dev server is already running') {
+            $existingWebPid = Get-ExistingWebPidFromStderr -Path $webStderrPath
+            if ($existingWebPid -and $attempt -eq 1) {
+                Write-Host "[run.ps1] Stopping stale Next dev server PID $existingWebPid and retrying web startup"
+                try {
+                    taskkill /PID $existingWebPid /T /F *> $null
+                }
+                catch {
+                }
+                Start-Sleep -Seconds 2
+                continue
+            }
+
+            $existingWebUrl = Get-ExistingWebUrlFromStderr -Path $webStderrPath
+            if ($existingWebUrl) {
+                $webBaseUrl = $existingWebUrl
+            }
+            Write-Host '[run.ps1] Note: an existing Next dev server was already running; reusing its live URL.'
+        }
+        else {
+            $webBaseUrl = Get-WebUrlFromLogs -Paths @($webStdoutPath, $webStderrPath) -FallbackUrl $webBaseUrl
+        }
+
+        break
     }
+
+    Wait-Until -Label 'web HTTP' -Probe {
+        Test-WebReady -Url $webBaseUrl
+    } -Attempts 60
 
     Write-Host ''
     Write-Host '[run.ps1] Local stack is ready'
     Write-Host "  API:      $apiBaseUrl"
     Write-Host "  Realtime: $realtimeBaseUrl"
-    Write-Host "  Web:      http://127.0.0.1:$webPort"
+    Write-Host "  Web:      $webBaseUrl"
     Write-Host "  Logs:     $logDir"
     Write-Host ''
     Write-Host '[run.ps1] Press Ctrl+C to stop the stack'
 
-    Wait-Process -Id $apiProcess.Id, $realtimeProcess.Id, $webProcess.Id
+    $apiConsecutiveFailures = 0
+    $realtimeConsecutiveFailures = 0
+    $webConsecutiveFailures = 0
+    while ($true) {
+        if (Test-HttpOk "$apiBaseUrl/health") {
+            $apiConsecutiveFailures = 0
+        }
+        else {
+            $apiConsecutiveFailures += 1
+            if ($apiConsecutiveFailures -ge 15) {
+                throw '[run.ps1] API health check failed after startup'
+            }
+        }
+
+        if (Test-HttpOk "$realtimeBaseUrl/health") {
+            $realtimeConsecutiveFailures = 0
+        }
+        else {
+            $realtimeConsecutiveFailures += 1
+            if ($realtimeConsecutiveFailures -ge 15) {
+                throw '[run.ps1] Realtime health check failed after startup'
+            }
+        }
+
+        if (Test-WebReady -Url $webBaseUrl) {
+            $webConsecutiveFailures = 0
+        }
+        else {
+            $webConsecutiveFailures += 1
+            if ($webConsecutiveFailures -ge 15) {
+                throw '[run.ps1] Web health check failed after startup'
+            }
+        }
+
+        Start-Sleep -Seconds 2
+    }
 }
 finally {
     foreach ($process in @($apiProcess, $realtimeProcess, $webProcess)) {

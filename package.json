@@ -2,12 +2,17 @@
   "name": "hexrelay-workspace",
   "private": true,
   "version": "0.1.0",
+  "engines": {
+    "node": "^24.15.0 || >=25"
+  },
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup.ps1",
-    "run": "node scripts/run.mjs",
-    "run:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1",
-    "test": "bash scripts/test.sh",
+    "start": "node scripts/run.mjs",
+    "start:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1",
+    "test": "node scripts/test.mjs",
+    "test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1",
+    "test:unix": "bash scripts/test.sh",
     "security": "bash scripts/ensure-cargo-audit.sh && cargo audit --deny warnings --ignore RUSTSEC-2023-0071"
   }
 }

@@ -5,9 +5,7 @@ use chrono::Utc;
 use communication_core::{
     domain::CommunicationMode,
     send_via_node_dispatch,
-    transport::{
-        NodeDispatch, TransportError,
-    },
+    transport::{NodeDispatch, TransportError},
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -353,12 +351,12 @@ async fn dispatch_presence_edge(
         },
         payload,
     )
-        .map_err(|error| {
-            format!(
-                "dispatch presence event via NodeClientTransport: {:?}",
-                error.code
-            )
-        })
+    .map_err(|error| {
+        format!(
+            "dispatch presence event via NodeClientTransport: {:?}",
+            error.code
+        )
+    })
 }
 
 async fn publish_presence_edge_direct(

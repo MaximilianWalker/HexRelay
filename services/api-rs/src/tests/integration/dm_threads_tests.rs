@@ -461,7 +461,10 @@ async fn dm_thread_listing_returns_group_dm_shape_for_group_participants() {
         .body(Body::empty())
         .expect("build group dm thread list request");
 
-    let response = app.oneshot(request).await.expect("group dm thread list response");
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("group dm thread list response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)
@@ -481,9 +484,15 @@ async fn dm_thread_listing_returns_group_dm_shape_for_group_participants() {
 
     assert_eq!(group_dm["title"], "Atlas Draft Squad");
     assert_eq!(participant_ids.len(), 3);
-    assert!(participant_ids.iter().any(|id| id == identities.nora_id.as_str()));
-    assert!(participant_ids.iter().any(|id| id == identities.mina_id.as_str()));
-    assert!(participant_ids.iter().any(|id| id == identities.alex_id.as_str()));
+    assert!(participant_ids
+        .iter()
+        .any(|id| id == identities.nora_id.as_str()));
+    assert!(participant_ids
+        .iter()
+        .any(|id| id == identities.mina_id.as_str()));
+    assert!(participant_ids
+        .iter()
+        .any(|id| id == identities.alex_id.as_str()));
 }
 
 #[tokio::test]

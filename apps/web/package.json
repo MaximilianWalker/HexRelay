@@ -2,6 +2,9 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "^24.15.0 || >=25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,22 +15,30 @@
     "e2e:smoke": "node ./scripts/e2e-smoke.mjs"
   },
   "dependencies": {
-    "next": "16.1.6",
+    "@tabler/icons-react": "^3.41.1",
+    "next": "16.2.4",
     "qrcode.react": "^4.2.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
     "tweetnacl": "^1.0.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "typescript": "^5",
-    "vitest": "^4.0.18",
+    "eslint-config-next": "16.2.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4",
     "ws": "^8.18.3"
+  },
+  "overrides": {
+    "brace-expansion": "^1.1.14",
+    "flatted": "^3.4.2",
+    "picomatch": "^4.0.4",
+    "vite": "^7.3.2",
+    "postcss": "^8.5.10"
   }
 }
