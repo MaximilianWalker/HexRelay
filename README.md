@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 added the initial `dm-basic` local seed command entrypoint.
+- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles with tracked status and stop commands.
 
 ## Project Stage
 
@@ -54,12 +54,13 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
   - One-command bootstrap via `npm run setup` (auto-detects Windows vs Unix)
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
-- One-command local startup via `npm run start` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
+- One-command local startup via `npm run start -- --runtime-profile single` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
 - Seed the initial Alice/Bob local DM fixture with `npm run seed -- --profile dm-basic` after local Postgres is running.
 - Reset and reseed the local dev DB with `npm run reset-dev-db -- --profile dm-basic --yes`; this command refuses non-local DB targets.
 - Enable `API_ENABLE_DEV_TESTING=true` only in local development to expose fixture-backed testing profile/session endpoints, then use Settings -> Testing profiles in the web app to activate Alice/Bob sessions.
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
+- Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`
@@ -69,8 +70,8 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 ### Pre-Dev Gate (Deterministic)
 
 1. **Terminal A**: run `npm run setup` once.
-2. **Terminal A**: run `npm run start` (keep it running; this starts local API/realtime/web processes).
-3. **Terminal B**: verify API and realtime health using the URLs printed by `npm run start`.
+2. **Terminal A**: run `npm run start -- --runtime-profile single` (keep it running; this starts local API/realtime/web processes).
+3. **Terminal B**: run `npm run status` or verify API and realtime health using the URLs printed by `npm run start`.
 4. **Terminal C**: open the printed web URL and continue with local testing.
 5. **Terminal D**: run `npm run test`.
 
