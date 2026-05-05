@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod block_mute;
+pub mod dev_testing;
 pub mod directory;
 pub mod discovery;
 pub mod dm;

@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-05-04
 - Source of truth: `docs/operations/README.md`
 
 ## Quick Context
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-04-03 added a pointer to the canonical runtime config reference so operations docs stop duplicating env inventories.
+- Latest meaningful change: 2026-05-04 linked the local runtime testing plan so future seed, multi-instance, and network simulation runbooks have one planning authority.
 
 ## Purpose
 
@@ -30,5 +30,6 @@
 - Dedicated server deployment: `docs/operations/02-dedicated-server-deployment.md`
 - Development prerequisites: `docs/operations/dev-prerequisites.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
+- Local runtime testing plan: `docs/planning/local-runtime-testing-plan.md`
 - Readiness corrections log: `docs/operations/readiness-corrections-log.md`
 - Migration validation template: `docs/operations/migration-validation-template.md`

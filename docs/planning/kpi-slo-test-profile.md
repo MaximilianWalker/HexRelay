@@ -6,14 +6,14 @@
 - Owner: Platform and delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-05-04
 - Source of truth: `docs/planning/kpi-slo-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define one fixed test profile so KPI/SLO results are comparable across iterations.
 - Primary edit location: update this file when benchmark environment or load profile changes.
-- Latest meaningful change: 2026-03-04 linked constrained TURN/NAT validation profile for Iteration 3 voice/media gates.
+- Latest meaningful change: 2026-05-04 linked the local runtime testing plan as the complementary fixture, multi-instance, and network simulation authority.
 
 ## Fixed Test Profile
 
@@ -34,6 +34,7 @@
 ## Related Documents
 
 - `docs/product/02-prd-v1.md`
+- `docs/planning/local-runtime-testing-plan.md`
 - `docs/planning/turn-nat-test-profile.md`
 - `docs/planning/iterations/03-sprint-board.md`
 - `docs/planning/iterations/04-sprint-board.md`

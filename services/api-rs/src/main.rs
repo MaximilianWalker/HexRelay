@@ -57,6 +57,7 @@ async fn main() {
         config.trust_proxy_headers,
     )
     .with_public_identity_registration(config.allow_public_identity_registration)
+    .with_dev_testing(config.enable_dev_testing)
     .with_db_pool(db_pool);
 
     let app = build_app(state);

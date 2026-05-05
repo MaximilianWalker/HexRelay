@@ -1,0 +1,160 @@
+{
+  "scenario_id": "dm-basic",
+  "description": "Alice and Bob local DM happy path with accepted friendship, active sessions, direct endpoint cards, devices, and seeded message history.",
+  "identities": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "algorithm": "ed25519"
+    },
+    {
+      "profile_id": "bob.primary",
+      "identity_id": "usr-test-bob",
+      "public_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "algorithm": "ed25519"
+    }
+  ],
+  "sessions": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "session_id": "sess-test-alice-primary",
+      "expires_in_days": 30
+    },
+    {
+      "profile_id": "bob.primary",
+      "identity_id": "usr-test-bob",
+      "session_id": "sess-test-bob-primary",
+      "expires_in_days": 30
+    }
+  ],
+  "friend_requests": [
+    {
+      "request_id": "fixture-fr-alice-bob",
+      "requester_identity_id": "usr-test-alice",
+      "target_identity_id": "usr-test-bob",
+      "status": "accepted"
+    }
+  ],
+  "dm_policies": [
+    {
+      "identity_id": "usr-test-alice",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "best_effort_online"
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "best_effort_online"
+    }
+  ],
+  "endpoint_cards": [
+    {
+      "identity_id": "usr-test-alice",
+      "endpoint_id": "fixture-endpoint-alice-local",
+      "endpoint_hint": "tcp://127.0.0.1:18080",
+      "estimated_rtt_ms": 12,
+      "priority": 10,
+      "expires_in_seconds": 86400,
+      "revoked": false
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "endpoint_id": "fixture-endpoint-bob-local",
+      "endpoint_hint": "tcp://127.0.0.1:18180",
+      "estimated_rtt_ms": 18,
+      "priority": 10,
+      "expires_in_seconds": 86400,
+      "revoked": false
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "endpoint_id": "fixture-endpoint-bob-secondary",
+      "endpoint_hint": "quic://127.0.0.1:18181",
+      "estimated_rtt_ms": 28,
+      "priority": 5,
+      "expires_in_seconds": 86400,
+      "revoked": false
+    }
+  ],
+  "devices": [
+    {
+      "identity_id": "usr-test-alice",
+      "device_id": "fixture-device-alice-laptop",
+      "active": true,
+      "last_seen_offset_seconds": 0
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "device_id": "fixture-device-bob-laptop",
+      "active": true,
+      "last_seen_offset_seconds": -30
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "device_id": "fixture-device-bob-phone",
+      "active": true,
+      "last_seen_offset_seconds": -120
+    }
+  ],
+  "dm_threads": [
+    {
+      "thread_id": "dm-usr-test-alice-usr-test-bob",
+      "kind": "dm",
+      "title": "usr-test-alice + usr-test-bob",
+      "participants": [
+        {
+          "identity_id": "usr-test-alice",
+          "last_read_seq": 3
+        },
+        {
+          "identity_id": "usr-test-bob",
+          "last_read_seq": 5
+        }
+      ],
+      "messages": [
+        {
+          "message_id": "fixture-dm-alice-bob-001",
+          "author_id": "usr-test-alice",
+          "seq": 1,
+          "ciphertext": "fixture-ciphertext-alice-001",
+          "created_at": "2026-05-04T10:00:00Z",
+          "edited_at": null
+        },
+        {
+          "message_id": "fixture-dm-alice-bob-002",
+          "author_id": "usr-test-bob",
+          "seq": 2,
+          "ciphertext": "fixture-ciphertext-bob-002",
+          "created_at": "2026-05-04T10:01:00Z",
+          "edited_at": null
+        },
+        {
+          "message_id": "fixture-dm-alice-bob-003",
+          "author_id": "usr-test-alice",
+          "seq": 3,
+          "ciphertext": "fixture-ciphertext-alice-003",
+          "created_at": "2026-05-04T10:02:00Z",
+          "edited_at": null
+        },
+        {
+          "message_id": "fixture-dm-alice-bob-004",
+          "author_id": "usr-test-bob",
+          "seq": 4,
+          "ciphertext": "fixture-ciphertext-bob-004",
+          "created_at": "2026-05-04T10:03:00Z",
+          "edited_at": null
+        },
+        {
+          "message_id": "fixture-dm-alice-bob-005",
+          "author_id": "usr-test-alice",
+          "seq": 5,
+          "ciphertext": "fixture-ciphertext-alice-005",
+          "created_at": "2026-05-04T10:04:00Z",
+          "edited_at": null
+        }
+      ]
+    }
+  ]
+}

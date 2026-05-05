@@ -6,14 +6,14 @@
 - Owner: Platform and Realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-05-04
 - Source of truth: `docs/planning/turn-nat-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define a deterministic TURN/NAT validation profile for Iteration 3 voice and screen share gates.
 - Primary edit location: update this file when NAT scenarios, thresholds, or evidence requirements change.
-- Latest meaningful change: 2026-03-16 split voice TURN/NAT dependency ownership to D-010 and clarified non-overlap with DM direct-only D-007 scope.
+- Latest meaningful change: 2026-05-04 linked the local runtime testing plan and preserved the non-overlap between voice/media TURN validation and DM direct-only testing.
 
 ## Scope and Alignment
 
@@ -85,5 +85,6 @@
 ## Related Documents
 
 - `docs/planning/kpi-slo-test-profile.md`
+- `docs/planning/local-runtime-testing-plan.md`
 - `docs/planning/iterations/03-sprint-board.md`
 - `docs/product/04-dependencies-risks.md`

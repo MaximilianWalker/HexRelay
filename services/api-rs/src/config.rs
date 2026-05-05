@@ -18,6 +18,7 @@ pub struct ApiRateLimitConfig {
 
 pub struct ApiConfig {
     pub allow_public_identity_registration: bool,
+    pub enable_dev_testing: bool,
     pub bind_addr: SocketAddr,
     pub channel_dispatch_internal_token: String,
     pub allowed_origins: Vec<String>,
@@ -66,6 +67,7 @@ impl ApiConfig {
 
         let allow_public_identity_registration =
             parse_bool_env("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", false)?;
+        let enable_dev_testing = parse_bool_env("API_ENABLE_DEV_TESTING", false)?;
         let node_fingerprint = env::var("API_NODE_FINGERPRINT")
             .unwrap_or_else(|_| DEFAULT_NODE_FINGERPRINT.to_string());
         let allowed_origins_raw = env::var("API_ALLOWED_ORIGINS")
@@ -145,6 +147,43 @@ impl ApiConfig {
             );
         }
 
+        if enable_dev_testing {
+            if !bind_addr.ip().is_loopback() {
+                return Err(
+                    "Invalid API_ENABLE_DEV_TESTING. API_BIND must be loopback when dev testing is enabled"
+                        .to_string(),
+                );
+            }
+
+            let parsed_database_url = Url::parse(&database_url).map_err(|_| {
+                format!(
+                    "Invalid API_DATABASE_URL='{}'. Expected absolute Postgres URL",
+                    database_url
+                )
+            })?;
+            if !is_loopback_host(parsed_database_url.host_str()) {
+                return Err(
+                    "Invalid API_ENABLE_DEV_TESTING. API_DATABASE_URL must use a loopback host when dev testing is enabled"
+                        .to_string(),
+                );
+            }
+
+            for origin in &allowed_origins {
+                let parsed_origin = Url::parse(origin).map_err(|_| {
+                    format!(
+                        "Invalid API_ALLOWED_ORIGINS entry '{}'. Expected absolute URL",
+                        origin
+                    )
+                })?;
+                if !is_loopback_host(parsed_origin.host_str()) {
+                    return Err(
+                        "Invalid API_ENABLE_DEV_TESTING. API_ALLOWED_ORIGINS must be loopback-only when dev testing is enabled"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+
         if rate_limits.window_seconds == 0 {
             return Err(
                 "Invalid API_RATE_LIMIT_WINDOW_SECONDS. Must be greater than zero".to_string(),
@@ -175,6 +214,13 @@ impl ApiConfig {
         }
 
         if environment == "production" {
+            if enable_dev_testing {
+                return Err(
+                    "Invalid API_ENABLE_DEV_TESTING for production. Dev testing endpoints must be disabled"
+                        .to_string(),
+                );
+            }
+
             if database_url == DEFAULT_DATABASE_URL {
                 return Err(
                     "Invalid API_DATABASE_URL for production. Configure a non-default database URL"
@@ -244,6 +290,7 @@ impl ApiConfig {
 
         Ok(Self {
             allow_public_identity_registration,
+            enable_dev_testing,
             bind_addr,
             channel_dispatch_internal_token,
             allowed_origins,
@@ -471,6 +518,125 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert!(config.allow_public_identity_registration);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_dev_testing_flag() {
+        with_api_env(
+            &[
+                ("API_ENABLE_DEV_TESTING", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert!(config.enable_dev_testing);
+            },
+        );
+    }
+
+    #[test]
+    fn production_rejects_dev_testing_flag() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("production")),
+                ("API_ENABLE_DEV_TESTING", Some("true")),
+                (
+                    "API_DATABASE_URL",
+                    Some("postgres://hexrelay:pw@db.example.com:5432/hexrelay_prod"),
+                ),
+                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+                ("API_SESSION_COOKIE_SECURE", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEYS",
+                    Some("v1:production-secret-key-1234567890"),
+                ),
+                ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
+                (
+                    "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("prod-channel-dispatch-token-1234"),
+                ),
+                (
+                    "API_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("prod-presence-watcher-token-1234"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("production dev testing flag should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_ENABLE_DEV_TESTING"));
+            },
+        );
+    }
+
+    #[test]
+    fn dev_testing_requires_loopback_bind() {
+        with_api_env(
+            &[
+                ("API_ENABLE_DEV_TESTING", Some("true")),
+                ("API_BIND", Some("0.0.0.0:8080")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("public bind with dev testing should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_BIND"));
+            },
+        );
+    }
+
+    #[test]
+    fn dev_testing_requires_loopback_database() {
+        with_api_env(
+            &[
+                ("API_ENABLE_DEV_TESTING", Some("true")),
+                (
+                    "API_DATABASE_URL",
+                    Some("postgres://hexrelay:pw@db.example.com:5432/hexrelay"),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("remote DB with dev testing should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_DATABASE_URL"));
+            },
+        );
+    }
+
+    #[test]
+    fn dev_testing_requires_loopback_origins() {
+        with_api_env(
+            &[
+                ("API_ENABLE_DEV_TESTING", Some("true")),
+                ("API_ALLOWED_ORIGINS", Some("https://app.example.com")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("remote origin with dev testing should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_ALLOWED_ORIGINS"));
             },
         );
     }

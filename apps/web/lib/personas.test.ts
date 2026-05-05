@@ -6,6 +6,7 @@ import {
   readPersonas,
   removePersona,
   switchPersona,
+  upsertPersona,
 } from "./personas";
 
 class MemoryStorage {
@@ -101,6 +102,20 @@ describe("personas", () => {
         lastSelectedAt: "2026-04-10T00:00:03Z",
       },
     ]);
+  });
+
+  it("upserts an explicit fixture persona id and marks it active", () => {
+    const first = upsertPersona({ id: "usr-test-alice", name: "alice.primary" });
+    const second = upsertPersona({ id: "usr-test-alice", name: "Alice" });
+
+    expect(first.id).toBe("usr-test-alice");
+    expect(second).toEqual({
+      ...first,
+      name: "Alice",
+      lastSelectedAt: "2026-04-10T00:00:02Z",
+    });
+    expect(readPersonas()).toEqual([second]);
+    expect(readActivePersonaId()).toBe("usr-test-alice");
   });
 
   it("removes inactive personas without disturbing the active selection", () => {

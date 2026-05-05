@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-05
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-11 refreshed docs routing after closing `T4.0.1` and adding the Iteration 2 networking-layer evidence path.
+- Latest meaningful change: 2026-05-05 refreshed routing after adding the dev-only API testing endpoint config flag.
 
 ## Purpose
 
@@ -46,6 +46,7 @@
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
 | TURN/NAT constrained-network voice validation profile | `docs/planning/turn-nat-test-profile.md` | Platform/realtime maintainers | NAT scenario matrix, relay expectations, or constrained-network evidence contract changes |
+| Local runtime testing profiles, fixtures, multi-instance launch, and network simulation | `docs/planning/local-runtime-testing-plan.md` | Platform/QA maintainers | Local seed profiles, fixture data, runtime profile topology, or network simulation strategy changes |
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
@@ -117,6 +118,7 @@
 - `docs/operations/readiness-corrections-log.md`
 - `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
+- `docs/planning/local-runtime-testing-plan.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`
 - `docs/testing/crypto-conformance-checklist.md`

@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-11
+- last_updated: 2026-05-05
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by wiring DM pairing QR/share/import flows into the contacts surface and web API layer.
+- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture profiles.
 
 ## Purpose
 
@@ -29,6 +29,79 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing web picker)
+
+- Area affected: Web settings, local fixture persona activation, and local runtime testing plan.
+- Change summary:
+  - Added web API client methods for the dev testing profile/session endpoints.
+  - Added a dev-only Settings card that lists seeded testing profiles, shows purpose and active-session state, and activates real API-backed sessions into persona/session storage.
+  - Added Vitest coverage for dev testing API calls and deterministic fixture persona upserts.
+- Rationale:
+  - Seeded local profiles need one-click browser activation without drifting into browser-only fake user state.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+
+### 2026-05-05 (local runtime testing dev sessions)
+
+- Area affected: API runtime config, dev-only testing API, and local runtime testing plan.
+- Change summary:
+  - Added `API_ENABLE_DEV_TESTING=false` as the production-disabled gate for local fixture/session testing endpoints.
+  - Added dev-only API routes for listing testing profiles and issuing DB-backed fixture sessions/cookies for seeded identities.
+  - Added targeted API tests for disabled-by-default behavior and real seeded profile session validation.
+- Rationale:
+  - The web testing profile picker needs a safe backend bootstrap path that creates real local API sessions instead of browser-only fake users.
+- Linked docs updated:
+  - `docs/reference/runtime-config-reference.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/README.md`
+
+### 2026-05-05 (local runtime testing reset slice)
+
+- Area affected: Local development database reset workflow and seed tooling.
+- Change summary:
+  - Added `reset_dev_db` as a Rust CLI that requires `--yes`, refuses production/non-local database targets, resets the local dev schema, reruns migrations, and reseeds the selected profile.
+  - Added `npm run reset-dev-db` with Windows and Unix wrappers.
+  - Updated local runtime testing docs to track the reset wrapper slice as implemented but still awaiting explicit destructive reset smoke validation.
+- Rationale:
+  - Repeatable local runtime tests need a guarded way to return the database to a known fixture state without manual Postgres commands.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `README.md`
+  - `scripts/README.md`
+
+### 2026-05-05 (local runtime testing seed slice)
+
+- Area affected: Local fixture catalog, API seed tooling, and workspace scripts.
+- Change summary:
+  - Added the initial `dm-basic` fixture catalog for Alice/Bob local DM testing.
+  - Added `services/api-rs/src/bin/seed_dev.rs` and `services/api-rs/src/dev_seed.rs` for transactional local fixture seeding with production and non-local database guards.
+  - Added `npm run seed`, Windows/Unix seed wrappers, and seed fixture validation tests.
+- Rationale:
+  - The web profile picker and multi-instance runtime work need real local API identities, sessions, contacts, policies, endpoint cards, devices, and DM history before they can be useful.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
+  - `README.md`
+
+### 2026-05-04 (local runtime testing plan)
+
+- Area affected: Local testing workflow, fixture profile planning, multi-instance runtime planning, and network simulation planning.
+- Change summary:
+  - Added `docs/planning/local-runtime-testing-plan.md` as the canonical planning authority for precreated local testing profiles, seeded fixture data, dev session bootstrap, multi-instance runtime profiles, and local network simulation.
+  - Routed related planning, testing, operations, KPI/SLO, TURN/NAT, and docs index entries to the new authority without duplicating runtime config details or verification evidence rules.
+  - Captured the intended network simulation technology stack: Docker network controls, Linux `tc/netem`, dev-only app-level fault injection, and browser/runtime isolation.
+- Rationale:
+  - Local manual and automated testing now need a repeatable profile/fixture/runtime plan before implementation starts, especially after PR #96 added workspace DM UI and Windows runner baseline improvements.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/planning/README.md`
+  - `docs/testing/README.md`
+  - `docs/operations/README.md`
+  - `docs/planning/kpi-slo-test-profile.md`
+  - `docs/planning/turn-nat-test-profile.md`
+  - `docs/README.md`
+  - `README.md`
 
 ### 2026-04-11 (T4.1.4 DM pairing web slice)
 

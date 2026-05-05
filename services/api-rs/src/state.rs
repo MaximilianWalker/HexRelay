@@ -26,6 +26,7 @@ pub struct AppState {
     pub blocked_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
     pub channel_dispatch_internal_token: String,
     pub db_pool: Option<PgPool>,
+    pub enable_dev_testing: bool,
     pub discovery_denylist: Arc<HashSet<String>>,
     pub http_client: reqwest::Client,
     pub presence_watcher_internal_token: String,
@@ -85,6 +86,7 @@ impl AppState {
             blocked_users: Arc::default(),
             channel_dispatch_internal_token,
             db_pool: None,
+            enable_dev_testing: false,
             discovery_denylist: Arc::new(discovery_denylist.into_iter().collect()),
             http_client,
             presence_watcher_internal_token,
@@ -120,6 +122,11 @@ impl AppState {
 
     pub fn with_public_identity_registration(mut self, allow: bool) -> Self {
         self.allow_public_identity_registration = allow;
+        self
+    }
+
+    pub fn with_dev_testing(mut self, enable: bool) -> Self {
+        self.enable_dev_testing = enable;
         self
     }
 }

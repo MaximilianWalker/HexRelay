@@ -16,7 +16,22 @@ export type DmPolicyResponse = {
   offline_delivery_mode: string;
 };
 
+export type TestingProfileSummary = {
+  profile_id: string;
+  identity_id: string;
+  purpose: string;
+};
+
+export type TestingSessionResponse = {
+  profile_id: string;
+  identity_id: string;
+  session_id: string;
+  expires_at: string;
+  csrf_token: string;
+};
+
 const CSRF_COOKIE = "hexrelay_csrf";
+const CSRF_STORAGE_KEY = "hexrelay.csrf.runtime.v1";
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") {
@@ -34,12 +49,47 @@ function readCookie(name: string): string | null {
   return null;
 }
 
+function readStoredCsrfToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.sessionStorage.getItem(CSRF_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function readCsrfToken(): string | null {
+  return readCookie(CSRF_COOKIE) ?? readStoredCsrfToken();
+}
+
+export function storeCsrfToken(token: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const trimmed = token.trim();
+
+  try {
+    if (trimmed) {
+      window.sessionStorage.setItem(CSRF_STORAGE_KEY, trimmed);
+      return;
+    }
+
+    window.sessionStorage.removeItem(CSRF_STORAGE_KEY);
+  } catch {
+    // Cookie-based CSRF still works when browser storage is unavailable.
+  }
+}
+
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method ?? "GET").toUpperCase();
   const headers = new Headers(init?.headers ?? {});
 
   if (method !== "GET" && method !== "HEAD") {
-    const csrf = readCookie(CSRF_COOKIE);
+    const csrf = readCsrfToken();
     if (csrf) {
       headers.set("x-csrf-token", csrf);
     }
@@ -125,6 +175,32 @@ export async function verifyAuthChallenge(input: {
   return parseResponse<{ session_id: string; expires_at: string }>(
     response,
   );
+}
+
+export async function fetchTestingProfiles(): Promise<
+  ApiResult<{ items: TestingProfileSummary[] }>
+> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dev/testing/profiles`, {
+    method: "GET",
+  });
+
+  return parseResponse(response);
+}
+
+export async function activateTestingSession(input: {
+  profileId: string;
+}): Promise<ApiResult<TestingSessionResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dev/testing/sessions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      profile_id: input.profileId,
+    }),
+  });
+
+  return parseResponse(response);
 }
 
 export async function revokeSession(input: {

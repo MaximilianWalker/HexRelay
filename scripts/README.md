@@ -14,5 +14,10 @@ source of truth for:
 Common entrypoints still include:
 
 - `scripts/setup.sh`
+- `scripts/seed.sh`
+- `scripts/reset-dev-db.sh`
 - `scripts/run.sh`
 - `scripts/test.sh`
+
+Local runtime testing fixture and seed details live in
+`docs/planning/local-runtime-testing-plan.md`.
