@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture profiles.
+- Latest meaningful change: 2026-05-05 validated the guarded local reset workflow against the local dev database.
 
 ## Purpose
 
@@ -29,6 +29,18 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing reset validation)
+
+- Area affected: Local development database reset workflow and local runtime testing plan.
+- Change summary:
+  - Ran the explicit destructive local reset smoke with `npm run reset-dev-db -- --yes --profile dm-basic`.
+  - Verified the reset database by rerunning `npm run seed -- --profile dm-basic --json` and confirming the expected `dm-basic` fixture counts.
+  - Marked PH-02 reset tooling done in the local runtime testing plan.
+- Rationale:
+  - The guarded reset workflow was implemented but intentionally left open until a user-approved destructive local DB reset confirmed the full reset and reseed path.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
 
 ### 2026-05-05 (local runtime testing web picker)
 
