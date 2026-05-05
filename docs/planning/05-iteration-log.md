@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 validated the guarded local reset workflow against the local dev database.
+- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles and tracked status/stop scripts.
 
 ## Purpose
 
@@ -29,6 +29,21 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing multi-instance profiles)
+
+- Area affected: Runtime scripts, web dev-server isolation, local runtime testing profiles, and local runtime testing plan.
+- Change summary:
+  - Added `single`, `dual`, and `triple` runtime profile JSON files plus a shared validator/normalizer.
+  - Extended Windows and Unix runners to start named API/realtime/web instances with per-instance ports, logs, web env, and tracked runtime state.
+  - Added cross-platform `status` and `stop` commands that inspect and stop only tracked `.local-run` processes.
+  - Isolated Next.js dev build directories per runtime instance so multiple web dev servers can run side by side.
+- Rationale:
+  - Manual local DM and multi-node testing needs deterministic multi-instance startup without hand-editing ports or killing broad process names.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/README.md`
+  - `README.md`
 
 ### 2026-05-05 (local runtime testing reset validation)
 

@@ -479,7 +479,7 @@ npm run reset-dev-db -- --profile all --yes
 | PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | in_progress |
 | PH-02 | Seed/reset tooling | Add safe local seed and reset commands | done |
 | PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | done |
-| PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | ready |
+| PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | done |
 | PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | ready |
 | PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
 | PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
@@ -514,10 +514,10 @@ npm run reset-dev-db -- --profile all --yes
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime-profiles/` | Parser tests | `single`, `dual`, and `triple` profile files validate | ready |
-| PH-04-EP-01-ST-01-TK-02 | Extend Windows runner for runtime profiles | `scripts/run.ps1` | `run.ps1 -RuntimeProfile dual` | Starts multiple named instances with unique ports | ready |
-| PH-04-EP-01-ST-01-TK-03 | Extend Unix runner for runtime profiles | `scripts/run.sh` | `run.sh --runtime-profile dual` | Unix flow reaches Windows parity | ready |
-| PH-04-EP-01-ST-01-TK-04 | Add status and stop scripts | `scripts/status.*`, `scripts/stop.*` | Start/status/stop smoke | Processes are tracked and cleaned deterministically | ready |
+| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime-profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
+| PH-04-EP-01-ST-01-TK-02 | Extend Windows runner for runtime profiles | `scripts/run.ps1` | `run.ps1 -RuntimeProfile dual -SeedProfile dm-basic` | Starts multiple named instances with unique ports | done |
+| PH-04-EP-01-ST-01-TK-03 | Extend Unix runner for runtime profiles | `scripts/run.sh` | `bash -n scripts/run.sh`; `bash scripts/status.sh`; `bash scripts/stop.sh --runtime-profile dual` | Unix flow reaches Windows parity | done |
+| PH-04-EP-01-ST-01-TK-04 | Add status and stop scripts | `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
 
 ### PH-05 Tasks
 

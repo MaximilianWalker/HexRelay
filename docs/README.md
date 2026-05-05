@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 refreshed local runtime testing status after reset validation.
+- Latest meaningful change: 2026-05-05 refreshed local runtime testing status after adding multi-instance runtime profiles.
 
 ## Purpose
 

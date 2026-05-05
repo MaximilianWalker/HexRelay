@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
+const runtimeInstance = process.env.HEXRELAY_RUNTIME_INSTANCE?.replace(/[^a-zA-Z0-9_-]/g, "-");
 
 const nextConfig: NextConfig = {
+  ...(runtimeInstance ? { distDir: `.next-${runtimeInstance}` } : {}),
   async headers() {
     const csp = [
       "default-src 'self'",
