@@ -267,6 +267,12 @@ fn append_cookie(response: &mut Response, cookie: String) -> ApiResult<()> {
     Ok(())
 }
 
+fn random_hex(byte_len: usize) -> String {
+    let mut bytes = vec![0_u8; byte_len];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    hex::encode(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,10 +311,4 @@ mod tests {
             assert_eq!(session["session_id"], profile.session_id);
         }
     }
-}
-
-fn random_hex(byte_len: usize) -> String {
-    let mut bytes = vec![0_u8; byte_len];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    hex::encode(bytes)
 }
