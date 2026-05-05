@@ -2,6 +2,7 @@ target/
 **/node_modules/
 apps/web/.next/
 apps/web/.next-*/
+apps/web/.runtime-tsconfig/
 apps/web/coverage/
 infra/.env
 .local-run/

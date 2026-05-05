@@ -109,14 +109,34 @@ function Test-ProcessAlive {
 }
 
 function Stop-ProcessTree {
-    param([int]$ProcessId)
+    param(
+        [int]$ProcessId,
+        [string]$ExpectedLauncherPath = ''
+    )
 
     if (Test-ProcessAlive -ProcessId $ProcessId) {
+        if ($ExpectedLauncherPath -and -not (Test-ProcessCommandLineContains -ProcessId $ProcessId -ExpectedPath $ExpectedLauncherPath)) {
+            return
+        }
         try {
             taskkill /PID $ProcessId /T /F *> $null
         } catch {
         }
     }
+}
+
+function Test-ProcessCommandLineContains {
+    param(
+        [int]$ProcessId,
+        [string]$ExpectedPath
+    )
+
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    if ($null -eq $process -or -not $process.CommandLine) {
+        return $false
+    }
+
+    return $process.CommandLine.Contains($ExpectedPath)
 }
 
 function Wait-Until {
@@ -251,6 +271,18 @@ function Start-WebProcess {
     $stdoutPath = Join-Path $LogDir 'web.stdout.log'
     $stderrPath = Join-Path $LogDir 'web.stderr.log'
     $webDir = Join-Path $Root 'apps\web'
+    $runtimeInstance = $EnvVars['HEXRELAY_RUNTIME_INSTANCE']
+
+    if ($runtimeInstance) {
+        $runtimeTsConfigDir = Join-Path $webDir '.runtime-tsconfig'
+        New-Item -ItemType Directory -Force -Path $runtimeTsConfigDir | Out-Null
+        $runtimeTsConfig = [ordered]@{
+            extends = '../tsconfig.json'
+            include = @('../next-env.d.ts', '../**/*.ts', '../**/*.tsx', "../.next-$runtimeInstance/types/**/*.ts", "../.next-$runtimeInstance/dev/types/**/*.ts", '../**/*.mts')
+            exclude = @('../node_modules')
+        }
+        $runtimeTsConfig | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $runtimeTsConfigDir "$runtimeInstance.json") -Encoding Ascii
+    }
 
     $lines = @('@echo off', "cd /d `"$webDir`"")
     foreach ($entry in $EnvVars.GetEnumerator()) {
@@ -415,6 +447,9 @@ function Start-RuntimeInstance {
         apiPid = $apiProcess.Id
         realtimePid = $realtimeProcess.Id
         webPid = $webProcess.Id
+        apiLauncher = (Join-Path $instanceLogDir 'api-rs.cmd')
+        realtimeLauncher = (Join-Path $instanceLogDir 'realtime-rs.cmd')
+        webLauncher = (Join-Path $instanceLogDir 'web.cmd')
         apiUrl = $apiBaseUrl
         realtimeUrl = $realtimeBaseUrl
         realtimeWsUrl = $realtimeWsUrl

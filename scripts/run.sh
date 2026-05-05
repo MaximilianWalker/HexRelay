@@ -204,42 +204,72 @@ for row in "${INSTANCE_ROWS[@]}"; do
   realtime_ws_url="ws://127.0.0.1:$realtime_port/ws"
   web_url="http://localhost:$web_port"
   allowed_origins="http://localhost:$web_port,http://127.0.0.1:$web_port"
+  api_launcher="$log_dir/api-rs.sh"
+  realtime_launcher="$log_dir/realtime-rs.sh"
+  web_launcher="$log_dir/web.sh"
 
   echo "[run] Starting $instance_id API service"
-  (
-    export API_BIND="127.0.0.1:$api_port"
-    export API_REALTIME_BASE_URL="$realtime_url"
-    export API_ALLOWED_ORIGINS="$allowed_origins"
-    cargo run -p api-rs --bin api-rs
-  ) >"$log_dir/api-rs.stdout.log" 2>"$log_dir/api-rs.stderr.log" &
+  cat >"$api_launcher" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$ROOT"
+export API_BIND="127.0.0.1:$api_port"
+export API_REALTIME_BASE_URL="$realtime_url"
+export API_ALLOWED_ORIGINS="$allowed_origins"
+cargo run -p api-rs --bin api-rs
+EOF
+  bash "$api_launcher" >"$log_dir/api-rs.stdout.log" 2>"$log_dir/api-rs.stderr.log" &
   api_pid=$!
   STARTED_PIDS+=("$api_pid")
   wait_for "$instance_id api" http_ok "$api_url/health"
 
   echo "[run] Starting $instance_id realtime service"
-  (
-    export REALTIME_BIND="127.0.0.1:$realtime_port"
-    export REALTIME_API_BASE_URL="$api_url"
-    export REALTIME_ALLOWED_ORIGINS="$allowed_origins"
-    cargo run -p realtime-rs
-  ) >"$log_dir/realtime-rs.stdout.log" 2>"$log_dir/realtime-rs.stderr.log" &
+  cat >"$realtime_launcher" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$ROOT"
+export REALTIME_BIND="127.0.0.1:$realtime_port"
+export REALTIME_API_BASE_URL="$api_url"
+export REALTIME_ALLOWED_ORIGINS="$allowed_origins"
+cargo run -p realtime-rs
+EOF
+  bash "$realtime_launcher" >"$log_dir/realtime-rs.stdout.log" 2>"$log_dir/realtime-rs.stderr.log" &
   realtime_pid=$!
   STARTED_PIDS+=("$realtime_pid")
   wait_for "$instance_id realtime" http_ok "$realtime_url/health"
 
   echo "[run] Starting $instance_id web dev server"
-  (
-    cd "$ROOT/apps/web"
-    export HEXRELAY_RUNTIME_INSTANCE="$instance_id"
-    export NEXT_PUBLIC_API_BASE_URL="$api_url"
-    export NEXT_PUBLIC_REALTIME_WS_URL="$realtime_ws_url"
-    ./node_modules/.bin/next dev --port "$web_port"
-  ) >"$log_dir/web.stdout.log" 2>"$log_dir/web.stderr.log" &
+  runtime_tsconfig_dir="$ROOT/apps/web/.runtime-tsconfig"
+  mkdir -p "$runtime_tsconfig_dir"
+  cat >"$runtime_tsconfig_dir/$instance_id.json" <<EOF
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../next-env.d.ts",
+    "../**/*.ts",
+    "../**/*.tsx",
+    "../.next-$instance_id/types/**/*.ts",
+    "../.next-$instance_id/dev/types/**/*.ts",
+    "../**/*.mts"
+  ],
+  "exclude": ["../node_modules"]
+}
+EOF
+  cat >"$web_launcher" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$ROOT/apps/web"
+export HEXRELAY_RUNTIME_INSTANCE="$instance_id"
+export NEXT_PUBLIC_API_BASE_URL="$api_url"
+export NEXT_PUBLIC_REALTIME_WS_URL="$realtime_ws_url"
+./node_modules/.bin/next dev --port "$web_port"
+EOF
+  bash "$web_launcher" >"$log_dir/web.stdout.log" 2>"$log_dir/web.stderr.log" &
   web_pid=$!
   STARTED_PIDS+=("$web_pid")
   wait_for "$instance_id web" web_ready "$web_url"
 
-  instance_json="$(node -e 'const [id, seedPersona, apiPort, realtimePort, webPort, apiPid, realtimePid, webPid, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir] = process.argv.slice(1); process.stdout.write(JSON.stringify({id, seedPersona: seedPersona || null, apiPort: Number(apiPort), realtimePort: Number(realtimePort), webPort: Number(webPort), apiPid: Number(apiPid), realtimePid: Number(realtimePid), webPid: Number(webPid), apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir}));' "$instance_id" "$seed_persona" "$api_port" "$realtime_port" "$web_port" "$api_pid" "$realtime_pid" "$web_pid" "$api_url" "$realtime_url" "$realtime_ws_url" "$web_url" "$log_dir")"
+  instance_json="$(node -e 'const [id, seedPersona, apiPort, realtimePort, webPort, apiPid, realtimePid, webPid, apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir] = process.argv.slice(1); process.stdout.write(JSON.stringify({id, seedPersona: seedPersona || null, apiPort: Number(apiPort), realtimePort: Number(realtimePort), webPort: Number(webPort), apiPid: Number(apiPid), realtimePid: Number(realtimePid), webPid: Number(webPid), apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir}));' "$instance_id" "$seed_persona" "$api_port" "$realtime_port" "$web_port" "$api_pid" "$realtime_pid" "$web_pid" "$api_launcher" "$realtime_launcher" "$web_launcher" "$api_url" "$realtime_url" "$realtime_ws_url" "$web_url" "$log_dir")"
   STATE_INSTANCES_JSON="$(append_instance_json "$STATE_INSTANCES_JSON" "$instance_json")"
   write_state
 
