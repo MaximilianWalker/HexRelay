@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   acceptFriendRequest,
+  activateTestingSession,
   createContactInvite,
   createDmPairingEnvelope,
   createFriendRequest,
@@ -11,15 +12,33 @@ import {
   fetchContacts,
   fetchFriendRequests,
   fetchServers,
+  fetchTestingProfiles,
   importDmPairingEnvelope,
   issueAuthChallenge,
   redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
   revokeSession,
+  storeCsrfToken,
   updateDmPolicy,
   verifyAuthChallenge,
 } from "./api";
+
+class MemoryStorage {
+  private values = new Map<string, string>();
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value);
+  }
+}
 
 describe("api auth transport", () => {
   beforeEach(() => {
@@ -34,6 +53,7 @@ describe("api auth transport", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete (globalThis as { document?: unknown }).document;
+    delete (globalThis as { window?: unknown }).window;
   });
 
   it("uses cookie credentials for contacts requests", async () => {
@@ -158,6 +178,81 @@ describe("api auth transport", () => {
     expect(register.ok).toBe(true);
     expect(challenge.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("supports dev testing profile endpoints", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                profile_id: "alice.primary",
+                identity_id: "usr-test-alice",
+                purpose: "Happy path",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            profile_id: "alice.primary",
+            identity_id: "usr-test-alice",
+            session_id: "sess-test-alice-primary",
+            expires_at: "2026-06-04T00:00:00Z",
+            csrf_token: "csrf-dev",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const profiles = await fetchTestingProfiles();
+    const session = await activateTestingSession({ profileId: "alice.primary" });
+
+    expect(profiles.ok).toBe(true);
+    expect(session.ok).toBe(true);
+    const [listUrl, listInit] = fetchMock.mock.calls[0] ?? [];
+    expect(String(listUrl)).toContain("/v1/dev/testing/profiles");
+    expect(listInit?.method).toBe("GET");
+    const [activateUrl, activateInit] = fetchMock.mock.calls[1] ?? [];
+    expect(String(activateUrl)).toContain("/v1/dev/testing/sessions");
+    expect(activateInit?.method).toBe("POST");
+    const headers = new Headers(activateInit?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(activateInit?.body).toBe('{"profile_id":"alice.primary"}');
+  });
+
+  it("uses the stored csrf fallback for cross-host local dev cookies", async () => {
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        cookie: "",
+      },
+    });
+    (globalThis as { window?: unknown }).window = {
+      sessionStorage: new MemoryStorage(),
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          inbound_policy: "same_server",
+          offline_delivery_mode: "manual_retry",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    storeCsrfToken("csrf-dev");
+    const result = await updateDmPolicy({ inboundPolicy: "same_server" });
+
+    expect(result.ok).toBe(true);
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-dev");
   });
 
   it("supports auth verify and invite create/redeem endpoints", async () => {

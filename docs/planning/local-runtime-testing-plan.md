@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-05 added the dev-only API testing profile/session endpoint for fixture-backed browser activation.
+- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture-backed browser activation.
 
 ## Organization Decision
 
@@ -242,7 +242,7 @@ npm run reset-dev-db -- --profile all --yes
 ### Target Route
 
 - Preferred route: `/settings/testing`.
-- Acceptable initial route: a section inside `/settings` gated by dev config.
+- Initial implementation: a dev-only section inside `/settings`.
 
 ### Target Files
 
@@ -478,7 +478,7 @@ npm run reset-dev-db -- --profile all --yes
 |---|---|---|---|
 | PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | in_progress |
 | PH-02 | Seed/reset tooling | Add safe local seed and reset commands | in_progress |
-| PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | in_progress |
+| PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | done |
 | PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | ready |
 | PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | ready |
 | PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
@@ -507,8 +507,8 @@ npm run reset-dev-db -- --profile all --yes
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
 | PH-03-EP-01-ST-01-TK-01 | Add dev session bootstrap mode | `services/api-rs` auth/session modules | `cargo test -p api-rs dev_testing` | Sessions are valid only in dev-enabled mode | done |
-| PH-03-EP-01-ST-01-TK-02 | Add web testing profile picker | `apps/web/app/settings/testing/`, `apps/web/lib/personas.ts`, `apps/web/lib/sessions.ts` | Browser manual test and Vitest | Seeded profiles can be activated with one click | ready |
-| PH-03-EP-01-ST-01-TK-03 | Gate web UX in dev mode | `apps/web` env/config | Production build check | Testing UI hidden or inert outside dev/test mode | ready |
+| PH-03-EP-01-ST-01-TK-02 | Add web testing profile picker | `apps/web/app/settings/page.tsx`, `apps/web/lib/personas.ts`, `apps/web/lib/sessions.ts` | Browser smoke and Vitest | Seeded profiles can be activated with one click | done |
+| PH-03-EP-01-ST-01-TK-03 | Gate web UX in dev mode | `apps/web` env/config | Production build check | Testing UI hidden or inert outside dev/test mode | done |
 
 ### PH-04 Tasks
 

@@ -5,12 +5,16 @@ import { IconDeviceDesktop, IconLock, IconSettings } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
+  activateTestingSession,
   fetchDmPolicy,
+  fetchTestingProfiles,
+  storeCsrfToken,
   updateDmPolicy,
   type DmInboundPolicy,
+  type TestingProfileSummary,
 } from "@/lib/api";
-import { readActivePersonaId, readPersonas } from "@/lib/personas";
-import { getPersonaSession } from "@/lib/sessions";
+import { readActivePersonaId, readPersonas, upsertPersona } from "@/lib/personas";
+import { getPersonaSession, setPersonaSession } from "@/lib/sessions";
 import {
   readTabRestoreMode,
   setTabRestoreMode,
@@ -23,6 +27,7 @@ import styles from "../surfaces.module.css";
 
 const DM_POLICY_KEY = "hexrelay.settings.dm-policy.v1";
 const DM_POLICY_EVENT = "hexrelay-dm-policy-changed";
+const SHOW_DEV_TESTING = process.env.NODE_ENV === "development";
 
 type DmPolicy = DmInboundPolicy;
 
@@ -84,11 +89,14 @@ export default function SettingsPage() {
     () => "pinned",
   );
   const dmPolicy = useSyncExternalStore<DmPolicy>(subscribeDmPolicy, readDmPolicy, () => "friends_only");
-  const personas = useMemo(() => readPersonas(), []);
+  const [personas, setPersonas] = useState(() => readPersonas());
   const identityId = useMemo(() => readActivePersonaId() ?? personas[0]?.id ?? null, [personas]);
   const hasSession = useMemo(() => (identityId ? getPersonaSession(identityId) !== null : false), [identityId]);
   const [policyBusy, setPolicyBusy] = useState<DmPolicy | null>(null);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
+  const [testingProfiles, setTestingProfiles] = useState<TestingProfileSummary[]>([]);
+  const [testingBusy, setTestingBusy] = useState<string | null>(null);
+  const [testingMessage, setTestingMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -120,6 +128,40 @@ export default function SettingsPage() {
     };
   }, [hasSession]);
 
+  useEffect(() => {
+    if (!SHOW_DEV_TESTING) {
+      return;
+    }
+
+    let active = true;
+
+    const run = async (): Promise<void> => {
+      const result = await fetchTestingProfiles().catch(() => null);
+      if (!active) {
+        return;
+      }
+
+      if (!result) {
+        setTestingMessage("Testing profiles unavailable. Start the local API with dev testing enabled.");
+        return;
+      }
+
+      if (result.ok) {
+        setTestingProfiles(result.data.items);
+        setTestingMessage(null);
+        return;
+      }
+
+      setTestingMessage("Testing profiles unavailable. Start the local API with dev testing enabled.");
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function updatePolicy(next: DmPolicy): Promise<void> {
     if (!hasSession) {
       setPolicyMessage("Create or select a profile before changing DM policy.");
@@ -146,6 +188,38 @@ export default function SettingsPage() {
   function updateTabRestoreMode(next: TabRestoreMode): void {
     syncWorkspaceTabsForRestoreMode(next);
     setTabRestoreMode(next);
+  }
+
+  async function activateProfile(profile: TestingProfileSummary): Promise<void> {
+    setTestingBusy(profile.profile_id);
+    setTestingMessage(null);
+
+    try {
+      const result = await activateTestingSession({ profileId: profile.profile_id }).catch(() => null);
+      if (!result) {
+        setTestingMessage("Testing session unavailable. Start the local API with dev testing enabled.");
+        return;
+      }
+
+      if (!result.ok) {
+        setTestingMessage(result.message);
+        return;
+      }
+
+      upsertPersona({
+        id: result.data.identity_id,
+        name: result.data.profile_id,
+      });
+      setPersonaSession(result.data.identity_id, {
+        sessionId: result.data.session_id,
+        expiresAt: result.data.expires_at,
+      });
+      storeCsrfToken(result.data.csrf_token);
+      setPersonas(readPersonas());
+      setTestingMessage(`Activated ${result.data.profile_id}.`);
+    } finally {
+      setTestingBusy(null);
+    }
   }
 
   return (
@@ -223,6 +297,38 @@ export default function SettingsPage() {
             <p className={styles.title}>Session hardening</p>
             <p className={styles.meta}>Persona session revoke on switch/remove enabled.</p>
           </article>
+          {SHOW_DEV_TESTING ? (
+            <article className={styles.card}>
+              <p className={styles.title}>Testing profiles</p>
+              <p className={styles.meta}>
+                Activate seeded local profiles backed by real API sessions.
+              </p>
+              <div className={styles.row}>
+                {testingProfiles.map((profile) => {
+                  const isActive = identityId === profile.identity_id && hasSession;
+                  return (
+                    <div className={styles.compactDetails} key={profile.profile_id}>
+                      <button
+                        aria-pressed={isActive}
+                        className={`${styles.pill} ${isActive ? styles.pillActive : ""}`}
+                        disabled={testingBusy !== null}
+                        onClick={() => void activateProfile(profile)}
+                        type="button"
+                      >
+                        {testingBusy === profile.profile_id ? "Activating..." : profile.profile_id}
+                      </button>
+                      <p className={styles.meta}>{profile.purpose}</p>
+                      <p className={styles.meta}>{isActive ? "Active session" : "Inactive"}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {testingProfiles.length === 0 && !testingMessage ? (
+                <p className={styles.meta}>Enable API dev testing and seed `dm-basic` to load profiles.</p>
+              ) : null}
+              {testingMessage ? <p className={styles.meta}>{testingMessage}</p> : null}
+            </article>
+          ) : null}
         </div>
         <p className={styles.state}>state: ready</p>
       </section>

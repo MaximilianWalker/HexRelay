@@ -82,6 +82,37 @@ export function ensurePersona(name: string): PersonaRecord {
   return created;
 }
 
+export function upsertPersona(input: { id: string; name: string }): PersonaRecord {
+  const id = input.id.trim();
+  const name = input.name.trim() || id;
+  const now = new Date().toISOString();
+  const personas = readPersonas();
+  const existing = personas.find((persona) => persona.id === id);
+
+  const nextRecord: PersonaRecord = existing
+    ? {
+        ...existing,
+        name,
+        lastSelectedAt: now,
+      }
+    : {
+        id,
+        name,
+        createdAt: now,
+        lastSelectedAt: now,
+      };
+
+  const next = existing
+    ? personas.map((persona) => (persona.id === id ? nextRecord : persona))
+    : [nextRecord, ...personas];
+
+  window.localStorage.setItem(PERSONAS_KEY, JSON.stringify(next));
+  window.localStorage.setItem(ACTIVE_PERSONA_KEY, nextRecord.id);
+  notifyPersonaChange();
+
+  return nextRecord;
+}
+
 export function switchPersona(personaId: string): PersonaRecord[] {
   const now = new Date().toISOString();
   const personas = readPersonas().map((persona) =>

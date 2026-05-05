@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 added the dev-only API testing session endpoint for fixture profiles.
+- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture profiles.
 
 ## Purpose
 
@@ -29,6 +29,18 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing web picker)
+
+- Area affected: Web settings, local fixture persona activation, and local runtime testing plan.
+- Change summary:
+  - Added web API client methods for the dev testing profile/session endpoints.
+  - Added a dev-only Settings card that lists seeded testing profiles, shows purpose and active-session state, and activates real API-backed sessions into persona/session storage.
+  - Added Vitest coverage for dev testing API calls and deterministic fixture persona upserts.
+- Rationale:
+  - Seeded local profiles need one-click browser activation without drifting into browser-only fake user state.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
 
 ### 2026-05-05 (local runtime testing dev sessions)
 
