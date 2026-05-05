@@ -296,6 +296,145 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/dev/testing/profiles:
+    get:
+      summary: List dev testing profiles
+      description: |
+        Development-only endpoint for local fixture-backed browser testing.
+        Runtime config must enable dev testing and production config rejects this mode.
+      responses:
+        '200':
+          description: Seeded testing profiles available for one-click local activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestingProfileListResponse'
+              examples:
+                dmBasicProfiles:
+                  summary: Alice and Bob local DM fixture profiles
+                  value:
+                    items:
+                      - profile_id: alice.primary
+                        identity_id: usr-test-alice
+                        purpose: Happy-path sender and primary manual-test persona
+                      - profile_id: bob.primary
+                        identity_id: usr-test-bob
+                        purpose: Happy-path peer and receiver
+        '403':
+          description: Dev testing endpoints are disabled in this runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                devTestingDisabled:
+                  summary: Runtime has not opted into local fixture testing
+                  value:
+                    code: dev_testing_disabled
+                    message: dev testing endpoints are disabled
+  /v1/dev/testing/sessions:
+    post:
+      summary: Activate a dev testing profile session
+      description: |
+        Development-only endpoint that creates a real DB-backed session for a
+        seeded fixture identity and issues normal auth/CSRF cookies for local browsers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestingSessionCreateRequest'
+      responses:
+        '200':
+          description: Testing session activated and cookies issued.
+          headers:
+            Set-Cookie:
+              description: |
+                Returns `hexrelay_session` (HttpOnly auth cookie) and
+                `hexrelay_csrf` (double-submit CSRF cookie).
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestingSessionCreateResponse'
+              examples:
+                aliceSession:
+                  summary: Alice fixture profile activated for local browser use
+                  value:
+                    profile_id: alice.primary
+                    identity_id: usr-test-alice
+                    session_id: sess-test-alice-primary
+                    expires_at: '2026-06-04T12:00:00Z'
+                    csrf_token: 0123456789abcdef0123456789abcdef
+        '400':
+          description: Unknown or invalid testing profile request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                testingProfileUnknown:
+                  summary: Requested profile id is not in the local fixture allowlist
+                  value:
+                    code: testing_profile_unknown
+                    message: unknown testing profile
+        '403':
+          description: Dev testing endpoints are disabled in this runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                devTestingDisabled:
+                  summary: Runtime has not opted into local fixture testing
+                  value:
+                    code: dev_testing_disabled
+                    message: dev testing endpoints are disabled
+        '404':
+          description: Requested fixture identity has not been seeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                testingIdentityMissing:
+                  summary: Seed data is missing for the requested profile
+                  value:
+                    code: testing_identity_missing
+                    message: seed the requested testing profile before activation
+        '409':
+          description: Seeded identity does not match the canonical fixture key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                testingIdentityMismatch:
+                  summary: Existing local identity key differs from the expected fixture
+                  value:
+                    code: testing_identity_mismatch
+                    message: testing identity does not match the canonical fixture key
+        '500':
+          description: Storage or local session-signing configuration is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                storageUnavailable:
+                  summary: Database-backed testing sessions require local storage
+                  value:
+                    code: storage_unavailable
+                    message: dev testing sessions require configured database pool
+                sessionKeyMissing:
+                  summary: Active signing key is not available for cookie issuance
+                  value:
+                    code: session_key_missing
+                    message: active signing key is unavailable
   /v1/invites:
     post:
       summary: Create an invite token
@@ -3867,6 +4006,45 @@ components:
         expires_at:
           type: string
           format: date-time
+    TestingProfileListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TestingProfileSummary'
+    TestingProfileSummary:
+      type: object
+      required: [profile_id, identity_id, purpose]
+      properties:
+        profile_id:
+          type: string
+        identity_id:
+          type: string
+        purpose:
+          type: string
+    TestingSessionCreateRequest:
+      type: object
+      required: [profile_id]
+      properties:
+        profile_id:
+          type: string
+    TestingSessionCreateResponse:
+      type: object
+      required: [profile_id, identity_id, session_id, expires_at, csrf_token]
+      properties:
+        profile_id:
+          type: string
+        identity_id:
+          type: string
+        session_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        csrf_token:
+          type: string
     SessionRevokeRequest:
       type: object
       required: [session_id]
@@ -4013,6 +4191,7 @@ components:
             - algorithm_invalid
             - nonce_invalid
             - signature_invalid
+            - session_key_missing
             - session_invalid
             - csrf_invalid
             - rate_limited
@@ -4026,6 +4205,7 @@ components:
             - cookie_invalid
             - cursor_invalid
             - cursor_out_of_range
+            - dev_testing_disabled
             - limit_invalid
             - message_content_invalid
             - message_deleted
@@ -4053,6 +4233,9 @@ components:
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied
+            - testing_identity_mismatch
+            - testing_identity_missing
+            - testing_profile_unknown
         message:
           type: string
   parameters:

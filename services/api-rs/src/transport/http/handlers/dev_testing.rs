@@ -13,7 +13,7 @@ use crate::{
     app::state::AppState,
     infra::crypto::session_token::issue_session_token,
     models::ApiError,
-    shared::errors::{forbidden, internal_error, ApiResult},
+    shared::errors::{bad_request, forbidden, internal_error, ApiResult},
 };
 
 const SESSION_COOKIE_NAME: &str = "hexrelay_session";
@@ -99,7 +99,7 @@ pub async fn activate_testing_session(
     let profile = TESTING_PROFILES
         .iter()
         .find(|profile| profile.profile_id == payload.profile_id)
-        .ok_or_else(|| bad_testing_request("testing_profile_unknown", "unknown testing profile"))?;
+        .ok_or_else(|| bad_request("testing_profile_unknown", "unknown testing profile"))?;
 
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
@@ -225,10 +225,6 @@ fn ensure_dev_testing_enabled(state: &AppState) -> ApiResult<()> {
         "dev_testing_disabled",
         "dev testing endpoints are disabled",
     ))
-}
-
-fn bad_testing_request(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
-    (StatusCode::BAD_REQUEST, Json(ApiError { code, message }))
 }
 
 fn build_cookie(

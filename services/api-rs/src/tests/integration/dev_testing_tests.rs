@@ -72,7 +72,7 @@ async fn rejects_testing_profile_with_mismatched_fixture_key() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
-    ensure_db_identity_key(&pool, "usr-test-alice").await;
+    ensure_db_identity_key(&pool, "usr-test-bob").await;
 
     let state = AppState::default()
         .with_dev_testing(true)
@@ -82,7 +82,7 @@ async fn rejects_testing_profile_with_mismatched_fixture_key() {
         .method("POST")
         .uri("/v1/dev/testing/sessions")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"profile_id":"alice.primary"}"#))
+        .body(Body::from(r#"{"profile_id":"bob.primary"}"#))
         .expect("build dev testing session request");
 
     let response = app
