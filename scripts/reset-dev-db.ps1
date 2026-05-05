@@ -48,10 +48,10 @@ foreach ($envFile in @('infra/.env', 'services/api-rs/.env')) {
     foreach ($entry in $values.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
     }
-    Write-Host "[seed.ps1] Loaded env from $envFile"
+    Write-Host "[reset-dev-db.ps1] Loaded env from $envFile"
 }
 
-function Convert-SeedArgs {
+function Convert-ResetArgs {
     param($RawArgs)
 
     $converted = @()
@@ -74,6 +74,7 @@ function Convert-SeedArgs {
                 }
             }
             '-Json' { $converted += '--json' }
+            '-Yes' { $converted += '--yes' }
             '-Help' { $converted += '--help' }
             '-' { $converted += '--help' }
             default { $converted += $current }
@@ -83,6 +84,6 @@ function Convert-SeedArgs {
     return $converted
 }
 
-$seedArgs = @(Convert-SeedArgs -RawArgs @($args))
-& cargo.exe run -p api-rs --bin seed_dev -- @seedArgs
+$resetArgs = @(Convert-ResetArgs -RawArgs @($args))
+& cargo.exe run -p api-rs --bin reset_dev_db -- @resetArgs
 exit $LASTEXITCODE

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 refreshed routing after the initial `dm-basic` fixture and local seed command implementation started.
+- Latest meaningful change: 2026-05-05 refreshed routing after the guarded local reset command joined the `dm-basic` seed workflow.
 
 ## Purpose
 

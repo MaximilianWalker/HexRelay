@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 started the local runtime testing implementation with the `dm-basic` fixture and seed command.
+- Latest meaningful change: 2026-05-05 added guarded local reset tooling for the `dm-basic` seed workflow.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing reset slice)
+
+- Area affected: Local development database reset workflow and seed tooling.
+- Change summary:
+  - Added `reset_dev_db` as a Rust CLI that requires `--yes`, refuses production/non-local database targets, resets the local dev schema, reruns migrations, and reseeds the selected profile.
+  - Added `npm run reset-dev-db` with Windows and Unix wrappers.
+  - Updated local runtime testing docs to track the reset wrapper slice as implemented but still awaiting explicit destructive reset smoke validation.
+- Rationale:
+  - Repeatable local runtime tests need a guarded way to return the database to a known fixture state without manual Postgres commands.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `README.md`
+  - `scripts/README.md`
 
 ### 2026-05-05 (local runtime testing seed slice)
 

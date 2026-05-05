@@ -62,6 +62,14 @@ pub struct SeedCliOptions {
     pub json: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResetCliOptions {
+    pub profile: String,
+    pub fixtures_root: Option<PathBuf>,
+    pub json: bool,
+    pub yes: bool,
+}
+
 impl SeedCliOptions {
     pub fn parse<I>(args: I) -> Result<Self, DevSeedError>
     where
@@ -120,6 +128,77 @@ impl SeedCliOptions {
 
 pub fn seed_usage() -> &'static str {
     "Usage: seed_dev [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+}
+
+impl ResetCliOptions {
+    pub fn parse<I>(args: I) -> Result<Self, DevSeedError>
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut profile = DEFAULT_PROFILE.to_string();
+        let mut fixtures_root = None;
+        let mut json = false;
+        let mut yes = false;
+        let mut args = args.into_iter();
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--profile" | "-p" => {
+                    profile = args.next().ok_or_else(|| {
+                        DevSeedError::InvalidArgs("--profile requires a value".to_string())
+                    })?;
+                }
+                "--fixtures-root" => {
+                    let value = args.next().ok_or_else(|| {
+                        DevSeedError::InvalidArgs("--fixtures-root requires a value".to_string())
+                    })?;
+                    fixtures_root = Some(PathBuf::from(value));
+                }
+                "--json" => json = true,
+                "--yes" | "-y" => yes = true,
+                "--help" | "-h" => {
+                    return Err(DevSeedError::InvalidArgs(reset_usage().to_string()));
+                }
+                value if value.starts_with('-') => {
+                    return Err(DevSeedError::InvalidArgs(format!(
+                        "unknown reset option: {value}\n{}",
+                        reset_usage()
+                    )));
+                }
+                value => {
+                    return Err(DevSeedError::InvalidArgs(format!(
+                        "unexpected positional argument: {value}\n{}",
+                        reset_usage()
+                    )));
+                }
+            }
+        }
+
+        if profile.trim().is_empty() {
+            return Err(DevSeedError::InvalidArgs(
+                "--profile must not be empty".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            profile,
+            fixtures_root,
+            json,
+            yes,
+        })
+    }
+
+    pub fn seed_options(&self) -> SeedCliOptions {
+        SeedCliOptions {
+            profile: self.profile.clone(),
+            fixtures_root: self.fixtures_root.clone(),
+            json: self.json,
+        }
+    }
+}
+
+pub fn reset_usage() -> &'static str {
+    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -250,6 +329,15 @@ pub fn assert_safe_seed_target(database_url: &str) -> Result<(), DevSeedError> {
     validate_seed_target(database_url, &environment)
 }
 
+pub fn assert_safe_reset_target(database_url: &str) -> Result<(), DevSeedError> {
+    let environment = env::var("API_ENVIRONMENT")
+        .unwrap_or_else(|_| "development".to_string())
+        .trim()
+        .to_ascii_lowercase();
+
+    validate_reset_target(database_url, &environment)
+}
+
 pub fn validate_seed_target(database_url: &str, environment: &str) -> Result<(), DevSeedError> {
     if environment == "production" {
         return Err(DevSeedError::Safety(
@@ -289,6 +377,23 @@ pub fn validate_seed_target(database_url: &str, environment: &str) -> Result<(),
     Ok(())
 }
 
+pub fn validate_reset_target(database_url: &str, environment: &str) -> Result<(), DevSeedError> {
+    validate_seed_target(database_url, environment)?;
+
+    let url = Url::parse(database_url).map_err(|_| {
+        DevSeedError::Safety("refusing to reset because API_DATABASE_URL is invalid".to_string())
+    })?;
+    let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+    let loopback_host = matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1");
+    if !loopback_host {
+        return Err(DevSeedError::Safety(format!(
+            "refusing to reset non-loopback database host '{host}'"
+        )));
+    }
+
+    Ok(())
+}
+
 fn load_scenario(options: &SeedCliOptions) -> Result<SeedScenario, DevSeedError> {
     let fixtures_root = match &options.fixtures_root {
         Some(path) => path.clone(),
@@ -319,6 +424,35 @@ pub async fn seed_profile(
 ) -> Result<SeedSummary, DevSeedError> {
     let scenario = load_scenario(options)?;
     seed_scenario(pool, scenario, active_signing_key_id, signing_key).await
+}
+
+pub fn validate_seed_profile(options: &SeedCliOptions) -> Result<(), DevSeedError> {
+    load_scenario(options).map(|_| ())
+}
+
+pub async fn reset_local_database(
+    database_url: &str,
+    options: &ResetCliOptions,
+) -> Result<(), DevSeedError> {
+    if !options.yes {
+        return Err(DevSeedError::Safety(
+            "refusing to reset without --yes confirmation".to_string(),
+        ));
+    }
+
+    assert_safe_reset_target(database_url)?;
+
+    let pool = PgPool::connect(database_url).await?;
+    sqlx::query("DROP SCHEMA IF EXISTS public CASCADE")
+        .execute(&pool)
+        .await?;
+    sqlx::query("CREATE SCHEMA public").execute(&pool).await?;
+    sqlx::query("GRANT ALL ON SCHEMA public TO public")
+        .execute(&pool)
+        .await?;
+    pool.close().await;
+
+    Ok(())
 }
 
 async fn seed_scenario(
@@ -936,6 +1070,17 @@ mod tests {
     }
 
     #[test]
+    fn rejects_reset_against_non_loopback_host() {
+        let error = validate_reset_target(
+            "postgres://hexrelay:pw@postgres:5432/hexrelay",
+            "development",
+        )
+        .expect_err("non-loopback reset rejected");
+
+        assert!(error.to_string().contains("non-loopback database host"));
+    }
+
+    #[test]
     fn accepts_default_local_database_target() {
         validate_seed_target(
             "postgres://hexrelay:pw@127.0.0.1:5432/hexrelay",
@@ -960,5 +1105,44 @@ mod tests {
         let error = validate_scenario(&scenario).expect_err("non-fixture thread rejected");
 
         assert!(error.to_string().contains("fixture-owned thread id"));
+    }
+
+    #[test]
+    fn reset_requires_yes_confirmation() {
+        let options = ResetCliOptions::parse(["--profile".to_string(), "dm-basic".to_string()])
+            .expect("parse reset options");
+
+        assert!(!options.yes);
+    }
+
+    #[test]
+    fn reset_parses_yes_and_seed_options() {
+        let options = ResetCliOptions::parse([
+            "--yes".to_string(),
+            "--profile".to_string(),
+            "dm-basic".to_string(),
+            "--json".to_string(),
+        ])
+        .expect("parse reset options");
+        let seed_options = options.seed_options();
+
+        assert!(options.yes);
+        assert_eq!(seed_options.profile, "dm-basic");
+        assert!(seed_options.json);
+    }
+
+    #[tokio::test]
+    async fn reset_refuses_without_yes_before_target_validation() {
+        let options = ResetCliOptions::parse(["--profile".to_string(), "dm-basic".to_string()])
+            .expect("parse reset options");
+
+        let error = reset_local_database(
+            "postgres://hexrelay:pw@db.example.com:5432/customer_data",
+            &options,
+        )
+        .await
+        .expect_err("reset without --yes rejected");
+
+        assert!(error.to_string().contains("without --yes"));
     }
 }

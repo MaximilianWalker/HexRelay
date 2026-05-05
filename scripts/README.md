@@ -15,6 +15,7 @@ Common entrypoints still include:
 
 - `scripts/setup.sh`
 - `scripts/seed.sh`
+- `scripts/reset-dev-db.sh`
 - `scripts/run.sh`
 - `scripts/test.sh`
 

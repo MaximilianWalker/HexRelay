@@ -57,6 +57,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - One-command local startup via `npm run start` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
 - Seed the initial Alice/Bob local DM fixture with `npm run seed -- --profile dm-basic` after local Postgres is running.
+- Reset and reseed the local dev DB with `npm run reset-dev-db -- --profile dm-basic --yes`; this command refuses non-local DB targets.
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`

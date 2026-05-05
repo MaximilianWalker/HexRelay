@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-05 started implementation with the `dm-basic` fixture catalog, Rust seed command, local DB safety guards, and Windows/Unix seed wrappers.
+- Latest meaningful change: 2026-05-05 added the reset-dev-db command to rebuild a guarded local dev database and reseed the selected profile.
 
 ## Organization Decision
 
@@ -499,8 +499,8 @@ npm run reset-dev-db -- --profile all --yes
 |---|---|---|---|---|---|
 | PH-02-EP-01-ST-01-TK-01 | Add Rust seed implementation | `services/api-rs/src/bin/seed_dev.rs`, `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs dev_seed` | Transactional idempotent seed for selected profile | done |
 | PH-02-EP-01-ST-01-TK-02 | Add Windows and Unix seed wrappers | `scripts/seed.ps1`, `scripts/seed.sh` | Run wrappers locally | Wrappers load env and call seed implementation consistently | done |
-| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | Reset twice | Reset refuses unsafe DB and reseeds local DB | ready |
-| PH-02-EP-01-ST-01-TK-04 | Add root npm aliases | `package.json` | `npm run seed -- --help` | Commands are discoverable from repo root | done |
+| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | Reset help and refusal smoke; destructive smoke requires explicit local reset run | Reset refuses unsafe DB and reseeds local DB | in_progress |
+| PH-02-EP-01-ST-01-TK-04 | Add root npm aliases | `package.json` | `npm run seed -- --help`, `npm run reset-dev-db -- --help` | Commands are discoverable from repo root | done |
 
 ### PH-03 Tasks
 
