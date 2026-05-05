@@ -8,6 +8,9 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup.ps1",
+    "seed": "node scripts/seed.mjs",
+    "seed:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/seed.ps1",
+    "seed:unix": "bash scripts/seed.sh",
     "start": "node scripts/run.mjs",
     "run": "npm run start",
     "start:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1",

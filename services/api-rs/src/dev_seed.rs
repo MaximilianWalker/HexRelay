@@ -1,0 +1,964 @@
+use std::{collections::HashSet, env, fmt, fs, path::PathBuf};
+
+use chrono::{Duration, Utc};
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Postgres, Transaction};
+
+use crate::infra::crypto::session_token::issue_session_token;
+
+const DEFAULT_PROFILE: &str = "dm-basic";
+const SESSION_COOKIE_NAME: &str = "hexrelay_session";
+const CSRF_COOKIE_NAME: &str = "hexrelay_csrf";
+const DEV_CSRF_TOKEN: &str = "dev-seed-csrf";
+
+#[derive(Debug)]
+pub enum DevSeedError {
+    InvalidArgs(String),
+    Config(String),
+    Io(std::io::Error),
+    Json(serde_json::Error),
+    Db(sqlx::Error),
+    Safety(String),
+}
+
+impl fmt::Display for DevSeedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidArgs(message) => write!(f, "{message}"),
+            Self::Config(message) => write!(f, "{message}"),
+            Self::Io(error) => write!(f, "failed to read fixture file: {error}"),
+            Self::Json(error) => write!(f, "failed to parse fixture file: {error}"),
+            Self::Db(error) => write!(f, "database seed failed: {error}"),
+            Self::Safety(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+impl std::error::Error for DevSeedError {}
+
+impl From<std::io::Error> for DevSeedError {
+    fn from(value: std::io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
+impl From<serde_json::Error> for DevSeedError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Json(value)
+    }
+}
+
+impl From<sqlx::Error> for DevSeedError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Db(value)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SeedCliOptions {
+    pub profile: String,
+    pub fixtures_root: Option<PathBuf>,
+    pub json: bool,
+}
+
+impl SeedCliOptions {
+    pub fn parse<I>(args: I) -> Result<Self, DevSeedError>
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut profile = DEFAULT_PROFILE.to_string();
+        let mut fixtures_root = None;
+        let mut json = false;
+        let mut args = args.into_iter();
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--profile" | "-p" => {
+                    profile = args.next().ok_or_else(|| {
+                        DevSeedError::InvalidArgs("--profile requires a value".to_string())
+                    })?;
+                }
+                "--fixtures-root" => {
+                    let value = args.next().ok_or_else(|| {
+                        DevSeedError::InvalidArgs("--fixtures-root requires a value".to_string())
+                    })?;
+                    fixtures_root = Some(PathBuf::from(value));
+                }
+                "--json" => json = true,
+                "--help" | "-h" => {
+                    return Err(DevSeedError::InvalidArgs(seed_usage().to_string()));
+                }
+                value if value.starts_with('-') => {
+                    return Err(DevSeedError::InvalidArgs(format!(
+                        "unknown seed option: {value}\n{}",
+                        seed_usage()
+                    )));
+                }
+                value => {
+                    return Err(DevSeedError::InvalidArgs(format!(
+                        "unexpected positional argument: {value}\n{}",
+                        seed_usage()
+                    )));
+                }
+            }
+        }
+
+        if profile.trim().is_empty() {
+            return Err(DevSeedError::InvalidArgs(
+                "--profile must not be empty".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            profile,
+            fixtures_root,
+            json,
+        })
+    }
+}
+
+pub fn seed_usage() -> &'static str {
+    "Usage: seed_dev [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct SeedScenario {
+    scenario_id: String,
+    description: String,
+    identities: Vec<IdentityFixture>,
+    sessions: Vec<SessionFixture>,
+    friend_requests: Vec<FriendRequestFixture>,
+    dm_policies: Vec<DmPolicyFixture>,
+    endpoint_cards: Vec<EndpointCardFixture>,
+    devices: Vec<DeviceFixture>,
+    dm_threads: Vec<DmThreadFixture>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct IdentityFixture {
+    profile_id: String,
+    identity_id: String,
+    public_key: String,
+    algorithm: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct SessionFixture {
+    profile_id: String,
+    identity_id: String,
+    session_id: String,
+    expires_in_days: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct FriendRequestFixture {
+    request_id: String,
+    requester_identity_id: String,
+    target_identity_id: String,
+    status: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DmPolicyFixture {
+    identity_id: String,
+    inbound_policy: String,
+    offline_delivery_mode: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct EndpointCardFixture {
+    identity_id: String,
+    endpoint_id: String,
+    endpoint_hint: String,
+    estimated_rtt_ms: u32,
+    priority: u8,
+    expires_in_seconds: i64,
+    revoked: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DeviceFixture {
+    identity_id: String,
+    device_id: String,
+    active: bool,
+    last_seen_offset_seconds: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DmThreadFixture {
+    thread_id: String,
+    kind: String,
+    title: String,
+    participants: Vec<DmParticipantFixture>,
+    messages: Vec<DmMessageFixture>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DmParticipantFixture {
+    identity_id: String,
+    last_read_seq: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DmMessageFixture {
+    message_id: String,
+    author_id: String,
+    seq: u64,
+    ciphertext: String,
+    created_at: String,
+    edited_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SeedSummary {
+    pub profile: String,
+    pub description: String,
+    pub counts: SeedCounts,
+    pub sessions: Vec<SeededSession>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SeedCounts {
+    pub identities: usize,
+    pub sessions: usize,
+    pub friend_requests: usize,
+    pub dm_policies: usize,
+    pub endpoint_cards: usize,
+    pub devices: usize,
+    pub dm_threads: usize,
+    pub dm_messages: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SeededSession {
+    pub profile_id: String,
+    pub identity_id: String,
+    pub session_id: String,
+    pub expires_at: String,
+    pub authorization_header: String,
+    pub cookie_header: String,
+    pub csrf_header: String,
+}
+
+pub fn assert_safe_seed_target(database_url: &str) -> Result<(), DevSeedError> {
+    let environment = env::var("API_ENVIRONMENT")
+        .unwrap_or_else(|_| "development".to_string())
+        .trim()
+        .to_ascii_lowercase();
+
+    validate_seed_target(database_url, &environment)
+}
+
+pub fn validate_seed_target(database_url: &str, environment: &str) -> Result<(), DevSeedError> {
+    if environment == "production" {
+        return Err(DevSeedError::Safety(
+            "refusing to seed when API_ENVIRONMENT=production".to_string(),
+        ));
+    }
+
+    if environment != "development" {
+        return Err(DevSeedError::Safety(format!(
+            "refusing to seed with unsupported API_ENVIRONMENT={environment}; expected development"
+        )));
+    }
+
+    let url = Url::parse(database_url).map_err(|_| {
+        DevSeedError::Safety("refusing to seed because API_DATABASE_URL is invalid".to_string())
+    })?;
+
+    let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+    let allowed_host = matches!(
+        host.as_str(),
+        "localhost" | "127.0.0.1" | "::1" | "postgres" | "host.docker.internal"
+    );
+    if !allowed_host {
+        return Err(DevSeedError::Safety(format!(
+            "refusing to seed non-local database host '{host}'"
+        )));
+    }
+
+    let database_name = url.path().trim_start_matches('/');
+    let allowed_database = database_name == "hexrelay" || database_name.starts_with("hexrelay_");
+    if !allowed_database {
+        return Err(DevSeedError::Safety(format!(
+            "refusing to seed database '{database_name}'; expected hexrelay or hexrelay_*"
+        )));
+    }
+
+    Ok(())
+}
+
+fn load_scenario(options: &SeedCliOptions) -> Result<SeedScenario, DevSeedError> {
+    let fixtures_root = match &options.fixtures_root {
+        Some(path) => path.clone(),
+        None => default_fixtures_root()?,
+    };
+    let path = fixtures_root
+        .join("scenarios")
+        .join(format!("{}.json", options.profile));
+    let content = fs::read_to_string(path)?;
+    let scenario = serde_json::from_str::<SeedScenario>(&content)?;
+
+    if scenario.scenario_id != options.profile {
+        return Err(DevSeedError::Config(format!(
+            "fixture scenario_id '{}' does not match requested profile '{}'",
+            scenario.scenario_id, options.profile
+        )));
+    }
+
+    validate_scenario(&scenario)?;
+    Ok(scenario)
+}
+
+pub async fn seed_profile(
+    pool: &PgPool,
+    options: &SeedCliOptions,
+    active_signing_key_id: &str,
+    signing_key: &str,
+) -> Result<SeedSummary, DevSeedError> {
+    let scenario = load_scenario(options)?;
+    seed_scenario(pool, scenario, active_signing_key_id, signing_key).await
+}
+
+async fn seed_scenario(
+    pool: &PgPool,
+    scenario: SeedScenario,
+    active_signing_key_id: &str,
+    signing_key: &str,
+) -> Result<SeedSummary, DevSeedError> {
+    let now = Utc::now();
+    let mut tx = pool.begin().await?;
+
+    for identity in &scenario.identities {
+        seed_identity(&mut tx, identity).await?;
+    }
+
+    let mut sessions = Vec::new();
+    for session in &scenario.sessions {
+        let expires_at = now + Duration::days(session.expires_in_days);
+        seed_session(&mut tx, session, expires_at).await?;
+
+        let token = issue_session_token(
+            &session.session_id,
+            &session.identity_id,
+            expires_at.timestamp(),
+            active_signing_key_id,
+            signing_key,
+        );
+        sessions.push(SeededSession {
+            profile_id: session.profile_id.clone(),
+            identity_id: session.identity_id.clone(),
+            session_id: session.session_id.clone(),
+            expires_at: expires_at.to_rfc3339(),
+            authorization_header: format!("Bearer {token}"),
+            cookie_header: format!(
+                "{SESSION_COOKIE_NAME}={token}; {CSRF_COOKIE_NAME}={DEV_CSRF_TOKEN}"
+            ),
+            csrf_header: DEV_CSRF_TOKEN.to_string(),
+        });
+    }
+
+    for request in &scenario.friend_requests {
+        seed_friend_request(&mut tx, request).await?;
+    }
+
+    for policy in &scenario.dm_policies {
+        seed_dm_policy(&mut tx, policy).await?;
+    }
+
+    for card in &scenario.endpoint_cards {
+        seed_endpoint_card(&mut tx, card, now.timestamp()).await?;
+    }
+
+    for device in &scenario.devices {
+        seed_device(&mut tx, device, now.timestamp()).await?;
+    }
+
+    for thread in &scenario.dm_threads {
+        seed_dm_thread(&mut tx, thread).await?;
+    }
+
+    tx.commit().await?;
+
+    let counts = SeedCounts {
+        identities: scenario.identities.len(),
+        sessions: scenario.sessions.len(),
+        friend_requests: scenario.friend_requests.len(),
+        dm_policies: scenario.dm_policies.len(),
+        endpoint_cards: scenario.endpoint_cards.len(),
+        devices: scenario.devices.len(),
+        dm_threads: scenario.dm_threads.len(),
+        dm_messages: scenario
+            .dm_threads
+            .iter()
+            .map(|thread| thread.messages.len())
+            .sum(),
+    };
+
+    Ok(SeedSummary {
+        profile: scenario.scenario_id,
+        description: scenario.description,
+        counts,
+        sessions,
+    })
+}
+
+pub fn format_seed_summary(summary: &SeedSummary) -> String {
+    let mut output = format!(
+        "[seed] Seeded profile '{}'\n[seed] {}\n[seed] identities={} sessions={} friend_requests={} dm_policies={} endpoint_cards={} devices={} dm_threads={} dm_messages={}",
+        summary.profile,
+        summary.description,
+        summary.counts.identities,
+        summary.counts.sessions,
+        summary.counts.friend_requests,
+        summary.counts.dm_policies,
+        summary.counts.endpoint_cards,
+        summary.counts.devices,
+        summary.counts.dm_threads,
+        summary.counts.dm_messages
+    );
+
+    for session in &summary.sessions {
+        output.push_str(&format!(
+            "\n[seed] {} ({})\n  identity_id: {}\n  session_id: {}\n  expires_at: {}\n  authorization: {}\n  cookie: {}\n  x-csrf-token: {}",
+            session.profile_id,
+            session.identity_id,
+            session.identity_id,
+            session.session_id,
+            session.expires_at,
+            session.authorization_header,
+            session.cookie_header,
+            session.csrf_header
+        ));
+    }
+
+    output
+}
+
+fn default_fixtures_root() -> Result<PathBuf, DevSeedError> {
+    let mut current = env::current_dir().map_err(DevSeedError::Io)?;
+    loop {
+        let candidate = current.join("scripts").join("fixtures");
+        if candidate.join("scenarios").is_dir() {
+            return Ok(candidate);
+        }
+
+        if !current.pop() {
+            return Err(DevSeedError::Config(
+                "could not locate scripts/fixtures from current directory".to_string(),
+            ));
+        }
+    }
+}
+
+fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
+    if scenario.scenario_id.trim().is_empty() {
+        return Err(DevSeedError::Config(
+            "fixture scenario_id must not be empty".to_string(),
+        ));
+    }
+
+    let mut identity_ids = HashSet::new();
+    for identity in &scenario.identities {
+        if identity.profile_id.trim().is_empty() || identity.identity_id.trim().is_empty() {
+            return Err(DevSeedError::Config(
+                "identity fixtures require profile_id and identity_id".to_string(),
+            ));
+        }
+        if !identity.identity_id.starts_with("usr-test-") {
+            return Err(DevSeedError::Config(format!(
+                "fixture identity '{}' must use usr-test-* prefix",
+                identity.identity_id
+            )));
+        }
+        if !identity_ids.insert(identity.identity_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "duplicate fixture identity '{}'",
+                identity.identity_id
+            )));
+        }
+        if identity.algorithm != "ed25519" {
+            return Err(DevSeedError::Config(format!(
+                "unsupported fixture key algorithm '{}' for '{}'",
+                identity.algorithm, identity.identity_id
+            )));
+        }
+        if identity.public_key.len() != 64
+            || !identity.public_key.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(DevSeedError::Config(format!(
+                "fixture public key for '{}' must be 64 hex characters",
+                identity.identity_id
+            )));
+        }
+    }
+
+    for session in &scenario.sessions {
+        require_identity(&identity_ids, &session.identity_id, "session")?;
+        if session.session_id.trim().is_empty() || session.expires_in_days <= 0 {
+            return Err(DevSeedError::Config(format!(
+                "session fixture for '{}' requires session_id and positive expires_in_days",
+                session.identity_id
+            )));
+        }
+    }
+
+    for request in &scenario.friend_requests {
+        require_identity(
+            &identity_ids,
+            &request.requester_identity_id,
+            "friend request requester",
+        )?;
+        require_identity(
+            &identity_ids,
+            &request.target_identity_id,
+            "friend request target",
+        )?;
+        if request.status != "accepted" && request.status != "pending" {
+            return Err(DevSeedError::Config(format!(
+                "unsupported friend request status '{}'",
+                request.status
+            )));
+        }
+    }
+
+    for policy in &scenario.dm_policies {
+        require_identity(&identity_ids, &policy.identity_id, "dm policy")?;
+        if policy.offline_delivery_mode != "best_effort_online" {
+            return Err(DevSeedError::Config(format!(
+                "unsupported offline delivery mode '{}'",
+                policy.offline_delivery_mode
+            )));
+        }
+        if !matches!(
+            policy.inbound_policy.as_str(),
+            "friends_only" | "same_server" | "anyone"
+        ) {
+            return Err(DevSeedError::Config(format!(
+                "unsupported inbound DM policy '{}'",
+                policy.inbound_policy
+            )));
+        }
+    }
+
+    for card in &scenario.endpoint_cards {
+        require_identity(&identity_ids, &card.identity_id, "endpoint card")?;
+        validate_direct_endpoint_hint(&card.endpoint_hint)?;
+        if card.expires_in_seconds <= 0 {
+            return Err(DevSeedError::Config(format!(
+                "endpoint card '{}' requires positive expires_in_seconds",
+                card.endpoint_id
+            )));
+        }
+    }
+
+    for device in &scenario.devices {
+        require_identity(&identity_ids, &device.identity_id, "device")?;
+    }
+
+    for thread in &scenario.dm_threads {
+        if !is_fixture_thread_id(&thread.thread_id) {
+            return Err(DevSeedError::Config(format!(
+                "DM thread '{}' must use a fixture-owned thread id prefix",
+                thread.thread_id
+            )));
+        }
+        if thread.kind != "dm" && thread.kind != "group_dm" {
+            return Err(DevSeedError::Config(format!(
+                "unsupported DM thread kind '{}'",
+                thread.kind
+            )));
+        }
+        for participant in &thread.participants {
+            require_identity(&identity_ids, &participant.identity_id, "dm participant")?;
+        }
+        for message in &thread.messages {
+            require_identity(&identity_ids, &message.author_id, "dm message author")?;
+        }
+    }
+
+    Ok(())
+}
+
+fn is_fixture_thread_id(thread_id: &str) -> bool {
+    thread_id.starts_with("fixture-") || thread_id.starts_with("dm-usr-test-")
+}
+
+fn require_identity(
+    identity_ids: &HashSet<&str>,
+    identity_id: &str,
+    label: &str,
+) -> Result<(), DevSeedError> {
+    if identity_ids.contains(identity_id) {
+        return Ok(());
+    }
+
+    Err(DevSeedError::Config(format!(
+        "{label} references unknown identity '{identity_id}'"
+    )))
+}
+
+fn validate_direct_endpoint_hint(endpoint_hint: &str) -> Result<(), DevSeedError> {
+    let lower = endpoint_hint.to_ascii_lowercase();
+    let Some((scheme, _)) = lower.split_once("://") else {
+        return Err(DevSeedError::Config(format!(
+            "endpoint hint '{endpoint_hint}' must include a direct scheme"
+        )));
+    };
+
+    if !matches!(scheme, "tcp" | "udp" | "quic") {
+        return Err(DevSeedError::Config(format!(
+            "endpoint hint '{endpoint_hint}' must use direct tcp, udp, or quic transport only"
+        )));
+    }
+
+    Ok(())
+}
+
+async fn seed_identity(
+    tx: &mut Transaction<'_, Postgres>,
+    identity: &IdentityFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO identity_keys (identity_id, public_key, algorithm)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (identity_id) DO UPDATE
+        SET public_key = EXCLUDED.public_key,
+            algorithm = EXCLUDED.algorithm
+        ",
+    )
+    .bind(&identity.identity_id)
+    .bind(&identity.public_key)
+    .bind(&identity.algorithm)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_session(
+    tx: &mut Transaction<'_, Postgres>,
+    session: &SessionFixture,
+    expires_at: chrono::DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO sessions (session_id, identity_id, expires_at, revoked_at)
+        VALUES ($1, $2, $3, NULL)
+        ON CONFLICT (session_id) DO UPDATE
+        SET identity_id = EXCLUDED.identity_id,
+            expires_at = EXCLUDED.expires_at,
+            revoked_at = NULL
+        ",
+    )
+    .bind(&session.session_id)
+    .bind(&session.identity_id)
+    .bind(expires_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_friend_request(
+    tx: &mut Transaction<'_, Postgres>,
+    request: &FriendRequestFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (request_id) DO UPDATE
+        SET requester_identity_id = EXCLUDED.requester_identity_id,
+            target_identity_id = EXCLUDED.target_identity_id,
+            status = EXCLUDED.status
+        ",
+    )
+    .bind(&request.request_id)
+    .bind(&request.requester_identity_id)
+    .bind(&request.target_identity_id)
+    .bind(&request.status)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_dm_policy(
+    tx: &mut Transaction<'_, Postgres>,
+    policy: &DmPolicyFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO dm_policies (identity_id, inbound_policy, offline_delivery_mode, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (identity_id) DO UPDATE
+        SET inbound_policy = EXCLUDED.inbound_policy,
+            offline_delivery_mode = EXCLUDED.offline_delivery_mode,
+            updated_at = NOW()
+        ",
+    )
+    .bind(&policy.identity_id)
+    .bind(&policy.inbound_policy)
+    .bind(&policy.offline_delivery_mode)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_endpoint_card(
+    tx: &mut Transaction<'_, Postgres>,
+    card: &EndpointCardFixture,
+    now_epoch: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO dm_endpoint_cards (
+            identity_id,
+            endpoint_id,
+            endpoint_hint,
+            estimated_rtt_ms,
+            priority,
+            expires_at_epoch,
+            revoked,
+            updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (identity_id, endpoint_id) DO UPDATE
+        SET endpoint_hint = EXCLUDED.endpoint_hint,
+            estimated_rtt_ms = EXCLUDED.estimated_rtt_ms,
+            priority = EXCLUDED.priority,
+            expires_at_epoch = EXCLUDED.expires_at_epoch,
+            revoked = EXCLUDED.revoked,
+            updated_at = NOW()
+        ",
+    )
+    .bind(&card.identity_id)
+    .bind(&card.endpoint_id)
+    .bind(&card.endpoint_hint)
+    .bind(
+        i32::try_from(card.estimated_rtt_ms)
+            .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms too large for storage".into()))?,
+    )
+    .bind(i16::from(card.priority))
+    .bind(now_epoch + card.expires_in_seconds)
+    .bind(card.revoked)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_device(
+    tx: &mut Transaction<'_, Postgres>,
+    device: &DeviceFixture,
+    now_epoch: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO dm_profile_devices (identity_id, device_id, active, last_seen_epoch, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (identity_id, device_id) DO UPDATE
+        SET active = EXCLUDED.active,
+            last_seen_epoch = EXCLUDED.last_seen_epoch,
+            updated_at = NOW()
+        ",
+    )
+    .bind(&device.identity_id)
+    .bind(&device.device_id)
+    .bind(device.active)
+    .bind(now_epoch + device.last_seen_offset_seconds)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_dm_thread(
+    tx: &mut Transaction<'_, Postgres>,
+    thread: &DmThreadFixture,
+) -> Result<(), sqlx::Error> {
+    prune_dm_thread_fixture_rows(tx, &thread.thread_id).await?;
+
+    sqlx::query(
+        "
+        INSERT INTO dm_threads (thread_id, kind, title)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (thread_id) DO UPDATE
+        SET kind = EXCLUDED.kind,
+            title = EXCLUDED.title
+        ",
+    )
+    .bind(&thread.thread_id)
+    .bind(&thread.kind)
+    .bind(&thread.title)
+    .execute(&mut **tx)
+    .await?;
+
+    for participant in &thread.participants {
+        sqlx::query(
+            "
+            INSERT INTO dm_thread_participants (thread_id, identity_id, last_read_seq)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (thread_id, identity_id) DO UPDATE
+            SET last_read_seq = EXCLUDED.last_read_seq
+            ",
+        )
+        .bind(&thread.thread_id)
+        .bind(&participant.identity_id)
+        .bind(
+            i64::try_from(participant.last_read_seq)
+                .map_err(|_| sqlx::Error::Protocol("last_read_seq too large for storage".into()))?,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    for message in &thread.messages {
+        sqlx::query(
+            "
+            INSERT INTO dm_messages (message_id, thread_id, author_id, seq, ciphertext, created_at, edited_at)
+            VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
+            ON CONFLICT (message_id) DO UPDATE
+            SET thread_id = EXCLUDED.thread_id,
+                author_id = EXCLUDED.author_id,
+                seq = EXCLUDED.seq,
+                ciphertext = EXCLUDED.ciphertext,
+                created_at = EXCLUDED.created_at,
+                edited_at = EXCLUDED.edited_at
+            ",
+        )
+        .bind(&message.message_id)
+        .bind(&thread.thread_id)
+        .bind(&message.author_id)
+        .bind(i64::try_from(message.seq).map_err(|_| {
+            sqlx::Error::Protocol("seq too large for storage".into())
+        })?)
+        .bind(&message.ciphertext)
+        .bind(&message.created_at)
+        .bind(message.edited_at.as_deref())
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn prune_dm_thread_fixture_rows(
+    tx: &mut Transaction<'_, Postgres>,
+    thread_id: &str,
+) -> Result<(), sqlx::Error> {
+    if !is_fixture_thread_id(thread_id) {
+        return Err(sqlx::Error::Protocol(
+            "refusing to prune non-fixture DM thread".into(),
+        ));
+    }
+
+    sqlx::query("DELETE FROM dm_messages WHERE thread_id = $1")
+        .bind(thread_id)
+        .execute(&mut **tx)
+        .await?;
+
+    sqlx::query("DELETE FROM dm_thread_participants WHERE thread_id = $1")
+        .bind(thread_id)
+        .execute(&mut **tx)
+        .await?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dm_basic() -> SeedScenario {
+        serde_json::from_str(include_str!(
+            "../../../scripts/fixtures/scenarios/dm-basic.json"
+        ))
+        .expect("parse dm-basic fixture")
+    }
+
+    #[test]
+    fn parses_and_validates_dm_basic_fixture() {
+        let scenario = dm_basic();
+
+        validate_scenario(&scenario).expect("dm-basic fixture validates");
+
+        assert_eq!(scenario.scenario_id, "dm-basic");
+        assert_eq!(scenario.identities.len(), 2);
+        assert_eq!(scenario.sessions.len(), 2);
+        assert_eq!(scenario.dm_threads.len(), 1);
+        assert_eq!(scenario.dm_threads[0].messages.len(), 5);
+    }
+
+    #[test]
+    fn rejects_production_seed_target() {
+        let error = validate_seed_target(
+            "postgres://hexrelay:pw@127.0.0.1:5432/hexrelay",
+            "production",
+        )
+        .expect_err("production target rejected");
+
+        assert!(error.to_string().contains("API_ENVIRONMENT=production"));
+    }
+
+    #[test]
+    fn rejects_non_local_database_host() {
+        let error = validate_seed_target(
+            "postgres://hexrelay:pw@db.example.com:5432/hexrelay",
+            "development",
+        )
+        .expect_err("remote db rejected");
+
+        assert!(error.to_string().contains("non-local database host"));
+    }
+
+    #[test]
+    fn rejects_non_development_environment() {
+        let error = validate_seed_target("postgres://hexrelay:pw@127.0.0.1:5432/hexrelay", "test")
+            .expect_err("non-development env rejected");
+
+        assert!(error.to_string().contains("unsupported API_ENVIRONMENT"));
+    }
+
+    #[test]
+    fn rejects_non_local_database_name() {
+        let error = validate_seed_target(
+            "postgres://hexrelay:pw@127.0.0.1:5432/customer_data",
+            "development",
+        )
+        .expect_err("non-local db name rejected");
+
+        assert!(error.to_string().contains("refusing to seed database"));
+    }
+
+    #[test]
+    fn accepts_default_local_database_target() {
+        validate_seed_target(
+            "postgres://hexrelay:pw@127.0.0.1:5432/hexrelay",
+            "development",
+        )
+        .expect("default local db accepted");
+    }
+
+    #[test]
+    fn rejects_non_direct_endpoint_hints() {
+        let error = validate_direct_endpoint_hint("http://127.0.0.1:3478")
+            .expect_err("non-direct hints rejected");
+
+        assert!(error.to_string().contains("direct tcp, udp, or quic"));
+    }
+
+    #[test]
+    fn rejects_non_fixture_thread_ids() {
+        let mut scenario = dm_basic();
+        scenario.dm_threads[0].thread_id = "private-thread-1".to_string();
+
+        let error = validate_scenario(&scenario).expect_err("non-fixture thread rejected");
+
+        assert!(error.to_string().contains("fixture-owned thread id"));
+    }
+}

@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-09
+- last_updated: 2026-05-05
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-09 refreshed readiness caveats to match the current active watch summary after the DM durability/docs hardening closeout.
+- Latest meaningful change: 2026-05-05 added the initial `dm-basic` local seed command entrypoint.
 
 ## Project Stage
 
@@ -56,6 +56,8 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
 - One-command local startup via `npm run start` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
+- Seed the initial Alice/Bob local DM fixture with `npm run seed -- --profile dm-basic` after local Postgres is running.
+- Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`

@@ -1,0 +1,630 @@
+# HexRelay Local Runtime Testing Plan
+
+## Document Metadata
+
+- Doc ID: local-runtime-testing-plan
+- Owner: Platform and QA maintainers
+- Status: ready
+- Scope: repository
+- last_updated: 2026-05-05
+- Source of truth: `docs/planning/local-runtime-testing-plan.md`
+
+## Quick Context
+
+- Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
+- Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
+- Latest meaningful change: 2026-05-05 started implementation with the `dm-basic` fixture catalog, Rust seed command, local DB safety guards, and Windows/Unix seed wrappers.
+
+## Organization Decision
+
+- Canonical authority: `docs/planning/local-runtime-testing-plan.md`.
+- Reason: the work spans `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, `scripts`, and evidence docs, so it belongs in `docs/planning/` with the other cross-repo test-profile plans.
+- Related verification docs remain in `docs/testing/` and should link here instead of duplicating profile or fixture definitions.
+- Runtime environment variable details remain in `docs/reference/runtime-config-reference.md` and should be linked when implementation introduces new config flags.
+- Operational how-to guides may later summarize commands in `docs/operations/`, but this file remains the source of truth for design, scope, sequencing, and acceptance criteria.
+
+## Scope
+
+### In Scope
+
+- Dev-only seeded users and testing profiles.
+- Deterministic local fixture data for identities, sessions, contacts, DM policy, DM history, device state, server membership, and channel messages.
+- Script UX for seed, reset, status, stop, multi-instance launch, and network simulation.
+- Web UX for selecting seeded personas and opening DM-ready scenarios.
+- Local multi-instance runtime profiles for testing multiple HexRelay app instances on one machine.
+- Local network simulation that supports offline, partition, latency, loss where available, and app-level deterministic fault injection.
+- Windows PowerShell and Unix Bash support.
+- Validation gates and evidence expectations.
+
+### Out of Scope
+
+- Production seed data.
+- Cloud-hosted test environments.
+- STUN/TURN/coturn or relay fallback for DM transport.
+- Dedicated-server scale testing beyond local multi-instance development ergonomics.
+- Full encrypted DM protocol redesign.
+- Voice/media TURN/NAT validation, which remains covered by `docs/planning/turn-nat-test-profile.md`.
+
+## Current Repository Baseline
+
+- Root scripts currently expose `setup`, `seed`, `start`, `run`, `test`, and `security` through `package.json`.
+- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints the API, realtime, and web URLs.
+- Unix local startup is handled by `scripts/run.sh`; it currently uses env-loaded fixed ports and should be upgraded for runtime profile parity.
+- Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
+- API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_endpoint_cards`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
+- Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
+- Backend DM history, policy, connectivity, fanout, endpoint-card, and device APIs exist; the browser private-chat route exists, while full end-to-end DM delivery remains incremental.
+- The direct-only DM transport guardrail is active and must not be weakened by testing features.
+
+## Guiding Principles
+
+- Use real local API data rather than browser-only fake users.
+- Preserve the current auth model by creating signed dev sessions instead of bypassing authentication.
+- Keep every fixture idempotent and resettable.
+- Refuse destructive seed/reset commands against non-local databases.
+- Prefer deterministic profiles over ad hoc manual setup.
+- Make Windows the baseline for usability, not an afterthought.
+- Keep network simulation local and infrastructure-free for DM.
+- Make simulated failures explicit and observable in UI and logs.
+
+## Testing Profile Catalog
+
+### Profile Naming
+
+- Use stable profile IDs in the form `<name>.<role>`.
+- Use stable identity IDs with the prefix `usr-test-`.
+- Use stable fixture IDs with the prefix `fixture-`.
+- Store fixture definitions under `scripts/fixtures/` when implemented.
+- Keep profile purpose text short enough to display in the web testing UI.
+
+### Required Profiles
+
+| Profile ID | Identity ID | Purpose | Expected State |
+|---|---|---|---|
+| `alice.primary` | `usr-test-alice` | Happy-path sender and primary manual-test persona | Active session, accepted contact with Bob, member of shared server, DM policy `friends_only` |
+| `bob.primary` | `usr-test-bob` | Happy-path peer and receiver | Active session, accepted contact with Alice, multiple devices, seeded endpoint cards |
+| `carol.pending` | `usr-test-carol` | Pending contact/request edge case | Pending friend request with Alice, no accepted DM relationship |
+| `dave.restricted` | `usr-test-dave` | Negative DM policy and blocked/restricted behavior | Restrictive policy and relationship state that should block or require context |
+| `erin.offline` | `usr-test-erin` | Offline/connectivity test identity | Identity and device records exist, no active session |
+
+### Required Scenario Profiles
+
+| Scenario ID | Purpose | Included Profiles | Data Shape |
+|---|---|---|---|
+| `dm-basic` | Fast manual testing for direct private chat surfaces | Alice, Bob | Accepted friendship, DM policy, endpoint cards, device records, one direct DM thread |
+| `contacts-edge` | Contacts UI and request-state validation | Alice, Carol, Dave | Pending inbound/outbound requests, restricted policy, invite edge data |
+| `server-chat` | Server/channel workspace validation | Alice, Bob, Carol | Shared server, memberships, channels, server messages, unread/favorite/muted variation |
+| `multi-device` | Device convergence and endpoint-card checks | Alice, Bob, Erin | Multiple Bob devices, active/inactive devices, endpoint card priority variation |
+| `all` | Complete local exploratory dataset | All profiles | Combined DM, contacts, server, device, and policy states |
+
+## Fixture Data Model
+
+### Identity Fixtures
+
+- Insert each testing identity into `identity_keys` with deterministic dev-only Ed25519 public key material.
+- Store any private key material only in dev fixture files if needed for browser onboarding tests.
+- Prefer generated dev-only keys if real signing flows require valid signatures.
+- Mark fixture keys as non-production in docs and seed output.
+
+### Session Fixtures
+
+- Create signed sessions through a dev-only bootstrap command or endpoint.
+- Insert active sessions into `sessions` where backend persistence is required.
+- Mirror session IDs into browser session storage only through the web testing profile UX.
+- Use realistic expiration timestamps far enough in the future for local manual testing.
+- Never hardcode production signing keys.
+
+### Contacts and Friend Requests
+
+- Alice and Bob must have an accepted relationship.
+- Alice and Carol must have a pending request state.
+- Dave must cover negative policy and request-state behavior.
+- Friend request rows must use stable IDs when possible, such as `fixture-fr-alice-bob`.
+- The seed command must remain idempotent when accepted or pending rows already exist.
+
+### DM Policy and Endpoint Data
+
+- Alice default policy: `friends_only`.
+- Bob default policy: `friends_only`.
+- Carol may use `same_server` for context-sensitive behavior.
+- Dave should use a restrictive setup to validate blocked or not-authorized behavior.
+- Endpoint hints must use direct schemes only: `tcp://`, `udp://`, or `quic://`.
+- Endpoint hints must not introduce STUN, TURN, coturn, relay, ICE server, or fallback language into DM runtime/config surfaces.
+
+### DM Thread and Message Data
+
+- Create one direct Alice/Bob DM thread with stable participants.
+- Include at least five messages with alternating authors.
+- Include unread state by setting Alice and Bob `last_read_seq` differently.
+- Include one older thread or empty thread for pagination and empty-state checks.
+- Use ciphertext placeholder values that clearly indicate fixture data, such as `fixture-ciphertext-alice-001`, until real client encryption is wired end-to-end.
+
+### Server and Channel Data
+
+- Create one shared test server, for example `fixture-server-atlas`.
+- Add Alice, Bob, and Carol as members with varied `favorite`, `muted`, and `unread_count` values.
+- Create at least two text channels, for example `general` and `ops-lab`.
+- Seed server channel messages with mentions and one reply where constraints allow it.
+
+### Device and Connectivity Data
+
+- Bob should have at least two active profile devices.
+- Erin should have an inactive or stale device record.
+- Endpoint cards should include priority and RTT variation.
+- Connectivity preflight fixtures should allow happy path, offline, and policy-blocked outcomes.
+
+## Seed and Reset Tooling
+
+### Target Files
+
+| File | Purpose |
+|---|---|
+| `services/api-rs/src/bin/seed_dev.rs` | Rust entrypoint for transactional fixture seeding |
+| `services/api-rs/src/dev_seed.rs` | Shared seed implementation used by CLI and tests |
+| `scripts/fixtures/*.json` | Versioned fixture catalog and scenario definitions |
+| `scripts/seed.ps1` | Windows seed wrapper |
+| `scripts/seed.sh` | Unix seed wrapper |
+| `scripts/reset-dev-db.ps1` | Windows local DB reset and seed wrapper |
+| `scripts/reset-dev-db.sh` | Unix local DB reset and seed wrapper |
+| `package.json` | Root npm aliases for seed/reset commands |
+
+### Target Commands
+
+```bash
+npm run seed -- --profile dm-basic
+npm run seed -- --profile all
+npm run reset-dev-db -- --profile all --yes
+```
+
+```powershell
+.\scripts\seed.ps1 -Profile dm-basic
+.\scripts\reset-dev-db.ps1 -Profile all -Yes
+```
+
+```bash
+./scripts/seed.sh --profile dm-basic
+./scripts/reset-dev-db.sh --profile all --yes
+```
+
+### Seed Behavior
+
+- Load `services/api-rs/.env` and `infra/.env` using existing script conventions.
+- Verify `API_ENVIRONMENT=development` before writing data.
+- Verify `API_DATABASE_URL` host is `localhost`, `127.0.0.1`, or an approved local Docker hostname.
+- Refuse database names that are not local/dev names unless explicitly allowed by a dev-only override.
+- Run all fixture writes in a transaction.
+- Use upsert-style inserts where possible.
+- Print a summary table after seeding.
+- Exit non-zero on partial seed failure.
+
+### Reset Behavior
+
+- Stop local API/realtime/web processes if the runner owns them.
+- Drop or truncate only local dev DB state.
+- Re-run migrations.
+- Run the selected seed profile.
+- Print the generated local URLs and profile summary if used with a runtime profile.
+
+## Dev Session Bootstrap
+
+### Objective
+
+- Make seeded users immediately usable in local browsers without manual onboarding.
+- Preserve existing auth/session behavior.
+- Keep all bootstrap paths dev-only.
+
+### Options
+
+| Option | Recommendation | Notes |
+|---|---|---|
+| CLI session emission | Preferred first step | `seed-dev` can print session IDs/cookies for seeded users |
+| Dev-only API endpoint | Useful after CLI works | Gate behind `API_ENABLE_DEV_TESTING=true` |
+| Browser-only fake session | Not recommended | Would drift from server auth behavior |
+
+### Target API/CLI Behavior
+
+- Create session records for selected fixture identities.
+- Sign session cookies with configured local signing keys.
+- Support bearer-token output for API smoke tests.
+- Support JSON output for web test automation.
+- Refuse when `API_ENVIRONMENT=production`.
+- Refuse unless `API_ENABLE_DEV_TESTING=true` if endpoint mode is added.
+
+### Acceptance Criteria
+
+- Alice can call `GET /v1/contacts` with the generated session.
+- Alice can call `GET /v1/dm/privacy-policy` with the generated session.
+- Dev bootstrap returns 403 or is absent when disabled.
+- Production config cannot enable the bootstrap path accidentally.
+
+## Web Testing UX
+
+### Target Route
+
+- Preferred route: `/settings/testing`.
+- Acceptable initial route: a section inside `/settings` gated by dev config.
+
+### Target Files
+
+| File | Change |
+|---|---|
+| `apps/web/lib/api.ts` | Add dev fixture/session client methods after backend support exists |
+| `apps/web/lib/personas.ts` | Add deterministic fixture persona import/switch helpers |
+| `apps/web/lib/sessions.ts` | Add safe session write path for dev bootstrap response |
+| `apps/web/app/settings/page.tsx` or `apps/web/app/settings/testing/page.tsx` | Add dev-only testing profile picker |
+| `apps/web/lib/*test.ts` | Add unit coverage for persona/session fixture helpers |
+
+### UI Requirements
+
+- Show each seeded profile and its purpose.
+- Show active/inactive session state.
+- Show relationship state for key pairs, especially Alice/Bob.
+- Show quick actions: activate persona, open contacts, open DM, open shared server, copy session details.
+- Show scenario metadata and seed timestamp if available.
+- Hide or disable the UI outside dev/test mode.
+
+### Browser Multi-Profile Use
+
+- Support separate browser contexts for Alice and Bob through Playwright tests.
+- Support manual side-by-side use by opening separate web runtime URLs or separate browser profiles.
+- Avoid relying on a single browser localStorage namespace for multiple active users.
+
+## Multi-Instance Runtime Profiles
+
+### Objective
+
+- Start more than one local HexRelay instance for connection and multi-node testing.
+- Avoid manual port edits.
+- Keep instance logs and lifecycle clear.
+
+### Runtime Profile Files
+
+| File | Purpose |
+|---|---|
+| `scripts/runtime-profiles/single.json` | One API, one realtime, one web |
+| `scripts/runtime-profiles/dual.json` | Alice node plus Bob node |
+| `scripts/runtime-profiles/triple.json` | Alice, Bob, and Carol/Dave edge node |
+
+### Runtime Profile Shape
+
+```json
+{
+  "name": "dual",
+  "instances": [
+    {
+      "id": "alice-node",
+      "apiPort": 18080,
+      "realtimePort": 18081,
+      "webPort": 3002,
+      "seedPersona": "alice.primary"
+    },
+    {
+      "id": "bob-node",
+      "apiPort": 18180,
+      "realtimePort": 18181,
+      "webPort": 3012,
+      "seedPersona": "bob.primary"
+    }
+  ]
+}
+```
+
+### Target Commands
+
+```powershell
+.\scripts\run.ps1 -RuntimeProfile dual -SeedProfile dm-basic
+.\scripts\status.ps1
+.\scripts\stop.ps1 -RuntimeProfile dual
+```
+
+```bash
+./scripts/run.sh --runtime-profile dual --seed-profile dm-basic
+./scripts/status.sh
+./scripts/stop.sh --runtime-profile dual
+```
+
+### Runtime Behavior
+
+- Each instance gets unique API, realtime, and web ports.
+- Each instance writes logs under `.local-run/<instance-id>/`.
+- Each instance prints its API, realtime, websocket, and web URLs.
+- Each web instance receives matching `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_REALTIME_WS_URL`.
+- Status commands report process IDs, health, ports, and active runtime profile.
+- Stop commands only stop tracked local processes by default.
+- Shared infra mode uses one Postgres/Redis/MinIO stack with per-instance naming or namespace rules.
+- Isolated infra mode can be added later if shared state causes test ambiguity.
+
+### Windows Parity
+
+- Windows PowerShell remains first-class.
+- Runtime profile parsing should be shared across Windows and Unix through JSON files.
+- Windows should continue choosing conflict-free ports when profile ports are unavailable.
+- Windows status/stop scripts should not require interactive shells.
+
+## Network Simulation
+
+### Technology Stack
+
+| Layer | Technology | Primary Use | Windows Support | Realism |
+|---|---|---|---|---|
+| Docker network controls | `docker network connect/disconnect`, named compose networks | Offline, reconnect, partitions | Good | Medium |
+| Linux network shaping | `tc/netem` applied to container namespaces | Latency, jitter, packet loss, bandwidth, reordering | Limited | High |
+| Dev-only app fault injection | API/realtime env-gated delay/drop/fail knobs | Deterministic endpoint and websocket failures | Good | Medium |
+| Browser/runtime isolation | Separate browser contexts plus runtime profiles | Alice/Bob side-by-side testing | Good | Medium |
+
+### Network Profile Files
+
+| File | Purpose |
+|---|---|
+| `scripts/network-profiles/normal.json` | Clear all shaping and partitions |
+| `scripts/network-profiles/high-latency.json` | Add fixed latency to selected target |
+| `scripts/network-profiles/packet-loss.json` | Add packet loss where netem is available |
+| `scripts/network-profiles/offline-alice.json` | Disconnect Alice node from selected network |
+| `scripts/network-profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
+| `scripts/network-profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
+
+### Target Commands
+
+```powershell
+.\scripts\network.ps1 -Profile high-latency -Target bob-node
+.\scripts\network.ps1 -Profile partition-alice-bob
+.\scripts\network.ps1 -Reset
+```
+
+```bash
+./scripts/network.sh --profile high-latency --target bob-node
+./scripts/network.sh --profile partition-alice-bob
+./scripts/network.sh --reset
+```
+
+### Docker Network Controls
+
+- Use named Docker networks for runtime profile groups.
+- Use disconnect/reconnect for offline simulation.
+- Use separate networks for partition simulation.
+- Keep reset commands deterministic and idempotent.
+- Record applied network profile state under `.local-run/network-state.json`.
+
+### Linux `tc/netem`
+
+- Use `tc qdisc` inside Linux network namespaces where Docker permissions allow it.
+- Simulate latency, jitter, packet loss, bandwidth limits, and packet reordering.
+- Keep `tc` commands behind explicit `--profile` and `--target` parameters.
+- Always provide a `--reset` path that removes shaping rules.
+- Do not require `tc` for the default Windows path.
+
+### Dev-Only App Fault Injection
+
+- Add env-gated knobs only after script-level profiles exist.
+- Candidate API env vars:
+  - `API_DEV_NETWORK_DELAY_MS`
+  - `API_DEV_NETWORK_FAIL_RATE`
+  - `API_DEV_NETWORK_FAIL_ENDPOINTS`
+- Candidate realtime env vars:
+  - `REALTIME_DEV_NETWORK_DELAY_MS`
+  - `REALTIME_DEV_MESSAGE_DROP_RATE`
+  - `REALTIME_DEV_DISCONNECT_AFTER_SECONDS`
+- Candidate web env vars:
+  - `NEXT_PUBLIC_DEV_NETWORK_LABEL`
+  - `NEXT_PUBLIC_DEV_TESTING_ENABLED`
+- Every dev fault knob must be rejected or ignored in production.
+
+### Direct-Only DM Guardrail
+
+- Network simulation must not add STUN, TURN, relay, coturn, ICE server, or relay fallback to DM runtime behavior.
+- DM connection failures under simulated networks should fail explicitly with user-visible guidance.
+- Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
+- The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new network config surfaces are introduced.
+
+## Validation Strategy
+
+### Unit and Integration Tests
+
+| Area | Validation |
+|---|---|
+| Fixture parser | Unit test scenario parsing, required field validation, and stable IDs |
+| Seed command | Integration test idempotent inserts against test Postgres |
+| Reset command | Script smoke test against local-only test DB name |
+| Dev session bootstrap | API tests for enabled and disabled modes |
+| Web persona helpers | Vitest coverage for fixture persona import/switch/session write |
+| Runtime profile parser | Unit tests for port conflicts, missing fields, and profile matrix |
+| Network profile parser | Unit tests for scenario validation and reset state |
+
+### Browser Tests
+
+- Use isolated browser contexts for Alice and Bob.
+- Activate Alice through the dev testing profile UI.
+- Activate Bob through the dev testing profile UI.
+- Confirm Alice sees Bob in contacts.
+- Confirm Alice can open the Bob private chat route.
+- Confirm seeded DM history appears once the web route is wired to backend history.
+- Confirm restricted/pending profiles show blocked or pending UI states.
+
+### Runtime Smoke Tests
+
+- `single` profile starts and becomes healthy.
+- `dual` profile starts and both web instances load.
+- `status` reports every tracked instance.
+- `stop` stops every tracked process.
+- `network --reset` restores connectivity after each simulated network scenario.
+
+### CI Strategy
+
+- Keep standard `npm run test` CI-safe and deterministic.
+- Add heavier runtime/network checks behind a separate command, such as `npm run test:runtime`.
+- Run seed parser and API fixture invariants in CI.
+- Avoid requiring privileged `tc/netem` in CI unless a dedicated runner supports it.
+
+## Evidence Artifacts
+
+### Proposed Paths
+
+- Fixture seed summaries: `evidence/local-runtime-testing/fixtures/<run-id>/seed-summary.json`.
+- Runtime profile smoke outputs: `evidence/local-runtime-testing/runtime/<profile>/<run-id>/`.
+- Network simulation runs: `evidence/local-runtime-testing/network/<profile>/<scenario>/<run-id>/`.
+- Browser scenario outputs: `evidence/local-runtime-testing/browser/<scenario>/<run-id>/`.
+
+### Required Evidence Per Network Run
+
+- `scenario-config.json`: runtime profile, network profile, targets, and shaping parameters.
+- `runtime-status-before.json`: health and ports before simulation.
+- `runtime-status-after.json`: health and ports after reset.
+- `event-log.ndjson`: ordered events for apply, observe, fail/pass, and reset.
+- `verdict.md`: explicit pass/fail outcome with failed checks.
+
+## Implementation Phases
+
+| Phase ID | Title | Objective | Status |
+|---|---|---|---|
+| PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | in_progress |
+| PH-02 | Seed/reset tooling | Add safe local seed and reset commands | in_progress |
+| PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | ready |
+| PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | ready |
+| PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | ready |
+| PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
+| PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
+
+### PH-01 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-01-EP-01-ST-01-TK-01 | Define fixture catalog schema | `scripts/fixtures/`, seed command parser | Unit test parser | Schema supports profiles, identities, sessions, contacts, DM data, server data, and devices | done |
+| PH-01-EP-01-ST-01-TK-02 | Add `dm-basic` fixture profile | `scripts/fixtures/scenarios/dm-basic.json` | Seed dry run | Alice and Bob are DM-ready and documented | done |
+| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | Seed dry run | Pending and restricted states are reproducible | ready |
+| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | Seed dry run | Shared server, channels, memberships, and messages exist | ready |
+
+### PH-02 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-02-EP-01-ST-01-TK-01 | Add Rust seed implementation | `services/api-rs/src/bin/seed_dev.rs`, `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs dev_seed` | Transactional idempotent seed for selected profile | done |
+| PH-02-EP-01-ST-01-TK-02 | Add Windows and Unix seed wrappers | `scripts/seed.ps1`, `scripts/seed.sh` | Run wrappers locally | Wrappers load env and call seed implementation consistently | done |
+| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | Reset twice | Reset refuses unsafe DB and reseeds local DB | ready |
+| PH-02-EP-01-ST-01-TK-04 | Add root npm aliases | `package.json` | `npm run seed -- --help` | Commands are discoverable from repo root | done |
+
+### PH-03 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-03-EP-01-ST-01-TK-01 | Add dev session bootstrap mode | `services/api-rs` auth/session modules | API integration tests | Sessions are valid only in dev-enabled mode | ready |
+| PH-03-EP-01-ST-01-TK-02 | Add web testing profile picker | `apps/web/app/settings/testing/`, `apps/web/lib/personas.ts`, `apps/web/lib/sessions.ts` | Browser manual test and Vitest | Seeded profiles can be activated with one click | ready |
+| PH-03-EP-01-ST-01-TK-03 | Gate web UX in dev mode | `apps/web` env/config | Production build check | Testing UI hidden or inert outside dev/test mode | ready |
+
+### PH-04 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime-profiles/` | Parser tests | `single`, `dual`, and `triple` profile files validate | ready |
+| PH-04-EP-01-ST-01-TK-02 | Extend Windows runner for runtime profiles | `scripts/run.ps1` | `run.ps1 -RuntimeProfile dual` | Starts multiple named instances with unique ports | ready |
+| PH-04-EP-01-ST-01-TK-03 | Extend Unix runner for runtime profiles | `scripts/run.sh` | `run.sh --runtime-profile dual` | Unix flow reaches Windows parity | ready |
+| PH-04-EP-01-ST-01-TK-04 | Add status and stop scripts | `scripts/status.*`, `scripts/stop.*` | Start/status/stop smoke | Processes are tracked and cleaned deterministically | ready |
+
+### PH-05 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/` | Parser tests | Normal, offline, partition, latency, and flaky profiles validate | ready |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.ps1`, `scripts/network.sh` | Apply and reset offline/partition | Cross-platform disconnect and partition work | ready |
+| PH-05-EP-01-ST-01-TK-03 | Add Linux `tc/netem` support | `scripts/network.sh` | Apply and reset latency/loss | Linux supports realistic shaping where permissions allow | ready |
+| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/api-rs`, `services/realtime-rs` | Integration tests | Delay/drop/fail knobs work only in dev/test mode | ready |
+
+### PH-06 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-06-EP-01-ST-01-TK-01 | Add fixture invariant tests | `services/api-rs/src/tests` | `cargo test -p api-rs fixture` | Seeded profiles match expected DB state | ready |
+| PH-06-EP-01-ST-01-TK-02 | Add web persona tests | `apps/web/lib/*test.ts` | `npm run test --prefix apps/web` | Persona/session helpers are covered | ready |
+| PH-06-EP-01-ST-01-TK-03 | Add runtime smoke tests | `scripts/test-runtime.*` | `npm run test:runtime` | Single and dual profile health checks pass | ready |
+| PH-06-EP-01-ST-01-TK-04 | Add network reset smoke tests | `scripts/test-network.*` | Apply scenario then reset | Reset restores baseline connectivity | ready |
+
+### PH-07 Tasks
+
+| Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
+|---|---|---|---|---|---|
+| PH-07-EP-01-ST-01-TK-01 | Add operations quickstart after implementation | `docs/operations/` | Follow from clean checkout | Developer can seed and launch profiles from docs | ready |
+| PH-07-EP-01-ST-01-TK-02 | Update runtime config reference when env flags land | `docs/reference/runtime-config-reference.md` | Docs review | New dev-only env vars have defaults and safety notes | ready |
+| PH-07-EP-01-ST-01-TK-03 | Update evidence and verification docs | `docs/testing/` | Docs review | Runtime and network evidence paths are discoverable | ready |
+
+## Dependencies and Critical Path
+
+| Item | Depends On | Blocks |
+|---|---|---|
+| Fixture catalog | none | Seed command, web testing UX, fixture tests |
+| Seed/reset tooling | Fixture catalog | Dev session UX, browser scenario tests |
+| Dev session bootstrap | Seeded identities and sessions | Web profile picker, browser tests |
+| Runtime profiles | Existing run scripts | Network simulation, multi-instance tests |
+| Network profiles | Runtime profiles | Network scenario smoke tests |
+| Validation/evidence | All earlier phases | Release readiness for testing runtime feature set |
+
+Critical path:
+
+1. Define `dm-basic` fixture catalog.
+2. Implement seed command and wrappers.
+3. Implement dev session bootstrap.
+4. Add web testing profile picker.
+5. Add `dual` runtime profile.
+6. Add offline/partition network simulation.
+7. Add runtime and browser smoke tests.
+
+## Decisions
+
+| Decision ID | Context | Chosen Option | Rationale | Impact |
+|---|---|---|---|---|
+| DEC-01 | Fixture authority | Versioned fixture catalog plus Rust seed command | Keeps DB writes typed, transactional, and aligned with API migrations | Requires script wrappers for good UX |
+| DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
+| DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
+| DEC-04 | Network simulation | Docker controls plus `tc/netem` plus app-level dev faults | Balances Windows support and realistic Linux shaping | Some scenarios differ in realism by OS |
+| DEC-05 | DM transport | Keep DM direct-only and fail explicitly under simulated network failures | Preserves product guardrail | Testing must not use TURN/coturn/relay fallback for DM |
+| DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Seed/reset targets a non-local DB | High | Refuse unless env and database URL pass local allowlist checks |
+| Static dev keys are mistaken for production material | Medium | Mark fixture key material as dev-only and avoid using production-looking names |
+| Browser personas drift from backend sessions | Medium | Use API-backed dev sessions and only mirror session state into browser storage |
+| Windows cannot run `tc/netem` realistically | Medium | Use Docker partition/disconnect and app-level fault injection as Windows default |
+| Runtime profiles create stale processes | Medium | Track PIDs in `.local-run/`, provide status and stop commands, refuse unsafe reuse |
+| Network reset leaves containers partitioned | Medium | Store network state and make reset idempotent |
+| DM delivery remains partially wired in UI | Medium | Validate backend history/fanout/connectivity now and document web delivery limitations until implemented |
+| Legacy coturn service confuses DM testing | Medium | Document coturn as voice/media-only legacy test infra, not DM runtime support |
+
+## Minimum Viable Delivery Slice
+
+- Add `dm-basic` fixture profile with Alice and Bob.
+- Add seed command and Windows/Unix wrappers.
+- Add dev session bootstrap for Alice and Bob.
+- Add dev-only web testing profile picker.
+- Add `dual` runtime profile.
+- Add offline and partition network simulation.
+- Add docs and smoke tests for the above.
+
+## Full Acceptance Criteria
+
+- `npm run seed -- --profile dm-basic` creates Alice and Bob with valid local sessions and DM-ready backend state.
+- Alice and Bob can be opened in separate browser contexts or local web instances.
+- Alice sees Bob in contacts.
+- Alice can open the Bob private-chat route.
+- Alice and Bob can read seeded DM history once the web route consumes backend history.
+- `dual` runtime starts without port collisions on Windows and Unix.
+- `status` reports every instance and health URL.
+- `stop` cleans every tracked local process.
+- `network --profile offline-alice` makes Alice unreachable or disconnected in a visible way.
+- `network --profile partition-alice-bob` prevents Alice/Bob connectivity without enabling relay fallback.
+- `network --reset` restores normal connectivity.
+- Dev session bootstrap is unavailable or inert outside development mode.
+- Production builds do not expose test profile controls.
+
+## Related Documents
+
+- `README.md`
+- `docs/README.md`
+- `docs/planning/README.md`
+- `docs/testing/README.md`
+- `docs/reference/runtime-config-reference.md`
+- `docs/planning/kpi-slo-test-profile.md`
+- `docs/planning/turn-nat-test-profile.md`
+- `docs/product/10-infra-free-dm-connectivity-proposals.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
+- `docs/operations/dev-prerequisites.md`

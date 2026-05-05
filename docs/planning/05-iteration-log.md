@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-11
+- last_updated: 2026-05-05
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by wiring DM pairing QR/share/import flows into the contacts surface and web API layer.
+- Latest meaningful change: 2026-05-05 started the local runtime testing implementation with the `dm-basic` fixture and seed command.
 
 ## Purpose
 
@@ -29,6 +29,39 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing seed slice)
+
+- Area affected: Local fixture catalog, API seed tooling, and workspace scripts.
+- Change summary:
+  - Added the initial `dm-basic` fixture catalog for Alice/Bob local DM testing.
+  - Added `services/api-rs/src/bin/seed_dev.rs` and `services/api-rs/src/dev_seed.rs` for transactional local fixture seeding with production and non-local database guards.
+  - Added `npm run seed`, Windows/Unix seed wrappers, and seed fixture validation tests.
+- Rationale:
+  - The web profile picker and multi-instance runtime work need real local API identities, sessions, contacts, policies, endpoint cards, devices, and DM history before they can be useful.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
+  - `README.md`
+
+### 2026-05-04 (local runtime testing plan)
+
+- Area affected: Local testing workflow, fixture profile planning, multi-instance runtime planning, and network simulation planning.
+- Change summary:
+  - Added `docs/planning/local-runtime-testing-plan.md` as the canonical planning authority for precreated local testing profiles, seeded fixture data, dev session bootstrap, multi-instance runtime profiles, and local network simulation.
+  - Routed related planning, testing, operations, KPI/SLO, TURN/NAT, and docs index entries to the new authority without duplicating runtime config details or verification evidence rules.
+  - Captured the intended network simulation technology stack: Docker network controls, Linux `tc/netem`, dev-only app-level fault injection, and browser/runtime isolation.
+- Rationale:
+  - Local manual and automated testing now need a repeatable profile/fixture/runtime plan before implementation starts, especially after PR #96 added workspace DM UI and Windows runner baseline improvements.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/planning/README.md`
+  - `docs/testing/README.md`
+  - `docs/operations/README.md`
+  - `docs/planning/kpi-slo-test-profile.md`
+  - `docs/planning/turn-nat-test-profile.md`
+  - `docs/README.md`
+  - `README.md`
 
 ### 2026-04-11 (T4.1.4 DM pairing web slice)
 

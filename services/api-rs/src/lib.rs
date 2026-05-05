@@ -1,6 +1,7 @@
 pub mod app;
 pub mod config;
 pub mod db;
+pub mod dev_seed;
 pub mod domain;
 pub mod infra;
 pub mod models;
