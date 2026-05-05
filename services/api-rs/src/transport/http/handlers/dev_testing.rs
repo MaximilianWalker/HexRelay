@@ -267,6 +267,46 @@ fn append_cookie(response: &mut Response, cookie: String) -> ApiResult<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn testing_profiles_match_dm_basic_fixture_identity_and_sessions() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scripts/fixtures/scenarios/dm-basic.json"
+        )))
+        .expect("parse dm-basic fixture");
+        let identities = fixture["identities"]
+            .as_array()
+            .expect("fixture identities array");
+        let sessions = fixture["sessions"]
+            .as_array()
+            .expect("fixture sessions array");
+
+        assert_eq!(identities.len(), TESTING_PROFILES.len());
+        assert_eq!(sessions.len(), TESTING_PROFILES.len());
+
+        for profile in TESTING_PROFILES {
+            let identity = identities
+                .iter()
+                .find(|identity| identity["profile_id"] == profile.profile_id)
+                .expect("testing profile identity exists in fixture");
+            assert_eq!(identity["identity_id"], profile.identity_id);
+            assert_eq!(identity["public_key"], profile.public_key);
+            assert_eq!(identity["algorithm"], profile.algorithm);
+
+            let session = sessions
+                .iter()
+                .find(|session| session["profile_id"] == profile.profile_id)
+                .expect("testing profile session exists in fixture");
+            assert_eq!(session["identity_id"], profile.identity_id);
+            assert_eq!(session["session_id"], profile.session_id);
+        }
+    }
+}
+
 fn random_hex(byte_len: usize) -> String {
     let mut bytes = vec![0_u8; byte_len];
     rand::thread_rng().fill_bytes(&mut bytes);

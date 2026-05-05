@@ -126,7 +126,7 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
-  }, [hasSession]);
+  }, [hasSession, identityId]);
 
   useEffect(() => {
     if (!SHOW_DEV_TESTING) {
