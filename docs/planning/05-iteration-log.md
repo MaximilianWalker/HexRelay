@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 added guarded local reset tooling for the `dm-basic` seed workflow.
+- Latest meaningful change: 2026-05-05 added the dev-only API testing session endpoint for fixture profiles.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-05 (local runtime testing dev sessions)
+
+- Area affected: API runtime config, dev-only testing API, and local runtime testing plan.
+- Change summary:
+  - Added `API_ENABLE_DEV_TESTING=false` as the production-disabled gate for local fixture/session testing endpoints.
+  - Added dev-only API routes for listing testing profiles and issuing DB-backed fixture sessions/cookies for seeded identities.
+  - Added targeted API tests for disabled-by-default behavior and real seeded profile session validation.
+- Rationale:
+  - The web testing profile picker needs a safe backend bootstrap path that creates real local API sessions instead of browser-only fake users.
+- Linked docs updated:
+  - `docs/reference/runtime-config-reference.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/README.md`
 
 ### 2026-05-05 (local runtime testing reset slice)
 

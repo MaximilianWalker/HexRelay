@@ -15,6 +15,7 @@ use crate::{
         block_mute::{
             block_user, list_blocked_users, list_muted_users, mute_user, unblock_user, unmute_user,
         },
+        dev_testing::{activate_testing_session, list_testing_profiles},
         directory::{get_server, list_contacts, list_servers},
         discovery::list_discovery_users,
         dm::{
@@ -62,6 +63,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/v1/auth/verify", post(verify_auth_challenge))
         .route("/v1/auth/sessions/revoke", post(revoke_session))
         .route("/v1/auth/sessions/validate", get(validate_session))
+        .route("/v1/dev/testing/profiles", get(list_testing_profiles))
+        .route("/v1/dev/testing/sessions", post(activate_testing_session))
         .route("/v1/invites", post(create_invite))
         .route("/v1/invites/redeem", post(redeem_invite))
         .route("/v1/contact-invites", post(create_contact_invite))

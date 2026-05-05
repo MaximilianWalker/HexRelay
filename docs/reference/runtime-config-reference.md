@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-05-05
 - Source of truth: `docs/reference/runtime-config-reference.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-04-03 created the first canonical service runtime-config reference and aligned onboarding docs to point here.
+- Latest meaningful change: 2026-05-05 documented the dev-only API testing endpoint flag for local fixture session activation.
 
 ## Purpose
 
@@ -48,6 +48,7 @@
 | `API_BIND` | `127.0.0.1:8080` | required | host:port bind address |
 | `API_ENVIRONMENT` | `development` | required | `development` or `production` |
 | `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION` | `false` | optional | keep disabled until trusted claim flow exists |
+| `API_ENABLE_DEV_TESTING` | `false` | must be `false` | enables local-only fixture/session testing endpoints in development |
 | `API_NODE_FINGERPRINT` | `hexrelay-local-fingerprint` | must be non-default | deployment identity marker |
 | `API_DATABASE_URL` | local dev Postgres URL | must be non-default | durable API state store |
 | `API_ALLOWED_ORIGINS` | `http://localhost:3002,http://127.0.0.1:3002` | required | must contain at least one origin |
