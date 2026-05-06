@@ -1,0 +1,14 @@
+{
+  "name": "high-latency",
+  "description": "Apply Linux netem latency and jitter to the selected runtime instance.",
+  "strategy": "netem",
+  "supportedPlatforms": ["linux"],
+  "actions": [
+    {
+      "type": "latency",
+      "target": "argument",
+      "latencyMs": 250,
+      "jitterMs": 40
+    }
+  ]
+}

@@ -1,4 +1,8 @@
-use std::{collections::HashSet, env, fmt, fs, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    env, fmt, fs,
+    path::PathBuf,
+};
 
 use chrono::{Duration, Utc};
 use reqwest::Url;
@@ -211,6 +215,16 @@ struct SeedScenario {
     dm_policies: Vec<DmPolicyFixture>,
     endpoint_cards: Vec<EndpointCardFixture>,
     devices: Vec<DeviceFixture>,
+    #[serde(default)]
+    invites: Vec<InviteFixture>,
+    #[serde(default)]
+    servers: Vec<ServerFixture>,
+    #[serde(default)]
+    server_memberships: Vec<ServerMembershipFixture>,
+    #[serde(default)]
+    server_channels: Vec<ServerChannelFixture>,
+    #[serde(default)]
+    server_channel_messages: Vec<ServerChannelMessageFixture>,
     dm_threads: Vec<DmThreadFixture>,
 }
 
@@ -289,6 +303,61 @@ struct DmMessageFixture {
     edited_at: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct InviteFixture {
+    invite_id: String,
+    token_hash: String,
+    mode: String,
+    creator_identity_id: String,
+    node_fingerprint: String,
+    expires_at: Option<String>,
+    max_uses: Option<i32>,
+    uses: i32,
+    created_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ServerFixture {
+    server_id: String,
+    name: String,
+    created_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ServerMembershipFixture {
+    server_id: String,
+    identity_id: String,
+    favorite: bool,
+    muted: bool,
+    unread_count: i32,
+    joined_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ServerChannelFixture {
+    channel_id: String,
+    server_id: String,
+    name: String,
+    kind: String,
+    last_message_seq: u64,
+    created_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ServerChannelMessageFixture {
+    message_id: String,
+    channel_id: String,
+    author_id: String,
+    channel_seq: u64,
+    content: String,
+    reply_to_message_id: Option<String>,
+    #[serde(default)]
+    mention_identity_ids: Vec<String>,
+    created_at: String,
+    edited_at: Option<String>,
+    deleted_at: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SeedSummary {
     pub profile: String,
@@ -305,6 +374,11 @@ pub struct SeedCounts {
     pub dm_policies: usize,
     pub endpoint_cards: usize,
     pub devices: usize,
+    pub invites: usize,
+    pub servers: usize,
+    pub server_memberships: usize,
+    pub server_channels: usize,
+    pub server_channel_messages: usize,
     pub dm_threads: usize,
     pub dm_messages: usize,
 }
@@ -509,6 +583,26 @@ async fn seed_scenario(
         seed_device(&mut tx, device, now.timestamp()).await?;
     }
 
+    for invite in &scenario.invites {
+        seed_invite(&mut tx, invite).await?;
+    }
+
+    for server in &scenario.servers {
+        seed_server(&mut tx, server).await?;
+    }
+
+    for membership in &scenario.server_memberships {
+        seed_server_membership(&mut tx, membership).await?;
+    }
+
+    for channel in &scenario.server_channels {
+        seed_server_channel(&mut tx, channel).await?;
+    }
+
+    for message in &scenario.server_channel_messages {
+        seed_server_channel_message(&mut tx, message).await?;
+    }
+
     for thread in &scenario.dm_threads {
         seed_dm_thread(&mut tx, thread).await?;
     }
@@ -522,6 +616,11 @@ async fn seed_scenario(
         dm_policies: scenario.dm_policies.len(),
         endpoint_cards: scenario.endpoint_cards.len(),
         devices: scenario.devices.len(),
+        invites: scenario.invites.len(),
+        servers: scenario.servers.len(),
+        server_memberships: scenario.server_memberships.len(),
+        server_channels: scenario.server_channels.len(),
+        server_channel_messages: scenario.server_channel_messages.len(),
         dm_threads: scenario.dm_threads.len(),
         dm_messages: scenario
             .dm_threads
@@ -540,7 +639,7 @@ async fn seed_scenario(
 
 pub fn format_seed_summary(summary: &SeedSummary) -> String {
     let mut output = format!(
-        "[seed] Seeded profile '{}'\n[seed] {}\n[seed] identities={} sessions={} friend_requests={} dm_policies={} endpoint_cards={} devices={} dm_threads={} dm_messages={}",
+        "[seed] Seeded profile '{}'\n[seed] {}\n[seed] identities={} sessions={} friend_requests={} dm_policies={} endpoint_cards={} devices={} invites={} servers={} server_memberships={} server_channels={} server_channel_messages={} dm_threads={} dm_messages={}",
         summary.profile,
         summary.description,
         summary.counts.identities,
@@ -549,6 +648,11 @@ pub fn format_seed_summary(summary: &SeedSummary) -> String {
         summary.counts.dm_policies,
         summary.counts.endpoint_cards,
         summary.counts.devices,
+        summary.counts.invites,
+        summary.counts.servers,
+        summary.counts.server_memberships,
+        summary.counts.server_channels,
+        summary.counts.server_channel_messages,
         summary.counts.dm_threads,
         summary.counts.dm_messages
     );
@@ -649,7 +753,16 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
             &request.target_identity_id,
             "friend request target",
         )?;
-        if request.status != "accepted" && request.status != "pending" {
+        if request.requester_identity_id == request.target_identity_id {
+            return Err(DevSeedError::Config(format!(
+                "friend request '{}' cannot target the requester",
+                request.request_id
+            )));
+        }
+        if !matches!(
+            request.status.as_str(),
+            "accepted" | "pending" | "declined" | "cancelled"
+        ) {
             return Err(DevSeedError::Config(format!(
                 "unsupported friend request status '{}'",
                 request.status
@@ -691,10 +804,247 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         require_identity(&identity_ids, &device.identity_id, "device")?;
     }
 
-    for thread in &scenario.dm_threads {
-        if !is_fixture_thread_id(&thread.thread_id) {
+    for invite in &scenario.invites {
+        if !invite.invite_id.starts_with("fixture-invite-") {
             return Err(DevSeedError::Config(format!(
-                "DM thread '{}' must use a fixture-owned thread id prefix",
+                "invite '{}' must use fixture-invite-* prefix",
+                invite.invite_id
+            )));
+        }
+        if invite.token_hash.len() != 64
+            || !invite.token_hash.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(DevSeedError::Config(format!(
+                "invite '{}' token_hash must be 64 hex characters",
+                invite.invite_id
+            )));
+        }
+        if !matches!(invite.mode.as_str(), "one_time" | "multi_use") {
+            return Err(DevSeedError::Config(format!(
+                "unsupported invite mode '{}'",
+                invite.mode
+            )));
+        }
+        require_identity(&identity_ids, &invite.creator_identity_id, "invite creator")?;
+        if invite.node_fingerprint.trim().is_empty() {
+            return Err(DevSeedError::Config(format!(
+                "invite '{}' requires node_fingerprint",
+                invite.invite_id
+            )));
+        }
+        if invite.uses < 0 || invite.max_uses.is_some_and(|max_uses| max_uses <= 0) {
+            return Err(DevSeedError::Config(format!(
+                "invite '{}' requires non-negative uses and positive max_uses",
+                invite.invite_id
+            )));
+        }
+        if invite
+            .max_uses
+            .is_some_and(|max_uses| invite.uses > max_uses)
+        {
+            return Err(DevSeedError::Config(format!(
+                "invite '{}' uses cannot exceed max_uses",
+                invite.invite_id
+            )));
+        }
+        validate_timestamp(&invite.created_at, "invite created_at")?;
+        if let Some(expires_at) = &invite.expires_at {
+            validate_timestamp(expires_at, "invite expires_at")?;
+        }
+    }
+
+    let mut server_ids = HashSet::new();
+    for server in &scenario.servers {
+        if !server.server_id.starts_with("fixture-server-") {
+            return Err(DevSeedError::Config(format!(
+                "server '{}' must use fixture-server-* prefix",
+                server.server_id
+            )));
+        }
+        if !server_ids.insert(server.server_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "duplicate fixture server '{}'",
+                server.server_id
+            )));
+        }
+        if server.name.trim().is_empty() {
+            return Err(DevSeedError::Config(format!(
+                "server '{}' requires name",
+                server.server_id
+            )));
+        }
+        validate_timestamp(&server.created_at, "server created_at")?;
+    }
+
+    let mut memberships = HashSet::new();
+    for membership in &scenario.server_memberships {
+        if !server_ids.contains(membership.server_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "server membership references unknown server '{}'",
+                membership.server_id
+            )));
+        }
+        require_identity(&identity_ids, &membership.identity_id, "server membership")?;
+        if membership.unread_count < 0 {
+            return Err(DevSeedError::Config(format!(
+                "server membership for '{}' requires non-negative unread_count",
+                membership.identity_id
+            )));
+        }
+        let key = format!("{}:{}", membership.server_id, membership.identity_id);
+        if !memberships.insert(key) {
+            return Err(DevSeedError::Config(format!(
+                "duplicate server membership '{}:{}'",
+                membership.server_id, membership.identity_id
+            )));
+        }
+        validate_timestamp(&membership.joined_at, "server membership joined_at")?;
+    }
+
+    let mut channel_ids = HashSet::new();
+    let mut channel_servers = HashMap::new();
+    let mut channel_last_seqs: HashMap<&str, u64> = HashMap::new();
+    for channel in &scenario.server_channels {
+        if !channel.channel_id.starts_with("fixture-channel-") {
+            return Err(DevSeedError::Config(format!(
+                "server channel '{}' must use fixture-channel-* prefix",
+                channel.channel_id
+            )));
+        }
+        if !server_ids.contains(channel.server_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "server channel '{}' references unknown server '{}'",
+                channel.channel_id, channel.server_id
+            )));
+        }
+        if !channel_ids.insert(channel.channel_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "duplicate server channel '{}'",
+                channel.channel_id
+            )));
+        }
+        channel_servers.insert(channel.channel_id.as_str(), channel.server_id.as_str());
+        channel_last_seqs.insert(channel.channel_id.as_str(), channel.last_message_seq);
+        if channel.name.trim().is_empty() || channel.kind != "text" {
+            return Err(DevSeedError::Config(format!(
+                "server channel '{}' requires name and text kind",
+                channel.channel_id
+            )));
+        }
+        validate_timestamp(&channel.created_at, "server channel created_at")?;
+    }
+
+    let mut message_channels = HashMap::new();
+    let mut channel_message_seqs = HashSet::new();
+    let mut channel_max_message_seqs: HashMap<&str, u64> = HashMap::new();
+    for message in &scenario.server_channel_messages {
+        if !message.message_id.starts_with("fixture-") {
+            return Err(DevSeedError::Config(format!(
+                "server message '{}' must use fixture-* prefix",
+                message.message_id
+            )));
+        }
+        if !channel_ids.contains(message.channel_id.as_str()) {
+            return Err(DevSeedError::Config(format!(
+                "server message '{}' references unknown channel '{}'",
+                message.message_id, message.channel_id
+            )));
+        }
+        let server_id = channel_servers
+            .get(message.channel_id.as_str())
+            .expect("validated channel has server id");
+        require_identity(&identity_ids, &message.author_id, "server message author")?;
+        if !memberships.contains(&format!("{}:{}", server_id, message.author_id)) {
+            return Err(DevSeedError::Config(format!(
+                "server message '{}' author is not a member of server '{}'",
+                message.message_id, server_id
+            )));
+        }
+        if message.channel_seq == 0 || message.content.trim().is_empty() {
+            return Err(DevSeedError::Config(format!(
+                "server message '{}' requires positive channel_seq and content",
+                message.message_id
+            )));
+        }
+        let seq_key = format!("{}:{}", message.channel_id, message.channel_seq);
+        if !channel_message_seqs.insert(seq_key) {
+            return Err(DevSeedError::Config(format!(
+                "server message '{}' duplicates channel_seq {} in channel '{}'",
+                message.message_id, message.channel_seq, message.channel_id
+            )));
+        }
+        channel_max_message_seqs
+            .entry(message.channel_id.as_str())
+            .and_modify(|max_seq| *max_seq = (*max_seq).max(message.channel_seq))
+            .or_insert(message.channel_seq);
+        if let Some(reply_to_message_id) = &message.reply_to_message_id {
+            let Some(reply_channel_id) = message_channels.get(reply_to_message_id.as_str()) else {
+                return Err(DevSeedError::Config(format!(
+                    "server message '{}' replies to unknown earlier message '{}'",
+                    message.message_id, reply_to_message_id
+                )));
+            };
+            if *reply_channel_id != message.channel_id.as_str() {
+                return Err(DevSeedError::Config(format!(
+                    "server message '{}' replies across channels",
+                    message.message_id
+                )));
+            }
+        }
+        for mentioned_identity_id in &message.mention_identity_ids {
+            require_identity(
+                &identity_ids,
+                mentioned_identity_id,
+                "server message mention",
+            )?;
+            if !memberships.contains(&format!("{}:{}", server_id, mentioned_identity_id)) {
+                return Err(DevSeedError::Config(format!(
+                    "server message '{}' mentions non-member '{}'",
+                    message.message_id, mentioned_identity_id
+                )));
+            }
+        }
+        validate_timestamp(&message.created_at, "server message created_at")?;
+        if let Some(edited_at) = &message.edited_at {
+            validate_timestamp(edited_at, "server message edited_at")?;
+        }
+        if let Some(deleted_at) = &message.deleted_at {
+            validate_timestamp(deleted_at, "server message deleted_at")?;
+        }
+        if message_channels
+            .insert(message.message_id.as_str(), message.channel_id.as_str())
+            .is_some()
+        {
+            return Err(DevSeedError::Config(format!(
+                "duplicate server message '{}'",
+                message.message_id
+            )));
+        }
+    }
+
+    for (channel_id, last_message_seq) in channel_last_seqs {
+        let max_message_seq = channel_max_message_seqs
+            .get(channel_id)
+            .copied()
+            .unwrap_or(0);
+        if last_message_seq != max_message_seq {
+            return Err(DevSeedError::Config(format!(
+                "server channel '{}' last_message_seq must equal max seeded message seq {}",
+                channel_id, max_message_seq
+            )));
+        }
+    }
+
+    for thread in &scenario.dm_threads {
+        if !is_seedable_dm_thread_id(&thread.thread_id) {
+            return Err(DevSeedError::Config(format!(
+                "DM thread '{}' must use a fixture-compatible thread id prefix",
+                thread.thread_id
+            )));
+        }
+        if thread.title.trim().is_empty() {
+            return Err(DevSeedError::Config(format!(
+                "DM thread '{}' requires title",
                 thread.thread_id
             )));
         }
@@ -704,18 +1054,73 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 thread.kind
             )));
         }
+        if thread.kind == "dm" && thread.participants.len() != 2 {
+            return Err(DevSeedError::Config(format!(
+                "DM thread '{}' requires exactly two participants",
+                thread.thread_id
+            )));
+        }
+        if thread.kind == "group_dm" && thread.participants.len() < 3 {
+            return Err(DevSeedError::Config(format!(
+                "group DM thread '{}' requires at least three participants",
+                thread.thread_id
+            )));
+        }
+        let mut participant_ids = HashSet::new();
         for participant in &thread.participants {
             require_identity(&identity_ids, &participant.identity_id, "dm participant")?;
+            if !participant_ids.insert(participant.identity_id.as_str()) {
+                return Err(DevSeedError::Config(format!(
+                    "DM thread '{}' has duplicate participant '{}'",
+                    thread.thread_id, participant.identity_id
+                )));
+            }
         }
+        let mut message_ids = HashSet::new();
+        let mut message_seqs = HashSet::new();
         for message in &thread.messages {
             require_identity(&identity_ids, &message.author_id, "dm message author")?;
+            if !participant_ids.contains(message.author_id.as_str()) {
+                return Err(DevSeedError::Config(format!(
+                    "DM message '{}' author is not a thread participant",
+                    message.message_id
+                )));
+            }
+            if !message.message_id.starts_with("fixture-") {
+                return Err(DevSeedError::Config(format!(
+                    "DM message '{}' must use fixture-* prefix",
+                    message.message_id
+                )));
+            }
+            if !message_ids.insert(message.message_id.as_str()) {
+                return Err(DevSeedError::Config(format!(
+                    "duplicate DM message '{}'",
+                    message.message_id
+                )));
+            }
+            if message.seq == 0 || !message_seqs.insert(message.seq) {
+                return Err(DevSeedError::Config(format!(
+                    "DM message '{}' requires positive unique seq",
+                    message.message_id
+                )));
+            }
+            if message.ciphertext.trim().is_empty() {
+                return Err(DevSeedError::Config(format!(
+                    "DM message '{}' requires ciphertext",
+                    message.message_id
+                )));
+            }
+            validate_timestamp(&message.created_at, "DM message created_at")?;
+            if let Some(edited_at) = &message.edited_at {
+                validate_timestamp(edited_at, "DM message edited_at")?;
+            }
         }
     }
 
     Ok(())
 }
 
-fn is_fixture_thread_id(thread_id: &str) -> bool {
+fn is_seedable_dm_thread_id(thread_id: &str) -> bool {
     thread_id.starts_with("fixture-") || thread_id.starts_with("dm-usr-test-")
 }
 
@@ -746,6 +1151,16 @@ fn validate_direct_endpoint_hint(endpoint_hint: &str) -> Result<(), DevSeedError
             "endpoint hint '{endpoint_hint}' must use direct tcp, udp, or quic transport only"
         )));
     }
+
+    Ok(())
+}
+
+fn validate_timestamp(value: &str, label: &str) -> Result<(), DevSeedError> {
+    chrono::DateTime::parse_from_rfc3339(value).map_err(|_| {
+        DevSeedError::Config(format!(
+            "{label} must be an RFC3339 timestamp, got '{value}'"
+        ))
+    })?;
 
     Ok(())
 }
@@ -911,6 +1326,242 @@ async fn seed_device(
     Ok(())
 }
 
+async fn seed_invite(
+    tx: &mut Transaction<'_, Postgres>,
+    invite: &InviteFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO invites (
+            invite_id,
+            token,
+            mode,
+            creator_identity_id,
+            node_fingerprint,
+            expires_at,
+            max_uses,
+            uses,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9::timestamptz)
+        ON CONFLICT (token) DO UPDATE
+        SET invite_id = EXCLUDED.invite_id,
+            mode = EXCLUDED.mode,
+            creator_identity_id = EXCLUDED.creator_identity_id,
+            node_fingerprint = EXCLUDED.node_fingerprint,
+            expires_at = EXCLUDED.expires_at,
+            max_uses = EXCLUDED.max_uses,
+            uses = EXCLUDED.uses,
+            created_at = EXCLUDED.created_at
+        ",
+    )
+    .bind(&invite.invite_id)
+    .bind(&invite.token_hash)
+    .bind(&invite.mode)
+    .bind(&invite.creator_identity_id)
+    .bind(&invite.node_fingerprint)
+    .bind(invite.expires_at.as_deref())
+    .bind(invite.max_uses)
+    .bind(invite.uses)
+    .bind(&invite.created_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_server(
+    tx: &mut Transaction<'_, Postgres>,
+    server: &ServerFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO servers (server_id, name, created_at)
+        VALUES ($1, $2, $3::timestamptz)
+        ON CONFLICT (server_id) DO UPDATE
+        SET name = EXCLUDED.name,
+            created_at = EXCLUDED.created_at
+        ",
+    )
+    .bind(&server.server_id)
+    .bind(&server.name)
+    .bind(&server.created_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_server_membership(
+    tx: &mut Transaction<'_, Postgres>,
+    membership: &ServerMembershipFixture,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO server_memberships (
+            server_id,
+            identity_id,
+            favorite,
+            muted,
+            unread_count,
+            joined_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        ON CONFLICT (server_id, identity_id) DO UPDATE
+        SET favorite = EXCLUDED.favorite,
+            muted = EXCLUDED.muted,
+            unread_count = EXCLUDED.unread_count,
+            joined_at = EXCLUDED.joined_at
+        ",
+    )
+    .bind(&membership.server_id)
+    .bind(&membership.identity_id)
+    .bind(membership.favorite)
+    .bind(membership.muted)
+    .bind(membership.unread_count)
+    .bind(&membership.joined_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_server_channel(
+    tx: &mut Transaction<'_, Postgres>,
+    channel: &ServerChannelFixture,
+) -> Result<(), sqlx::Error> {
+    prune_server_channel_fixture_rows(tx, &channel.channel_id).await?;
+
+    sqlx::query(
+        "
+        INSERT INTO server_channels (
+            channel_id,
+            server_id,
+            name,
+            kind,
+            last_message_seq,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        ON CONFLICT (channel_id) DO UPDATE
+        SET server_id = EXCLUDED.server_id,
+            name = EXCLUDED.name,
+            kind = EXCLUDED.kind,
+            last_message_seq = EXCLUDED.last_message_seq,
+            created_at = EXCLUDED.created_at
+        ",
+    )
+    .bind(&channel.channel_id)
+    .bind(&channel.server_id)
+    .bind(&channel.name)
+    .bind(&channel.kind)
+    .bind(
+        i64::try_from(channel.last_message_seq)
+            .map_err(|_| sqlx::Error::Protocol("last_message_seq too large for storage".into()))?,
+    )
+    .bind(&channel.created_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+async fn seed_server_channel_message(
+    tx: &mut Transaction<'_, Postgres>,
+    message: &ServerChannelMessageFixture,
+) -> Result<(), sqlx::Error> {
+    let channel_seq = i64::try_from(message.channel_seq)
+        .map_err(|_| sqlx::Error::Protocol("channel_seq too large for storage".into()))?;
+
+    sqlx::query(
+        "
+        UPDATE server_channels
+        SET last_message_seq = GREATEST(last_message_seq, $2)
+        WHERE channel_id = $1
+        ",
+    )
+    .bind(&message.channel_id)
+    .bind(channel_seq)
+    .execute(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "
+        INSERT INTO server_channel_messages (
+            message_id,
+            channel_id,
+            author_id,
+            channel_seq,
+            content,
+            reply_to_message_id,
+            created_at,
+            edited_at,
+            deleted_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz)
+        ON CONFLICT (message_id) DO UPDATE
+        SET channel_id = EXCLUDED.channel_id,
+            author_id = EXCLUDED.author_id,
+            channel_seq = EXCLUDED.channel_seq,
+            content = EXCLUDED.content,
+            reply_to_message_id = EXCLUDED.reply_to_message_id,
+            created_at = EXCLUDED.created_at,
+            edited_at = EXCLUDED.edited_at,
+            deleted_at = EXCLUDED.deleted_at
+        ",
+    )
+    .bind(&message.message_id)
+    .bind(&message.channel_id)
+    .bind(&message.author_id)
+    .bind(channel_seq)
+    .bind(&message.content)
+    .bind(message.reply_to_message_id.as_deref())
+    .bind(&message.created_at)
+    .bind(message.edited_at.as_deref())
+    .bind(message.deleted_at.as_deref())
+    .execute(&mut **tx)
+    .await?;
+
+    sqlx::query("DELETE FROM server_channel_message_mentions WHERE message_id = $1")
+        .bind(&message.message_id)
+        .execute(&mut **tx)
+        .await?;
+
+    for mentioned_identity_id in &message.mention_identity_ids {
+        sqlx::query(
+            "
+            INSERT INTO server_channel_message_mentions (message_id, mentioned_identity_id)
+            VALUES ($1, $2)
+            ON CONFLICT (message_id, mentioned_identity_id) DO NOTHING
+            ",
+        )
+        .bind(&message.message_id)
+        .bind(mentioned_identity_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn prune_server_channel_fixture_rows(
+    tx: &mut Transaction<'_, Postgres>,
+    channel_id: &str,
+) -> Result<(), sqlx::Error> {
+    if !channel_id.starts_with("fixture-channel-") {
+        return Err(sqlx::Error::Protocol(
+            "refusing to prune non-fixture server channel".into(),
+        ));
+    }
+
+    sqlx::query("DELETE FROM server_channel_messages WHERE channel_id = $1")
+        .bind(channel_id)
+        .execute(&mut **tx)
+        .await?;
+
+    Ok(())
+}
+
 async fn seed_dm_thread(
     tx: &mut Transaction<'_, Postgres>,
     thread: &DmThreadFixture,
@@ -985,21 +1636,28 @@ async fn prune_dm_thread_fixture_rows(
     tx: &mut Transaction<'_, Postgres>,
     thread_id: &str,
 ) -> Result<(), sqlx::Error> {
-    if !is_fixture_thread_id(thread_id) {
+    if !is_seedable_dm_thread_id(thread_id) {
         return Err(sqlx::Error::Protocol(
             "refusing to prune non-fixture DM thread".into(),
         ));
     }
 
-    sqlx::query("DELETE FROM dm_messages WHERE thread_id = $1")
-        .bind(thread_id)
-        .execute(&mut **tx)
-        .await?;
+    if thread_id.starts_with("fixture-") {
+        sqlx::query("DELETE FROM dm_messages WHERE thread_id = $1")
+            .bind(thread_id)
+            .execute(&mut **tx)
+            .await?;
 
-    sqlx::query("DELETE FROM dm_thread_participants WHERE thread_id = $1")
-        .bind(thread_id)
-        .execute(&mut **tx)
-        .await?;
+        sqlx::query("DELETE FROM dm_thread_participants WHERE thread_id = $1")
+            .bind(thread_id)
+            .execute(&mut **tx)
+            .await?;
+    } else {
+        sqlx::query("DELETE FROM dm_messages WHERE thread_id = $1 AND message_id LIKE 'fixture-%'")
+            .bind(thread_id)
+            .execute(&mut **tx)
+            .await?;
+    }
 
     Ok(())
 }
@@ -1015,6 +1673,20 @@ mod tests {
         .expect("parse dm-basic fixture")
     }
 
+    fn contacts_edge() -> SeedScenario {
+        serde_json::from_str(include_str!(
+            "../../../scripts/fixtures/scenarios/contacts-edge.json"
+        ))
+        .expect("parse contacts-edge fixture")
+    }
+
+    fn server_chat() -> SeedScenario {
+        serde_json::from_str(include_str!(
+            "../../../scripts/fixtures/scenarios/server-chat.json"
+        ))
+        .expect("parse server-chat fixture")
+    }
+
     #[test]
     fn parses_and_validates_dm_basic_fixture() {
         let scenario = dm_basic();
@@ -1026,6 +1698,33 @@ mod tests {
         assert_eq!(scenario.sessions.len(), 2);
         assert_eq!(scenario.dm_threads.len(), 1);
         assert_eq!(scenario.dm_threads[0].messages.len(), 5);
+    }
+
+    #[test]
+    fn parses_and_validates_contacts_edge_fixture() {
+        let scenario = contacts_edge();
+
+        validate_scenario(&scenario).expect("contacts-edge fixture validates");
+
+        assert_eq!(scenario.scenario_id, "contacts-edge");
+        assert_eq!(scenario.identities.len(), 3);
+        assert_eq!(scenario.sessions.len(), 3);
+        assert_eq!(scenario.friend_requests.len(), 2);
+        assert_eq!(scenario.invites.len(), 2);
+    }
+
+    #[test]
+    fn parses_and_validates_server_chat_fixture() {
+        let scenario = server_chat();
+
+        validate_scenario(&scenario).expect("server-chat fixture validates");
+
+        assert_eq!(scenario.scenario_id, "server-chat");
+        assert_eq!(scenario.identities.len(), 3);
+        assert_eq!(scenario.servers.len(), 1);
+        assert_eq!(scenario.server_memberships.len(), 3);
+        assert_eq!(scenario.server_channels.len(), 2);
+        assert_eq!(scenario.server_channel_messages.len(), 5);
     }
 
     #[test]
@@ -1104,7 +1803,44 @@ mod tests {
 
         let error = validate_scenario(&scenario).expect_err("non-fixture thread rejected");
 
-        assert!(error.to_string().contains("fixture-owned thread id"));
+        assert!(error.to_string().contains("fixture-compatible thread id"));
+    }
+
+    #[test]
+    fn rejects_dm_messages_from_non_participants() {
+        let mut scenario = dm_basic();
+        scenario.identities.push(IdentityFixture {
+            profile_id: "carol.pending".to_string(),
+            identity_id: "usr-test-carol".to_string(),
+            public_key: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                .to_string(),
+            algorithm: "ed25519".to_string(),
+        });
+        scenario.dm_threads[0].messages[0].author_id = "usr-test-carol".to_string();
+
+        let error = validate_scenario(&scenario).expect_err("non-participant author rejected");
+
+        assert!(error.to_string().contains("not a thread participant"));
+    }
+
+    #[test]
+    fn rejects_server_duplicate_channel_seq() {
+        let mut scenario = server_chat();
+        scenario.server_channel_messages[1].channel_seq = 1;
+
+        let error = validate_scenario(&scenario).expect_err("duplicate channel seq rejected");
+
+        assert!(error.to_string().contains("duplicates channel_seq"));
+    }
+
+    #[test]
+    fn rejects_invite_uses_above_max() {
+        let mut scenario = contacts_edge();
+        scenario.invites[0].uses = 2;
+
+        let error = validate_scenario(&scenario).expect_err("overused invite rejected");
+
+        assert!(error.to_string().contains("uses cannot exceed max_uses"));
     }
 
     #[test]

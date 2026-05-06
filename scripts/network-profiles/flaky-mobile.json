@@ -1,0 +1,23 @@
+{
+  "name": "flaky-mobile",
+  "description": "Use dev-only app fault hooks to approximate a flaky mobile connection on the selected runtime instance.",
+  "strategy": "app-fault",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "app_delay",
+      "target": "argument",
+      "delayMs": 200
+    },
+    {
+      "type": "app_drop",
+      "target": "argument",
+      "dropRate": 0.05
+    },
+    {
+      "type": "app_disconnect_after",
+      "target": "argument",
+      "seconds": 45
+    }
+  ]
+}

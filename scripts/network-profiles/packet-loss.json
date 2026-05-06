@@ -1,0 +1,13 @@
+{
+  "name": "packet-loss",
+  "description": "Apply Linux netem packet loss to the selected runtime instance.",
+  "strategy": "netem",
+  "supportedPlatforms": ["linux"],
+  "actions": [
+    {
+      "type": "packet_loss",
+      "target": "argument",
+      "lossPercent": 5
+    }
+  ]
+}

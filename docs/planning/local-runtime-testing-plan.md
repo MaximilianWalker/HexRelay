@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-06
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture-backed browser activation.
+- Latest meaningful change: 2026-05-06 completed the remaining PH-01 fixture scenarios and added the PH-05 network profile command layer.
 
 ## Organization Decision
 
@@ -47,9 +47,9 @@
 
 ## Current Repository Baseline
 
-- Root scripts currently expose `setup`, `seed`, `start`, `run`, `test`, and `security` through `package.json`.
-- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints the API, realtime, and web URLs.
-- Unix local startup is handled by `scripts/run.sh`; it currently uses env-loaded fixed ports and should be upgraded for runtime profile parity.
+- Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, tests, and security checks through `package.json`.
+- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
+- Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_endpoint_cards`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
@@ -377,6 +377,12 @@ npm run reset-dev-db -- --profile all --yes
 ./scripts/network.sh --reset
 ```
 
+```bash
+npm run network -- --profile offline-alice
+npm run network -- --profile partition-alice-bob
+npm run network -- --reset
+```
+
 ### Docker Network Controls
 
 - Use named Docker networks for runtime profile groups.
@@ -384,6 +390,7 @@ npm run reset-dev-db -- --profile all --yes
 - Use separate networks for partition simulation.
 - Keep reset commands deterministic and idempotent.
 - Record applied network profile state under `.local-run/network-state.json`.
+- Current `single`/`dual`/`triple` runtime profiles launch host processes, so Docker network actions fail safe for instance IDs until a target resolves to Docker container metadata or app-level fault injection handles host-process simulation.
 
 ### Linux `tc/netem`
 
@@ -476,11 +483,11 @@ npm run reset-dev-db -- --profile all --yes
 
 | Phase ID | Title | Objective | Status |
 |---|---|---|---|
-| PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | in_progress |
+| PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | done |
 | PH-02 | Seed/reset tooling | Add safe local seed and reset commands | done |
 | PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | done |
 | PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | done |
-| PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | ready |
+| PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | in_progress |
 | PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
 | PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
 
@@ -490,8 +497,8 @@ npm run reset-dev-db -- --profile all --yes
 |---|---|---|---|---|---|
 | PH-01-EP-01-ST-01-TK-01 | Define fixture catalog schema | `scripts/fixtures/`, seed command parser | Unit test parser | Schema supports profiles, identities, sessions, contacts, DM data, server data, and devices | done |
 | PH-01-EP-01-ST-01-TK-02 | Add `dm-basic` fixture profile | `scripts/fixtures/scenarios/dm-basic.json` | Seed dry run | Alice and Bob are DM-ready and documented | done |
-| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | Seed dry run | Pending and restricted states are reproducible | ready |
-| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | Seed dry run | Shared server, channels, memberships, and messages exist | ready |
+| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | `cargo test -p api-rs dev_seed`; seed dry run | Pending and restricted states are reproducible | done |
+| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | `cargo test -p api-rs dev_seed`; seed dry run | Shared server, channels, memberships, and messages exist | done |
 
 ### PH-02 Tasks
 
@@ -523,8 +530,8 @@ npm run reset-dev-db -- --profile all --yes
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/` | Parser tests | Normal, offline, partition, latency, and flaky profiles validate | ready |
-| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.ps1`, `scripts/network.sh` | Apply and reset offline/partition | Cross-platform disconnect and partition work | ready |
+| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/`, `scripts/validate-network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | in_progress |
 | PH-05-EP-01-ST-01-TK-03 | Add Linux `tc/netem` support | `scripts/network.sh` | Apply and reset latency/loss | Linux supports realistic shaping where permissions allow | ready |
 | PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/api-rs`, `services/realtime-rs` | Integration tests | Delay/drop/fail knobs work only in dev/test mode | ready |
 

@@ -19,6 +19,7 @@ Common entrypoints still include:
 - `scripts/run.sh`
 - `scripts/status.sh`
 - `scripts/stop.sh`
+- `scripts/network.sh`
 - `scripts/test.sh`
 
 Local runtime testing fixture and seed details live in
@@ -26,3 +27,8 @@ Local runtime testing fixture and seed details live in
 
 Runtime profile files live in `scripts/runtime-profiles/` and are validated with
 `npm run validate:runtime-profiles`.
+
+Network simulation profile files live in `scripts/network-profiles/` and are
+validated with `npm run validate:network-profiles`.
+Apply or reset network simulation state with `npm run network -- --profile <profile>`
+or `npm run network -- --reset`.

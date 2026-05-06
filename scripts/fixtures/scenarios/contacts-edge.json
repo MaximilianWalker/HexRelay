@@ -1,0 +1,102 @@
+{
+  "scenario_id": "contacts-edge",
+  "description": "Alice, Carol, and Dave contact edge cases with pending inbound/outbound requests, restrictive DM policy, and contact invite state.",
+  "identities": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "algorithm": "ed25519"
+    },
+    {
+      "profile_id": "carol.pending",
+      "identity_id": "usr-test-carol",
+      "public_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "algorithm": "ed25519"
+    },
+    {
+      "profile_id": "dave.restricted",
+      "identity_id": "usr-test-dave",
+      "public_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "algorithm": "ed25519"
+    }
+  ],
+  "sessions": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "session_id": "sess-test-alice-primary",
+      "expires_in_days": 30
+    },
+    {
+      "profile_id": "carol.pending",
+      "identity_id": "usr-test-carol",
+      "session_id": "sess-test-carol-pending",
+      "expires_in_days": 30
+    },
+    {
+      "profile_id": "dave.restricted",
+      "identity_id": "usr-test-dave",
+      "session_id": "sess-test-dave-restricted",
+      "expires_in_days": 30
+    }
+  ],
+  "friend_requests": [
+    {
+      "request_id": "fixture-fr-alice-carol-pending",
+      "requester_identity_id": "usr-test-alice",
+      "target_identity_id": "usr-test-carol",
+      "status": "pending"
+    },
+    {
+      "request_id": "fixture-fr-dave-alice-pending",
+      "requester_identity_id": "usr-test-dave",
+      "target_identity_id": "usr-test-alice",
+      "status": "pending"
+    }
+  ],
+  "dm_policies": [
+    {
+      "identity_id": "usr-test-alice",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "best_effort_online"
+    },
+    {
+      "identity_id": "usr-test-carol",
+      "inbound_policy": "same_server",
+      "offline_delivery_mode": "best_effort_online"
+    },
+    {
+      "identity_id": "usr-test-dave",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "best_effort_online"
+    }
+  ],
+  "endpoint_cards": [],
+  "devices": [],
+  "invites": [
+    {
+      "invite_id": "fixture-invite-alice-contact-active",
+      "token_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "mode": "one_time",
+      "creator_identity_id": "usr-test-alice",
+      "node_fingerprint": "dev-node-alice",
+      "expires_at": "2026-06-04T10:00:00Z",
+      "max_uses": 1,
+      "uses": 0,
+      "created_at": "2026-05-04T10:00:00Z"
+    },
+    {
+      "invite_id": "fixture-invite-carol-contact-exhausted",
+      "token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "mode": "multi_use",
+      "creator_identity_id": "usr-test-carol",
+      "node_fingerprint": "dev-node-carol",
+      "expires_at": "2026-06-04T10:00:00Z",
+      "max_uses": 2,
+      "uses": 2,
+      "created_at": "2026-05-04T10:05:00Z"
+    }
+  ],
+  "dm_threads": []
+}

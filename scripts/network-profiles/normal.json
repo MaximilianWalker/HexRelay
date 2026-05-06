@@ -1,0 +1,11 @@
+{
+  "name": "normal",
+  "description": "Reset network simulation state and restore normal local connectivity.",
+  "strategy": "reset",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "reset"
+    }
+  ]
+}

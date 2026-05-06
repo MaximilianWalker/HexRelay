@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-06
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 refreshed local runtime testing status after adding multi-instance runtime profiles.
+- Latest meaningful change: 2026-05-06 refreshed local runtime testing status after fixture scenario completion and network command support.
 
 ## Purpose
 

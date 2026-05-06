@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-06
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles with tracked status and stop commands.
+- Latest meaningful change: 2026-05-06 completed additional local fixture scenarios and added the network profile command layer.
 
 ## Project Stage
 
@@ -56,11 +56,13 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
 - One-command local startup via `npm run start -- --runtime-profile single` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
-- Seed the initial Alice/Bob local DM fixture with `npm run seed -- --profile dm-basic` after local Postgres is running.
+- Seed local fixture scenarios with `npm run seed -- --profile dm-basic`, `contacts-edge`, or `server-chat` after local Postgres is running.
 - Reset and reseed the local dev DB with `npm run reset-dev-db -- --profile dm-basic --yes`; this command refuses non-local DB targets.
 - Enable `API_ENABLE_DEV_TESTING=true` only in local development to expose fixture-backed testing profile/session endpoints, then use Settings -> Testing profiles in the web app to activate Alice/Bob sessions.
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
+- Validate network simulation profile definitions with `npm run validate:network-profiles`.
+- Reset network simulation state with `npm run network -- --reset`; Docker-backed profiles require container targets until host-process fault injection lands.
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`

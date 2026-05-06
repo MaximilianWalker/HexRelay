@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-06
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles and tracked status/stop scripts.
+- Latest meaningful change: 2026-05-06 completed remaining PH-01 local fixture scenarios and started PH-05 network command support.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-06 (local runtime testing fixture and network profile slice)
+
+- Area affected: Local fixture catalog, API seed tooling, network simulation profiles, and local runtime testing plan.
+- Change summary:
+  - Added `contacts-edge` and `server-chat` scenario fixtures for pending/restricted contact states, contact invites, shared servers, memberships, channels, mentions, and replies.
+  - Extended the dev seed parser and transactional seeding path for invite, server, membership, channel, and server channel message fixture data.
+  - Added bundled network simulation profile JSON files plus `npm run validate:network-profiles` for the PH-05 schema/validation slice.
+  - Added `npm run network` plus Windows and Unix wrappers for applying/resetting network profile state, with Docker container-target support and fail-safe handling for current host-process runtime instances.
+- Rationale:
+  - The remaining PH-01 scenarios unblock broader local exploratory testing, and PH-05 needs validated profile definitions before network apply/reset wrappers are added.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
 
 ### 2026-05-05 (local runtime testing multi-instance profiles)
 
