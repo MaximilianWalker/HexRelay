@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-11
+- last_updated: 2026-05-07
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-11 started `T4.1.4` web delivery by adding DM pairing API client support plus QR/share/import UI on the contacts surface.
+- Latest meaningful change: 2026-05-07 completed `T4.0.2` broader transport adapter rollout across DM direct, server-channel, and presence call paths.
 
 ## Iteration Scope
 
@@ -147,6 +147,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/v1/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` now owns the shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and execution evidence is recorded under `evidence/iteration-02/networking-layer/` |
+| T4.0.2 | Implement transport adapter boundaries (`DirectPeerTransport`, `NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` now exposes shared direct-peer and node-client dispatch bootstraps; DM preflight, successful parallel dial, and accepted active fanout route through direct-peer adapter boundaries; server-channel and presence dispatch route through node-client adapters without the prior current-thread presence bypass |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without guild server persistence; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | local working tree after PR #95 plus DM policy guardrail expansion | Runtime DM transport already routed direct-only and rejected non-direct profiles; CI guardrails now scan both DM runtime callsites and DM-related config/workflow surfaces so forbidden STUN/TURN/relay-style fallback terms fail before merge |
@@ -155,7 +156,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T4.0.2 | Implement transport adapter boundaries (`DirectPeerTransport`, `NodeClientTransport`) | In progress | The current production node-client send paths for presence and server-channel dispatch now use a shared `DispatchingNodeClientTransport` plus centralized `UnsupportedDirectPeerTransport` from `communication-core`; remaining work is broader adapter rollout beyond the currently exercised node-client paths |
 | T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/short-code bootstrap | In progress | Backend pairing envelope/signature/replay-expiry flow was already delivered; web now has DM pairing API methods, link parsing, QR/short-code share UI, and envelope import UI on the contacts surface, with remaining work focused on polish and any broader UX integration beyond this first coherent slice |
 
 ## Suggested Sprint Sequencing

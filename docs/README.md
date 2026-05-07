@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed PH-07 local runtime testing documentation, troubleshooting, and evidence adoption routing.
+- Latest meaningful change: 2026-05-07 completed `T4.0.2` transport adapter rollout documentation and runtime REST error inventory updates.
 
 ## Purpose
 

@@ -92,32 +92,37 @@ struct OwnedPresenceEdgeDispatchRequest {
 #[derive(Clone)]
 struct LocalPresenceDispatchSender {
     state: AppState,
+    runtime_handle: tokio::runtime::Handle,
 }
 
 impl NodeDispatch for LocalPresenceDispatchSender {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
         let dispatch = PresenceNodeDispatch::from_payload(payload)?;
         let state = self.state.clone();
-        let handle =
-            tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
+        let handle = self.runtime_handle.clone();
         let identity_id = dispatch.identity_id.clone();
         let online = dispatch.online;
 
         let result = match handle.runtime_flavor() {
-            tokio::runtime::RuntimeFlavor::CurrentThread => std::thread::spawn(move || {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|_| TransportError::SendFailed)?
-                    .block_on(async move {
-                        dispatch
-                            .publish(&state)
-                            .await
-                            .map_err(|_| TransportError::SendFailed)
-                    })
-            })
-            .join()
-            .map_err(|_| TransportError::SendFailed)?,
+            tokio::runtime::RuntimeFlavor::CurrentThread => {
+                let log_identity_id = identity_id.clone();
+                let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+                handle.spawn(async move {
+                    let result = dispatch
+                        .publish(&state)
+                        .await
+                        .map_err(|_| TransportError::SendFailed);
+                    if result.is_err() {
+                        warn!(
+                            identity_id = %log_identity_id,
+                            online,
+                            "NodeClientTransport presence dispatch failed"
+                        );
+                    }
+                    let _ = result_tx.send(result);
+                });
+                result_rx.recv().map_err(|_| TransportError::SendFailed)?
+            }
             tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(move || {
                 handle.block_on(async move {
                     dispatch
@@ -328,13 +333,8 @@ async fn dispatch_presence_edge(
     identity_id: &str,
     online: bool,
 ) -> Result<(), String> {
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread => {
-            return publish_presence_edge_direct(state, identity_id, online).await;
-        }
-        Ok(_) | Err(_) => {}
-    }
-
+    let runtime_handle = tokio::runtime::Handle::try_current()
+        .map_err(|error| format!("runtime handle: {error}"))?;
     let payload = serde_json::to_vec(&PresenceDispatchEnvelope::Edge(
         PresenceEdgeDispatchRequest {
             identity_id,
@@ -343,15 +343,32 @@ async fn dispatch_presence_edge(
     ))
     .map_err(|error| format!("encode presence dispatch payload: {error}"))?;
 
-    send_via_node_dispatch(
-        CommunicationMode::Presence,
-        communication_core::PolicyContext::default(),
-        LocalPresenceDispatchSender {
-            state: state.clone(),
-        },
-        payload,
-    )
-    .map_err(|error| {
+    let dispatch = LocalPresenceDispatchSender {
+        state: state.clone(),
+        runtime_handle: runtime_handle.clone(),
+    };
+    let result = if runtime_handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
+    {
+        tokio::task::spawn_blocking(move || {
+            send_via_node_dispatch(
+                CommunicationMode::Presence,
+                communication_core::PolicyContext::default(),
+                dispatch,
+                payload,
+            )
+        })
+        .await
+        .map_err(|error| format!("dispatch presence event join: {error}"))?
+    } else {
+        send_via_node_dispatch(
+            CommunicationMode::Presence,
+            communication_core::PolicyContext::default(),
+            dispatch,
+            payload,
+        )
+    };
+
+    result.map_err(|error| {
         format!(
             "dispatch presence event via NodeClientTransport: {:?}",
             error.code
@@ -720,8 +737,8 @@ mod tests {
         format!("http://{}", addr)
     }
 
-    #[tokio::test]
-    async fn publish_presence_edge_is_noop_without_redis() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn presence_edge_dispatch_uses_node_adapter_without_redis_on_current_thread() {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],

@@ -17,7 +17,9 @@ info:
     structured allow/deny/failure logs for node-owner debugging without changing
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
-    adapter boundary without changing REST route or payload contracts.
+    adapter boundary without changing REST route or payload contracts. DM direct
+    readiness and accepted fanout paths assert the shared direct-peer adapter
+    boundary while preserving direct-only response semantics.
 servers:
   - url: https://api.hexrelay.local
 paths:
@@ -4230,6 +4232,7 @@ components:
             - profile_device_invalid
             - fanout_invalid
             - fanout_message_id_conflict
+            - dm_direct_transport_unavailable
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied
