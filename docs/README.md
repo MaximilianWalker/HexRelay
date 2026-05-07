@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed PH-05 Docker runtime, Toxiproxy, app-fault, and runtime smoke coverage for local network simulation.
+- Latest meaningful change: 2026-05-07 completed PH-06 local runtime validation, network reset smoke entrypoints, and optional smoke evidence coverage.
 
 ## Purpose
 
