@@ -37,6 +37,7 @@ describe("personas", () => {
     });
 
     (globalThis as { window?: unknown }).window = {
+      dispatchEvent: vi.fn(() => true),
       localStorage: new MemoryStorage(),
       sessionStorage: new MemoryStorage(),
     };
@@ -53,6 +54,7 @@ describe("personas", () => {
     expect(readActivePersonaId()).toBeNull();
 
     (globalThis as { window?: unknown }).window = {
+      dispatchEvent: vi.fn(() => true),
       localStorage: new MemoryStorage(),
       sessionStorage: new MemoryStorage(),
     };
@@ -116,6 +118,30 @@ describe("personas", () => {
     });
     expect(readPersonas()).toEqual([second]);
     expect(readActivePersonaId()).toBe("usr-test-alice");
+  });
+
+  it("uses fixture persona id as fallback name and emits preference events", () => {
+    const windowRef = globalThis.window as {
+      dispatchEvent: (event: Event) => boolean;
+    };
+    const dispatchEvent = vi.spyOn(windowRef, "dispatchEvent");
+
+    const created = upsertPersona({ id: "usr-test-alice", name: "   " });
+    switchPersona(created.id);
+    removePersona(created.id);
+
+    expect(created).toEqual({
+      id: "usr-test-alice",
+      name: "usr-test-alice",
+      createdAt: "2026-04-10T00:00:01Z",
+      lastSelectedAt: "2026-04-10T00:00:01Z",
+    });
+    expect(dispatchEvent).toHaveBeenCalledTimes(3);
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      "hexrelay-ui-preferences-changed",
+      "hexrelay-ui-preferences-changed",
+      "hexrelay-ui-preferences-changed",
+    ]);
   });
 
   it("removes inactive personas without disturbing the active selection", () => {

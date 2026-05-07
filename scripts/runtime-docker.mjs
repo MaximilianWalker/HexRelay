@@ -104,7 +104,7 @@ const toxiproxyProxies = [
 ];
 
 function usage() {
-  return "Usage: runtime-docker.mjs up|down|status|smoke [--seed-profile dm-basic] [--json] [--force]";
+  return "Usage: runtime-docker.mjs up|down|status|smoke [--seed-profile dm-basic] [--scope all|runtime|network] [--evidence-dir path] [--json] [--force]";
 }
 
 function logInfo(message) {
@@ -119,6 +119,8 @@ function parseArgs(args) {
   const options = {
     command: "status",
     seedProfile: "",
+    scope: "all",
+    evidenceDir: "",
     json: false,
     force: false,
     help: false,
@@ -136,6 +138,17 @@ function parseArgs(args) {
       case "--seed-profile":
       case "-SeedProfile":
         options.seedProfile = requireValue(args, ++index, arg);
+        break;
+      case "--scope":
+      case "-Scope":
+        options.scope = requireValue(args, ++index, arg);
+        if (!["all", "runtime", "network"].includes(options.scope)) {
+          throw new Error(`${arg} must be one of: all, runtime, network`);
+        }
+        break;
+      case "--evidence-dir":
+      case "-EvidenceDir":
+        options.evidenceDir = requireValue(args, ++index, arg);
         break;
       case "--json":
       case "-Json":
@@ -171,6 +184,71 @@ function readJsonIfExists(filePath) {
     return null;
   }
   return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+}
+
+function resolveEvidenceDir(evidenceDir) {
+  if (!evidenceDir) {
+    return "";
+  }
+  return path.resolve(root, evidenceDir);
+}
+
+function prepareEvidenceDir(evidenceDir) {
+  if (!evidenceDir) {
+    return;
+  }
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  for (const fileName of [
+    "scenario-config.json",
+    "runtime-status-before.json",
+    "runtime-status-after.json",
+    "event-log.ndjson",
+    "verdict.md",
+  ]) {
+    fs.rmSync(path.join(evidenceDir, fileName), { force: true, recursive: true });
+  }
+}
+
+function writeEvidenceJson(evidenceDir, fileName, value) {
+  if (!evidenceDir) {
+    return;
+  }
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  fs.writeFileSync(path.join(evidenceDir, fileName), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function appendEvidenceEvent(evidenceDir, event) {
+  if (!evidenceDir) {
+    return;
+  }
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  fs.appendFileSync(
+    path.join(evidenceDir, "event-log.ndjson"),
+    `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`,
+  );
+}
+
+function writeEvidenceVerdict(evidenceDir, status, error = null) {
+  if (!evidenceDir) {
+    return;
+  }
+  const lines = [
+    `# Runtime Docker Smoke Verdict`,
+    "",
+    `- status: ${status}`,
+    `- completed_at: ${new Date().toISOString()}`,
+  ];
+  if (error) {
+    lines.push(`- error: ${error.message}`);
+  }
+  fs.writeFileSync(path.join(evidenceDir, "verdict.md"), `${lines.join("\n")}\n`);
+}
+
+async function writeRuntimeStatusEvidence(evidenceDir, fileName) {
+  if (!evidenceDir) {
+    return;
+  }
+  writeEvidenceJson(evidenceDir, fileName, await status());
 }
 
 function hasLiveHostProcesses(state) {
@@ -713,8 +791,15 @@ function printResult(result, json) {
     console.log("[runtime-docker] Docker runtime test stack stopped.");
   } else if (result.status === "inactive") {
     console.log("[runtime-docker] Docker runtime test stack is not active.");
+  } else if (result.status === "runtime-smoke-passed") {
+    console.log("[runtime-docker] Runtime health smoke passed.");
+  } else if (result.status === "network-smoke-passed") {
+    console.log("[runtime-docker] Runtime network smoke passed.");
   } else if (result.status === "smoke-passed") {
     console.log("[runtime-docker] Runtime Docker smoke passed.");
+  }
+  if (result.evidenceDir) {
+    console.log(`[runtime-docker] Evidence: ${result.evidenceDir}`);
   }
 }
 
@@ -805,48 +890,117 @@ async function status() {
 }
 
 async function smoke(options) {
+  const scope = options.scope || "all";
+  const evidenceDir = resolveEvidenceDir(options.evidenceDir);
+  prepareEvidenceDir(evidenceDir);
+  writeEvidenceJson(evidenceDir, "scenario-config.json", {
+    scope,
+    seedProfile: options.seedProfile || "dm-basic",
+    runtimeProfile: "docker-dual",
+    profiles: scope === "runtime"
+      ? []
+      : ["offline-alice", "partition-alice-bob", "high-latency", "packet-loss", "flaky-mobile"],
+    startedAt: new Date().toISOString(),
+  });
+
+  let result = null;
+  let smokeError = null;
   try {
     await up({ ...options, seedProfile: options.seedProfile || "dm-basic" });
+    await writeRuntimeStatusEvidence(evidenceDir, "runtime-status-before.json");
     assertPeerReachability(true, "baseline");
     assertToxiproxyPeerReachability(true, "baseline");
-    const offlineApply = runNetworkJson(["--profile", "offline-alice"]);
-    assertPeerReachability(false, "offline-alice");
-    const offlineReset = runNetworkJson(["--reset"]);
-    assertOfflineSmoke(offlineApply, offlineReset);
-    await waitForStack();
-    assertPeerReachability(true, "offline reset");
-    const partitionApply = runNetworkJson(["--profile", "partition-alice-bob"]);
-    assertPeerReachability(false, "partition-alice-bob");
-    const partitionReset = runNetworkJson(["--reset"]);
-    assertPartitionSmoke(partitionApply, partitionReset);
-    await waitForStack();
-    assertPeerReachability(true, "partition reset");
-    assertToxiproxyPeerReachability(true, "partition reset");
-    const latencyApply = runNetworkJson(["--profile", "high-latency", "--target", "alice-node"]);
-    assertToxiproxyLatency("alice-node", 150);
-    const latencyReset = runNetworkJson(["--reset"]);
-    assertToxiproxyLatencySmoke(latencyApply, latencyReset);
-    await assertToxiproxyNoToxics("alice-node", "latency reset");
-    await waitForStack();
-    assertToxiproxyPeerReachability(true, "latency reset");
-    const timeoutApply = runNetworkJson(["--profile", "packet-loss", "--target", "alice-node"]);
-    assertToxiproxyBlocked("alice-node", "packet-loss");
-    const timeoutReset = runNetworkJson(["--reset"]);
-    assertToxiproxyTimeoutSmoke(timeoutApply, timeoutReset);
-    await assertToxiproxyNoToxics("alice-node", "timeout reset");
-    await waitForStack();
-    assertToxiproxyPeerReachability(true, "timeout reset");
-    const appFaultApply = runNetworkJson(["--profile", "flaky-mobile", "--target", "alice-node"]);
-    const appFaultReset = runNetworkJson(["--reset"]);
-    assertAppFaultSmoke(appFaultApply, appFaultReset);
-    await waitForStack();
-    return { status: "smoke-passed" };
+    appendEvidenceEvent(evidenceDir, { type: "observe", phase: "baseline", check: "peer-reachability", reachable: true });
+    appendEvidenceEvent(evidenceDir, { type: "observe", phase: "baseline", check: "toxiproxy-peer-reachability", reachable: true });
+
+    if (scope === "runtime") {
+      await writeRuntimeStatusEvidence(evidenceDir, "runtime-status-after.json");
+      result = {
+        status: "runtime-smoke-passed",
+        evidenceDir: evidenceDir ? path.relative(root, evidenceDir) : undefined,
+      };
+    } else {
+      const offlineApply = runNetworkJson(["--profile", "offline-alice"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "offline-alice", result: offlineApply });
+      assertPeerReachability(false, "offline-alice");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "offline-alice", check: "peer-reachability", reachable: false });
+      const offlineReset = runNetworkJson(["--reset"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "offline-alice", result: offlineReset });
+      assertOfflineSmoke(offlineApply, offlineReset);
+      await waitForStack();
+      assertPeerReachability(true, "offline reset");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "offline-alice", phase: "reset", check: "peer-reachability", reachable: true });
+      const partitionApply = runNetworkJson(["--profile", "partition-alice-bob"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "partition-alice-bob", result: partitionApply });
+      assertPeerReachability(false, "partition-alice-bob");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "partition-alice-bob", check: "peer-reachability", reachable: false });
+      const partitionReset = runNetworkJson(["--reset"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "partition-alice-bob", result: partitionReset });
+      assertPartitionSmoke(partitionApply, partitionReset);
+      await waitForStack();
+      assertPeerReachability(true, "partition reset");
+      assertToxiproxyPeerReachability(true, "partition reset");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "partition-alice-bob", phase: "reset", check: "peer-reachability", reachable: true });
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "partition-alice-bob", phase: "reset", check: "toxiproxy-peer-reachability", reachable: true });
+      const latencyApply = runNetworkJson(["--profile", "high-latency", "--target", "alice-node"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "high-latency", result: latencyApply });
+      assertToxiproxyLatency("alice-node", 150);
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "high-latency", check: "toxiproxy-latency", target: "alice-node", minimumMs: 150 });
+      const latencyReset = runNetworkJson(["--reset"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "high-latency", result: latencyReset });
+      assertToxiproxyLatencySmoke(latencyApply, latencyReset);
+      await assertToxiproxyNoToxics("alice-node", "latency reset");
+      await waitForStack();
+      assertToxiproxyPeerReachability(true, "latency reset");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "high-latency", phase: "reset", check: "toxiproxy-clear-and-reachability", reachable: true });
+      const timeoutApply = runNetworkJson(["--profile", "packet-loss", "--target", "alice-node"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "packet-loss", result: timeoutApply });
+      assertToxiproxyBlocked("alice-node", "packet-loss");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "packet-loss", check: "toxiproxy-blocked", target: "alice-node" });
+      const timeoutReset = runNetworkJson(["--reset"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "packet-loss", result: timeoutReset });
+      assertToxiproxyTimeoutSmoke(timeoutApply, timeoutReset);
+      await assertToxiproxyNoToxics("alice-node", "timeout reset");
+      await waitForStack();
+      assertToxiproxyPeerReachability(true, "timeout reset");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "packet-loss", phase: "reset", check: "toxiproxy-clear-and-reachability", reachable: true });
+      const appFaultApply = runNetworkJson(["--profile", "flaky-mobile", "--target", "alice-node"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "flaky-mobile", result: appFaultApply });
+      const appFaultReset = runNetworkJson(["--reset"]);
+      appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "flaky-mobile", result: appFaultReset });
+      assertAppFaultSmoke(appFaultApply, appFaultReset);
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "flaky-mobile", phase: "reset", check: "app-fault-clear" });
+      await waitForStack();
+      await writeRuntimeStatusEvidence(evidenceDir, "runtime-status-after.json");
+      result = {
+        status: scope === "network" ? "network-smoke-passed" : "smoke-passed",
+        evidenceDir: evidenceDir ? path.relative(root, evidenceDir) : undefined,
+      };
+    }
   } catch (error) {
+    smokeError = error;
     compose(["logs", "--tail", "80", "toxiproxy", "alice-api", "alice-realtime", "bob-api", "bob-realtime", "alice-web", "bob-web"], { allowFailure: true });
-    throw error;
-  } finally {
-    down({ force: true });
   }
+
+  let cleanupError = null;
+  try {
+    down({ force: true });
+  } catch (error) {
+    cleanupError = error;
+  }
+
+  if (smokeError || cleanupError) {
+    const error = smokeError && cleanupError
+      ? new Error(`${smokeError.message}; cleanup failed: ${cleanupError.message}`)
+      : smokeError || cleanupError;
+    appendEvidenceEvent(evidenceDir, { type: "verdict", status: "fail", error: error.message });
+    writeEvidenceVerdict(evidenceDir, "fail", error);
+    throw error;
+  }
+
+  appendEvidenceEvent(evidenceDir, { type: "verdict", status: "pass" });
+  writeEvidenceVerdict(evidenceDir, "pass");
+  return result;
 }
 
 async function main() {
