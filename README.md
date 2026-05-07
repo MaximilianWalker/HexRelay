@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-06
+- last_updated: 2026-05-07
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-06 completed additional local fixture scenarios and added the network profile command layer.
+- Latest meaningful change: 2026-05-07 added release packaging guidance for Windows/Linux desktop artifacts, dedicated-server packages, and signing expectations.
 
 ## Project Stage
 
@@ -40,6 +40,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Dedicated server deployment baseline: `docs/operations/02-dedicated-server-deployment.md`
+- Release packaging and artifact model: `docs/operations/03-release-packaging.md`
 - Sprint execution boards index: `docs/planning/iterations/README.md`
 
 ## Getting Started

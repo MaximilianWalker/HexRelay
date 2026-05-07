@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-05-07
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-06 clarified MVP DM reliability requirements around durable acceptance, bounded eventual catch-up, and reachability degradation.
+- Latest meaningful change: 2026-05-07 summarized Windows/Linux release parity and desktop/server packaging boundaries.
 
 ## Product Summary
 
@@ -24,11 +24,13 @@ HexRelay is an open-source, self-hostable communication platform with a modern D
 ## Runtime and Deployment Model
 
 - Primary product target is a downloadable desktop app that can run off-grid.
-- Desktop distribution bundles UI with local API and realtime runtime components.
+- Windows and Linux are both first-class desktop release targets.
+- Desktop distribution uses Tauri by default and bundles UI with local API and realtime runtime components.
 - Local runtime allows UI launch either inside desktop shell or in a local browser session on localhost.
-- Dedicated server deployments are supported as an optional operator mode.
+- Dedicated server deployments are supported as a separate optional operator service/package mode.
 - Browser-only hosted usage is a compatibility mode, not the core product assumption.
 - Runtime term mapping is canonical in `docs/reference/glossary.md`.
+- Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
 
 ## Vision
 
@@ -226,7 +228,7 @@ Build a communication stack where users and communities control identity, data l
 
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
-- Infra: PostgreSQL, Redis, S3-compatible storage, WebRTC + coturn.
+- Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
 - Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS.
 
 ## Success Metrics (MVP)
@@ -247,6 +249,7 @@ Build a communication stack where users and communities control identity, data l
 
 - Master plan: `docs/product/01-mvp-plan.md`
 - Iteration boards index: `docs/planning/iterations/README.md`
+- Release packaging: `docs/operations/03-release-packaging.md`
 - DM connectivity proposals: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - DM connectivity execution plan: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
@@ -258,4 +261,5 @@ Build a communication stack where users and communities control identity, data l
 - `docs/product/04-dependencies-risks.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+- `docs/operations/03-release-packaging.md`
 - `docs/reference/glossary.md`

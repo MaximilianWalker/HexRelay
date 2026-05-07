@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-06
+- last_updated: 2026-05-07
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-06 completed remaining PH-01 local fixture scenarios and started PH-05 network command support.
+- Latest meaningful change: 2026-05-07 recorded release packaging direction for Windows/Linux desktop, dedicated server, and signing.
 
 ## Purpose
 
@@ -29,6 +29,24 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (release packaging direction)
+
+- Area affected: Release packaging, runtime deployment modes, dedicated-server deployment guidance, and MVP runtime planning.
+- Change summary:
+  - Added the canonical release packaging authority for Windows/Linux desktop artifacts, dedicated-server artifacts, and code signing expectations.
+  - Locked Tauri as the default desktop shell for release planning unless a later explicit decision replaces it.
+  - Clarified that dedicated server mode is a separate service/package family and is not bundled by default into the desktop installer.
+- Rationale:
+  - MVP-end release planning needs deterministic artifact boundaries so desktop users, operators, and future CI packaging work do not drift into mixed installer/service assumptions.
+- Linked docs updated:
+  - `docs/operations/03-release-packaging.md`
+  - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+  - `docs/operations/02-dedicated-server-deployment.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/README.md`
+  - `docs/operations/README.md`
 
 ### 2026-05-06 (local runtime testing fixture and network profile slice)
 

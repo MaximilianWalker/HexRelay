@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-06
+- last_updated: 2026-05-07
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-06 refreshed local runtime testing status after fixture scenario completion and network command support.
+- Latest meaningful change: 2026-05-07 added the release packaging authority for desktop/server artifacts and signing expectations.
 
 ## Purpose
 
@@ -53,6 +53,7 @@
 | Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, DM/server transport divergence, or networking rollout phases change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, remote smoke, or deployment-scope assumptions change |
+| Release packaging and artifact model | `docs/operations/03-release-packaging.md` | Platform maintainers | Supported release targets, desktop/server artifact boundaries, installer formats, or signing expectations change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |
@@ -114,6 +115,7 @@
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/02-dedicated-server-deployment.md`
+- `docs/operations/03-release-packaging.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
 - `docs/reference/runtime-config-reference.md`

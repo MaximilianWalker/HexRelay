@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-04
+- last_updated: 2026-05-07
 - Source of truth: `docs/operations/README.md`
 
 ## Quick Context
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-05-04 linked the local runtime testing plan so future seed, multi-instance, and network simulation runbooks have one planning authority.
+- Latest meaningful change: 2026-05-07 added release packaging as the authority for desktop/server artifacts and signing expectations.
 
 ## Purpose
 
@@ -28,6 +28,7 @@
 - Contributor workflow: `docs/operations/contributor-guide.md`
 - MVP runbook: `docs/operations/01-mvp-runbook.md`
 - Dedicated server deployment: `docs/operations/02-dedicated-server-deployment.md`
+- Release packaging: `docs/operations/03-release-packaging.md`
 - Development prerequisites: `docs/operations/dev-prerequisites.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Local runtime testing plan: `docs/planning/local-runtime-testing-plan.md`
