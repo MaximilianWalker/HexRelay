@@ -288,15 +288,44 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    const REALTIME_ENV_KEYS: &[&str] = &[
+        "REALTIME_ENVIRONMENT",
+        "REALTIME_BIND",
+        "REALTIME_API_BASE_URL",
+        "REALTIME_ALLOWED_ORIGINS",
+        "REALTIME_REQUIRE_API_HEALTH_ON_START",
+        "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+        "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+        "REALTIME_PRESENCE_REDIS_URL",
+        "REALTIME_TRUST_PROXY_HEADERS",
+        "REALTIME_ENABLE_DEV_FAULTS",
+        "REALTIME_WS_CONNECT_RATE_LIMIT",
+        "REALTIME_RATE_LIMIT_WINDOW_SECONDS",
+        "REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES",
+        "REALTIME_WS_MESSAGE_RATE_LIMIT",
+        "REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS",
+        "REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY",
+        "REALTIME_WS_AUTH_GRACE_SECONDS",
+        "REALTIME_WS_AUTH_CACHE_MAX_ENTRIES",
+    ];
+
     fn with_realtime_env<F>(pairs: &[(&str, Option<&str>)], f: F)
     where
         F: FnOnce(),
     {
-        let _guard = env_lock().lock().expect("acquire env test lock");
-        let previous = pairs
+        let guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous = REALTIME_ENV_KEYS
             .iter()
-            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
             .collect::<Vec<_>>();
+
+        for key in REALTIME_ENV_KEYS {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
 
         for (key, value) in pairs {
             match value {
@@ -309,7 +338,7 @@ mod tests {
             }
         }
 
-        f();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
         for (key, value) in previous {
             if let Some(value) = value {
@@ -321,6 +350,12 @@ mod tests {
                     std::env::remove_var(key);
                 }
             }
+        }
+
+        drop(guard);
+
+        if let Err(payload) = result {
+            std::panic::resume_unwind(payload);
         }
     }
 

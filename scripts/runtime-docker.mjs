@@ -576,7 +576,40 @@ function assertAppFaultSmoke(applyResult, resetResult) {
 }
 
 function restoreStableNextEnv() {
-  fs.writeFileSync(nextEnvPath, stableNextEnv);
+  try {
+    fs.writeFileSync(nextEnvPath, stableNextEnv);
+  } catch (error) {
+    if (error?.code !== "EACCES" && error?.code !== "EPERM") {
+      throw error;
+    }
+    if (!repairNextEnvOwnership()) {
+      throw error;
+    }
+    fs.writeFileSync(nextEnvPath, stableNextEnv);
+  }
+}
+
+function repairNextEnvOwnership() {
+  if (process.platform === "win32" || typeof process.getuid !== "function" || typeof process.getgid !== "function") {
+    return false;
+  }
+
+  const uid = process.getuid();
+  const gid = process.getgid();
+  const result = docker(
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${root}:/workspace`,
+      "alpine:3.20",
+      "sh",
+      "-c",
+      `chown ${uid}:${gid} /workspace/apps/web/next-env.d.ts 2>/dev/null || chmod a+rw /workspace/apps/web/next-env.d.ts`,
+    ],
+    { allowFailure: true, capture: true },
+  );
+  return result.status === 0;
 }
 
 function dockerVolumeLabels(volumeName) {
