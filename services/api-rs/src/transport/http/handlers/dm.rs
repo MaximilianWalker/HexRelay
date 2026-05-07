@@ -5,6 +5,10 @@ use axum::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
+use communication_core::{
+    connect_via_direct_peer, send_via_direct_peer_dispatch, ConnectTarget, DirectPeerDispatch,
+    PolicyContext, TransportError,
+};
 use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -45,6 +49,43 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
+
+// API DM endpoints assert the direct-peer route for server-side acceptance metadata;
+// actual peer I/O remains client-owned.
+struct NoopDirectPeerDispatch;
+
+impl DirectPeerDispatch for NoopDirectPeerDispatch {
+    fn send_payload(&self, _payload: &[u8]) -> Result<(), TransportError> {
+        Ok(())
+    }
+}
+
+fn connect_dm_direct_peer(peer_identity_id: &str) -> ApiResult<()> {
+    connect_via_direct_peer(
+        PolicyContext::default(),
+        NoopDirectPeerDispatch,
+        ConnectTarget::PeerIdentity {
+            identity_id: peer_identity_id.to_string(),
+        },
+    )
+    .map(|_| ())
+    .map_err(|_| {
+        internal_error(
+            "dm_direct_transport_unavailable",
+            "direct dm transport adapter rejected connection",
+        )
+    })
+}
+
+fn send_dm_direct_payload(payload: Vec<u8>) -> ApiResult<()> {
+    send_via_direct_peer_dispatch(PolicyContext::default(), NoopDirectPeerDispatch, payload)
+        .map_err(|_| {
+            internal_error(
+                "dm_direct_transport_unavailable",
+                "direct dm transport adapter rejected payload",
+            )
+        })
+}
 
 #[derive(Serialize, Deserialize)]
 struct PairingEnvelopeClaims {
@@ -300,6 +341,7 @@ pub async fn dm_connectivity_preflight(
 
     if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
         if has_fresh_lan_peer(&state, peer_identity_id, Utc::now().timestamp()) {
+            connect_dm_direct_peer(peer_identity_id)?;
             return Ok(Json(DmConnectivityPreflightResponse {
                 status: "ready".to_string(),
                 reason_code: "preflight_ok_lan".to_string(),
@@ -309,6 +351,10 @@ pub async fn dm_connectivity_preflight(
                 ],
             }));
         }
+    }
+
+    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
+        connect_dm_direct_peer(peer_identity_id)?;
     }
 
     Ok(Json(DmConnectivityPreflightResponse {
@@ -778,6 +824,8 @@ pub async fn run_dm_parallel_dial(
             }
         }
 
+        connect_dm_direct_peer(&peer_identity_id)?;
+
         return Ok(Json(DmParallelDialResponse {
             status: "ready".to_string(),
             reason_code: "parallel_dial_connected".to_string(),
@@ -986,6 +1034,8 @@ pub async fn run_dm_active_fanout(
             "fanout_ok".to_string(),
         )
     };
+
+    send_dm_direct_payload(payload.ciphertext.as_bytes().to_vec())?;
 
     let mut tx = pool.begin().await.map_err(|_| {
         internal_error(

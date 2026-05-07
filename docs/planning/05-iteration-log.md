@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 completed PH-07 local runtime documentation and adoption closeout.
+- Latest meaningful change: 2026-05-07 completed `T4.0.2` broader transport adapter rollout.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (T4.0.2 transport adapter rollout closeout)
+
+- Area affected: Shared communication transport adapters, DM direct runtime paths, server-channel dispatch, and presence dispatch.
+- Change summary:
+  - Added shared direct-peer dispatch bootstraps in `communication-core` alongside the existing node-client dispatch bootstrap.
+  - Routed ready DM preflight, successful DM parallel dial, and accepted DM active fanout through direct-peer adapter boundaries while preserving direct-only response semantics.
+  - Removed the outer current-thread presence bypass so presence edge dispatch consistently enters `NodeClientTransport`; the current-thread workaround now remains inside the local dispatch sender.
+  - Expanded adapter conformance coverage for direct-peer send/connect and reran DM, presence, clippy, formatting, and direct-only policy validations.
+- Rationale:
+  - `T4.0.2` acceptance requires existing call paths to route through adapter interfaces without behavior regression; the remaining gaps were DM direct paths and a presence runtime bypass around the node-client adapter.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-07 (PH-07 local runtime documentation and adoption closeout)
 

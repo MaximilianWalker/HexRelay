@@ -9,8 +9,9 @@ use crate::domain::{
     SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{
-    send_via_node_dispatch, DirectPeerTransport, DispatchingNodeClientTransport,
-    NodeClientTransport, NodeDispatch, TransportError,
+    connect_via_direct_peer, send_via_direct_peer_dispatch, send_via_node_dispatch,
+    DirectPeerDispatch, DirectPeerTransport, DispatchingDirectPeerTransport,
+    DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch, TransportError,
 };
 
 #[derive(Clone)]
@@ -103,6 +104,20 @@ impl DirectPeerTransport for FailingDirectPeer {
     }
 }
 
+struct RecordingDirectDispatch {
+    payloads: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+}
+
+impl DirectPeerDispatch for RecordingDirectDispatch {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        self.payloads
+            .lock()
+            .expect("acquire direct payload lock")
+            .push(payload.to_vec());
+        Ok(())
+    }
+}
+
 struct RecordingDispatch {
     payloads: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
 }
@@ -136,6 +151,25 @@ fn routes_dm_connect_through_direct_peer_adapter() {
     assert!(result.is_ok());
     assert_eq!(counters.direct_connect_calls.load(Ordering::SeqCst), 1);
     assert_eq!(counters.node_connect_calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn routes_dm_send_through_direct_peer_adapter() {
+    let counters = TestCounters::new();
+    let router = CommunicationRouter::new(
+        PolicyContext::default(),
+        counters.direct_peer(),
+        counters.node_client(),
+    );
+
+    let result = router.send(&SendEnvelope {
+        mode: CommunicationMode::DmDirect,
+        payload: b"dm".to_vec(),
+    });
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(counters.direct_send_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.node_send_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -267,6 +301,79 @@ fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
 
     assert_eq!(result, Err(TransportError::SendFailed));
     assert!(payloads.lock().expect("acquire payload lock").is_empty());
+}
+
+#[test]
+fn dispatching_direct_peer_transport_rejects_wrong_mode_payload() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingDirectPeerTransport::new(RecordingDirectDispatch {
+        payloads: Arc::clone(&payloads),
+    });
+
+    let result = transport.send(&SendEnvelope {
+        mode: CommunicationMode::ServerChannel,
+        payload: b"hello".to_vec(),
+    });
+
+    assert_eq!(result, Err(TransportError::SendFailed));
+    assert!(payloads.lock().expect("acquire payload lock").is_empty());
+}
+
+#[test]
+fn dispatching_direct_peer_transport_forwards_payload_for_dm_mode() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = DispatchingDirectPeerTransport::new(RecordingDirectDispatch {
+        payloads: Arc::clone(&payloads),
+    });
+
+    let result = transport.send(&SendEnvelope {
+        mode: CommunicationMode::DmDirect,
+        payload: b"dm".to_vec(),
+    });
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"dm".to_vec()]
+    );
+}
+
+#[test]
+fn connect_via_direct_peer_routes_through_shared_direct_peer_bootstrap() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let result = connect_via_direct_peer(
+        PolicyContext::default(),
+        RecordingDirectDispatch { payloads },
+        ConnectTarget::PeerIdentity {
+            identity_id: "peer-a".to_string(),
+        },
+    );
+
+    assert!(result.is_ok());
+    assert_eq!(
+        result.expect("direct provenance").profile,
+        TransportProfile::DirectPeer
+    );
+}
+
+#[test]
+fn send_via_direct_peer_dispatch_routes_through_shared_direct_peer_bootstrap() {
+    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let result = send_via_direct_peer_dispatch(
+        PolicyContext::default(),
+        RecordingDirectDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+        b"dm".to_vec(),
+    );
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"dm".to_vec()]
+    );
 }
 
 #[test]

@@ -328,13 +328,6 @@ async fn dispatch_presence_edge(
     identity_id: &str,
     online: bool,
 ) -> Result<(), String> {
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread => {
-            return publish_presence_edge_direct(state, identity_id, online).await;
-        }
-        Ok(_) | Err(_) => {}
-    }
-
     let payload = serde_json::to_vec(&PresenceDispatchEnvelope::Edge(
         PresenceEdgeDispatchRequest {
             identity_id,
@@ -721,7 +714,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn publish_presence_edge_is_noop_without_redis() {
+    async fn presence_edge_dispatch_uses_node_adapter_without_redis_on_current_thread() {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
