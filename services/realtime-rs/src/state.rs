@@ -49,7 +49,7 @@ pub struct DevFaultConfig {
 #[derive(Clone, Debug, Default)]
 pub struct DevFaultState {
     pub config: DevFaultConfig,
-    pub drop_counter: u64,
+    pub drop_debt: f64,
 }
 
 #[derive(Clone)]

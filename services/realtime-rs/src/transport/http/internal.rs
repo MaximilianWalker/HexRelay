@@ -187,7 +187,7 @@ pub async fn set_dev_faults_internal(
 
     let mut faults = state.dev_faults.lock().await;
     faults.config = config.clone();
-    faults.drop_counter = 0;
+    faults.drop_debt = 0.0;
     dev_fault_response(StatusCode::OK, true, config)
 }
 
@@ -204,7 +204,7 @@ pub async fn reset_dev_faults_internal(
 
     let mut faults = state.dev_faults.lock().await;
     faults.config = DevFaultConfig::default();
-    faults.drop_counter = 0;
+    faults.drop_debt = 0.0;
     dev_fault_response(StatusCode::OK, true, faults.config.clone())
 }
 

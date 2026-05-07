@@ -16,9 +16,10 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig};
+use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
+const DROP_DEBT_EPSILON: f64 = 1.0e-12;
 
 pub async fn health() -> &'static str {
     "ok"
@@ -317,25 +318,29 @@ async fn apply_dev_fault(state: &AppState) -> bool {
     if config.delay_ms > 0 {
         tokio::time::sleep(Duration::from_millis(config.delay_ms)).await;
     }
-    if config.drop_rate <= 0.0 {
-        return false;
-    }
-    if config.drop_rate >= 1.0 {
-        return true;
-    }
 
     let mut faults = state.dev_faults.lock().await;
+    should_drop_dev_fault(&mut faults)
+}
+
+fn should_drop_dev_fault(faults: &mut DevFaultState) -> bool {
     let drop_rate = faults.config.drop_rate;
     if drop_rate <= 0.0 {
+        faults.drop_debt = 0.0;
         return false;
     }
     if drop_rate >= 1.0 {
+        faults.drop_debt = 0.0;
         return true;
     }
 
-    faults.drop_counter = faults.drop_counter.saturating_add(1);
-    let interval = (1.0 / drop_rate).round().max(1.0) as u64;
-    faults.drop_counter % interval == 0
+    faults.drop_debt += drop_rate;
+    if faults.drop_debt + DROP_DEBT_EPSILON < 1.0 {
+        return false;
+    }
+
+    faults.drop_debt = (faults.drop_debt - 1.0).max(0.0);
+    true
 }
 
 #[derive(Deserialize)]
@@ -728,15 +733,53 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, release_connection_slot_after_failed_upgrade, stable_hash,
+        cache_validated_session, release_connection_slot_after_failed_upgrade,
+        should_drop_dev_fault, stable_hash,
     };
-    use crate::state::AppState;
+    use crate::state::{AppState, DevFaultConfig, DevFaultState};
     use chrono::{Duration as ChronoDuration, Utc};
     use tokio::time::{sleep, Duration};
 
     #[test]
     fn stable_hash_is_deterministic_across_processes() {
         assert_eq!(stable_hash("test-value"), 6_562_878_253_510_288_723);
+    }
+
+    #[test]
+    fn dev_fault_drop_accumulator_matches_fractional_rate() {
+        let mut faults = DevFaultState {
+            config: DevFaultConfig {
+                delay_ms: 0,
+                drop_rate: 0.4,
+                disconnect_after_seconds: None,
+            },
+            drop_debt: 0.0,
+        };
+
+        let drops = (0..10)
+            .filter(|_| should_drop_dev_fault(&mut faults))
+            .count();
+
+        assert_eq!(drops, 4);
+    }
+
+    #[test]
+    fn dev_fault_drop_accumulator_preserves_high_rates() {
+        let mut faults = DevFaultState {
+            config: DevFaultConfig {
+                delay_ms: 0,
+                drop_rate: 0.9,
+                disconnect_after_seconds: None,
+            },
+            drop_debt: 0.0,
+        };
+
+        let decisions = (0..10)
+            .map(|_| should_drop_dev_fault(&mut faults))
+            .collect::<Vec<_>>();
+
+        assert_eq!(decisions.iter().filter(|drop| **drop).count(), 9);
+        assert!(decisions.iter().any(|drop| !*drop));
     }
 
     #[tokio::test]

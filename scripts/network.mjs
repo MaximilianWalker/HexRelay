@@ -198,18 +198,58 @@ function disconnectIfConnected(networkName, containerName) {
   return false;
 }
 
+function instanceContainerNames(instance) {
+  return [
+    instance.containerName,
+    instance.container,
+    instance.dockerContainer,
+    instance.apiContainerName,
+    instance.realtimeContainerName,
+    instance.webContainerName,
+  ].filter((value) => typeof value === "string" && value.trim());
+}
+
+function resolveDirectContainerNetworkName(containerName, preferredNetworkName) {
+  if (!dockerObjectExists("container", containerName)) {
+    throw new Error(`Docker container '${containerName}' was not found`);
+  }
+
+  const networks = containerNetworks(containerName);
+  if (preferredNetworkName && networks.has(preferredNetworkName)) {
+    return preferredNetworkName;
+  }
+  if (networks.size === 1) {
+    return [...networks][0];
+  }
+  if (networks.has(defaultNetworkName)) {
+    return defaultNetworkName;
+  }
+
+  throw new Error(
+    `Docker container '${containerName}' is attached to multiple networks; use a runtime instance target or set HEXRELAY_DOCKER_NETWORK`,
+  );
+}
+
+function resolveRuntimeInstance(target, runtimeState) {
+  return (runtimeState?.instances ?? []).find((candidate) => {
+    return candidate.id === target || instanceContainerNames(candidate).includes(target);
+  });
+}
+
 function resolveTarget(target, runtimeState) {
-  const instance = (runtimeState?.instances ?? []).find((candidate) => candidate.id === target);
+  const instance = resolveRuntimeInstance(target, runtimeState);
   if (!instance) {
     return {
       instanceId: null,
       target,
       containerName: target,
-      networkName: defaultNetworkName,
+      networkName: resolveDirectContainerNetworkName(target, runtimeState?.networkName),
     };
   }
 
-  const containerName = instance.containerName || instance.container || instance.dockerContainer;
+  const containerName = instance.id === target
+    ? instance.containerName || instance.container || instance.dockerContainer
+    : target;
   if (!containerName) {
     throw new Error(
       `Runtime instance '${target}' is tracked as host processes, not a Docker container. Docker network simulation requires containerName metadata or a direct Docker container target.`,
@@ -258,13 +298,15 @@ function toxiproxyTargetState(runtimeState) {
 
 function resolveToxiproxyTarget(target, runtimeState) {
   const toxiproxy = toxiproxyTargetState(runtimeState);
-  const proxies = toxiproxy.proxies.filter((proxy) => proxy.sourceId === target);
+  const instance = resolveRuntimeInstance(target, runtimeState);
+  const sourceId = instance?.id ?? target;
+  const proxies = toxiproxy.proxies.filter((proxy) => proxy.sourceId === sourceId);
   if (proxies.length === 0) {
     throw new Error(`Toxiproxy profile target '${target}' was not found in runtime state`);
   }
   return {
     target,
-    instanceId: target,
+    instanceId: sourceId,
     toxiproxyUrl: toxiproxy.url,
     proxies,
   };

@@ -1035,6 +1035,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
+    let mut dm_message_ids = HashSet::new();
     for thread in &scenario.dm_threads {
         if !is_seedable_dm_thread_id(&thread.thread_id) {
             return Err(DevSeedError::Config(format!(
@@ -1076,7 +1077,6 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 )));
             }
         }
-        let mut message_ids = HashSet::new();
         let mut message_seqs = HashSet::new();
         for message in &thread.messages {
             require_identity(&identity_ids, &message.author_id, "dm message author")?;
@@ -1092,7 +1092,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                     message.message_id
                 )));
             }
-            if !message_ids.insert(message.message_id.as_str()) {
+            if !dm_message_ids.insert(message.message_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "duplicate DM message '{}'",
                     message.message_id
@@ -1821,6 +1821,18 @@ mod tests {
         let error = validate_scenario(&scenario).expect_err("non-participant author rejected");
 
         assert!(error.to_string().contains("not a thread participant"));
+    }
+
+    #[test]
+    fn rejects_duplicate_dm_message_ids_across_threads() {
+        let mut scenario = dm_basic();
+        let mut extra_thread = scenario.dm_threads[0].clone();
+        extra_thread.thread_id = "fixture-dm-extra".to_string();
+        scenario.dm_threads.push(extra_thread);
+
+        let error = validate_scenario(&scenario).expect_err("cross-thread duplicate rejected");
+
+        assert!(error.to_string().contains("duplicate DM message"));
     }
 
     #[test]
