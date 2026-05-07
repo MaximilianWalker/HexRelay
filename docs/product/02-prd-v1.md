@@ -105,7 +105,7 @@ Build a communication stack where users and communities control identity, data l
 
 ### 3) E2EE Direct Messaging
 
-1. Users establish contact bootstrap material through signed out-of-band pairing (invite link, QR, or short code).
+1. Users establish contact bootstrap material through signed out-of-band pairing (invite link, QR payload, or full manual code with a short verification code).
 2. Client validates pairing signature, nonce/replay, and expiry, then exchanges DM encryption material.
 3. Client encrypts outbound DM payloads.
 4. Payload is transported over direct user-to-user channel (not via guild server relay and without infra-assisted NAT traversal dependency).
@@ -182,7 +182,7 @@ Build a communication stack where users and communities control identity, data l
   - Incoming DM payloads must converge across all devices linked to a profile, including devices activated after first delivery.
 - DM connectivity execution model
   - Direct-only transport enforcement is required.
-  - Out-of-band signed pairing (QR/link/short code) is required.
+  - Out-of-band signed pairing (QR/link/manual code with short verification code) is required.
   - Connectivity preflight and troubleshooter states are required for failed direct attempts.
   - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.

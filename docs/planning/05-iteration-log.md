@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 completed `T4.0.2` broader transport adapter rollout.
+- Latest meaningful change: 2026-05-07 completed `T4.1.4` signed out-of-band DM pairing closeout.
 
 ## Purpose
 
@@ -29,6 +29,25 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (T4.1.4 signed DM pairing closeout)
+
+- Area affected: DM pairing envelope schema, contacts pairing UX, runtime REST contract, and Iteration 2 sequencing.
+- Change summary:
+  - Added inviter identity-key material and SHA-256 key fingerprint output to signed DM pairing envelopes and import responses.
+  - Kept the short code as an out-of-band verification code and added QR/link/manual-code import/export UX for no-rendezvous bootstrap.
+  - Added backend coverage for identity-key import output and self-import rejection alongside existing replay/expiry/tamper tests.
+  - Marked `T4.1.4` done and clarified QR/link/manual-code terminology across product and execution docs.
+- Rationale:
+  - `T4.1.4` requires pairing to exchange identity and endpoint bootstrap material without backend rendezvous while keeping replay/expiry and authenticity checks deterministic.
+- Linked docs updated:
+  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-07 (T4.0.2 transport adapter rollout closeout)
 
@@ -238,7 +257,7 @@
 - Change summary:
   - Added DM pairing API client methods in `apps/web/lib/api.ts` for pairing-envelope create/import.
   - Added `apps/web/lib/dm-pairing.ts` helper utilities plus tests for `hexrelay://dm-pairing/...` link build/parse behavior.
-  - Added contacts-page UI for DM pairing share/import with QR rendering, short-code display, envelope-link copy, and import result feedback.
+  - Added contacts-page UI for DM pairing share/import with QR rendering, verification-code display, envelope-link copy, and import result feedback.
   - Marked `T4.1.4` in progress on the Iteration 2 sprint board.
 - Rationale:
   - `T4.1.4` is the first audited story whose Web half was genuinely missing. This slice delivers the smallest coherent web implementation on top of the already-shipped backend pairing flow.
@@ -426,7 +445,7 @@
 - Change summary:
   - Trimmed redundant sequencing content from architecture/product proposal docs and delegated execution authority to the DM connectivity execution plan.
   - Added cross-scenario networking architecture references across product/planning indexes to keep source-of-truth routing explicit.
-  - Fixed DM pairing wording drift in Iteration 2 exit criteria (`QR/short code`), keeping direct-bootstrap terminology consistent.
+  - Fixed DM pairing wording drift in Iteration 2 exit criteria (`QR/manual code`), keeping direct-bootstrap terminology consistent.
   - Logged this correction in readiness governance history.
 - Rationale:
   - Reduce drift risk by enforcing clear ownership boundaries between architecture, product options, and planning execution docs.

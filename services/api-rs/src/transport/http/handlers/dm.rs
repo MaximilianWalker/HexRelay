@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 use crate::domain::block_mute::service::is_blocked_bidirectional;
-use crate::infra::db::repos::{dm_history_repo, dm_repo, friends_repo, servers_repo};
+use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
@@ -34,12 +34,13 @@ use crate::{
         DmFanoutDispatchRequest, DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest,
         DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
         DmLanPresenceRecord, DmMessagePage, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingImportResponse,
-        DmParallelDialAttempt, DmParallelDialRequest, DmParallelDialResponse, DmPolicy,
-        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmProfileDeviceHeartbeatResponse,
-        DmProfileDeviceRecord, DmProfileDeviceSummary, DmThreadListQuery, DmThreadMarkReadRequest,
-        DmThreadMarkReadResponse, DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest,
-        DmWanWizardResponse,
+        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingIdentityKey,
+        DmPairingImportResponse, DmParallelDialAttempt, DmParallelDialRequest,
+        DmParallelDialResponse, DmPolicy, DmPolicyUpdate, DmProfileDeviceHeartbeatRequest,
+        DmProfileDeviceHeartbeatResponse, DmProfileDeviceRecord, DmProfileDeviceSummary,
+        DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
+        DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest, DmWanWizardResponse,
+        RegisteredIdentityKey,
     },
     shared::errors::{bad_request, conflict, internal_error, ApiResult},
     state::AppState,
@@ -129,6 +130,7 @@ fn direct_peer_send_error_message(code: CommunicationReasonCode) -> &'static str
 struct PairingEnvelopeClaims {
     version: u32,
     inviter_identity_id: String,
+    inviter_identity_key: DmPairingIdentityKey,
     endpoint_hints: Vec<String>,
     nonce: String,
     issued_at: i64,
@@ -207,10 +209,13 @@ pub async fn create_dm_pairing_envelope(
     let issued_at = Utc::now();
     let expires_at = issued_at + Duration::seconds(expires_in_seconds as i64);
     let nonce = random_hex(16);
+    let identity_key = load_pairing_identity_key(&state, &auth.identity_id).await?;
+    let inviter_identity_key = pairing_identity_key(identity_key);
 
     let claims = PairingEnvelopeClaims {
         version: DM_PAIRING_ENVELOPE_VERSION,
         inviter_identity_id: auth.identity_id,
+        inviter_identity_key,
         endpoint_hints: payload.endpoint_hints,
         nonce: nonce.clone(),
         issued_at: issued_at.timestamp(),
@@ -299,6 +304,7 @@ pub async fn import_dm_pairing_envelope(
 
     Ok(Json(DmPairingImportResponse {
         inviter_identity_id: signed.claims.inviter_identity_id,
+        inviter_identity_key: signed.claims.inviter_identity_key,
         endpoint_hints: signed.claims.endpoint_hints,
         imported_at: Utc::now().to_rfc3339(),
         expires_at: expires_at.to_rfc3339(),
@@ -1546,6 +1552,51 @@ async fn consume_pairing_nonce(
     }
     nonce_guard.insert(nonce.to_string(), expires_at_epoch);
     Ok(true)
+}
+
+async fn load_pairing_identity_key(
+    state: &AppState,
+    identity_id: &str,
+) -> ApiResult<RegisteredIdentityKey> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return auth_repo::get_identity_key(pool, identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load identity key"))?
+            .ok_or_else(|| bad_request("identity_invalid", "identity key is not registered"));
+    }
+
+    #[cfg(test)]
+    {
+        return state
+            .identity_keys
+            .read()
+            .expect("acquire identity key read lock")
+            .get(identity_id)
+            .cloned()
+            .ok_or_else(|| bad_request("identity_invalid", "identity key is not registered"));
+    }
+
+    #[cfg(not(test))]
+    {
+        Err(internal_error(
+            "storage_unavailable",
+            "identity key lookup requires configured database pool",
+        ))
+    }
+}
+
+fn pairing_identity_key(key: RegisteredIdentityKey) -> DmPairingIdentityKey {
+    DmPairingIdentityKey {
+        fingerprint: identity_key_fingerprint(&key.public_key),
+        public_key: key.public_key,
+        algorithm: key.algorithm,
+    }
+}
+
+fn identity_key_fingerprint(public_key: &str) -> String {
+    let key_bytes = hex::decode(public_key).unwrap_or_else(|_| public_key.as_bytes().to_vec());
+    let digest = digest::digest(&digest::SHA256, &key_bytes);
+    hex::encode(digest.as_ref())
 }
 
 fn parse_limit(value: Option<u32>) -> ApiResult<usize> {

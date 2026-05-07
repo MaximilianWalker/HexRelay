@@ -16,6 +16,12 @@ export type DmPolicyResponse = {
   offline_delivery_mode: string;
 };
 
+export type DmPairingIdentityKey = {
+  public_key: string;
+  algorithm: string;
+  fingerprint: string;
+};
+
 export type TestingProfileSummary = {
   profile_id: string;
   identity_id: string;
@@ -488,6 +494,7 @@ export async function importDmPairingEnvelope(input: {
 }): Promise<
   ApiResult<{
     inviter_identity_id: string;
+    inviter_identity_key: DmPairingIdentityKey;
     endpoint_hints: string[];
     imported_at: string;
     expires_at: string;

@@ -431,6 +431,11 @@ describe("api auth transport", () => {
       new Response(
         JSON.stringify({
           inviter_identity_id: "usr-nora-k",
+          inviter_identity_key: {
+            public_key: "aa".repeat(32),
+            algorithm: "ed25519",
+            fingerprint: "fingerprint-1",
+          },
           endpoint_hints: ["tcp://127.0.0.1:4040"],
           imported_at: "2026-03-20T00:00:00Z",
           expires_at: "2026-03-20T00:05:00Z",
@@ -442,6 +447,10 @@ describe("api auth transport", () => {
     const result = await importDmPairingEnvelope({ envelope: "pairing-envelope-abc" });
 
     expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.inviter_identity_key.algorithm).toBe("ed25519");
+      expect(result.data.inviter_identity_key.fingerprint).toBe("fingerprint-1");
+    }
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain("/v1/dm/pairing-envelope/import");
     const headers = new Headers(init?.headers ?? {});

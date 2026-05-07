@@ -247,6 +247,13 @@ pub struct DmPairingEnvelopeCreateRequest {
     pub expires_in_seconds: Option<u32>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct DmPairingIdentityKey {
+    pub public_key: String,
+    pub algorithm: String,
+    pub fingerprint: String,
+}
+
 #[derive(Serialize)]
 pub struct DmPairingEnvelopeResponse {
     pub envelope: String,
@@ -493,6 +500,7 @@ pub struct DmWanWizardResponse {
 #[derive(Serialize)]
 pub struct DmPairingImportResponse {
     pub inviter_identity_id: String,
+    pub inviter_identity_key: DmPairingIdentityKey,
     pub endpoint_hints: Vec<String>,
     pub imported_at: String,
     pub expires_at: String,

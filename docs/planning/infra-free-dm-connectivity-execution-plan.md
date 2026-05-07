@@ -47,7 +47,7 @@
 - Outcome: users can establish direct contacts via signed out-of-band pairing.
 - Deliverables:
   - signed pairing envelope schema/versioning
-  - QR and short-code import/export UX
+  - QR and manual-code import/export UX with short verification-code comparison
   - replay/expiry/fingerprint validation
 
 ### Phase C: Deterministic Failure Handling
@@ -75,7 +75,7 @@
 | Task ID | Task | Owner | Depends on | Acceptance criteria |
 |---|---|---|---|---|
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI gate | Core | T4.1.1 | DM connect path uses direct dial only; CI rejects forbidden infra fallbacks/configs |
-| T4.1.4 | Implement signed out-of-band pairing envelope + QR/short-code UX | Core/Web | T3.1.4, T4.1.3 | Pairing works without backend rendezvous; replay/expiry checks are enforced |
+| T4.1.4 | Implement signed out-of-band pairing envelope + QR/manual-code UX | Core/Web | T3.1.4, T4.1.3 | Pairing works without backend rendezvous; replay/expiry checks are enforced |
 | T4.1.5 | Add DM connectivity preflight and deterministic troubleshooter | Core/Web | T4.1.4 | Failed connections emit stable reason codes and actionable remediation |
 | T4.1.6 | Add LAN discovery fast path (mDNS/multicast, local-first dialing) | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect with local-only traffic and improved latency |
 | T4.1.7 | Add WAN direct-connect setup wizard (UPnP/NAT-PMP + manual) | Core/Web | T4.1.5 | Wizard produces deterministic outcomes: success/manual_required/network_incompatible |

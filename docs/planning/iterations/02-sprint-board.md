@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed `T4.0.2` broader transport adapter rollout across DM direct, server-channel, and presence call paths.
+- Latest meaningful change: 2026-05-07 completed `T4.1.4` signed out-of-band DM pairing closeout across envelope identity-key material, QR/link/manual-code UX, replay/expiry/self-import validation, and planning docs.
 
 ## Iteration Scope
 
@@ -60,7 +60,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers without guild server persistence |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | DM transport rejects STUN/TURN/relay fallback paths and CI policy checks fail on forbidden config/callsites |
-| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/short-code bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Contact pairing works via signed envelope with replay/expiry checks and without backend rendezvous dependency |
+| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Contact pairing works via signed envelope with replay/expiry checks and without backend rendezvous dependency |
 | T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | E4 / S4.1 | M | Core/Web | T4.1.4 | Failed direct connections map to deterministic reason codes with actionable remediation guidance |
 | T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect through local-only traffic and improved connect latency, while discovery hints remain ephemeral and TTL-scoped rather than durable DB state |
 | T4.1.7 | Implement WAN direct-connect wizard (UPnP/NAT-PMP + manual mapping) | E4 / S4.1 | L | Core/Web | T4.1.5 | Wizard emits deterministic outcomes (`success`, `manual_required`, `network_incompatible`) with verification steps |
@@ -151,12 +151,13 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without guild server persistence; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | local working tree after PR #95 plus DM policy guardrail expansion | Runtime DM transport already routed direct-only and rejected non-direct profiles; CI guardrails now scan both DM runtime callsites and DM-related config/workflow surfaces so forbidden STUN/TURN/relay-style fallback terms fail before merge |
+| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | T4.1.4 pairing closeout branch | Signed pairing envelopes now carry inviter identity-key material and endpoint hints, reject replay/expiry/self-import/tamper cases, and expose QR/link/manual-code sharing with a short verification code on the contacts surface |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/short-code bootstrap | In progress | Backend pairing envelope/signature/replay-expiry flow was already delivered; web now has DM pairing API methods, link parsing, QR/short-code share UI, and envelope import UI on the contacts surface, with remaining work focused on polish and any broader UX integration beyond this first coherent slice |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.5` DM connectivity preflight/troubleshooter unless sequencing changes |
 
 ## Suggested Sprint Sequencing
 
@@ -196,7 +197,7 @@ Week 6:
 - User discovery works for global and shared-server contexts.
 - Shared communication layer routes both DM direct path and server-channel path through explicit adapter boundaries.
 - DM direct-connect path is infrastructure-free and policy guardrails block STUN/TURN/relay fallback behavior.
-- DM pairing/bootstrap works through signed out-of-band envelopes (QR/short code) with replay/expiry validation.
+- DM pairing/bootstrap works through signed out-of-band envelopes (QR/link/manual code with short verification code) with replay/expiry validation.
 - DM connectivity preflight emits deterministic reason codes and guided remediation for failed direct sessions.
 - Off-LAN direct-connect is already represented by pairing, WAN guidance, endpoint cards, and parallel dial; future work should only revisit authorized endpoint-card freshness rather than generic discovery/rendezvous.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).

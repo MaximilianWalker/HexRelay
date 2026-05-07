@@ -34,8 +34,9 @@ import {
   fetchFriendRequests,
   importDmPairingEnvelope,
   redeemContactInvite,
+  type DmPairingIdentityKey,
 } from "@/lib/api";
-import { buildDmPairingLink, parseDmPairingInput } from "@/lib/dm-pairing";
+import { buildDmPairingLink, buildDmPairingManualCode, parseDmPairingInput } from "@/lib/dm-pairing";
 import { readActivePersonaId, readPersonas, type PersonaRecord } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -237,6 +238,7 @@ export default function ContactsPage() {
   const [pairingImportBusy, setPairingImportBusy] = useState(false);
   const [pairingImportResult, setPairingImportResult] = useState<{
     inviter_identity_id: string;
+    inviter_identity_key: DmPairingIdentityKey;
     endpoint_hints: string[];
     imported_at: string;
     expires_at: string;
@@ -687,7 +689,7 @@ export default function ContactsPage() {
               <textarea
                 className={styles.search}
                 onChange={(event) => setPairingImportValue(event.target.value)}
-                placeholder="Paste advanced invite or connection details"
+                placeholder="Paste advanced invite link, QR payload, or DM1 manual code"
                 rows={3}
                 value={pairingImportValue}
               />
@@ -711,6 +713,10 @@ export default function ContactsPage() {
                     <summary><IconInfoCircle className={styles.icon} aria-hidden="true" /> Show technical details</summary>
                     <p className={styles.meta}>Imported: {formatDateTime(pairingImportResult.imported_at)}</p>
                     <p className={styles.meta}>Expires: {formatDateTime(pairingImportResult.expires_at)}</p>
+                    <p className={styles.meta}>Identity key: {pairingImportResult.inviter_identity_key.algorithm}</p>
+                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
+                      Fingerprint: {pairingImportResult.inviter_identity_key.fingerprint}
+                    </p>
                     <p className={styles.meta} style={{ wordBreak: "break-all" }}>
                       Connection details: {pairingImportResult.endpoint_hints.join(", ")}
                     </p>
@@ -823,7 +829,7 @@ export default function ContactsPage() {
               {createdPairing ? (
                 <div className={styles.card} style={{ marginTop: 12 }}>
                   <p className={styles.title}>Advanced invite ready</p>
-                  <p className={styles.meta}>Share this only with the person you want to connect with.</p>
+                  <p className={styles.meta}>Share the QR, link, or DM1 manual code only with the person you want to connect with.</p>
                   <div className={styles.row} style={{ marginTop: 8 }}>
                     <button className={styles.pill} onClick={() => void handleCopyAdvancedInvite()} type="button">
                       <IconCopy className={styles.icon} aria-hidden="true" />
@@ -835,9 +841,12 @@ export default function ContactsPage() {
                   </div>
                   <details className={styles.state}>
                     <summary><IconInfoCircle className={styles.icon} aria-hidden="true" /> Show technical details</summary>
-                    <p className={styles.meta}>Short code: {createdPairing.short_code}</p>
+                    <p className={styles.meta}>Verification code: {createdPairing.short_code}</p>
                     <p className={styles.meta}>Expires: {formatDateTime(createdPairing.expires_at)}</p>
                     <p className={styles.meta}>Security detail: {createdPairing.pairing_nonce}</p>
+                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
+                      Manual code: {buildDmPairingManualCode(createdPairing.envelope)}
+                    </p>
                     <p className={styles.meta} style={{ wordBreak: "break-all" }}>
                       Raw invite: {buildDmPairingLink(createdPairing.envelope)}
                     </p>
