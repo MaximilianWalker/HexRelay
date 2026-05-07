@@ -104,20 +104,19 @@ impl NodeDispatch for LocalPresenceDispatchSender {
         let online = dispatch.online;
 
         let result = match handle.runtime_flavor() {
-            tokio::runtime::RuntimeFlavor::CurrentThread => std::thread::spawn(move || {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|_| TransportError::SendFailed)?
-                    .block_on(async move {
-                        dispatch
-                            .publish(&state)
-                            .await
-                            .map_err(|_| TransportError::SendFailed)
-                    })
-            })
-            .join()
-            .map_err(|_| TransportError::SendFailed)?,
+            tokio::runtime::RuntimeFlavor::CurrentThread => {
+                let log_identity_id = identity_id.clone();
+                handle.spawn(async move {
+                    if dispatch.publish(&state).await.is_err() {
+                        warn!(
+                            identity_id = %log_identity_id,
+                            online,
+                            "NodeClientTransport presence dispatch failed"
+                        );
+                    }
+                });
+                return Ok(());
+            }
             tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(move || {
                 handle.block_on(async move {
                     dispatch
