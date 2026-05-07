@@ -36,10 +36,10 @@
 npm run setup
 ```
 
-2. Start local infra.
+2. Start the local infra subset used by host-process runtime scripts.
 
 ```bash
-docker compose --env-file infra/.env -f infra/docker-compose.yml up -d
+docker compose --env-file infra/.env -f infra/docker-compose.yml up -d postgres redis minio
 ```
 
 3. Confirm local env files exist.
