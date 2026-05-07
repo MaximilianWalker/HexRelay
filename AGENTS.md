@@ -9,6 +9,8 @@ Only project-specific constraints are defined here.
 - MVP focus: reliable friends, DMs, guild channels, and voice before federation complexity.
 - Architecture baseline: Rust-first backend services with desktop local-first runtime packaging and reusable web UI layer.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
+- Windows and Linux are both mandatory first-class targets for development, testing, packaging, and release planning; never plan Windows-only delivery or leave Linux as a later afterthought.
+- Tauri is the default desktop shell choice for release planning unless a later explicit decision replaces it.
 
 ## 2) Editing Boundaries
 

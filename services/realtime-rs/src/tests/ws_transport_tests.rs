@@ -27,6 +27,7 @@ use crate::domain::channels::{
     PublishChannelMessageDeletedInput, PublishChannelMessageUpdatedInput,
 };
 use crate::domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber};
+use crate::state::DevFaultConfig;
 
 use crate::transport::ws::handlers::gateway::{is_session_valid, route_inbound_event};
 
@@ -1056,6 +1057,148 @@ async fn websocket_upgrade_rejects_missing_authorization() {
         .map(|value| value.to_string())
         .unwrap_or_default();
     assert!(message.contains("401") || message.contains("Unauthorized"));
+}
+
+#[tokio::test]
+async fn websocket_upgrade_can_be_dropped_by_dev_fault() {
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state")
+    .with_dev_faults_enabled(true);
+    state.dev_faults.lock().await.config = DevFaultConfig {
+        delay_ms: 0,
+        drop_rate: 1.0,
+        disconnect_after_seconds: None,
+    };
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let result = connect_async(request).await;
+    assert!(result.is_err());
+    let message = result
+        .err()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    assert!(message.contains("503") || message.contains("Service Unavailable"));
+}
+
+#[tokio::test]
+async fn websocket_upgrade_is_delayed_by_dev_fault() {
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state")
+    .with_dev_faults_enabled(true);
+    state.dev_faults.lock().await.config = DevFaultConfig {
+        delay_ms: 150,
+        drop_rate: 0.0,
+        disconnect_after_seconds: None,
+    };
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut request = ws_url
+        .into_client_request()
+        .expect("build websocket client request");
+    request.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_static("Bearer test-token"),
+    );
+    set_allowed_origin(&mut request);
+
+    let started = tokio::time::Instant::now();
+    let (_socket, _) = connect_async(request)
+        .await
+        .expect("websocket connect response");
+    assert!(started.elapsed() >= Duration::from_millis(125));
+}
+
+#[tokio::test]
+async fn websocket_connection_is_closed_by_active_disconnect_after_dev_fault() {
+    let api_base = start_validate_server(ValidateMode::Authorized).await;
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state")
+    .with_dev_faults_enabled(true);
+    let fault_state = state.clone();
+    let ws_url = start_ws_server_with_state(state).await;
+    let mut socket = connect_ws_with_token(&ws_url, "test-token").await;
+
+    fault_state.dev_faults.lock().await.config = DevFaultConfig {
+        delay_ms: 0,
+        drop_rate: 0.0,
+        disconnect_after_seconds: Some(1),
+    };
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(4);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let Some(message) = tokio::time::timeout(remaining, socket.next())
+            .await
+            .expect("disconnect fault timeout")
+        else {
+            panic!("socket closed before dev fault event");
+        };
+        let message = message.expect("websocket frame");
+        let WsMessage::Text(text) = message else {
+            continue;
+        };
+        let payload: Value = serde_json::from_str(&text).expect("decode websocket payload");
+        if payload["event_type"] == "error" {
+            assert_eq!(payload["data"]["code"], "dev_fault_disconnect");
+            break;
+        }
+    }
 }
 
 #[tokio::test]

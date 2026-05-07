@@ -16,9 +16,10 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::state::{AppState, ConnectionSenderEntry};
+use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
+const DROP_DEBT_EPSILON: f64 = 1.0e-12;
 
 pub async fn health() -> &'static str {
     "ok"
@@ -52,6 +53,15 @@ pub async fn ws_handler(
             StatusCode::TOO_MANY_REQUESTS,
             "rate_limited",
             "too many websocket upgrade attempts",
+        );
+    }
+
+    if apply_dev_fault(&state).await {
+        warn!("rejected websocket upgrade due to dev fault drop");
+        return ws_rejection(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "dev_fault_drop",
+            "dev fault injection dropped websocket upgrade",
         );
     }
 
@@ -154,76 +164,38 @@ async fn handle_socket(
     .await;
     crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
 
-    while let Some(message) = receiver.next().await {
-        match message {
-            Ok(Message::Text(text)) => {
-                if text.len() > state.ws_max_inbound_message_bytes {
-                    warn!(
-                        identity_id = %session_identity_id,
-                        "closed websocket due to oversized text payload"
-                    );
+    let connected_at = tokio::time::Instant::now();
+    let mut dev_fault_tick = tokio::time::interval(Duration::from_millis(250));
+    dev_fault_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        if state.enable_dev_faults {
+            tokio::select! {
+                _ = dev_fault_tick.tick() => {
+                    if !dev_fault_disconnect_due(&state, connected_at).await {
+                        continue;
+                    }
+
+                    warn!(identity_id = %session_identity_id, "closed websocket due to dev fault disconnect timer");
                     let _ = outbound_tx.try_send(build_error_event(
-                        "event_too_large",
-                        "inbound message exceeds max size",
+                        "dev_fault_disconnect",
+                        "dev fault injection closed websocket",
                     ));
                     break;
                 }
-
-                let allowed = state.rate_limiter.allow(
-                    "ws_message",
-                    &session_identity_id,
-                    state.ws_message_rate_limit,
-                    state.ws_message_rate_window_seconds,
-                );
-                if !allowed {
-                    warn!(
-                        identity_id = %session_identity_id,
-                        "closed websocket due to message rate limit"
-                    );
-                    let _ = outbound_tx.try_send(build_error_event(
-                        "event_rate_limited",
-                        "too many websocket messages",
-                    ));
-                    break;
-                }
-
-                let response = route_inbound_event(&text, &session_identity_id);
-                let _ = outbound_tx.try_send(response);
-            }
-            Ok(Message::Binary(bytes)) => {
-                let allowed = state.rate_limiter.allow(
-                    "ws_message",
-                    &session_identity_id,
-                    state.ws_message_rate_limit,
-                    state.ws_message_rate_window_seconds,
-                );
-                if !allowed {
-                    warn!(
-                        identity_id = %session_identity_id,
-                        "closed websocket due to message rate limit"
-                    );
-                    let _ = outbound_tx.try_send(build_error_event(
-                        "event_rate_limited",
-                        "too many websocket messages",
-                    ));
-                    break;
-                }
-
-                if bytes.len() > state.ws_max_inbound_message_bytes {
-                    warn!(
-                        identity_id = %session_identity_id,
-                        "closed websocket due to oversized binary payload"
-                    );
-                    let _ = outbound_tx.try_send(build_error_event(
-                        "event_too_large",
-                        "inbound message exceeds max size",
-                    ));
-                    break;
+                message = receiver.next() => {
+                    let Some(message) = message else { break; };
+                    if !handle_inbound_message(&state, &session_identity_id, &outbound_tx, message).await {
+                        break;
+                    }
                 }
             }
-            Ok(Message::Close(_)) => break,
-            Ok(_) => {}
-            Err(_) => break,
+        } else {
+            let Some(message) = receiver.next().await else {
+                break;
+            };
+            if !handle_inbound_message(&state, &session_identity_id, &outbound_tx, message).await {
+                break;
+            }
         }
     }
 
@@ -232,6 +204,143 @@ async fn handle_socket(
     release_connection_slot(&state, &session_identity_id).await;
     drop(outbound_tx);
     let _ = writer.await;
+}
+
+async fn dev_fault_disconnect_due(state: &AppState, connected_at: tokio::time::Instant) -> bool {
+    current_dev_fault_config(state)
+        .await
+        .disconnect_after_seconds
+        .map(|seconds| connected_at.elapsed() >= Duration::from_secs(seconds))
+        .unwrap_or(false)
+}
+
+async fn handle_inbound_message(
+    state: &AppState,
+    session_identity_id: &str,
+    outbound_tx: &mpsc::Sender<String>,
+    message: Result<Message, axum::Error>,
+) -> bool {
+    match message {
+        Ok(Message::Text(text)) => {
+            if text.len() > state.ws_max_inbound_message_bytes {
+                warn!(
+                    identity_id = %session_identity_id,
+                    "closed websocket due to oversized text payload"
+                );
+                let _ = outbound_tx.try_send(build_error_event(
+                    "event_too_large",
+                    "inbound message exceeds max size",
+                ));
+                return false;
+            }
+
+            if !message_rate_allowed(state, session_identity_id, outbound_tx) {
+                return false;
+            }
+
+            if apply_dev_fault(state).await {
+                warn!(identity_id = %session_identity_id, "dropped websocket text message due to dev fault");
+                return true;
+            }
+
+            let response = route_inbound_event(&text, session_identity_id);
+            let _ = outbound_tx.try_send(response);
+            true
+        }
+        Ok(Message::Binary(bytes)) => {
+            if !message_rate_allowed(state, session_identity_id, outbound_tx) {
+                return false;
+            }
+
+            if bytes.len() > state.ws_max_inbound_message_bytes {
+                warn!(
+                    identity_id = %session_identity_id,
+                    "closed websocket due to oversized binary payload"
+                );
+                let _ = outbound_tx.try_send(build_error_event(
+                    "event_too_large",
+                    "inbound message exceeds max size",
+                ));
+                return false;
+            }
+
+            if apply_dev_fault(state).await {
+                warn!(identity_id = %session_identity_id, "dropped websocket binary message due to dev fault");
+            }
+            true
+        }
+        Ok(Message::Close(_)) => false,
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+fn message_rate_allowed(
+    state: &AppState,
+    session_identity_id: &str,
+    outbound_tx: &mpsc::Sender<String>,
+) -> bool {
+    let allowed = state.rate_limiter.allow(
+        "ws_message",
+        session_identity_id,
+        state.ws_message_rate_limit,
+        state.ws_message_rate_window_seconds,
+    );
+    if allowed {
+        return true;
+    }
+
+    warn!(
+        identity_id = %session_identity_id,
+        "closed websocket due to message rate limit"
+    );
+    let _ = outbound_tx.try_send(build_error_event(
+        "event_rate_limited",
+        "too many websocket messages",
+    ));
+    false
+}
+
+async fn current_dev_fault_config(state: &AppState) -> DevFaultConfig {
+    if !state.enable_dev_faults {
+        return DevFaultConfig::default();
+    }
+
+    state.dev_faults.lock().await.config.clone()
+}
+
+async fn apply_dev_fault(state: &AppState) -> bool {
+    if !state.enable_dev_faults {
+        return false;
+    }
+
+    let config = current_dev_fault_config(state).await;
+    if config.delay_ms > 0 {
+        tokio::time::sleep(Duration::from_millis(config.delay_ms)).await;
+    }
+
+    let mut faults = state.dev_faults.lock().await;
+    should_drop_dev_fault(&mut faults)
+}
+
+fn should_drop_dev_fault(faults: &mut DevFaultState) -> bool {
+    let drop_rate = faults.config.drop_rate;
+    if drop_rate <= 0.0 {
+        faults.drop_debt = 0.0;
+        return false;
+    }
+    if drop_rate >= 1.0 {
+        faults.drop_debt = 0.0;
+        return true;
+    }
+
+    faults.drop_debt += drop_rate;
+    if faults.drop_debt + DROP_DEBT_EPSILON < 1.0 {
+        return false;
+    }
+
+    faults.drop_debt = (faults.drop_debt - 1.0).max(0.0);
+    true
 }
 
 #[derive(Deserialize)]
@@ -624,15 +733,53 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, release_connection_slot_after_failed_upgrade, stable_hash,
+        cache_validated_session, release_connection_slot_after_failed_upgrade,
+        should_drop_dev_fault, stable_hash,
     };
-    use crate::state::AppState;
+    use crate::state::{AppState, DevFaultConfig, DevFaultState};
     use chrono::{Duration as ChronoDuration, Utc};
     use tokio::time::{sleep, Duration};
 
     #[test]
     fn stable_hash_is_deterministic_across_processes() {
         assert_eq!(stable_hash("test-value"), 6_562_878_253_510_288_723);
+    }
+
+    #[test]
+    fn dev_fault_drop_accumulator_matches_fractional_rate() {
+        let mut faults = DevFaultState {
+            config: DevFaultConfig {
+                delay_ms: 0,
+                drop_rate: 0.4,
+                disconnect_after_seconds: None,
+            },
+            drop_debt: 0.0,
+        };
+
+        let drops = (0..10)
+            .filter(|_| should_drop_dev_fault(&mut faults))
+            .count();
+
+        assert_eq!(drops, 4);
+    }
+
+    #[test]
+    fn dev_fault_drop_accumulator_preserves_high_rates() {
+        let mut faults = DevFaultState {
+            config: DevFaultConfig {
+                delay_ms: 0,
+                drop_rate: 0.9,
+                disconnect_after_seconds: None,
+            },
+            drop_debt: 0.0,
+        };
+
+        let decisions = (0..10)
+            .map(|_| should_drop_dev_fault(&mut faults))
+            .collect::<Vec<_>>();
+
+        assert_eq!(decisions.iter().filter(|drop| **drop).count(), 9);
+        assert!(decisions.iter().any(|drop| !*drop));
     }
 
     #[tokio::test]

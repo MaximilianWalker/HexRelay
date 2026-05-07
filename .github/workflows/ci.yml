@@ -212,6 +212,27 @@ jobs:
           chmod +x scripts/validate-dm-transport-policy.sh
           ./scripts/validate-dm-transport-policy.sh
 
+  runtime-network-smoke:
+    name: runtime-network-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+
+      - name: Validate runtime and network profiles
+        run: |
+          npm run validate:runtime-profiles
+          npm run validate:network-profiles
+
+      - name: Docker runtime network smoke
+        run: npm run test:runtime
+
   web-check:
     name: web-check (apps/web)
     runs-on: ubuntu-latest
@@ -328,7 +349,11 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Rust coverage threshold
-        run: cargo llvm-cov --workspace --all-features --fail-under-lines 80
+        # Dev-seed CLIs are exercised by runtime-network-smoke; this gate tracks long-lived service code.
+        run: >-
+          cargo llvm-cov --workspace --all-features
+          --ignore-filename-regex 'services[\/]api-rs[\/]src[\/](dev_seed\.rs|bin[\/](reset_dev_db|seed_dev)\.rs)'
+          --fail-under-lines 80
 
   integration-smoke:
     name: integration-smoke (web->api->realtime)

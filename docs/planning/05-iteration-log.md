@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-07
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles and tracked status/stop scripts.
+- Latest meaningful change: 2026-05-07 completed Docker-only Toxiproxy support for PH-05 network simulation.
 
 ## Purpose
 
@@ -29,6 +29,59 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (PH-05 Docker runtime and network simulation)
+
+- Area affected: Local runtime testing, Docker runtime/network simulation, and script discoverability.
+- Change summary:
+  - Added `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob runtime nodes with API, realtime, and web containers.
+  - Added `scripts/runtime-docker.mjs` and root commands `npm run runtime:docker` and `npm run test:runtime`.
+  - Added shared runtime tsconfig generation for containerized Next dev instances.
+  - Split per-node infra networks from the shared simulation network so offline/partition profiles do not sever Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path.
+  - Validated Docker offline and partition apply/reset flows through `npm run test:runtime` with app-level Alice/Bob API reachability assertions.
+  - Added Docker-only Toxiproxy apply/reset for peer-link latency and timeout-based loss profiles.
+  - Added realtime dev-fault hooks and `flaky-mobile` app-fault apply/reset support.
+  - Added a separate `runtime-network-smoke` CI job for the heavier Docker runtime/network smoke.
+  - Documented the hybrid model: host-process normal development plus Docker runtime/network tests.
+- Rationale:
+  - PH-05 Docker network controls need real container targets, while normal Tauri/web/Rust development should keep the faster host-process loop.
+- Linked docs updated:
+  - `README.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
+  - `infra/README.md`
+
+### 2026-05-07 (release packaging direction)
+
+- Area affected: Release packaging, runtime deployment modes, dedicated-server deployment guidance, and MVP runtime planning.
+- Change summary:
+  - Added the canonical release packaging authority for Windows/Linux desktop artifacts, dedicated-server artifacts, and code signing expectations.
+  - Locked Tauri as the default desktop shell for release planning unless a later explicit decision replaces it.
+  - Clarified that dedicated server mode is a separate service/package family and is not bundled by default into the desktop installer.
+- Rationale:
+  - MVP-end release planning needs deterministic artifact boundaries so desktop users, operators, and future CI packaging work do not drift into mixed installer/service assumptions.
+- Linked docs updated:
+  - `docs/operations/03-release-packaging.md`
+  - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+  - `docs/operations/02-dedicated-server-deployment.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/README.md`
+  - `docs/operations/README.md`
+
+### 2026-05-06 (local runtime testing fixture and network profile slice)
+
+- Area affected: Local fixture catalog, API seed tooling, network simulation profiles, and local runtime testing plan.
+- Change summary:
+  - Added `contacts-edge` and `server-chat` scenario fixtures for pending/restricted contact states, contact invites, shared servers, memberships, channels, mentions, and replies.
+  - Extended the dev seed parser and transactional seeding path for invite, server, membership, channel, and server channel message fixture data.
+  - Added bundled network simulation profile JSON files plus `npm run validate:network-profiles` for the PH-05 schema/validation slice.
+  - Added `npm run network` plus Windows and Unix wrappers for applying/resetting network profile state, with Docker container-target support and fail-safe handling for current host-process runtime instances.
+- Rationale:
+  - The remaining PH-01 scenarios unblock broader local exploratory testing, and PH-05 needs validated profile definitions before network apply/reset wrappers are added.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
 
 ### 2026-05-05 (local runtime testing multi-instance profiles)
 
@@ -117,7 +170,7 @@
 - Change summary:
   - Added `docs/planning/local-runtime-testing-plan.md` as the canonical planning authority for precreated local testing profiles, seeded fixture data, dev session bootstrap, multi-instance runtime profiles, and local network simulation.
   - Routed related planning, testing, operations, KPI/SLO, TURN/NAT, and docs index entries to the new authority without duplicating runtime config details or verification evidence rules.
-  - Captured the intended network simulation technology stack: Docker network controls, Linux `tc/netem`, dev-only app-level fault injection, and browser/runtime isolation.
+  - Captured the intended network simulation technology stack: Docker network controls, Docker-only peer proxies, dev-only app-level fault injection, and browser/runtime isolation.
 - Rationale:
   - Local manual and automated testing now need a repeatable profile/fixture/runtime plan before implementation starts, especially after PR #96 added workspace DM UI and Windows runner baseline improvements.
 - Linked docs updated:

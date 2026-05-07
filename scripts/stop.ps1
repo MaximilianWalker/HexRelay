@@ -99,6 +99,15 @@ if (-not (Test-Path -LiteralPath $statePath)) {
 }
 
 $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+if ($state.runtimeKind -eq 'docker-test') {
+    $message = "Docker runtime test stack is active. Use 'npm run runtime:docker -- down' instead of 'npm run stop'."
+    if ($Json) {
+        [pscustomobject]@{ stopped = @(); runtimeKind = $state.runtimeKind; message = $message } | ConvertTo-Json -Depth 6
+    } else {
+        [Console]::Error.WriteLine("[stop.ps1] ERROR: $message")
+    }
+    exit 1
+}
 if (-not (Test-RuntimeProfileMatches -Profile $RuntimeProfile -State $state)) {
     throw "[stop.ps1] Active runtime profile is '$($state.profile)', not '$RuntimeProfile'."
 }

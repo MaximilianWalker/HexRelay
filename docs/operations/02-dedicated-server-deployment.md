@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: needs-detail
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-07
 - Source of truth: `docs/operations/02-dedicated-server-deployment.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-04-10 clarified that only the single-node dedicated topology is currently validated and made the process-local websocket abuse-control constraints explicit for operators.
+- Latest meaningful change: 2026-05-07 clarified that dedicated server delivery is a separate service/package path from the desktop installer.
 
 ## Purpose
 
@@ -52,8 +52,19 @@
 
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime mode authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`
+- Release packaging authority: `docs/operations/03-release-packaging.md`
 - Runtime config authority: `docs/reference/runtime-config-reference.md`
 - Incident/recovery authority: `docs/operations/01-mvp-runbook.md`
+
+## Dedicated Server Package Boundary
+
+- Dedicated server mode is a headless service/package path, not a separate desktop app.
+- Dedicated server artifacts are not installed by default by the desktop installer.
+- The server package may reuse the same Rust service code as desktop local runtime where practical, but it has separate operational responsibilities.
+- Windows dedicated server delivery may run as a Windows Service or console binary package.
+- Linux dedicated server delivery should support native binaries, a `.deb` package with a `systemd` unit, and container images.
+- Server deployments own different config, ports, persistence paths, logs, backups, ingress, firewall exposure, and security posture than a normal desktop install.
+- If the desktop app later offers advanced dedicated-server management, it should invoke or download the server package path rather than silently bundling a long-running public service into every client install.
 
 ## Dependency Minimums
 
@@ -189,6 +200,7 @@ npm --prefix apps/web run e2e:smoke
 - `README.md`
 - `docs/README.md`
 - `docs/architecture/01-system-overview.md`
+- `docs/operations/03-release-packaging.md`
 - `docs/reference/runtime-config-reference.md`
 - `docs/operations/01-mvp-runbook.md`
 - `infra/README.md`

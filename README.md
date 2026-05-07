@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-07
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-05 added multi-instance local runtime profiles with tracked status and stop commands.
+- Latest meaningful change: 2026-05-07 added release packaging guidance and the Docker runtime test stack for PH-05 network simulation.
 
 ## Project Stage
 
@@ -40,6 +40,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Dedicated server deployment baseline: `docs/operations/02-dedicated-server-deployment.md`
+- Release packaging and artifact model: `docs/operations/03-release-packaging.md`
 - Sprint execution boards index: `docs/planning/iterations/README.md`
 
 ## Getting Started
@@ -56,11 +57,15 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
 - One-command local startup via `npm run start -- --runtime-profile single` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
   - Workspace checks via `npm run test` (for CI parity pre-PR checks use `docs/operations/contributor-guide.md`)
-- Seed the initial Alice/Bob local DM fixture with `npm run seed -- --profile dm-basic` after local Postgres is running.
+- Seed local fixture scenarios with `npm run seed -- --profile dm-basic`, `contacts-edge`, or `server-chat` after local Postgres is running.
 - Reset and reseed the local dev DB with `npm run reset-dev-db -- --profile dm-basic --yes`; this command refuses non-local DB targets.
 - Enable `API_ENABLE_DEV_TESTING=true` only in local development to expose fixture-backed testing profile/session endpoints, then use Settings -> Testing profiles in the web app to activate Alice/Bob sessions.
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
+- Validate network simulation profile definitions with `npm run validate:network-profiles`.
+- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-node` or `bob-node`.
+- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
+- Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`

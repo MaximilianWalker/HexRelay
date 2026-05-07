@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-07
 - Source of truth: `docs/reference/runtime-config-reference.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-05 documented the dev-only API testing endpoint flag for local fixture session activation.
+- Latest meaningful change: 2026-05-07 documented the realtime dev-fault flag for local app-level network simulation.
 
 ## Purpose
 
@@ -93,6 +93,7 @@
 | `REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY` | `3` | optional | positive integer |
 | `REALTIME_WS_AUTH_GRACE_SECONDS` | `0` | optional | enables bounded cache-based auth grace mode |
 | `REALTIME_WS_AUTH_CACHE_MAX_ENTRIES` | `10000` | optional | positive integer |
+| `REALTIME_ENABLE_DEV_FAULTS` | `false` | must be `false` | enables internal local-only realtime delay/drop/disconnect fault hooks; non-loopback binds require a non-default channel dispatch token |
 | `RUST_LOG` | unset in code | optional | standard Rust logging filter |
 
 ## Local Development Minimum

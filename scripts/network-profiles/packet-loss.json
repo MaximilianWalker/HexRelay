@@ -1,0 +1,13 @@
+{
+  "name": "packet-loss",
+  "description": "Force peer-link loss with Toxiproxy connection timeouts on the selected runtime instance peer link.",
+  "strategy": "toxiproxy",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "packet_loss",
+      "target": "argument",
+      "lossPercent": 100
+    }
+  ]
+}

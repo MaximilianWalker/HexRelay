@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-05
+- last_updated: 2026-05-07
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-05 added the dev-only web testing profile picker for fixture-backed browser activation.
+- Latest meaningful change: 2026-05-07 completed PH-05 Docker runtime, Toxiproxy, app-fault, and runtime smoke coverage for local network simulation.
 
 ## Organization Decision
 
@@ -32,7 +32,7 @@
 - Script UX for seed, reset, status, stop, multi-instance launch, and network simulation.
 - Web UX for selecting seeded personas and opening DM-ready scenarios.
 - Local multi-instance runtime profiles for testing multiple HexRelay app instances on one machine.
-- Local network simulation that supports offline, partition, latency, loss where available, and app-level deterministic fault injection.
+- Local network simulation that supports offline, partition, Docker-only latency/timeout profiles, and app-level deterministic fault injection.
 - Windows PowerShell and Unix Bash support.
 - Validation gates and evidence expectations.
 
@@ -47,10 +47,11 @@
 
 ## Current Repository Baseline
 
-- Root scripts currently expose `setup`, `seed`, `start`, `run`, `test`, and `security` through `package.json`.
-- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints the API, realtime, and web URLs.
-- Unix local startup is handled by `scripts/run.sh`; it currently uses env-loaded fixed ports and should be upgraded for runtime profile parity.
+- Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, tests, and security checks through `package.json`.
+- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
+- Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
+- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets and Toxiproxy peer links.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_endpoint_cards`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, connectivity, fanout, endpoint-card, and device APIs exist; the browser private-chat route exists, while full end-to-end DM delivery remains incremental.
@@ -334,6 +335,37 @@ npm run reset-dev-db -- --profile all --yes
 - Shared infra mode uses one Postgres/Redis/MinIO stack with per-instance naming or namespace rules.
 - Isolated infra mode can be added later if shared state causes test ambiguity.
 
+### Docker Runtime Test Stack
+
+- Normal development remains host-process based through `npm run start`.
+- Docker runtime testing is reserved for heavier runtime/network scenarios and CI-style validation.
+- `infra/docker-compose.runtime-test.yml` starts per-node Postgres, Redis, MinIO, and two runtime nodes.
+- Each runtime node has API, realtime, and web containers sharing a node network namespace.
+- Runtime-test host ports are bound to `127.0.0.1` only.
+- `alice-node` exposes API `18080`, realtime `18081`, and web `3002` on loopback.
+- `bob-node` exposes API `18180`, realtime `18181`, and web `3012` on loopback.
+- Nodes attach to per-node infra networks plus one shared simulation network so Docker network partitions do not sever local Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path through shared infra.
+- `.local-run/runtime-state.json` records `containerName` and simulation `networkName` metadata so `npm run network` can resolve `alice-node` and `bob-node` as Docker targets.
+- Docker runtime seeding prints dev session cookies/headers, but the web Settings testing-profile picker remains disabled in this stack because API dev-testing endpoints require loopback-only API/database binds.
+- `runtime:docker -- up --seed-profile <profile>` seeds both Alice and Bob node databases.
+
+### Docker Runtime Commands
+
+```bash
+npm run runtime:docker -- up --seed-profile dm-basic
+npm run runtime:docker -- status
+npm run network -- --profile offline-alice
+npm run network -- --reset
+npm run runtime:docker -- down
+```
+
+Use `npm run runtime:docker -- down --force` only for failed-smoke cleanup when the normal reset path cannot complete.
+Generic `npm run stop` refuses Docker runtime state; use `runtime:docker -- down` so containers, network state, and runtime-test data volumes are cleaned together.
+
+```bash
+npm run test:runtime
+```
+
 ### Windows Parity
 
 - Windows PowerShell remains first-class.
@@ -348,8 +380,8 @@ npm run reset-dev-db -- --profile all --yes
 | Layer | Technology | Primary Use | Windows Support | Realism |
 |---|---|---|---|---|
 | Docker network controls | `docker network connect/disconnect`, named compose networks | Offline, reconnect, partitions | Good | Medium |
-| Linux network shaping | `tc/netem` applied to container namespaces | Latency, jitter, packet loss, bandwidth, reordering | Limited | High |
-| Dev-only app fault injection | API/realtime env-gated delay/drop/fail knobs | Deterministic endpoint and websocket failures | Good | Medium |
+| Docker-only peer proxy | Toxiproxy TCP proxies in the runtime stack | Latency, jitter, timeout behavior | Good | Medium |
+| Dev-only app fault injection | Realtime env-gated delay/drop/disconnect hooks | Deterministic websocket failures | Good | Medium |
 | Browser/runtime isolation | Separate browser contexts plus runtime profiles | Alice/Bob side-by-side testing | Good | Medium |
 
 ### Network Profile Files
@@ -358,7 +390,7 @@ npm run reset-dev-db -- --profile all --yes
 |---|---|
 | `scripts/network-profiles/normal.json` | Clear all shaping and partitions |
 | `scripts/network-profiles/high-latency.json` | Add fixed latency to selected target |
-| `scripts/network-profiles/packet-loss.json` | Add packet loss where netem is available |
+| `scripts/network-profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
 | `scripts/network-profiles/offline-alice.json` | Disconnect Alice node from selected network |
 | `scripts/network-profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
 | `scripts/network-profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
@@ -366,15 +398,21 @@ npm run reset-dev-db -- --profile all --yes
 ### Target Commands
 
 ```powershell
-.\scripts\network.ps1 -Profile high-latency -Target bob-node
+.\scripts\network.ps1 -Profile offline-alice
 .\scripts\network.ps1 -Profile partition-alice-bob
 .\scripts\network.ps1 -Reset
 ```
 
 ```bash
-./scripts/network.sh --profile high-latency --target bob-node
+./scripts/network.sh --profile offline-alice
 ./scripts/network.sh --profile partition-alice-bob
 ./scripts/network.sh --reset
+```
+
+```bash
+npm run network -- --profile offline-alice
+npm run network -- --profile partition-alice-bob
+npm run network -- --reset
 ```
 
 ### Docker Network Controls
@@ -384,30 +422,27 @@ npm run reset-dev-db -- --profile all --yes
 - Use separate networks for partition simulation.
 - Keep reset commands deterministic and idempotent.
 - Record applied network profile state under `.local-run/network-state.json`.
+- `network --reset --force` is reserved for runtime cleanup after failed Docker smoke paths and may remove stale local network-state metadata after best-effort restore.
+- Current `single`/`dual`/`triple` runtime profiles launch host processes, so Docker network actions fail safe for those host-process instance IDs.
+- The Docker runtime test stack writes container metadata for `alice-node` and `bob-node`, so Docker-backed profiles can apply against those instance IDs.
+- Docker-backed profiles act on the runtime simulation network, not the infra network.
+- Infra dependencies are per-node; Alice and Bob do not share Postgres, Redis, MinIO, or an infra network with each other.
 
-### Linux `tc/netem`
+### Toxiproxy Peer Links
 
-- Use `tc qdisc` inside Linux network namespaces where Docker permissions allow it.
-- Simulate latency, jitter, packet loss, bandwidth limits, and packet reordering.
-- Keep `tc` commands behind explicit `--profile` and `--target` parameters.
-- Always provide a `--reset` path that removes shaping rules.
-- Do not require `tc` for the default Windows path.
+- Use Toxiproxy in the Docker runtime stack for latency, jitter, and timeout-based TCP simulations.
+- Runtime state records Toxiproxy proxy metadata so `network --profile high-latency --target alice-node` applies to Alice's proxied peer links.
+- `packet-loss` is a deterministic timeout approximation, not packet-level loss.
+- Toxiproxy profiles require Docker runtime targets; host-process runtime profiles fail safe.
+- Keep Toxiproxy reset deterministic by deleting active toxics recorded in `.local-run/network-state.json`.
 
 ### Dev-Only App Fault Injection
 
-- Add env-gated knobs only after script-level profiles exist.
-- Candidate API env vars:
-  - `API_DEV_NETWORK_DELAY_MS`
-  - `API_DEV_NETWORK_FAIL_RATE`
-  - `API_DEV_NETWORK_FAIL_ENDPOINTS`
-- Candidate realtime env vars:
-  - `REALTIME_DEV_NETWORK_DELAY_MS`
-  - `REALTIME_DEV_MESSAGE_DROP_RATE`
-  - `REALTIME_DEV_DISCONNECT_AFTER_SECONDS`
-- Candidate web env vars:
-  - `NEXT_PUBLIC_DEV_NETWORK_LABEL`
-  - `NEXT_PUBLIC_DEV_TESTING_ENABLED`
-- Every dev fault knob must be rejected or ignored in production.
+- Realtime exposes internal dev-fault endpoints only when `REALTIME_ENABLE_DEV_FAULTS=true`.
+- `npm run start` and `runtime:docker` enable realtime dev faults for local testing; production config rejects them.
+- Non-loopback realtime binds require a non-default channel dispatch internal token when dev faults are enabled.
+- `flaky-mobile` maps to realtime delay, deterministic drop rate, and disconnect-after settings through `npm run network -- --profile flaky-mobile --target <instance>`.
+- `network --reset` restores the previous realtime dev-fault config.
 
 ### Direct-Only DM Guardrail
 
@@ -447,13 +482,16 @@ npm run reset-dev-db -- --profile all --yes
 - `status` reports every tracked instance.
 - `stop` stops every tracked process.
 - `network --reset` restores connectivity after each simulated network scenario.
+- `test:runtime` validates app-level Alice/Bob API reachability before, during, and after Docker offline/partition profiles.
+- `test:runtime` validates Toxiproxy peer-link latency and timeout apply/reset without kernel-level network shaping.
+- `test:runtime` validates realtime app-fault apply/reset against the runtime stack.
 
 ### CI Strategy
 
 - Keep standard `npm run test` CI-safe and deterministic.
-- Add heavier runtime/network checks behind a separate command, such as `npm run test:runtime`.
+- Keep heavier runtime/network checks behind `npm run test:runtime` and the separate `runtime-network-smoke` CI job.
 - Run seed parser and API fixture invariants in CI.
-- Avoid requiring privileged `tc/netem` in CI unless a dedicated runner supports it.
+- Keep Toxiproxy coverage in the Docker runtime smoke so normal test jobs do not need extra runtime services.
 
 ## Evidence Artifacts
 
@@ -476,11 +514,11 @@ npm run reset-dev-db -- --profile all --yes
 
 | Phase ID | Title | Objective | Status |
 |---|---|---|---|
-| PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | in_progress |
+| PH-01 | Fixture foundation | Define deterministic testing profiles and backend fixture catalog | done |
 | PH-02 | Seed/reset tooling | Add safe local seed and reset commands | done |
 | PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | done |
 | PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | done |
-| PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | ready |
+| PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | done |
 | PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
 | PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
 
@@ -490,8 +528,8 @@ npm run reset-dev-db -- --profile all --yes
 |---|---|---|---|---|---|
 | PH-01-EP-01-ST-01-TK-01 | Define fixture catalog schema | `scripts/fixtures/`, seed command parser | Unit test parser | Schema supports profiles, identities, sessions, contacts, DM data, server data, and devices | done |
 | PH-01-EP-01-ST-01-TK-02 | Add `dm-basic` fixture profile | `scripts/fixtures/scenarios/dm-basic.json` | Seed dry run | Alice and Bob are DM-ready and documented | done |
-| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | Seed dry run | Pending and restricted states are reproducible | ready |
-| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | Seed dry run | Shared server, channels, memberships, and messages exist | ready |
+| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | `cargo test -p api-rs dev_seed`; seed dry run | Pending and restricted states are reproducible | done |
+| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | `cargo test -p api-rs dev_seed`; seed dry run | Shared server, channels, memberships, and messages exist | done |
 
 ### PH-02 Tasks
 
@@ -523,10 +561,11 @@ npm run reset-dev-db -- --profile all --yes
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/` | Parser tests | Normal, offline, partition, latency, and flaky profiles validate | ready |
-| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.ps1`, `scripts/network.sh` | Apply and reset offline/partition | Cross-platform disconnect and partition work | ready |
-| PH-05-EP-01-ST-01-TK-03 | Add Linux `tc/netem` support | `scripts/network.sh` | Apply and reset latency/loss | Linux supports realistic shaping where permissions allow | ready |
-| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/api-rs`, `services/realtime-rs` | Integration tests | Delay/drop/fail knobs work only in dev/test mode | ready |
+| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/`, `scripts/validate-network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
+| PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
+| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
+| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime-docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime nodes expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
 
 ### PH-06 Tasks
 
@@ -573,7 +612,7 @@ Critical path:
 | DEC-01 | Fixture authority | Versioned fixture catalog plus Rust seed command | Keeps DB writes typed, transactional, and aligned with API migrations | Requires script wrappers for good UX |
 | DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
 | DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
-| DEC-04 | Network simulation | Docker controls plus `tc/netem` plus app-level dev faults | Balances Windows support and realistic Linux shaping | Some scenarios differ in realism by OS |
+| DEC-04 | Network simulation | Docker controls plus Toxiproxy plus app-level dev faults | Keeps Windows/Linux behavior Docker-only and deterministic | Toxiproxy is TCP-level rather than packet-level shaping |
 | DEC-05 | DM transport | Keep DM direct-only and fail explicitly under simulated network failures | Preserves product guardrail | Testing must not use TURN/coturn/relay fallback for DM |
 | DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
 
@@ -584,7 +623,7 @@ Critical path:
 | Seed/reset targets a non-local DB | High | Refuse unless env and database URL pass local allowlist checks |
 | Static dev keys are mistaken for production material | Medium | Mark fixture key material as dev-only and avoid using production-looking names |
 | Browser personas drift from backend sessions | Medium | Use API-backed dev sessions and only mirror session state into browser storage |
-| Windows cannot run `tc/netem` realistically | Medium | Use Docker partition/disconnect and app-level fault injection as Windows default |
+| Toxiproxy is TCP-level rather than packet-level | Medium | Use Docker partition/disconnect plus app-level realtime faults for deterministic MVP coverage |
 | Runtime profiles create stale processes | Medium | Track PIDs in `.local-run/`, provide status and stop commands, refuse unsafe reuse |
 | Network reset leaves containers partitioned | Medium | Store network state and make reset idempotent |
 | DM delivery remains partially wired in UI | Medium | Validate backend history/fanout/connectivity now and document web delivery limitations until implemented |

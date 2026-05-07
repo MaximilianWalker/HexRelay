@@ -56,6 +56,16 @@ stop_tree() {
 }
 
 ACTIVE_PROFILE="$(node -e 'const fs=require("node:fs"); const s=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(s.profile);' "$STATE_PATH")"
+RUNTIME_KIND="$(node -e 'const fs=require("node:fs"); const s=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(s.runtimeKind ?? "");' "$STATE_PATH")"
+if [[ "$RUNTIME_KIND" == "docker-test" ]]; then
+  MESSAGE="Docker runtime test stack is active. Use 'npm run runtime:docker -- down' instead of 'npm run stop'."
+  if [[ "$JSON" -eq 1 ]]; then
+    node -e 'console.log(JSON.stringify({stopped:[], runtimeKind:process.argv[1], message:process.argv[2]}, null, 2))' "$RUNTIME_KIND" "$MESSAGE"
+  else
+    echo "[stop] ERROR: $MESSAGE" >&2
+  fi
+  exit 1
+fi
 PROFILE_MATCH="1"
 if [[ -n "$RUNTIME_PROFILE" ]]; then
   PROFILE_MATCH="$(node -e 'const fs=require("node:fs"); const cp=require("node:child_process"); const state=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const spec=process.argv[2]; const validator=process.argv[3]; let ok=state.profile === spec || state.profilePath === spec; if (!ok) { const result=cp.spawnSync(process.execPath, [validator, "--print", spec], {encoding:"utf8"}); if (result.status === 0) { const resolved=JSON.parse(result.stdout); ok=state.profile === resolved.name || state.profilePath === resolved.profilePath; } } process.stdout.write(ok ? "1" : "0");' "$STATE_PATH" "$RUNTIME_PROFILE" "$ROOT/scripts/validate-runtime-profiles.mjs")"

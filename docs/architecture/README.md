@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-05-07
 - Source of truth: `docs/architecture/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-03 added the canonical system overview so runtime topology and trust boundaries no longer have to be reconstructed from scattered docs.
+- Latest meaningful change: 2026-05-07 refreshed the runtime deployment ADR summary for release target parity and desktop/server package boundaries.
 
 ## Purpose
 
@@ -28,7 +28,7 @@
 ## ADR Index
 
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
-- `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode baseline (accepted).
+- `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode, release target parity, and desktop/server package boundary baseline (accepted).
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`: Rust service module architecture contract baseline (accepted).
 
 ## Architecture Specs

@@ -266,6 +266,8 @@ components:
             - rate_limited
             - session_invalid
             - connection_cap_reached
+            - dev_fault_disconnect
+            - dev_fault_drop
             - event_invalid
             - event_version_unsupported
             - event_identity_mismatch

@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-05-07
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-06 clarified MVP DM reliability as durable sender-side acceptance plus bounded eventual catch-up, with reachability tracked separately from message durability.
+- Latest meaningful change: 2026-05-07 locked Windows/Linux release parity, Tauri desktop default, and separate dedicated-server package direction.
 
 ## 1) Product Intent and Constraints
 
@@ -67,15 +67,19 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
 - 2026-03-12: Locked DM connectivity to infrastructure-free direct paths only (no STUN/TURN/relay dependency) with explicit failure guidance when direct connection is unavailable.
 - 2026-03-12: Locked profile-device convergence requirement: incoming communication must sync to all profile devices, including devices that become active after first delivery.
+- 2026-05-07: Locked Windows and Linux as first-class release targets, Tauri as the default desktop shell, and dedicated server delivery as a separate service/package family from the desktop installer.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
 - Primary mode is a downloadable desktop app where each user can run HexRelay off-grid.
-- Desktop packaging bundles UI plus local API/realtime runtime components.
+- Windows and Linux are both first-class desktop release targets.
+- Desktop packaging uses Tauri by default and bundles UI plus local API/realtime runtime components for user-local operation.
 - Dedicated server mode is supported for operators who want headless hosting.
-- Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when distributed as one installer.
+- Dedicated server delivery is a separate service/package family from the desktop installer.
+- Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when desktop packaging installs and supervises local runtime components.
 - Browser-only usage is a compatibility path, not the primary runtime target.
 - Terminology mapping for runtime words (`node`, `server`, `dedicated server`, `guild`) is canonical in `docs/reference/glossary.md`.
+- Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
 
 ## 2) Architecture Decision (Locked)
 

@@ -20,6 +20,7 @@ pub struct RealtimeConfig {
     pub ws_max_connections_per_identity: usize,
     pub ws_auth_grace_seconds: u64,
     pub ws_auth_cache_max_entries: usize,
+    pub enable_dev_faults: bool,
 }
 
 impl RealtimeConfig {
@@ -65,6 +66,7 @@ impl RealtimeConfig {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
         let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
+        let enable_dev_faults = parse_bool_env("REALTIME_ENABLE_DEV_FAULTS", false)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
         let ws_max_inbound_message_bytes =
@@ -191,6 +193,23 @@ impl RealtimeConfig {
             );
         }
 
+        if environment == "production" && enable_dev_faults {
+            return Err(
+                "Invalid REALTIME_ENABLE_DEV_FAULTS for production. Dev fault hooks must be disabled"
+                    .to_string(),
+            );
+        }
+
+        if enable_dev_faults
+            && !bind_addr.ip().is_loopback()
+            && channel_dispatch_internal_token == DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN
+        {
+            return Err(
+                "Invalid REALTIME_ENABLE_DEV_FAULTS. Non-loopback dev fault binds require a non-default REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN"
+                    .to_string(),
+            );
+        }
+
         Ok(Self {
             api_base_url,
             require_api_health_on_start,
@@ -208,6 +227,7 @@ impl RealtimeConfig {
             ws_max_connections_per_identity,
             ws_auth_grace_seconds,
             ws_auth_cache_max_entries,
+            enable_dev_faults,
         })
     }
 }
@@ -268,15 +288,44 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    const REALTIME_ENV_KEYS: &[&str] = &[
+        "REALTIME_ENVIRONMENT",
+        "REALTIME_BIND",
+        "REALTIME_API_BASE_URL",
+        "REALTIME_ALLOWED_ORIGINS",
+        "REALTIME_REQUIRE_API_HEALTH_ON_START",
+        "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+        "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+        "REALTIME_PRESENCE_REDIS_URL",
+        "REALTIME_TRUST_PROXY_HEADERS",
+        "REALTIME_ENABLE_DEV_FAULTS",
+        "REALTIME_WS_CONNECT_RATE_LIMIT",
+        "REALTIME_RATE_LIMIT_WINDOW_SECONDS",
+        "REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES",
+        "REALTIME_WS_MESSAGE_RATE_LIMIT",
+        "REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS",
+        "REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY",
+        "REALTIME_WS_AUTH_GRACE_SECONDS",
+        "REALTIME_WS_AUTH_CACHE_MAX_ENTRIES",
+    ];
+
     fn with_realtime_env<F>(pairs: &[(&str, Option<&str>)], f: F)
     where
         F: FnOnce(),
     {
-        let _guard = env_lock().lock().expect("acquire env test lock");
-        let previous = pairs
+        let guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous = REALTIME_ENV_KEYS
             .iter()
-            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
             .collect::<Vec<_>>();
+
+        for key in REALTIME_ENV_KEYS {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
 
         for (key, value) in pairs {
             match value {
@@ -289,7 +338,7 @@ mod tests {
             }
         }
 
-        f();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
         for (key, value) in previous {
             if let Some(value) = value {
@@ -301,6 +350,12 @@ mod tests {
                     std::env::remove_var(key);
                 }
             }
+        }
+
+        drop(guard);
+
+        if let Err(payload) = result {
+            std::panic::resume_unwind(payload);
         }
     }
 
@@ -396,6 +451,81 @@ mod tests {
                 let config = RealtimeConfig::from_env().expect("config should parse");
                 assert_eq!(config.ws_auth_grace_seconds, 30);
                 assert_eq!(config.ws_auth_cache_max_entries, 200);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_dev_fault_flag_only_outside_production() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_ENABLE_DEV_FAULTS", Some("true")),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert!(config.enable_dev_faults);
+            },
+        );
+
+        with_realtime_env(
+            &[
+                ("REALTIME_BIND", Some("0.0.0.0:8081")),
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_ENABLE_DEV_FAULTS", Some("true")),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("non-loopback dev faults with default token must fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN"));
+            },
+        );
+
+        with_realtime_env(
+            &[
+                ("REALTIME_BIND", Some("0.0.0.0:8081")),
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                (
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("development-dev-fault-token-12345"),
+                ),
+                ("REALTIME_ENABLE_DEV_FAULTS", Some("true")),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert!(config.enable_dev_faults);
+            },
+        );
+
+        with_realtime_env(
+            &[
+                ("REALTIME_ENVIRONMENT", Some("production")),
+                (
+                    "REALTIME_API_BASE_URL",
+                    Some("https://realtime.example.com"),
+                ),
+                ("REALTIME_ALLOWED_ORIGINS", Some("https://app.example.com")),
+                (
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("production-channel-dispatch-token-12345"),
+                ),
+                (
+                    "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("production-presence-watcher-token-12345"),
+                ),
+                ("REALTIME_ENABLE_DEV_FAULTS", Some("true")),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("production dev faults must fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_ENABLE_DEV_FAULTS"));
             },
         );
     }

@@ -1,0 +1,14 @@
+{
+  "name": "high-latency",
+  "description": "Apply Toxiproxy latency and jitter to the selected runtime instance peer link.",
+  "strategy": "toxiproxy",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "latency",
+      "target": "argument",
+      "latencyMs": 250,
+      "jitterMs": 40
+    }
+  ]
+}

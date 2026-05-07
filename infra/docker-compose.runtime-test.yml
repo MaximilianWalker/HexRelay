@@ -1,0 +1,408 @@
+name: hexrelay-runtime
+
+x-rust-service: &rust-service
+  image: rust:1-bookworm
+  working_dir: /workspace
+
+x-api-environment: &api-environment
+  API_BIND: 0.0.0.0:8080
+  API_ENVIRONMENT: development
+  API_ALLOW_PUBLIC_IDENTITY_REGISTRATION: "false"
+  API_ENABLE_DEV_TESTING: "false"
+  API_TRUST_PROXY_HEADERS: "false"
+  API_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-runtime-channel-dispatch-token-change-me
+  API_PRESENCE_WATCHER_INTERNAL_TOKEN: hexrelay-dev-presence-watcher-token-change-me
+  API_REALTIME_BASE_URL: http://127.0.0.1:8081
+  API_SESSION_SIGNING_KEYS: v1:hexrelay-dev-signing-key-change-me
+  API_SESSION_SIGNING_KEY_ID: v1
+  API_SESSION_SIGNING_KEY: hexrelay-dev-signing-key-change-me
+  API_SESSION_COOKIE_SECURE: "false"
+  API_SESSION_COOKIE_SAME_SITE: Lax
+  RUST_LOG: api_rs=info,tower_http=info
+
+x-realtime-environment: &realtime-environment
+  REALTIME_BIND: 0.0.0.0:8081
+  REALTIME_ENVIRONMENT: development
+  REALTIME_API_BASE_URL: http://127.0.0.1:8080
+  REALTIME_REQUIRE_API_HEALTH_ON_START: "true"
+  REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-runtime-channel-dispatch-token-change-me
+  REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN: hexrelay-dev-presence-watcher-token-change-me
+  REALTIME_TRUST_PROXY_HEADERS: "false"
+  REALTIME_WS_CONNECT_RATE_LIMIT: "60"
+  REALTIME_RATE_LIMIT_WINDOW_SECONDS: "60"
+  REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES: "16384"
+  REALTIME_WS_MESSAGE_RATE_LIMIT: "120"
+  REALTIME_WS_MESSAGE_RATE_WINDOW_SECONDS: "60"
+  REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY: "3"
+  REALTIME_WS_AUTH_GRACE_SECONDS: "0"
+  REALTIME_WS_AUTH_CACHE_MAX_ENTRIES: "10000"
+  REALTIME_ENABLE_DEV_FAULTS: "true"
+  RUST_LOG: realtime_rs=info,tower_http=info
+
+services:
+  alice-postgres:
+    image: postgres:16-alpine
+    container_name: hexrelay-runtime-alice-postgres
+    networks:
+      alice-infra:
+        aliases:
+          - postgres
+    environment:
+      POSTGRES_DB: hexrelay_runtime_alice
+      POSTGRES_USER: hexrelay
+      POSTGRES_PASSWORD: hexrelay_dev_password
+    volumes:
+      - runtime-alice-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexrelay -d hexrelay_runtime_alice"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  alice-redis:
+    image: redis:7-alpine
+    container_name: hexrelay-runtime-alice-redis
+    networks:
+      alice-infra:
+        aliases:
+          - redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - runtime-alice-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  alice-minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    container_name: hexrelay-runtime-alice-minio
+    networks:
+      - alice-infra
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - runtime-alice-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  bob-postgres:
+    image: postgres:16-alpine
+    container_name: hexrelay-runtime-bob-postgres
+    networks:
+      bob-infra:
+        aliases:
+          - postgres
+    environment:
+      POSTGRES_DB: hexrelay_runtime_bob
+      POSTGRES_USER: hexrelay
+      POSTGRES_PASSWORD: hexrelay_dev_password
+    volumes:
+      - runtime-bob-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexrelay -d hexrelay_runtime_bob"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  bob-redis:
+    image: redis:7-alpine
+    container_name: hexrelay-runtime-bob-redis
+    networks:
+      bob-infra:
+        aliases:
+          - redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - runtime-bob-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  bob-minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    container_name: hexrelay-runtime-bob-minio
+    networks:
+      - bob-infra
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - runtime-bob-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    container_name: hexrelay-runtime-toxiproxy
+    command: ["-host", "0.0.0.0", "-port", "8474"]
+    networks:
+      - simulation
+    ports:
+      - "127.0.0.1:18474:8474"
+
+  alice-node:
+    image: alpine:3.20
+    container_name: hexrelay-runtime-alice-node
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    networks:
+      - alice-infra
+      - simulation
+    ports:
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:18081:8081"
+      - "127.0.0.1:3002:3000"
+
+  bob-node:
+    image: alpine:3.20
+    container_name: hexrelay-runtime-bob-node
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    networks:
+      - bob-infra
+      - simulation
+    ports:
+      - "127.0.0.1:18180:8080"
+      - "127.0.0.1:18181:8081"
+      - "127.0.0.1:3012:3000"
+
+  alice-api:
+    <<: *rust-service
+    container_name: hexrelay-runtime-alice-api
+    network_mode: service:alice-node
+    depends_on:
+      alice-node:
+        condition: service_started
+      alice-postgres:
+        condition: service_healthy
+      alice-redis:
+        condition: service_healthy
+    environment:
+      <<: *api-environment
+      API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_alice
+      API_PRESENCE_REDIS_URL: redis://redis:6379/0
+      API_NODE_FINGERPRINT: hexrelay-runtime-alice-fingerprint
+      API_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+    volumes:
+      - ..:/workspace
+      - alice-cargo-registry:/usr/local/cargo/registry
+      - alice-cargo-git:/usr/local/cargo/git
+      - alice-cargo-target:/workspace/target
+    command: ["cargo", "run", "-p", "api-rs", "--bin", "api-rs"]
+
+  alice-realtime:
+    <<: *rust-service
+    container_name: hexrelay-runtime-alice-realtime
+    network_mode: service:alice-node
+    depends_on:
+      alice-node:
+        condition: service_started
+      alice-api:
+        condition: service_started
+      alice-redis:
+        condition: service_healthy
+    environment:
+      <<: *realtime-environment
+      REALTIME_PRESENCE_REDIS_URL: redis://redis:6379/0
+      REALTIME_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+    volumes:
+      - ..:/workspace
+      - alice-cargo-registry:/usr/local/cargo/registry
+      - alice-cargo-git:/usr/local/cargo/git
+      - alice-cargo-target:/workspace/target
+    command:
+      - bash
+      - -c
+      - |
+        until bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null; do sleep 1; done
+        cargo run -p realtime-rs
+
+  alice-web:
+    image: node:24-bookworm
+    container_name: hexrelay-runtime-alice-web
+    working_dir: /workspace
+    network_mode: service:alice-node
+    depends_on:
+      alice-node:
+        condition: service_started
+      alice-api:
+        condition: service_started
+      alice-realtime:
+        condition: service_started
+    volumes:
+      - ..:/workspace
+      - alice-web-node-modules:/workspace/apps/web/node_modules
+    environment:
+      HEXRELAY_RUNTIME_INSTANCE: alice-node
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:18080
+      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:18081/ws
+    command:
+      - bash
+      - -lc
+      - |
+        node scripts/write-runtime-tsconfig.mjs alice-node
+        npm --prefix apps/web ci
+        npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
+
+  bob-api:
+    <<: *rust-service
+    container_name: hexrelay-runtime-bob-api
+    network_mode: service:bob-node
+    depends_on:
+      bob-node:
+        condition: service_started
+      bob-postgres:
+        condition: service_healthy
+      bob-redis:
+        condition: service_healthy
+    environment:
+      <<: *api-environment
+      API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_bob
+      API_PRESENCE_REDIS_URL: redis://redis:6379/0
+      API_NODE_FINGERPRINT: hexrelay-runtime-bob-fingerprint
+      API_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+    volumes:
+      - ..:/workspace
+      - bob-cargo-registry:/usr/local/cargo/registry
+      - bob-cargo-git:/usr/local/cargo/git
+      - bob-cargo-target:/workspace/target
+    command: ["cargo", "run", "-p", "api-rs", "--bin", "api-rs"]
+
+  bob-realtime:
+    <<: *rust-service
+    container_name: hexrelay-runtime-bob-realtime
+    network_mode: service:bob-node
+    depends_on:
+      bob-node:
+        condition: service_started
+      bob-api:
+        condition: service_started
+      bob-redis:
+        condition: service_healthy
+    environment:
+      <<: *realtime-environment
+      REALTIME_PRESENCE_REDIS_URL: redis://redis:6379/0
+      REALTIME_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+    volumes:
+      - ..:/workspace
+      - bob-cargo-registry:/usr/local/cargo/registry
+      - bob-cargo-git:/usr/local/cargo/git
+      - bob-cargo-target:/workspace/target
+    command:
+      - bash
+      - -c
+      - |
+        until bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null; do sleep 1; done
+        cargo run -p realtime-rs
+
+  bob-web:
+    image: node:24-bookworm
+    container_name: hexrelay-runtime-bob-web
+    working_dir: /workspace
+    network_mode: service:bob-node
+    depends_on:
+      bob-node:
+        condition: service_started
+      bob-api:
+        condition: service_started
+      bob-realtime:
+        condition: service_started
+    volumes:
+      - ..:/workspace
+      - bob-web-node-modules:/workspace/apps/web/node_modules
+    environment:
+      HEXRELAY_RUNTIME_INSTANCE: bob-node
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:18180
+      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:18181/ws
+    command:
+      - bash
+      - -lc
+      - |
+        node scripts/write-runtime-tsconfig.mjs bob-node
+        npm --prefix apps/web ci
+        npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
+
+  alice-seed:
+    <<: *rust-service
+    profiles: ["tools"]
+    networks:
+      - alice-infra
+    depends_on:
+      alice-postgres:
+        condition: service_healthy
+    environment:
+      <<: *api-environment
+      API_BIND: 127.0.0.1:8080
+      API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_alice
+      API_PRESENCE_REDIS_URL: redis://redis:6379/0
+      API_NODE_FINGERPRINT: hexrelay-runtime-alice-seed-fingerprint
+      API_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+    volumes:
+      - ..:/workspace
+      - alice-cargo-registry:/usr/local/cargo/registry
+      - alice-cargo-git:/usr/local/cargo/git
+      - alice-cargo-target:/workspace/target
+    command: ["true"]
+
+  bob-seed:
+    <<: *rust-service
+    profiles: ["tools"]
+    networks:
+      - bob-infra
+    depends_on:
+      bob-postgres:
+        condition: service_healthy
+    environment:
+      <<: *api-environment
+      API_BIND: 127.0.0.1:8080
+      API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_bob
+      API_PRESENCE_REDIS_URL: redis://redis:6379/0
+      API_NODE_FINGERPRINT: hexrelay-runtime-bob-seed-fingerprint
+      API_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+    volumes:
+      - ..:/workspace
+      - bob-cargo-registry:/usr/local/cargo/registry
+      - bob-cargo-git:/usr/local/cargo/git
+      - bob-cargo-target:/workspace/target
+    command: ["true"]
+
+networks:
+  alice-infra:
+    name: hexrelay-runtime_alice-infra
+  bob-infra:
+    name: hexrelay-runtime_bob-infra
+  simulation:
+    name: hexrelay-runtime_simulation
+
+volumes:
+  runtime-alice-postgres-data:
+  runtime-alice-redis-data:
+  runtime-alice-minio-data:
+  runtime-bob-postgres-data:
+  runtime-bob-redis-data:
+  runtime-bob-minio-data:
+  alice-cargo-registry:
+  alice-cargo-git:
+  alice-cargo-target:
+  bob-cargo-registry:
+  bob-cargo-git:
+  bob-cargo-target:
+  alice-web-node-modules:
+  bob-web-node-modules:
