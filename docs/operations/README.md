@@ -13,7 +13,7 @@
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-05-07 added release packaging as the authority for desktop/server artifacts and signing expectations.
+- Latest meaningful change: 2026-05-07 added the local runtime testing quickstart and troubleshooting guide.
 
 ## Purpose
 
@@ -30,6 +30,7 @@
 - Dedicated server deployment: `docs/operations/02-dedicated-server-deployment.md`
 - Release packaging: `docs/operations/03-release-packaging.md`
 - Development prerequisites: `docs/operations/dev-prerequisites.md`
+- Local runtime testing quickstart: `docs/operations/local-runtime-testing-quickstart.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Local runtime testing plan: `docs/planning/local-runtime-testing-plan.md`
 - Readiness corrections log: `docs/operations/readiness-corrections-log.md`
