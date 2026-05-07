@@ -18,6 +18,7 @@ import {
   redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
+  runDmConnectivityPreflight,
   revokeSession,
   storeCsrfToken,
   updateDmPolicy,
@@ -456,6 +457,39 @@ describe("api auth transport", () => {
     const headers = new Headers(init?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
     expect(init?.body).toBe('{"envelope":"pairing-envelope-abc"}');
+  });
+
+  it("sends csrf and deterministic body for DM connectivity preflight", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "blocked",
+          reason_code: "peer_unreachable",
+          transport_profile: "direct_only",
+          remediation: ["Ask your contact to keep the app online and rerun preflight."],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await runDmConnectivityPreflight({
+      peerIdentityId: "usr-jules-p",
+      pairingEnvelopePresent: true,
+      localBindAllowed: true,
+      peerReachableHint: false,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.reason_code).toBe("peer_unreachable");
+    }
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("/v1/dm/connectivity/preflight");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(init?.body).toBe(
+      '{"peer_identity_id":"usr-jules-p","pairing_envelope_present":true,"local_bind_allowed":true,"peer_reachable_hint":false}',
+    );
   });
 
   it("loads and updates the DM privacy policy", async () => {

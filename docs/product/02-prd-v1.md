@@ -183,7 +183,7 @@ Build a communication stack where users and communities control identity, data l
 - DM connectivity execution model
   - Direct-only transport enforcement is required.
   - Out-of-band signed pairing (QR/link/manual code with short verification code) is required.
-  - Connectivity preflight and troubleshooter states are required for failed direct attempts.
+  - Connectivity preflight and troubleshooter states are required for failed direct attempts, covering missing pairing, blocked users, recipient policy, local bind denial, peer reachability failure, and LAN-ready direct paths.
   - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.
   - Delivery failures must downgrade current reachability assumptions without discarding accepted messages.

@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-08
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed `T4.1.4` signed DM pairing closeout documentation and runtime REST pairing schema updates.
+- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter documentation and runtime REST preflight schema updates.
 
 ## Purpose
 

@@ -157,10 +157,10 @@ pub fn validate_pairing_envelope_import(payload: &DmPairingEnvelopeImportRequest
 
 pub fn validate_connectivity_preflight(payload: &DmConnectivityPreflightRequest) -> ApiResult<()> {
     if let Some(peer_identity_id) = &payload.peer_identity_id {
-        if peer_identity_id.trim().is_empty() {
+        if !is_valid_identity_id(peer_identity_id) {
             return Err(bad_request(
                 "preflight_invalid",
-                "peer_identity_id must not be empty when provided",
+                "peer_identity_id must be 3-64 chars using letters, numbers, _ or -",
             ));
         }
     }

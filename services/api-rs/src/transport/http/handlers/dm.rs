@@ -324,8 +324,10 @@ pub async fn import_dm_pairing_envelope(
 pub async fn dm_connectivity_preflight(
     axum::extract::State(state): axum::extract::State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     Json(payload): Json<DmConnectivityPreflightRequest>,
 ) -> ApiResult<Json<DmConnectivityPreflightResponse>> {
+    enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_connectivity_preflight(&payload)?;
 
     if !payload.pairing_envelope_present.unwrap_or(false) {

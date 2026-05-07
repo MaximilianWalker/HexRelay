@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   IconArrowLeft,
   IconCircleCheck,
@@ -13,7 +13,16 @@ import {
 } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
-import { fetchContacts } from "@/lib/api";
+import {
+  fetchContacts,
+  runDmConnectivityPreflight,
+  type DmConnectivityPreflightResponse,
+} from "@/lib/api";
+import {
+  preflightReasonLabel,
+  readDmPairingImport,
+  type DmPairingImportRecord,
+} from "@/lib/dm-connectivity";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -34,6 +43,12 @@ type ContactLoad = {
   contact: Contact | null;
   error: string | null;
 };
+
+type PreflightLoad =
+  | { state: "idle" }
+  | { state: "loading" }
+  | { state: "ready"; result: DmConnectivityPreflightResponse }
+  | { state: "error"; message: string };
 
 function safeContactId(value: string): string | null {
   try {
@@ -63,15 +78,50 @@ function contactInitials(name: string): string {
     .join("");
 }
 
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
+}
+
+function subscribeBrowserReady(): () => void {
+  return () => {};
+}
+
+function getBrowserReadySnapshot(): "client" {
+  return "client";
+}
+
+function getBrowserReadyServerSnapshot(): "server" {
+  return "server";
+}
+
 export default function ContactMessagesPage() {
   const params = useParams<{ contactId: string }>();
   const contactId = safeContactId(params.contactId);
-  const personas = useMemo(() => readPersonas(), []);
-  const identityId = useMemo(() => readActivePersonaId() ?? personas[0]?.id ?? "usr-nora-k", [personas]);
-  const hasSession = useMemo(() => getPersonaSession(identityId) !== null, [identityId]);
+  const browserReady = useSyncExternalStore(
+    subscribeBrowserReady,
+    getBrowserReadySnapshot,
+    getBrowserReadyServerSnapshot,
+  ) === "client";
+  const personas = useMemo(() => (browserReady ? readPersonas() : []), [browserReady]);
+  const identityId = useMemo(
+    () => (browserReady ? readActivePersonaId() ?? personas[0]?.id ?? "usr-nora-k" : "usr-nora-k"),
+    [browserReady, personas],
+  );
+  const hasSession = useMemo(() => browserReady && getPersonaSession(identityId) !== null, [browserReady, identityId]);
   const [contactLoad, setContactLoad] = useState<ContactLoad | null>(null);
+  const [preflightRunId, setPreflightRunId] = useState(0);
+  const [preflight, setPreflight] = useState<PreflightLoad>({ state: "idle" });
   const [message, setMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const pairingImport = useMemo<DmPairingImportRecord | null>(
+    () => (browserReady && contactId ? readDmPairingImport(contactId) : null),
+    [browserReady, contactId],
+  );
 
   useEffect(() => {
     let active = true;
@@ -128,9 +178,55 @@ export default function ContactMessagesPage() {
   const loading = hasSession && contactId !== null && currentLoad === null;
   const loadError = currentLoad?.error ?? null;
   const title = contact?.name ?? shortIdentity(contactId ?? "Unknown contact");
-  const canMessage = Boolean(contact && !contact.inboundRequest && !contact.pendingRequest);
+  const chatContact = contact && !contact.inboundRequest && !contact.pendingRequest ? contact : null;
+  const canMessage = chatContact !== null;
+
+  useEffect(() => {
+    let active = true;
+
+    if (!hasSession || !chatContact) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const run = async (): Promise<void> => {
+      setPreflight({ state: "loading" });
+      const result = await runDmConnectivityPreflight({
+        peerIdentityId: chatContact.id,
+        pairingEnvelopePresent: pairingImport !== null,
+        localBindAllowed: true,
+        peerReachableHint: chatContact.status === "online",
+      });
+
+      if (!active) {
+        return;
+      }
+
+      if (!result.ok) {
+        setPreflight({ state: "error", message: result.message });
+        return;
+      }
+
+      setPreflight({ state: "ready", result: result.data });
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [chatContact, hasSession, pairingImport, preflightRunId]);
+
+  const preflightResult = preflight.state === "ready" ? preflight.result : null;
+  const directPathReady = preflightResult?.status === "ready";
 
   function handleSend(): void {
+    if (!directPathReady) {
+      setStatusMessage("Resolve direct-connect preflight before sending a private message.");
+      return;
+    }
+
     setStatusMessage(
       message.trim()
         ? "Message composer is ready, but delivery is not wired in this build yet."
@@ -189,12 +285,69 @@ export default function ContactMessagesPage() {
             <p className={styles.state}>Finish the contact request before starting a private chat.</p>
           ) : null}
 
-          {canMessage ? (
+          {chatContact ? (
             <>
+              <div className={styles.card} style={{ marginTop: 12 }}>
+                <p className={styles.title}>
+                  <IconInfoCircle className={styles.icon} aria-hidden="true" /> Direct-connect preflight
+                </p>
+                <p className={styles.meta}>
+                  Combines session pairing state, local app hints, and trusted DM policy checks before this chat uses direct-only transport.
+                </p>
+                <div className={styles.row}>
+                  {pairingImport ? (
+                    <span className={styles.badge}>
+                      <IconCircleCheck className={styles.icon} aria-hidden="true" /> Pairing imported
+                    </span>
+                  ) : (
+                    <span className={styles.badgeMuted}>Pairing not imported</span>
+                  )}
+                  <span className={chatContact.status === "online" ? styles.badge : styles.badgeMuted}>
+                    Peer {chatContact.status}
+                  </span>
+                  <span className={styles.badgeMuted}>Transport: direct only</span>
+                </div>
+
+                {pairingImport ? (
+                  <details className={styles.compactDetails}>
+                    <summary>
+                      <IconInfoCircle className={styles.icon} aria-hidden="true" /> Pairing details
+                    </summary>
+                    <p className={styles.meta}>Expires: {formatDateTime(pairingImport.expiresAt)}</p>
+                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
+                      Fingerprint: {pairingImport.inviterIdentityKey.fingerprint}
+                    </p>
+                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
+                      Endpoints: {pairingImport.endpointHints.join(", ") || "No endpoint hints"}
+                    </p>
+                  </details>
+                ) : null}
+
+                {preflight.state === "loading" ? <p className={styles.state}>Running preflight...</p> : null}
+                {preflight.state === "error" ? <p className={styles.state}>{preflight.message}</p> : null}
+                {preflightResult ? (
+                  <div className={styles.state}>
+                    <p className={styles.title}>{preflightReasonLabel(preflightResult.reason_code)}</p>
+                    <p className={styles.meta}>Reason code: {preflightResult.reason_code}</p>
+                    <ul>
+                      {preflightResult.remediation.map((step) => (
+                        <li className={styles.meta} key={step}>{step}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <button className={styles.pill} onClick={() => setPreflightRunId((value) => value + 1)} type="button">
+                  <IconInfoCircle className={styles.icon} aria-hidden="true" /> Rerun preflight
+                </button>
+              </div>
+
               <div className={styles.state}>
                 <p className={styles.title}>Conversation starts here</p>
                 <p className={styles.meta}>
-                  The route is ready. The next backend slice will load DM thread history and send messages from this composer.
+                  {directPathReady
+                    ? "The direct path is ready. The next backend slice will load DM thread history and send messages from this composer."
+                    : "The private chat route exists, but direct-connect troubleshooting must pass before sending."}
                 </p>
               </div>
 
@@ -204,13 +357,15 @@ export default function ContactMessagesPage() {
                 </p>
                 <textarea
                   className={styles.search}
+                  id="dm-message-composer"
+                  name="message"
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder={`Message ${title}`}
                   rows={4}
                   value={message}
                 />
                 <div className={styles.row}>
-                  <button className={styles.pill} onClick={handleSend} type="button">
+                  <button className={styles.pill} disabled={!directPathReady} onClick={handleSend} type="button">
                     <IconSend className={styles.icon} aria-hidden="true" />
                     Send
                   </button>

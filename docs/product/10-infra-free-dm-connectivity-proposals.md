@@ -113,9 +113,9 @@
 
 ### How it works
 
-1. User clicks "Start DM" and preflight runs local checks (port bind ability, local interface state, known blocking indicators).
+1. User clicks "Start DM" and preflight combines local client checks (pairing material, port bind ability, local interface state) with trusted server checks (block/policy state and known LAN indicators).
 2. Client scores readiness and selects direct dial strategy.
-3. On failure, system maps event to a bounded reason code set (for example: `port_blocked`, `peer_unreachable`, `nat_restricted`).
+3. On failure, system maps event to a bounded reason code set (for example: `pairing_missing`, `port_unavailable`, `policy_blocked`, `peer_unreachable`).
 4. UI shows exact next actions (retry window, local firewall exception, router mapping guidance, local network alternative).
 5. User can re-run preflight and compare outcomes.
 
@@ -132,9 +132,9 @@
 
 ### Implementation slices
 
-- Implement preflight probe module.
+- Implement preflight probe module for pairing, local bind, policy/block, reachability, and LAN-ready outcomes.
 - Define reason-code contract and UI mapping.
-- Add retry loop with before/after diagnostics snapshot.
+- Add rerunnable private-chat troubleshooter with before/after diagnostics visibility.
 
 ## Proposition 4 (Rank 4): Local-Network Fast Path (mDNS/Multicast + Direct QUIC/TCP)
 

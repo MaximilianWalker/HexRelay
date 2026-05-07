@@ -36,6 +36,7 @@ import {
   redeemContactInvite,
   type DmPairingIdentityKey,
 } from "@/lib/api";
+import { storeDmPairingImport } from "@/lib/dm-connectivity";
 import { buildDmPairingLink, buildDmPairingManualCode, parseDmPairingInput } from "@/lib/dm-pairing";
 import { readActivePersonaId, readPersonas, type PersonaRecord } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
@@ -581,8 +582,15 @@ export default function ContactsPage() {
       }
 
       setPairingImportResult(result.data);
+      storeDmPairingImport({
+        inviterIdentityId: result.data.inviter_identity_id,
+        inviterIdentityKey: result.data.inviter_identity_key,
+        endpointHints: result.data.endpoint_hints,
+        importedAt: result.data.imported_at,
+        expiresAt: result.data.expires_at,
+      });
       setPairingImportValue("");
-      setActionMessage("Advanced connection details saved.");
+      setActionMessage("Advanced connection details saved. Open the private chat to run connectivity preflight.");
     } catch {
       setActionMessage("Could not read those advanced connection details.");
     } finally {
