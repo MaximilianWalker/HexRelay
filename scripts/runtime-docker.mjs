@@ -205,7 +205,7 @@ function prepareEvidenceDir(evidenceDir) {
     "event-log.ndjson",
     "verdict.md",
   ]) {
-    fs.rmSync(path.join(evidenceDir, fileName), { force: true });
+    fs.rmSync(path.join(evidenceDir, fileName), { force: true, recursive: true });
   }
 }
 

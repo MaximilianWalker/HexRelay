@@ -1822,7 +1822,7 @@ mod tests {
             .find(|invite| invite.invite_id == "fixture-invite-carol-contact-exhausted")
             .expect("exhausted Carol invite exists");
         assert_eq!(exhausted.mode, "multi_use");
-        assert_eq!(exhausted.uses, exhausted.max_uses.unwrap_or_default());
+        assert_eq!(exhausted.max_uses, Some(exhausted.uses));
         assert!(scenario.dm_threads.is_empty());
     }
 
@@ -1860,12 +1860,12 @@ mod tests {
         assert_eq!(ops.last_message_seq, 2);
         assert!(scenario.server_channel_messages.iter().any(|message| {
             message.reply_to_message_id.as_deref() == Some("fixture-server-message-general-002")
-                && message.mention_identity_ids == ["usr-test-bob"]
+                && message.mention_identity_ids.as_slice() == ["usr-test-bob"]
         }));
         assert!(scenario.server_channel_messages.iter().any(|message| {
             message.channel_id == "fixture-channel-atlas-ops-lab"
                 && message.reply_to_message_id.as_deref() == Some("fixture-server-message-ops-001")
-                && message.mention_identity_ids == ["usr-test-alice"]
+                && message.mention_identity_ids.as_slice() == ["usr-test-alice"]
         }));
     }
 
