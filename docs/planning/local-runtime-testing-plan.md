@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-07 completed PH-05 Docker runtime, Toxiproxy, app-fault, and runtime smoke coverage for local network simulation.
+- Latest meaningful change: 2026-05-07 completed PH-06 fixture, web helper, runtime smoke, network reset, and optional smoke evidence validation coverage.
 
 ## Organization Decision
 
@@ -47,7 +47,7 @@
 
 ## Current Repository Baseline
 
-- Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, tests, and security checks through `package.json`.
+- Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, runtime/network smoke tests, standard tests, and security checks through `package.json`.
 - Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
@@ -364,6 +364,8 @@ Generic `npm run stop` refuses Docker runtime state; use `runtime:docker -- down
 
 ```bash
 npm run test:runtime
+npm run test:network
+node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
 ```
 
 ### Windows Parity
@@ -485,6 +487,8 @@ npm run network -- --reset
 - `test:runtime` validates app-level Alice/Bob API reachability before, during, and after Docker offline/partition profiles.
 - `test:runtime` validates Toxiproxy peer-link latency and timeout apply/reset without kernel-level network shaping.
 - `test:runtime` validates realtime app-fault apply/reset against the runtime stack.
+- `test:network` runs the same Docker runtime network scenario set explicitly through `scripts/test-network.mjs`.
+- `runtime-docker.mjs smoke --evidence-dir <path>` writes `scenario-config.json`, `runtime-status-before.json`, `runtime-status-after.json`, `event-log.ndjson`, and `verdict.md` for reproducible local evidence.
 
 ### CI Strategy
 
@@ -519,7 +523,7 @@ npm run network -- --reset
 | PH-03 | Dev sessions and web profile UX | Make seeded users easy to activate in browser sessions | done |
 | PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | done |
 | PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | done |
-| PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | ready |
+| PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | done |
 | PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
 
 ### PH-01 Tasks
@@ -571,10 +575,10 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-06-EP-01-ST-01-TK-01 | Add fixture invariant tests | `services/api-rs/src/tests` | `cargo test -p api-rs fixture` | Seeded profiles match expected DB state | ready |
-| PH-06-EP-01-ST-01-TK-02 | Add web persona tests | `apps/web/lib/*test.ts` | `npm run test --prefix apps/web` | Persona/session helpers are covered | ready |
-| PH-06-EP-01-ST-01-TK-03 | Add runtime smoke tests | `scripts/test-runtime.*` | `npm run test:runtime` | Single and dual profile health checks pass | ready |
-| PH-06-EP-01-ST-01-TK-04 | Add network reset smoke tests | `scripts/test-network.*` | Apply scenario then reset | Reset restores baseline connectivity | ready |
+| PH-06-EP-01-ST-01-TK-01 | Add fixture invariant tests | `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs fixture` | Seeded profiles match expected local runtime scenario invariants | done |
+| PH-06-EP-01-ST-01-TK-02 | Add web persona tests | `apps/web/lib/personas.test.ts`, `apps/web/lib/sessions.test.ts` | `npm run test --prefix apps/web` | Persona/session helpers are covered | done |
+| PH-06-EP-01-ST-01-TK-03 | Add runtime smoke tests | `scripts/test-runtime.mjs`, `scripts/runtime-docker.mjs` | `npm run test:runtime`; `node scripts/runtime-docker.mjs smoke --scope runtime` | Docker runtime health checks pass and optional evidence can be emitted | done |
+| PH-06-EP-01-ST-01-TK-04 | Add network reset smoke tests | `scripts/test-network.mjs`, `scripts/runtime-docker.mjs` | `npm run test:network`; `npm run test:runtime` | Reset restores baseline connectivity after offline, partition, Toxiproxy, and app-fault profiles | done |
 
 ### PH-07 Tasks
 

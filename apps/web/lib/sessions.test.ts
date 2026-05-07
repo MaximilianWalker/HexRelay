@@ -88,6 +88,27 @@ describe("sessions", () => {
     expect(windowRef.localStorage.getItem("hexrelay.session.v1.persona-1")).toBeNull();
   });
 
+  it("keeps seeded runtime sessions isolated per persona", () => {
+    (globalThis as { window?: unknown }).window = buildWindow();
+
+    setPersonaSession("usr-test-alice", {
+      sessionId: "sess-test-alice-primary",
+      expiresAt: "2031-01-01T00:00:00Z",
+    });
+    setPersonaSession("usr-test-bob", {
+      sessionId: "sess-test-bob-primary",
+      expiresAt: "2031-01-01T00:00:00Z",
+    });
+
+    clearPersonaSession("usr-test-alice");
+
+    expect(getPersonaSession("usr-test-alice")).toBeNull();
+    expect(getPersonaSession("usr-test-bob")).toEqual({
+      sessionId: "sess-test-bob-primary",
+      expiresAt: "2031-01-01T00:00:00Z",
+    });
+  });
+
   it("migrates legacy localStorage session into sessionStorage", () => {
     (globalThis as { window?: unknown }).window = buildWindow();
     const windowRef = globalThis.window as ReturnType<typeof buildWindow>;

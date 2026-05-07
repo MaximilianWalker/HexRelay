@@ -1728,6 +1728,148 @@ mod tests {
     }
 
     #[test]
+    fn dm_basic_fixture_matches_seeded_chat_invariants() {
+        let scenario = dm_basic();
+
+        validate_scenario(&scenario).expect("dm-basic fixture validates");
+
+        assert_fixture_identity(&scenario, "alice.primary", "usr-test-alice");
+        assert_fixture_identity(&scenario, "bob.primary", "usr-test-bob");
+        assert_fixture_session(&scenario, "alice.primary", "sess-test-alice-primary");
+        assert_fixture_session(&scenario, "bob.primary", "sess-test-bob-primary");
+        assert_friend_request(
+            &scenario,
+            "fixture-fr-alice-bob",
+            "usr-test-alice",
+            "usr-test-bob",
+            "accepted",
+        );
+        assert_dm_policy(&scenario, "usr-test-alice", "friends_only");
+        assert_dm_policy(&scenario, "usr-test-bob", "friends_only");
+
+        let thread = scenario
+            .dm_threads
+            .iter()
+            .find(|thread| thread.thread_id == "dm-usr-test-alice-usr-test-bob")
+            .expect("alice/bob DM thread exists");
+        assert_eq!(thread.kind, "dm");
+        assert_eq!(thread.participants.len(), 2);
+        assert!(thread
+            .participants
+            .iter()
+            .any(|participant| participant.identity_id == "usr-test-alice"
+                && participant.last_read_seq == 3));
+        assert!(thread
+            .participants
+            .iter()
+            .any(|participant| participant.identity_id == "usr-test-bob"
+                && participant.last_read_seq == 5));
+        assert_eq!(thread.messages.len(), 5);
+        for (index, message) in thread.messages.iter().enumerate() {
+            assert_eq!(message.seq, (index + 1) as u64);
+            assert!(message.message_id.starts_with("fixture-dm-alice-bob-"));
+            assert!(matches!(
+                message.author_id.as_str(),
+                "usr-test-alice" | "usr-test-bob"
+            ));
+        }
+        assert_eq!(scenario.endpoint_cards.len(), 3);
+        assert!(scenario.endpoint_cards.iter().all(|card| matches!(
+            card.endpoint_hint
+                .split_once("://")
+                .map(|(scheme, _)| scheme),
+            Some("tcp" | "udp" | "quic")
+        )));
+        assert_eq!(
+            scenario
+                .devices
+                .iter()
+                .filter(|device| device.identity_id == "usr-test-bob" && device.active)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn contacts_edge_fixture_matches_pending_and_restricted_invariants() {
+        let scenario = contacts_edge();
+
+        validate_scenario(&scenario).expect("contacts-edge fixture validates");
+
+        assert_fixture_identity(&scenario, "alice.primary", "usr-test-alice");
+        assert_fixture_identity(&scenario, "carol.pending", "usr-test-carol");
+        assert_fixture_identity(&scenario, "dave.restricted", "usr-test-dave");
+        assert_friend_request(
+            &scenario,
+            "fixture-fr-alice-carol-pending",
+            "usr-test-alice",
+            "usr-test-carol",
+            "pending",
+        );
+        assert_friend_request(
+            &scenario,
+            "fixture-fr-dave-alice-pending",
+            "usr-test-dave",
+            "usr-test-alice",
+            "pending",
+        );
+        assert_dm_policy(&scenario, "usr-test-carol", "same_server");
+        assert_dm_policy(&scenario, "usr-test-dave", "friends_only");
+
+        let exhausted = scenario
+            .invites
+            .iter()
+            .find(|invite| invite.invite_id == "fixture-invite-carol-contact-exhausted")
+            .expect("exhausted Carol invite exists");
+        assert_eq!(exhausted.mode, "multi_use");
+        assert_eq!(exhausted.uses, exhausted.max_uses.unwrap_or_default());
+        assert!(scenario.dm_threads.is_empty());
+    }
+
+    #[test]
+    fn server_chat_fixture_matches_shared_server_invariants() {
+        let scenario = server_chat();
+
+        validate_scenario(&scenario).expect("server-chat fixture validates");
+
+        let server = scenario
+            .servers
+            .iter()
+            .find(|server| server.server_id == "fixture-server-atlas")
+            .expect("atlas server exists");
+        assert_eq!(server.name, "Atlas Test Server");
+        assert_eq!(scenario.server_memberships.len(), 3);
+        assert!(scenario.server_memberships.iter().any(|membership| {
+            membership.identity_id == "usr-test-alice" && membership.favorite && !membership.muted
+        }));
+        assert!(scenario.server_memberships.iter().any(|membership| {
+            membership.identity_id == "usr-test-carol" && !membership.favorite && membership.muted
+        }));
+
+        let general = scenario
+            .server_channels
+            .iter()
+            .find(|channel| channel.channel_id == "fixture-channel-atlas-general")
+            .expect("general channel exists");
+        let ops = scenario
+            .server_channels
+            .iter()
+            .find(|channel| channel.channel_id == "fixture-channel-atlas-ops-lab")
+            .expect("ops-lab channel exists");
+        assert_eq!(general.last_message_seq, 3);
+        assert_eq!(ops.last_message_seq, 2);
+        assert!(scenario.server_channel_messages.iter().any(|message| {
+            message.reply_to_message_id.as_deref() == Some("fixture-server-message-general-002")
+                && message.mention_identity_ids == ["usr-test-bob"]
+        }));
+        assert!(scenario.server_channel_messages.iter().any(|message| {
+            message.channel_id == "fixture-channel-atlas-ops-lab"
+                && message.reply_to_message_id.as_deref() == Some("fixture-server-message-ops-001")
+                && message.mention_identity_ids == ["usr-test-alice"]
+        }));
+    }
+
+    #[test]
     fn rejects_production_seed_target() {
         let error = validate_seed_target(
             "postgres://hexrelay:pw@127.0.0.1:5432/hexrelay",
@@ -1892,5 +2034,50 @@ mod tests {
         .expect_err("reset without --yes rejected");
 
         assert!(error.to_string().contains("without --yes"));
+    }
+
+    fn assert_fixture_identity(scenario: &SeedScenario, profile_id: &str, identity_id: &str) {
+        let identity = scenario
+            .identities
+            .iter()
+            .find(|identity| identity.profile_id == profile_id)
+            .expect("fixture identity exists");
+        assert_eq!(identity.identity_id, identity_id);
+    }
+
+    fn assert_fixture_session(scenario: &SeedScenario, profile_id: &str, session_id: &str) {
+        let session = scenario
+            .sessions
+            .iter()
+            .find(|session| session.profile_id == profile_id)
+            .expect("fixture session exists");
+        assert_eq!(session.session_id, session_id);
+    }
+
+    fn assert_friend_request(
+        scenario: &SeedScenario,
+        request_id: &str,
+        requester_identity_id: &str,
+        target_identity_id: &str,
+        status: &str,
+    ) {
+        let request = scenario
+            .friend_requests
+            .iter()
+            .find(|request| request.request_id == request_id)
+            .expect("fixture friend request exists");
+        assert_eq!(request.requester_identity_id, requester_identity_id);
+        assert_eq!(request.target_identity_id, target_identity_id);
+        assert_eq!(request.status, status);
+    }
+
+    fn assert_dm_policy(scenario: &SeedScenario, identity_id: &str, inbound_policy: &str) {
+        let policy = scenario
+            .dm_policies
+            .iter()
+            .find(|policy| policy.identity_id == identity_id)
+            .expect("fixture DM policy exists");
+        assert_eq!(policy.inbound_policy, inbound_policy);
+        assert_eq!(policy.offline_delivery_mode, "best_effort_online");
     }
 }

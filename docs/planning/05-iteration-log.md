@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 completed Docker-only Toxiproxy support for PH-05 network simulation.
+- Latest meaningful change: 2026-05-07 completed PH-06 local runtime validation and optional smoke evidence coverage.
 
 ## Purpose
 
@@ -29,6 +29,20 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (PH-06 local runtime validation closeout)
+
+- Area affected: Local runtime validation, fixture invariants, web testing helpers, runtime/network smoke entrypoints, and smoke evidence capture.
+- Change summary:
+  - Added stronger fixture invariant coverage for `dm-basic`, `contacts-edge`, and `server-chat` local testing scenarios.
+  - Added focused web helper coverage for fixture persona activation events and per-persona runtime session isolation.
+  - Added `scripts/test-runtime.mjs` and `scripts/test-network.mjs` entrypoints while preserving `npm run test:runtime` as the full Docker runtime/network smoke.
+  - Extended `scripts/runtime-docker.mjs smoke` with `--scope all|runtime|network` and optional `--evidence-dir` output for scenario config, runtime status before/after, event log, and verdict files.
+- Rationale:
+  - PH-05 made runtime/network simulation executable; PH-06 closes the validation/evidence loop so later DM/realtime work has a deterministic local harness instead of console-only smoke output.
+- Linked docs updated:
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-07 (PH-05 Docker runtime and network simulation)
 

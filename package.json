@@ -30,7 +30,8 @@
     "validate:runtime-profiles": "node scripts/validate-runtime-profiles.mjs",
     "validate:network-profiles": "node scripts/validate-network-profiles.mjs",
     "test": "node scripts/test.mjs",
-    "test:runtime": "node scripts/runtime-docker.mjs smoke",
+    "test:runtime": "node scripts/test-runtime.mjs",
+    "test:network": "node scripts/test-network.mjs",
     "test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1",
     "test:unix": "bash scripts/test.sh",
     "security": "bash scripts/ensure-cargo-audit.sh && cargo audit --deny warnings --ignore RUSTSEC-2023-0071"
