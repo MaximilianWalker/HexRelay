@@ -3,6 +3,7 @@ param(
     [string]$Target = '',
     [switch]$Reset,
     [switch]$Json,
+    [switch]$Force,
     [Alias('h')]
     [switch]$Help
 )
@@ -10,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ($Help) {
-    Write-Host 'Usage: network.ps1 [-Profile normal|offline-alice|partition-alice-bob|path] [-Target instance-id|container] [-Reset] [-Json]'
+    Write-Host 'Usage: network.ps1 [-Profile normal|offline-alice|partition-alice-bob|path] [-Target instance-id|container] [-Reset] [-Json] [-Force]'
     exit 0
 }
 
@@ -26,6 +27,9 @@ if ($Target.Trim()) {
 }
 if ($Json) {
     $argsList += '--json'
+}
+if ($Force) {
+    $argsList += '--force'
 }
 
 node @argsList

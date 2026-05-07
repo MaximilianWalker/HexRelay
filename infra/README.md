@@ -17,6 +17,26 @@ This directory defines the local development infrastructure for HexRelay blocker
 - coturn TURN/STUN (`localhost:3478` TCP/UDP)
 - coturn relay UDP range (`localhost:49160-49200`)
 
+## Runtime Test Stack
+
+- Normal local development uses `infra/docker-compose.yml` for dependencies and host-process app services via `npm run start`.
+- PH-05 runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob app instances.
+- The runtime test stack is intentionally separate so Docker network controls can target containers without forcing daily development into containers.
+- Runtime-test ports bind to `127.0.0.1` only and are not intended for shared-host or LAN exposure.
+- The stack uses per-node Postgres, Redis, MinIO, and infra networks so Alice/Bob partitions do not intentionally disconnect local dependencies and cannot bypass the simulation network through shared infra.
+- Docker runtime seeding prints dev session cookies/headers; the web Settings testing-profile picker is not enabled in this stack.
+- Start it from the repository root with:
+
+  ```bash
+  npm run runtime:docker -- up --seed-profile dm-basic
+  ```
+
+- Stop it and remove runtime-test data volumes with:
+
+  ```bash
+  npm run runtime:docker -- down
+  ```
+
 ## Startup
 
 1. Copy environment defaults:

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added the release packaging authority for desktop/server artifacts and signing expectations.
+- Latest meaningful change: 2026-05-07 added the Docker runtime test stack for PH-05 network simulation.
 
 ## Purpose
 

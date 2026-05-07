@@ -12,7 +12,7 @@ const networkStatePath = path.join(runDir, "network-state.json");
 const defaultNetworkName = process.env.HEXRELAY_DOCKER_NETWORK || "hexrelay_default";
 
 function usage() {
-  return "Usage: network.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json]";
+  return "Usage: network.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
 }
 
 function parseArgs(args) {
@@ -21,6 +21,7 @@ function parseArgs(args) {
     target: "",
     reset: false,
     json: false,
+    force: false,
     help: false,
   };
 
@@ -44,6 +45,10 @@ function parseArgs(args) {
       case "--json":
       case "-Json":
         options.json = true;
+        break;
+      case "--force":
+      case "-Force":
+        options.force = true;
         break;
       case "--help":
       case "-Help":
@@ -137,13 +142,22 @@ function dockerObjectExists(kind, name) {
   throw new Error(output || `docker ${kind} inspect ${name} failed`);
 }
 
-function containerNetworks(containerName) {
+function containerNetworkMap(containerName) {
   const result = docker(["inspect", "--format", "{{json .NetworkSettings.Networks}}", containerName]);
   const raw = result.stdout.trim();
   if (!raw || raw === "null") {
-    return new Set();
+    return {};
   }
-  return new Set(Object.keys(JSON.parse(raw)));
+  return JSON.parse(raw);
+}
+
+function containerNetworks(containerName) {
+  return new Set(Object.keys(containerNetworkMap(containerName)));
+}
+
+function containerNetworkAliases(containerName, networkName) {
+  const aliases = containerNetworkMap(containerName)[networkName]?.Aliases ?? [];
+  return aliases.filter((alias) => typeof alias === "string" && alias.trim());
 }
 
 function ensureNetwork(networkName) {
@@ -154,7 +168,7 @@ function ensureNetwork(networkName) {
   return false;
 }
 
-function connectIfNeeded(networkName, containerName) {
+function connectIfNeeded(networkName, containerName, aliases = []) {
   if (!dockerObjectExists("container", containerName)) {
     throw new Error(`Docker container '${containerName}' was not found`);
   }
@@ -162,7 +176,8 @@ function connectIfNeeded(networkName, containerName) {
     throw new Error(`Docker network '${networkName}' was not found`);
   }
   if (!containerNetworks(containerName).has(networkName)) {
-    docker(["network", "connect", networkName, containerName]);
+    const aliasArgs = aliases.flatMap((alias) => ["--alias", alias]);
+    docker(["network", "connect", ...aliasArgs, networkName, containerName]);
     return true;
   }
   return false;
@@ -218,9 +233,16 @@ function normalizeActionTarget(value, argumentTarget, fieldName) {
   return value;
 }
 
-function partitionNetworkName(profileName, target) {
-  const safe = `${profileName}-${target}`.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 48);
+function partitionNetworkName(baseNetworkName, profileName, target) {
+  const safe = `${baseNetworkName}-${profileName}-${target}`.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 80);
   return `hexrelay_partition_${safe}`;
+}
+
+function createPartitionNetwork(networkName) {
+  if (dockerObjectExists("network", networkName)) {
+    throw new Error(`Docker partition network '${networkName}' already exists. Remove the stale network before applying this profile.`);
+  }
+  docker(["network", "create", networkName]);
 }
 
 function resetNetworkState(options = {}) {
@@ -241,7 +263,7 @@ function resetNetworkState(options = {}) {
       if (operation.type === "disconnect") {
         if (operation.disconnected) {
           ensureNetwork(operation.networkName);
-          const connected = connectIfNeeded(operation.networkName, operation.containerName);
+          const connected = connectIfNeeded(operation.networkName, operation.containerName, operation.networkAliases);
           events.push({ type: "connect", containerName: operation.containerName, networkName: operation.networkName, changed: connected });
         }
       }
@@ -250,7 +272,7 @@ function resetNetworkState(options = {}) {
         if (operation.disconnectedBase) {
           try {
             ensureNetwork(operation.networkName);
-            const connected = connectIfNeeded(operation.networkName, operation.containerName);
+            const connected = connectIfNeeded(operation.networkName, operation.containerName, operation.networkAliases);
             events.push({ type: "connect", containerName: operation.containerName, networkName: operation.networkName, changed: connected });
             restoredBase = true;
           } catch (error) {
@@ -328,6 +350,7 @@ function applyDockerProfile(profile, options) {
       if (action.type === "disconnect") {
         const target = normalizeActionTarget(action.target, options.target, "target");
         const resolved = resolveTarget(target, runtimeState);
+        const networkAliases = containerNetworkAliases(resolved.containerName, resolved.networkName);
         const disconnected = disconnectIfConnected(resolved.networkName, resolved.containerName);
         const operation = {
           type: "disconnect",
@@ -335,6 +358,7 @@ function applyDockerProfile(profile, options) {
           instanceId: resolved.instanceId,
           containerName: resolved.containerName,
           networkName: resolved.networkName,
+          networkAliases,
           disconnected,
         };
         operations.push(operation);
@@ -347,12 +371,11 @@ function applyDockerProfile(profile, options) {
         for (const fieldName of ["source", "target"]) {
           const target = normalizeActionTarget(action[fieldName], options.target, fieldName);
           const resolved = resolveTarget(target, runtimeState);
-          const partitionName = partitionNetworkName(profile.name, target);
-          if (ensureNetwork(partitionName)) {
-            createdNetworks.push(partitionName);
-            events.push({ type: "create-network", networkName: partitionName, changed: true });
-            writeJson(networkStatePath, state);
-          }
+          const partitionName = partitionNetworkName(resolved.networkName, profile.name, target);
+          createPartitionNetwork(partitionName);
+          createdNetworks.push(partitionName);
+          events.push({ type: "create-network", networkName: partitionName, changed: true });
+          writeJson(networkStatePath, state);
           const operation = {
             type: "partition",
             target,
@@ -360,6 +383,7 @@ function applyDockerProfile(profile, options) {
             instanceId: resolved.instanceId,
             containerName: resolved.containerName,
             networkName: resolved.networkName,
+            networkAliases: containerNetworkAliases(resolved.containerName, resolved.networkName),
             partitionNetworkName: partitionName,
             connectedPartition: false,
             disconnectedBase: false,
@@ -389,7 +413,7 @@ function applyDockerProfile(profile, options) {
 
 function applyProfile(profile, options) {
   if (profile.strategy === "reset") {
-    return resetNetworkState();
+    return resetNetworkState({ forceStateRemoval: options.force });
   }
   if (profile.strategy === "docker") {
     return applyDockerProfile(profile, options);
@@ -420,7 +444,7 @@ function main() {
   }
 
   if (options.reset) {
-    writeResult(resetNetworkState(), options.json);
+    writeResult(resetNetworkState({ forceStateRemoval: options.force }), options.json);
     return;
   }
 

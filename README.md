@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added release packaging guidance for Windows/Linux desktop artifacts, dedicated-server packages, and signing expectations.
+- Latest meaningful change: 2026-05-07 added release packaging guidance and the Docker runtime test stack for PH-05 network simulation.
 
 ## Project Stage
 
@@ -64,6 +64,8 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Validate network simulation profile definitions with `npm run validate:network-profiles`.
 - Reset network simulation state with `npm run network -- --reset`; Docker-backed profiles require container targets until host-process fault injection lands.
+- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply Docker-backed network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
+- Run the heavier Docker runtime/network smoke with `npm run test:runtime` when Docker runtime validation is needed.
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`

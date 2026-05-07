@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-06
+- last_updated: 2026-05-07
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-06 completed the remaining PH-01 fixture scenarios and added the PH-05 network profile command layer.
+- Latest meaningful change: 2026-05-07 added the Docker runtime test stack so PH-05 Docker network profiles can target containerized Alice/Bob runtime instances.
 
 ## Organization Decision
 
@@ -51,6 +51,7 @@
 - Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
+- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_endpoint_cards`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, connectivity, fanout, endpoint-card, and device APIs exist; the browser private-chat route exists, while full end-to-end DM delivery remains incremental.
@@ -334,6 +335,37 @@ npm run reset-dev-db -- --profile all --yes
 - Shared infra mode uses one Postgres/Redis/MinIO stack with per-instance naming or namespace rules.
 - Isolated infra mode can be added later if shared state causes test ambiguity.
 
+### Docker Runtime Test Stack
+
+- Normal development remains host-process based through `npm run start`.
+- Docker runtime testing is reserved for heavier runtime/network scenarios and CI-style validation.
+- `infra/docker-compose.runtime-test.yml` starts per-node Postgres, Redis, MinIO, and two runtime nodes.
+- Each runtime node has API, realtime, and web containers sharing a node network namespace.
+- Runtime-test host ports are bound to `127.0.0.1` only.
+- `alice-node` exposes API `18080`, realtime `18081`, and web `3002` on loopback.
+- `bob-node` exposes API `18180`, realtime `18181`, and web `3012` on loopback.
+- Nodes attach to per-node infra networks plus one shared simulation network so Docker network partitions do not sever local Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path through shared infra.
+- `.local-run/runtime-state.json` records `containerName` and simulation `networkName` metadata so `npm run network` can resolve `alice-node` and `bob-node` as Docker targets.
+- Docker runtime seeding prints dev session cookies/headers, but the web Settings testing-profile picker remains disabled in this stack because API dev-testing endpoints require loopback-only API/database binds.
+- `runtime:docker -- up --seed-profile <profile>` seeds both Alice and Bob node databases.
+
+### Docker Runtime Commands
+
+```bash
+npm run runtime:docker -- up --seed-profile dm-basic
+npm run runtime:docker -- status
+npm run network -- --profile offline-alice
+npm run network -- --reset
+npm run runtime:docker -- down
+```
+
+Use `npm run runtime:docker -- down --force` only for failed-smoke cleanup when the normal reset path cannot complete.
+Generic `npm run stop` refuses Docker runtime state; use `runtime:docker -- down` so containers, network state, and runtime-test data volumes are cleaned together.
+
+```bash
+npm run test:runtime
+```
+
 ### Windows Parity
 
 - Windows PowerShell remains first-class.
@@ -366,13 +398,13 @@ npm run reset-dev-db -- --profile all --yes
 ### Target Commands
 
 ```powershell
-.\scripts\network.ps1 -Profile high-latency -Target bob-node
+.\scripts\network.ps1 -Profile offline-alice
 .\scripts\network.ps1 -Profile partition-alice-bob
 .\scripts\network.ps1 -Reset
 ```
 
 ```bash
-./scripts/network.sh --profile high-latency --target bob-node
+./scripts/network.sh --profile offline-alice
 ./scripts/network.sh --profile partition-alice-bob
 ./scripts/network.sh --reset
 ```
@@ -390,7 +422,11 @@ npm run network -- --reset
 - Use separate networks for partition simulation.
 - Keep reset commands deterministic and idempotent.
 - Record applied network profile state under `.local-run/network-state.json`.
-- Current `single`/`dual`/`triple` runtime profiles launch host processes, so Docker network actions fail safe for instance IDs until a target resolves to Docker container metadata or app-level fault injection handles host-process simulation.
+- `network --reset --force` is reserved for runtime cleanup after failed Docker smoke paths and may remove stale local network-state metadata after best-effort restore.
+- Current `single`/`dual`/`triple` runtime profiles launch host processes, so Docker network actions fail safe for those host-process instance IDs.
+- The Docker runtime test stack writes container metadata for `alice-node` and `bob-node`, so Docker-backed profiles can apply against those instance IDs.
+- Docker-backed profiles act on the runtime simulation network, not the infra network.
+- Infra dependencies are per-node; Alice and Bob do not share Postgres, Redis, MinIO, or an infra network with each other.
 
 ### Linux `tc/netem`
 
@@ -458,7 +494,7 @@ npm run network -- --reset
 ### CI Strategy
 
 - Keep standard `npm run test` CI-safe and deterministic.
-- Add heavier runtime/network checks behind a separate command, such as `npm run test:runtime`.
+- Keep heavier runtime/network checks behind `npm run test:runtime`.
 - Run seed parser and API fixture invariants in CI.
 - Avoid requiring privileged `tc/netem` in CI unless a dedicated runner supports it.
 
@@ -531,9 +567,10 @@ npm run network -- --reset
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
 | PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/`, `scripts/validate-network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
-| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | in_progress |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
 | PH-05-EP-01-ST-01-TK-03 | Add Linux `tc/netem` support | `scripts/network.sh` | Apply and reset latency/loss | Linux supports realistic shaping where permissions allow | ready |
 | PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/api-rs`, `services/realtime-rs` | Integration tests | Delay/drop/fail knobs work only in dev/test mode | ready |
+| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime-docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime nodes expose API/realtime/web endpoints and validate offline plus partition reset paths | done |
 
 ### PH-06 Tasks
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 recorded release packaging direction for Windows/Linux desktop, dedicated server, and signing.
+- Latest meaningful change: 2026-05-07 added Docker runtime test stack support for PH-05 network simulation.
 
 ## Purpose
 
@@ -29,6 +29,24 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (PH-05 Docker runtime test stack)
+
+- Area affected: Local runtime testing, Docker runtime/network simulation, and script discoverability.
+- Change summary:
+  - Added `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob runtime nodes with API, realtime, and web containers.
+  - Added `scripts/runtime-docker.mjs` and root commands `npm run runtime:docker` and `npm run test:runtime`.
+  - Added shared runtime tsconfig generation for containerized Next dev instances.
+  - Split per-node infra networks from the shared simulation network so offline/partition profiles do not sever Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path.
+  - Validated Docker offline and partition apply/reset flows through `npm run test:runtime`.
+  - Documented the hybrid model: host-process normal development plus Docker runtime/network tests.
+- Rationale:
+  - PH-05 Docker network controls need real container targets, while normal Tauri/web/Rust development should keep the faster host-process loop.
+- Linked docs updated:
+  - `README.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `scripts/README.md`
+  - `infra/README.md`
 
 ### 2026-05-07 (release packaging direction)
 
