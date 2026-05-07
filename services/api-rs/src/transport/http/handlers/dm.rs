@@ -6,8 +6,8 @@ use axum::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
 use communication_core::{
-    connect_via_direct_peer, send_via_direct_peer_dispatch, ConnectTarget, DirectPeerDispatch,
-    PolicyContext, TransportError,
+    connect_via_direct_peer, send_via_direct_peer_dispatch, CommunicationReasonCode, ConnectTarget,
+    DirectPeerDispatch, PolicyContext, TransportError,
 };
 use ring::{digest, hmac};
 use serde::{Deserialize, Serialize};
@@ -49,12 +49,17 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
+const DM_DIRECT_ACCEPTANCE_SENTINEL: &[u8] = b"dm-direct-acceptance";
 
 // API DM endpoints assert the direct-peer route for server-side acceptance metadata;
 // actual peer I/O remains client-owned.
 struct NoopDirectPeerDispatch;
 
 impl DirectPeerDispatch for NoopDirectPeerDispatch {
+    fn connect_peer(&self, _target: &ConnectTarget) -> Result<(), TransportError> {
+        Ok(())
+    }
+
     fn send_payload(&self, _payload: &[u8]) -> Result<(), TransportError> {
         Ok(())
     }
@@ -69,22 +74,55 @@ fn connect_dm_direct_peer(peer_identity_id: &str) -> ApiResult<()> {
         },
     )
     .map(|_| ())
-    .map_err(|_| {
+    .map_err(|error| {
         internal_error(
             "dm_direct_transport_unavailable",
-            "direct dm transport adapter rejected connection",
+            direct_peer_connect_error_message(error.code),
         )
     })
 }
 
-fn send_dm_direct_payload(payload: Vec<u8>) -> ApiResult<()> {
-    send_via_direct_peer_dispatch(PolicyContext::default(), NoopDirectPeerDispatch, payload)
-        .map_err(|_| {
-            internal_error(
-                "dm_direct_transport_unavailable",
-                "direct dm transport adapter rejected payload",
-            )
-        })
+fn send_dm_direct_payload(payload: &[u8]) -> ApiResult<()> {
+    send_via_direct_peer_dispatch(
+        PolicyContext::default(),
+        NoopDirectPeerDispatch,
+        payload.to_vec(),
+    )
+    .map_err(|error| {
+        internal_error(
+            "dm_direct_transport_unavailable",
+            direct_peer_send_error_message(error.code),
+        )
+    })
+}
+
+fn direct_peer_connect_error_message(code: CommunicationReasonCode) -> &'static str {
+    match code {
+        CommunicationReasonCode::ModeDisabled => "direct dm transport mode disabled by policy",
+        CommunicationReasonCode::TargetProfileMismatch => {
+            "direct dm transport target was not a peer identity"
+        }
+        CommunicationReasonCode::DmDirectPolicyViolation => {
+            "direct dm transport policy rejected non-direct route"
+        }
+        CommunicationReasonCode::TransportConnectFailed => {
+            "direct dm transport adapter rejected connection"
+        }
+        _ => "direct dm transport route check failed",
+    }
+}
+
+fn direct_peer_send_error_message(code: CommunicationReasonCode) -> &'static str {
+    match code {
+        CommunicationReasonCode::ModeDisabled => "direct dm transport mode disabled by policy",
+        CommunicationReasonCode::DmDirectPolicyViolation => {
+            "direct dm transport policy rejected non-direct route"
+        }
+        CommunicationReasonCode::TransportSendFailed => {
+            "direct dm transport adapter rejected payload"
+        }
+        _ => "direct dm transport payload route check failed",
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1035,7 +1073,7 @@ pub async fn run_dm_active_fanout(
         )
     };
 
-    send_dm_direct_payload(payload.ciphertext.as_bytes().to_vec())?;
+    send_dm_direct_payload(DM_DIRECT_ACCEPTANCE_SENTINEL)?;
 
     let mut tx = pool.begin().await.map_err(|_| {
         internal_error(

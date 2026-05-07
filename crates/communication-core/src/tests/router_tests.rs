@@ -1,6 +1,6 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 
 use crate::app::{router::assert_dm_direct_profile, CommunicationError, CommunicationRouter};
@@ -105,10 +105,28 @@ impl DirectPeerTransport for FailingDirectPeer {
 }
 
 struct RecordingDirectDispatch {
-    payloads: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+    connect_targets: Arc<Mutex<Vec<ConnectTarget>>>,
+    payloads: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+impl RecordingDirectDispatch {
+    fn new(payloads: Arc<Mutex<Vec<Vec<u8>>>>) -> Self {
+        Self {
+            connect_targets: Arc::new(Mutex::new(Vec::new())),
+            payloads,
+        }
+    }
 }
 
 impl DirectPeerDispatch for RecordingDirectDispatch {
+    fn connect_peer(&self, target: &ConnectTarget) -> Result<(), TransportError> {
+        self.connect_targets
+            .lock()
+            .expect("acquire direct connect lock")
+            .push(target.clone());
+        Ok(())
+    }
+
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
         self.payloads
             .lock()
@@ -119,7 +137,7 @@ impl DirectPeerDispatch for RecordingDirectDispatch {
 }
 
 struct RecordingDispatch {
-    payloads: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+    payloads: Arc<Mutex<Vec<Vec<u8>>>>,
 }
 
 impl NodeDispatch for RecordingDispatch {
@@ -286,7 +304,7 @@ fn rejects_non_direct_profile_for_dm_mode() {
 
 #[test]
 fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
     let transport = DispatchingNodeClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
@@ -305,10 +323,9 @@ fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
 
 #[test]
 fn dispatching_direct_peer_transport_rejects_wrong_mode_payload() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let transport = DispatchingDirectPeerTransport::new(RecordingDirectDispatch {
-        payloads: Arc::clone(&payloads),
-    });
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let transport =
+        DispatchingDirectPeerTransport::new(RecordingDirectDispatch::new(Arc::clone(&payloads)));
 
     let result = transport.send(&SendEnvelope {
         mode: CommunicationMode::ServerChannel,
@@ -320,11 +337,37 @@ fn dispatching_direct_peer_transport_rejects_wrong_mode_payload() {
 }
 
 #[test]
-fn dispatching_direct_peer_transport_forwards_payload_for_dm_mode() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+fn dispatching_direct_peer_transport_forwards_connect_for_dm_mode() {
+    let connect_targets = Arc::new(Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
     let transport = DispatchingDirectPeerTransport::new(RecordingDirectDispatch {
-        payloads: Arc::clone(&payloads),
+        connect_targets: Arc::clone(&connect_targets),
+        payloads,
     });
+    let target = ConnectTarget::PeerIdentity {
+        identity_id: "peer-a".to_string(),
+    };
+
+    let result = transport.connect(&ConnectIntent {
+        mode: CommunicationMode::DmDirect,
+        target: target.clone(),
+    });
+
+    assert!(result.is_ok());
+    assert_eq!(
+        connect_targets
+            .lock()
+            .expect("acquire direct connect lock")
+            .as_slice(),
+        &[target]
+    );
+}
+
+#[test]
+fn dispatching_direct_peer_transport_forwards_payload_for_dm_mode() {
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let transport =
+        DispatchingDirectPeerTransport::new(RecordingDirectDispatch::new(Arc::clone(&payloads)));
 
     let result = transport.send(&SendEnvelope {
         mode: CommunicationMode::DmDirect,
@@ -340,14 +383,19 @@ fn dispatching_direct_peer_transport_forwards_payload_for_dm_mode() {
 
 #[test]
 fn connect_via_direct_peer_routes_through_shared_direct_peer_bootstrap() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let connect_targets = Arc::new(Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let target = ConnectTarget::PeerIdentity {
+        identity_id: "peer-a".to_string(),
+    };
 
     let result = connect_via_direct_peer(
         PolicyContext::default(),
-        RecordingDirectDispatch { payloads },
-        ConnectTarget::PeerIdentity {
-            identity_id: "peer-a".to_string(),
+        RecordingDirectDispatch {
+            connect_targets: Arc::clone(&connect_targets),
+            payloads,
         },
+        target.clone(),
     );
 
     assert!(result.is_ok());
@@ -355,17 +403,22 @@ fn connect_via_direct_peer_routes_through_shared_direct_peer_bootstrap() {
         result.expect("direct provenance").profile,
         TransportProfile::DirectPeer
     );
+    assert_eq!(
+        connect_targets
+            .lock()
+            .expect("acquire direct connect lock")
+            .as_slice(),
+        &[target]
+    );
 }
 
 #[test]
 fn send_via_direct_peer_dispatch_routes_through_shared_direct_peer_bootstrap() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
 
     let result = send_via_direct_peer_dispatch(
         PolicyContext::default(),
-        RecordingDirectDispatch {
-            payloads: Arc::clone(&payloads),
-        },
+        RecordingDirectDispatch::new(Arc::clone(&payloads)),
         b"dm".to_vec(),
     );
 
@@ -378,7 +431,7 @@ fn send_via_direct_peer_dispatch_routes_through_shared_direct_peer_bootstrap() {
 
 #[test]
 fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
     let transport = DispatchingNodeClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
@@ -398,7 +451,7 @@ fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
 
 #[test]
 fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
     let transport = DispatchingNodeClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
@@ -420,7 +473,7 @@ fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
 
 #[test]
 fn send_via_node_dispatch_routes_through_shared_node_client_bootstrap() {
-    let payloads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
 
     let result = send_via_node_dispatch(
         CommunicationMode::ServerChannel,

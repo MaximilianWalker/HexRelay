@@ -737,7 +737,7 @@ mod tests {
         format!("http://{}", addr)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn presence_edge_dispatch_uses_node_adapter_without_redis_on_current_thread() {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),

@@ -18,6 +18,7 @@ pub trait DirectPeerTransport {
 }
 
 pub trait DirectPeerDispatch {
+    fn connect_peer(&self, target: &ConnectTarget) -> Result<(), TransportError>;
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError>;
 }
 
@@ -39,6 +40,8 @@ where
         if intent.mode != CommunicationMode::DmDirect {
             return Err(TransportError::ConnectFailed);
         }
+
+        self.dispatch.connect_peer(&intent.target)?;
 
         Ok(PolicyEngine::build_provenance(
             intent.mode,
