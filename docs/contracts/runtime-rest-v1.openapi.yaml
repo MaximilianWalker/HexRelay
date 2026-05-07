@@ -3372,13 +3372,13 @@ components:
       properties:
         public_key:
           type: string
-          description: Hex-encoded inviter public identity key embedded in the signed pairing envelope.
+          description: Inviter public identity key embedded in the signed pairing envelope, preserving the registered hex or base64 representation.
         algorithm:
           type: string
           enum: [ed25519]
         fingerprint:
           type: string
-          description: SHA-256 fingerprint of the decoded inviter public identity key, encoded as lowercase hex.
+          description: SHA-256 fingerprint of the decoded inviter public identity key bytes, encoded as lowercase hex.
     DmConnectivityPreflightRequest:
       type: object
       properties:

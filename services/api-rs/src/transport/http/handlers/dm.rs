@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
+    domain::auth::validation::decode_32_bytes,
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
         validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
@@ -130,7 +131,8 @@ fn direct_peer_send_error_message(code: CommunicationReasonCode) -> &'static str
 struct PairingEnvelopeClaims {
     version: u32,
     inviter_identity_id: String,
-    inviter_identity_key: DmPairingIdentityKey,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inviter_identity_key: Option<DmPairingIdentityKey>,
     endpoint_hints: Vec<String>,
     nonce: String,
     issued_at: i64,
@@ -210,12 +212,12 @@ pub async fn create_dm_pairing_envelope(
     let expires_at = issued_at + Duration::seconds(expires_in_seconds as i64);
     let nonce = random_hex(16);
     let identity_key = load_pairing_identity_key(&state, &auth.identity_id).await?;
-    let inviter_identity_key = pairing_identity_key(identity_key);
+    let inviter_identity_key = pairing_identity_key(identity_key)?;
 
     let claims = PairingEnvelopeClaims {
         version: DM_PAIRING_ENVELOPE_VERSION,
         inviter_identity_id: auth.identity_id,
-        inviter_identity_key,
+        inviter_identity_key: Some(inviter_identity_key),
         endpoint_hints: payload.endpoint_hints,
         nonce: nonce.clone(),
         issued_at: issued_at.timestamp(),
@@ -276,7 +278,8 @@ pub async fn import_dm_pairing_envelope(
         ));
     }
 
-    if signed.claims.inviter_identity_id == auth.identity_id {
+    let inviter_identity_id = signed.claims.inviter_identity_id.clone();
+    if inviter_identity_id == auth.identity_id {
         return Err(bad_request(
             "identity_invalid",
             "cannot import a pairing envelope created by the same identity",
@@ -302,9 +305,16 @@ pub async fn import_dm_pairing_envelope(
         ));
     }
 
+    let inviter_identity_key = match signed.claims.inviter_identity_key {
+        Some(identity_key) => identity_key,
+        None => {
+            pairing_identity_key(load_pairing_identity_key(&state, &inviter_identity_id).await?)?
+        }
+    };
+
     Ok(Json(DmPairingImportResponse {
-        inviter_identity_id: signed.claims.inviter_identity_id,
-        inviter_identity_key: signed.claims.inviter_identity_key,
+        inviter_identity_id,
+        inviter_identity_key,
         endpoint_hints: signed.claims.endpoint_hints,
         imported_at: Utc::now().to_rfc3339(),
         expires_at: expires_at.to_rfc3339(),
@@ -1585,18 +1595,19 @@ async fn load_pairing_identity_key(
     }
 }
 
-fn pairing_identity_key(key: RegisteredIdentityKey) -> DmPairingIdentityKey {
-    DmPairingIdentityKey {
-        fingerprint: identity_key_fingerprint(&key.public_key),
+fn pairing_identity_key(key: RegisteredIdentityKey) -> ApiResult<DmPairingIdentityKey> {
+    Ok(DmPairingIdentityKey {
+        fingerprint: identity_key_fingerprint(&key.public_key)?,
         public_key: key.public_key,
         algorithm: key.algorithm,
-    }
+    })
 }
 
-fn identity_key_fingerprint(public_key: &str) -> String {
-    let key_bytes = hex::decode(public_key).unwrap_or_else(|_| public_key.as_bytes().to_vec());
+fn identity_key_fingerprint(public_key: &str) -> ApiResult<String> {
+    let key_bytes = decode_32_bytes(public_key)
+        .ok_or_else(|| bad_request("identity_invalid", "identity public key is invalid"))?;
     let digest = digest::digest(&digest::SHA256, &key_bytes);
-    hex::encode(digest.as_ref())
+    Ok(hex::encode(digest.as_ref()))
 }
 
 fn parse_limit(value: Option<u32>) -> ApiResult<usize> {
