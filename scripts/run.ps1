@@ -369,6 +369,7 @@ function Start-RuntimeInstance {
     $realtimeEnv['REALTIME_BIND'] = "127.0.0.1:$realtimePort"
     $realtimeEnv['REALTIME_API_BASE_URL'] = $apiBaseUrl
     $realtimeEnv['REALTIME_ALLOWED_ORIGINS'] = $allowedOrigins
+    $realtimeEnv['REALTIME_ENABLE_DEV_FAULTS'] = 'true'
 
     Write-Host "[run.ps1] Starting $instanceId API service"
     $apiProcess = Start-CmdProcess -WorkingDirectory $Root -EnvVars $apiEnv -Command 'cargo.exe run -p api-rs --bin api-rs' -Name 'api-rs' -LogDir $instanceLogDir
@@ -455,6 +456,7 @@ function Start-RuntimeInstance {
         realtimeWsUrl = $realtimeWsUrl
         webUrl = $webBaseUrl
         logDir = $instanceLogDir
+        realtimeInternalToken = if ($realtimeEnv['REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN']) { $realtimeEnv['REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN'] } else { 'hexrelay-dev-channel-dispatch-token-change-me' }
     }
 }
 

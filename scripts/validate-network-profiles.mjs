@@ -5,14 +5,14 @@ import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const profilesDir = path.join(scriptsDir, "network-profiles");
-const validStrategies = new Set(["reset", "docker", "netem", "app-fault", "mixed"]);
+const validStrategies = new Set(["reset", "docker", "toxiproxy", "app-fault"]);
 const validPlatforms = new Set(["windows", "linux", "macos"]);
 const targetPattern = /^(argument|[a-z][a-z0-9-]*)$/;
 const strategyActionTypes = {
   "reset": new Set(["reset"]),
-  "docker": new Set(["disconnect", "partition", "reset"]),
-  "netem": new Set(["latency", "packet_loss", "reset"]),
-  "app-fault": new Set(["app_delay", "app_drop", "app_disconnect_after", "reset"]),
+  "docker": new Set(["disconnect", "partition"]),
+  "toxiproxy": new Set(["latency", "packet_loss"]),
+  "app-fault": new Set(["app_delay", "app_drop", "app_disconnect_after"]),
 };
 
 function fail(message) {
@@ -90,7 +90,7 @@ function validateProfile(profile, profilePath) {
 
   for (const [index, action] of profile.actions.entries()) {
     validateAction(action, `${label} actions[${index}]`);
-    if (profile.strategy !== "mixed" && !strategyActionTypes[profile.strategy].has(action.type)) {
+    if (!strategyActionTypes[profile.strategy].has(action.type)) {
       fail(`${label} strategy '${profile.strategy}' does not support action '${action.type}'`);
     }
   }

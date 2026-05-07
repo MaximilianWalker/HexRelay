@@ -231,6 +231,7 @@ cd "$ROOT"
 export REALTIME_BIND="127.0.0.1:$realtime_port"
 export REALTIME_API_BASE_URL="$api_url"
 export REALTIME_ALLOWED_ORIGINS="$allowed_origins"
+export REALTIME_ENABLE_DEV_FAULTS="true"
 cargo run -p realtime-rs
 EOF
   bash "$realtime_launcher" >"$log_dir/realtime-rs.stdout.log" 2>"$log_dir/realtime-rs.stderr.log" &
@@ -269,7 +270,8 @@ EOF
   STARTED_PIDS+=("$web_pid")
   wait_for "$instance_id web" web_ready "$web_url"
 
-  instance_json="$(node -e 'const [id, seedPersona, apiPort, realtimePort, webPort, apiPid, realtimePid, webPid, apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir] = process.argv.slice(1); process.stdout.write(JSON.stringify({id, seedPersona: seedPersona || null, apiPort: Number(apiPort), realtimePort: Number(realtimePort), webPort: Number(webPort), apiPid: Number(apiPid), realtimePid: Number(realtimePid), webPid: Number(webPid), apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir}));' "$instance_id" "$seed_persona" "$api_port" "$realtime_port" "$web_port" "$api_pid" "$realtime_pid" "$web_pid" "$api_launcher" "$realtime_launcher" "$web_launcher" "$api_url" "$realtime_url" "$realtime_ws_url" "$web_url" "$log_dir")"
+  realtime_internal_token="${REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN:-hexrelay-dev-channel-dispatch-token-change-me}"
+  instance_json="$(node -e 'const [id, seedPersona, apiPort, realtimePort, webPort, apiPid, realtimePid, webPid, apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir, realtimeInternalToken] = process.argv.slice(1); process.stdout.write(JSON.stringify({id, seedPersona: seedPersona || null, apiPort: Number(apiPort), realtimePort: Number(realtimePort), webPort: Number(webPort), apiPid: Number(apiPid), realtimePid: Number(realtimePid), webPid: Number(webPid), apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir, realtimeInternalToken}));' "$instance_id" "$seed_persona" "$api_port" "$realtime_port" "$web_port" "$api_pid" "$realtime_pid" "$web_pid" "$api_launcher" "$realtime_launcher" "$web_launcher" "$api_url" "$realtime_url" "$realtime_ws_url" "$web_url" "$log_dir" "$realtime_internal_token")"
   STATE_INSTANCES_JSON="$(append_instance_json "$STATE_INSTANCES_JSON" "$instance_json")"
   write_state
 

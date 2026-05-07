@@ -63,9 +63,9 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Validate network simulation profile definitions with `npm run validate:network-profiles`.
-- Reset network simulation state with `npm run network -- --reset`; Docker-backed profiles require container targets until host-process fault injection lands.
-- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply Docker-backed network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
-- Run the heavier Docker runtime/network smoke with `npm run test:runtime` when Docker runtime validation is needed.
+- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-node` or `bob-node`.
+- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
+- Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
 - Windows-specific direct path if you want to bypass auto-detection explicitly:
   - `npm run setup:windows`
   - `npm run start:windows`

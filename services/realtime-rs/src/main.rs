@@ -56,7 +56,7 @@ async fn main() {
         config.ws_auth_grace_seconds,
         config.ws_auth_cache_max_entries,
     ) {
-        Ok(value) => value,
+        Ok(value) => value.with_dev_faults_enabled(config.enable_dev_faults),
         Err(err) => {
             error!(error = %err, "realtime startup aborted due to state initialization failure");
             std::process::exit(1);

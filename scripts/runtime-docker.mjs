@@ -12,6 +12,8 @@ const runtimeStatePath = path.join(runDir, "runtime-state.json");
 const networkScript = path.join(scriptsDir, "network.mjs");
 const projectName = "hexrelay-runtime";
 const networkName = "hexrelay-runtime_simulation";
+const toxiproxyUrl = "http://127.0.0.1:18474";
+const realtimeInternalToken = "hexrelay-runtime-channel-dispatch-token-change-me";
 const nextEnvPath = path.join(root, "apps", "web", "next-env.d.ts");
 const stableNextEnv = `/// <reference types="next" />
 /// <reference types="next/image-types/global" />
@@ -27,6 +29,7 @@ const runtimeDataVolumes = [
   "hexrelay-runtime_runtime-bob-redis-data",
   "hexrelay-runtime_runtime-bob-minio-data",
 ];
+let jsonOutputMode = false;
 
 const instances = [
   {
@@ -61,8 +64,55 @@ const instances = [
   },
 ];
 
+const toxiproxyProxies = [
+  {
+    name: "alice-to-bob-api",
+    sourceId: "alice-node",
+    targetId: "bob-node",
+    kind: "api",
+    listen: "0.0.0.0:28080",
+    upstream: "bob-node:8080",
+    url: "http://toxiproxy:28080",
+  },
+  {
+    name: "alice-to-bob-realtime",
+    sourceId: "alice-node",
+    targetId: "bob-node",
+    kind: "realtime",
+    listen: "0.0.0.0:28081",
+    upstream: "bob-node:8081",
+    url: "http://toxiproxy:28081",
+  },
+  {
+    name: "bob-to-alice-api",
+    sourceId: "bob-node",
+    targetId: "alice-node",
+    kind: "api",
+    listen: "0.0.0.0:28180",
+    upstream: "alice-node:8080",
+    url: "http://toxiproxy:28180",
+  },
+  {
+    name: "bob-to-alice-realtime",
+    sourceId: "bob-node",
+    targetId: "alice-node",
+    kind: "realtime",
+    listen: "0.0.0.0:28181",
+    upstream: "alice-node:8081",
+    url: "http://toxiproxy:28181",
+  },
+];
+
 function usage() {
   return "Usage: runtime-docker.mjs up|down|status|smoke [--seed-profile dm-basic] [--json] [--force]";
+}
+
+function logInfo(message) {
+  if (jsonOutputMode) {
+    console.error(message);
+    return;
+  }
+  console.log(message);
 }
 
 function parseArgs(args) {
@@ -156,7 +206,7 @@ function docker(args, options = {}) {
   const result = spawnSync("docker", args, {
     cwd: root,
     encoding: "utf8",
-    stdio: options.capture ? "pipe" : "inherit",
+    stdio: options.capture || jsonOutputMode ? "pipe" : "inherit",
     shell: false,
   });
 
@@ -183,7 +233,7 @@ function runNetwork(args, options = {}) {
   const result = spawnSync(process.execPath, [networkScript, ...args], {
     cwd: root,
     encoding: "utf8",
-    stdio: options.capture ? "pipe" : "inherit",
+    stdio: options.capture || jsonOutputMode ? "pipe" : "inherit",
     shell: false,
   });
   if (result.status !== 0 && !options.allowFailure) {
@@ -195,7 +245,7 @@ function runNetwork(args, options = {}) {
 
 function runNetworkJson(args) {
   const result = runNetwork([...args, "--json"], { capture: true });
-  if (result.stdout) {
+  if (!jsonOutputMode && result.stdout) {
     process.stdout.write(result.stdout);
   }
   if (result.stderr) {
@@ -206,6 +256,149 @@ function runNetworkJson(args) {
   } catch (error) {
     throw new Error(`failed to parse network JSON for '${args.join(" ")}': ${error.message}`);
   }
+}
+
+function dockerExec(args, options = {}) {
+  return docker(["exec", ...args], options);
+}
+
+function timedAppHealthFromContainer(containerName, url) {
+  const started = Date.now();
+  const result = dockerExec([containerName, "wget", "-q", "-T", "3", "-O", "-", url], {
+    allowFailure: true,
+    capture: true,
+  });
+  return {
+    ok: result.status === 0 && (result.stdout || "").includes("ok"),
+    elapsedMs: Date.now() - started,
+  };
+}
+
+function appHealthFromContainer(containerName, url) {
+  return timedAppHealthFromContainer(containerName, url).ok;
+}
+
+function instanceById(id) {
+  const instance = instances.find((candidate) => candidate.id === id);
+  if (!instance) {
+    throw new Error(`unknown runtime instance '${id}'`);
+  }
+  return instance;
+}
+
+async function toxiproxyRequest(method, apiPath, body) {
+  const response = await fetch(`${toxiproxyUrl}${apiPath}`, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Toxiproxy request failed: HTTP ${response.status} ${text}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+async function populateToxiproxy() {
+  await toxiproxyRequest("POST", "/reset");
+  await toxiproxyRequest(
+    "POST",
+    "/populate",
+    toxiproxyProxies.map((proxy) => ({
+      name: proxy.name,
+      listen: proxy.listen,
+      upstream: proxy.upstream,
+      enabled: true,
+    })),
+  );
+}
+
+function assertPeerReachability(expectedReachable, label) {
+  const [alice, bob] = instances;
+  const checks = [
+    {
+      from: alice,
+      to: bob,
+      ok: appHealthFromContainer(alice.containerName, "http://bob-node:8080/health"),
+    },
+    {
+      from: bob,
+      to: alice,
+      ok: appHealthFromContainer(bob.containerName, "http://alice-node:8080/health"),
+    },
+  ];
+
+  for (const check of checks) {
+    if (check.ok !== expectedReachable) {
+      throw new Error(
+        `peer reachability assertion failed during ${label}: ${check.from.id} -> ${check.to.id} expected ${expectedReachable ? "reachable" : "unreachable"}`,
+      );
+    }
+  }
+  logInfo(`[runtime-docker] peer reachability ${label}: ${expectedReachable ? "reachable" : "unreachable"}`);
+}
+
+function assertToxiproxyPeerReachability(expectedReachable, label) {
+  for (const proxy of toxiproxyProxies) {
+    const source = instanceById(proxy.sourceId);
+    const ok = appHealthFromContainer(source.containerName, `${proxy.url}/health`);
+    if (ok !== expectedReachable) {
+      throw new Error(
+        `toxiproxy reachability assertion failed during ${label}: ${proxy.sourceId} -> ${proxy.targetId} expected ${expectedReachable ? "reachable" : "unreachable"}`,
+      );
+    }
+  }
+  logInfo(`[runtime-docker] toxiproxy peer reachability ${label}: ${expectedReachable ? "reachable" : "unreachable"}`);
+}
+
+function assertToxiproxyLatency(targetId, minimumMs) {
+  const proxies = toxiproxyProxies.filter((candidate) => candidate.sourceId === targetId);
+  if (proxies.length === 0) {
+    throw new Error(`missing Toxiproxy proxies for '${targetId}'`);
+  }
+  for (const proxy of proxies) {
+    const source = instanceById(proxy.sourceId);
+    const result = timedAppHealthFromContainer(source.containerName, `${proxy.url}/health`);
+    if (!result.ok) {
+      throw new Error(`toxiproxy latency assertion failed: ${proxy.name} health probe failed`);
+    }
+    if (result.elapsedMs < minimumMs) {
+      throw new Error(`toxiproxy latency assertion failed: ${proxy.name} took ${result.elapsedMs}ms, expected at least ${minimumMs}ms`);
+    }
+    logInfo(`[runtime-docker] toxiproxy latency ${proxy.name}: ${result.elapsedMs}ms`);
+  }
+}
+
+function assertToxiproxyBlocked(targetId, label) {
+  const proxies = toxiproxyProxies.filter((candidate) => candidate.sourceId === targetId);
+  if (proxies.length === 0) {
+    throw new Error(`missing Toxiproxy proxies for '${targetId}'`);
+  }
+  for (const proxy of proxies) {
+    const source = instanceById(proxy.sourceId);
+    const result = timedAppHealthFromContainer(source.containerName, `${proxy.url}/health`);
+    if (result.ok) {
+      throw new Error(`toxiproxy blocked assertion failed during ${label}: ${proxy.name} was reachable`);
+    }
+    logInfo(`[runtime-docker] toxiproxy blocked ${proxy.name}: ${result.elapsedMs}ms`);
+  }
+}
+
+async function assertToxiproxyNoToxics(targetId, label) {
+  const proxies = toxiproxyProxies.filter((candidate) => candidate.sourceId === targetId);
+  if (proxies.length === 0) {
+    throw new Error(`missing Toxiproxy proxies for '${targetId}'`);
+  }
+  for (const proxy of proxies) {
+    const proxyState = await toxiproxyRequest("GET", `/proxies/${encodeURIComponent(proxy.name)}`);
+    const toxics = Array.isArray(proxyState?.toxics)
+      ? proxyState.toxics
+      : Object.values(proxyState?.toxics ?? {});
+    if (toxics.length > 0) {
+      throw new Error(`toxiproxy reset assertion failed during ${label}: ${proxy.name} still has active toxics`);
+    }
+  }
+  logInfo(`[runtime-docker] toxiproxy toxics cleared ${label}`);
 }
 
 function requireSmokeEvent(result, description, predicate) {
@@ -293,6 +486,95 @@ function assertPartitionSmoke(applyResult, resetResult) {
   }
 }
 
+function assertToxiproxyLatencySmoke(applyResult, resetResult) {
+  requireChangedSmokeEvent(
+    applyResult,
+    "high-latency applies Toxiproxy latency to alice-node API peer link",
+    (event) => event.type === "toxiproxy"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-api"
+      && event.toxicType === "latency"
+      && event.attributes?.latency === 250,
+  );
+  requireChangedSmokeEvent(
+    applyResult,
+    "high-latency applies Toxiproxy latency to alice-node realtime peer link",
+    (event) => event.type === "toxiproxy"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-realtime"
+      && event.toxicType === "latency"
+      && event.attributes?.latency === 250,
+  );
+  requireChangedSmokeEvent(
+    resetResult,
+    "high-latency reset clears Toxiproxy latency from alice-node API peer link",
+    (event) => event.type === "toxiproxy-reset"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-api",
+  );
+  requireChangedSmokeEvent(
+    resetResult,
+    "high-latency reset clears Toxiproxy latency from alice-node realtime peer link",
+    (event) => event.type === "toxiproxy-reset"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-realtime",
+  );
+}
+
+function assertToxiproxyTimeoutSmoke(applyResult, resetResult) {
+  requireChangedSmokeEvent(
+    applyResult,
+    "packet-loss applies Toxiproxy timeout toxicity to alice-node API peer link",
+    (event) => event.type === "toxiproxy"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-api"
+      && event.toxicType === "timeout"
+      && event.toxicity === 1,
+  );
+  requireChangedSmokeEvent(
+    applyResult,
+    "packet-loss applies Toxiproxy timeout toxicity to alice-node realtime peer link",
+    (event) => event.type === "toxiproxy"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-realtime"
+      && event.toxicType === "timeout"
+      && event.toxicity === 1,
+  );
+  requireChangedSmokeEvent(
+    resetResult,
+    "packet-loss reset clears Toxiproxy timeout from alice-node API peer link",
+    (event) => event.type === "toxiproxy-reset"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-api",
+  );
+  requireChangedSmokeEvent(
+    resetResult,
+    "packet-loss reset clears Toxiproxy timeout from alice-node realtime peer link",
+    (event) => event.type === "toxiproxy-reset"
+      && event.target === "alice-node"
+      && event.proxyName === "alice-to-bob-realtime",
+  );
+}
+
+function assertAppFaultSmoke(applyResult, resetResult) {
+  requireChangedSmokeEvent(
+    applyResult,
+    "flaky-mobile applies realtime app faults to alice-node",
+    (event) => event.type === "app-fault"
+      && event.target === "alice-node"
+      && event.config?.delay_ms === 200
+      && event.config?.drop_rate === 0.05
+      && event.config?.disconnect_after_seconds === 45
+      && event.appliedFaults?.enabled === true,
+  );
+  requireChangedSmokeEvent(
+    resetResult,
+    "flaky-mobile reset restores realtime app faults on alice-node",
+    (event) => event.type === "app-fault-reset"
+      && event.target === "alice-node",
+  );
+}
+
 function restoreStableNextEnv() {
   fs.writeFileSync(nextEnvPath, stableNextEnv);
 }
@@ -338,7 +620,7 @@ async function httpOk(url) {
 async function waitFor(label, probe, attempts = 600) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     if (await probe()) {
-      console.log(`[runtime-docker] ${label} is ready`);
+      logInfo(`[runtime-docker] ${label} is ready`);
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -347,6 +629,7 @@ async function waitFor(label, probe, attempts = 600) {
 }
 
 async function waitForStack() {
+  await waitFor("toxiproxy", () => httpOk(`${toxiproxyUrl}/version`));
   for (const instance of instances) {
     await waitFor(`${instance.id} api`, () => httpOk(`${instance.apiUrl}/health`));
     await waitFor(`${instance.id} realtime`, () => httpOk(`${instance.realtimeUrl}/health`));
@@ -364,11 +647,16 @@ function writeRuntimeState(seedProfile) {
     seedProfile: seedProfile || null,
     infraMode: "docker-compose-runtime-test",
     networkName,
+    toxiproxy: {
+      url: toxiproxyUrl,
+      proxies: toxiproxyProxies,
+    },
     composeProject: projectName,
     composeFile: path.relative(root, composeFile),
+    realtimeInternalToken,
     startedAt: new Date().toISOString(),
     root,
-    instances: instances.map((instance) => ({ ...instance, networkName })),
+    instances: instances.map((instance) => ({ ...instance, networkName, realtimeInternalToken })),
   };
   fs.writeFileSync(runtimeStatePath, `${JSON.stringify(state, null, 2)}\n`);
   return state;
@@ -381,6 +669,7 @@ function printResult(result, json) {
   }
   if (result.status === "up") {
     console.log(`[runtime-docker] Docker runtime test stack is ready.`);
+    console.log(`  [toxiproxy] API:    ${toxiproxyUrl}`);
     for (const instance of result.instances) {
       console.log(`  [${instance.id}] API:      ${instance.apiUrl}`);
       console.log(`  [${instance.id}] Realtime: ${instance.realtimeUrl}`);
@@ -419,6 +708,7 @@ async function up(options) {
   try {
     compose(["up", "-d", "--remove-orphans"]);
     await waitForStack();
+    await populateToxiproxy();
   } catch (error) {
     restoreStableNextEnv();
     throw error;
@@ -472,6 +762,7 @@ async function status() {
     return { status: "inactive" };
   }
   const checks = [];
+  checks.push({ service: "toxiproxy", ok: await httpOk(`${toxiproxyUrl}/version`) });
   for (const instance of state.instances ?? []) {
     checks.push({ id: instance.id, service: "api", ok: await httpOk(`${instance.apiUrl}/health`) });
     checks.push({ id: instance.id, service: "realtime", ok: await httpOk(`${instance.realtimeUrl}/health`) });
@@ -483,17 +774,42 @@ async function status() {
 async function smoke(options) {
   try {
     await up({ ...options, seedProfile: options.seedProfile || "dm-basic" });
+    assertPeerReachability(true, "baseline");
+    assertToxiproxyPeerReachability(true, "baseline");
     const offlineApply = runNetworkJson(["--profile", "offline-alice"]);
+    assertPeerReachability(false, "offline-alice");
     const offlineReset = runNetworkJson(["--reset"]);
     assertOfflineSmoke(offlineApply, offlineReset);
     await waitForStack();
+    assertPeerReachability(true, "offline reset");
     const partitionApply = runNetworkJson(["--profile", "partition-alice-bob"]);
+    assertPeerReachability(false, "partition-alice-bob");
     const partitionReset = runNetworkJson(["--reset"]);
     assertPartitionSmoke(partitionApply, partitionReset);
     await waitForStack();
+    assertPeerReachability(true, "partition reset");
+    assertToxiproxyPeerReachability(true, "partition reset");
+    const latencyApply = runNetworkJson(["--profile", "high-latency", "--target", "alice-node"]);
+    assertToxiproxyLatency("alice-node", 150);
+    const latencyReset = runNetworkJson(["--reset"]);
+    assertToxiproxyLatencySmoke(latencyApply, latencyReset);
+    await assertToxiproxyNoToxics("alice-node", "latency reset");
+    await waitForStack();
+    assertToxiproxyPeerReachability(true, "latency reset");
+    const timeoutApply = runNetworkJson(["--profile", "packet-loss", "--target", "alice-node"]);
+    assertToxiproxyBlocked("alice-node", "packet-loss");
+    const timeoutReset = runNetworkJson(["--reset"]);
+    assertToxiproxyTimeoutSmoke(timeoutApply, timeoutReset);
+    await assertToxiproxyNoToxics("alice-node", "timeout reset");
+    await waitForStack();
+    assertToxiproxyPeerReachability(true, "timeout reset");
+    const appFaultApply = runNetworkJson(["--profile", "flaky-mobile", "--target", "alice-node"]);
+    const appFaultReset = runNetworkJson(["--reset"]);
+    assertAppFaultSmoke(appFaultApply, appFaultReset);
+    await waitForStack();
     return { status: "smoke-passed" };
   } catch (error) {
-    compose(["logs", "--tail", "80", "alice-api", "alice-realtime", "bob-api", "bob-realtime", "alice-web", "bob-web"], { allowFailure: true });
+    compose(["logs", "--tail", "80", "toxiproxy", "alice-api", "alice-realtime", "bob-api", "bob-realtime", "alice-web", "bob-web"], { allowFailure: true });
     throw error;
   } finally {
     down({ force: true });
@@ -502,6 +818,7 @@ async function smoke(options) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  jsonOutputMode = options.json;
   if (options.help) {
     console.log(usage());
     return;

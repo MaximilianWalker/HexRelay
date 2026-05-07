@@ -10,6 +10,7 @@ const runDir = path.join(root, ".local-run");
 const runtimeStatePath = path.join(runDir, "runtime-state.json");
 const networkStatePath = path.join(runDir, "network-state.json");
 const defaultNetworkName = process.env.HEXRELAY_DOCKER_NETWORK || "hexrelay_default";
+const defaultRealtimeInternalToken = process.env.HEXRELAY_REALTIME_INTERNAL_TOKEN || "hexrelay-dev-channel-dispatch-token-change-me";
 
 function usage() {
   return "Usage: network.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
@@ -220,6 +221,8 @@ function resolveTarget(target, runtimeState) {
     target,
     containerName,
     networkName: instance.networkName || runtimeState.networkName || defaultNetworkName,
+    realtimeUrl: instance.realtimeUrl,
+    realtimeInternalToken: instance.realtimeInternalToken || runtimeState.realtimeInternalToken || defaultRealtimeInternalToken,
   };
 }
 
@@ -245,7 +248,155 @@ function createPartitionNetwork(networkName) {
   docker(["network", "create", networkName]);
 }
 
-function resetNetworkState(options = {}) {
+function toxiproxyTargetState(runtimeState) {
+  const toxiproxy = runtimeState?.toxiproxy;
+  if (!toxiproxy?.url || !Array.isArray(toxiproxy.proxies)) {
+    throw new Error("Toxiproxy profiles require Docker runtime state with toxiproxy metadata");
+  }
+  return toxiproxy;
+}
+
+function resolveToxiproxyTarget(target, runtimeState) {
+  const toxiproxy = toxiproxyTargetState(runtimeState);
+  const proxies = toxiproxy.proxies.filter((proxy) => proxy.sourceId === target);
+  if (proxies.length === 0) {
+    throw new Error(`Toxiproxy profile target '${target}' was not found in runtime state`);
+  }
+  return {
+    target,
+    instanceId: target,
+    toxiproxyUrl: toxiproxy.url,
+    proxies,
+  };
+}
+
+function toxiproxyToxic(profileName, action, index) {
+  if (action.type === "latency") {
+    return {
+      name: `hexrelay-${profileName}-latency-${index}`,
+      type: "latency",
+      stream: "downstream",
+      toxicity: 1.0,
+      attributes: {
+        latency: action.latencyMs,
+        jitter: action.jitterMs ?? 0,
+      },
+    };
+  }
+
+  if (action.type === "packet_loss") {
+    return {
+      name: `hexrelay-${profileName}-timeout-${index}`,
+      type: "timeout",
+      stream: "downstream",
+      toxicity: action.lossPercent / 100,
+      attributes: {
+        timeout: 0,
+      },
+    };
+  }
+
+  throw new Error(`network action '${action.type}' is not implemented by the Toxiproxy wrapper`);
+}
+
+function combineToxiproxyActions(profile, options) {
+  const configs = new Map();
+  for (const [index, action] of profile.actions.entries()) {
+    const target = normalizeActionTarget(action.target, options.target, "target");
+    const existing = configs.get(target) ?? { target, toxics: [] };
+    existing.toxics.push(toxiproxyToxic(profile.name, action, index));
+    configs.set(target, existing);
+  }
+  return [...configs.values()];
+}
+
+async function toxiproxyRequest(baseUrl, method, apiPath, body, options = {}) {
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${apiPath}`, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (options.allowNotFound && response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Toxiproxy request failed: HTTP ${response.status} ${text}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+async function readToxiproxyProxy(baseUrl, proxyName) {
+  return toxiproxyRequest(baseUrl, "GET", `/proxies/${encodeURIComponent(proxyName)}`);
+}
+
+async function addToxiproxyToxic(baseUrl, proxyName, toxic) {
+  return toxiproxyRequest(
+    baseUrl,
+    "POST",
+    `/proxies/${encodeURIComponent(proxyName)}/toxics`,
+    toxic,
+  );
+}
+
+async function deleteToxiproxyToxic(baseUrl, proxyName, toxicName) {
+  return toxiproxyRequest(
+    baseUrl,
+    "DELETE",
+    `/proxies/${encodeURIComponent(proxyName)}/toxics/${encodeURIComponent(toxicName)}`,
+    undefined,
+    { allowNotFound: true },
+  );
+}
+
+async function readRealtimeFaults(realtimeUrl, internalToken) {
+  return realtimeFaultRequest("GET", realtimeUrl, internalToken);
+}
+
+async function writeRealtimeFaults(realtimeUrl, internalToken, config) {
+  return realtimeFaultRequest("POST", realtimeUrl, internalToken, config);
+}
+
+async function realtimeFaultRequest(method, realtimeUrl, internalToken, body) {
+  if (!realtimeUrl) {
+    throw new Error("app-fault profiles require runtime state with realtimeUrl metadata");
+  }
+  const response = await fetch(`${realtimeUrl.replace(/\/$/, "")}/internal/dev/faults`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-hexrelay-internal-token": internalToken,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    throw new Error(`realtime dev fault request failed for ${realtimeUrl}: HTTP ${response.status} ${text}`);
+  }
+  return payload;
+}
+
+function combineAppFaultActions(profile, options) {
+  const configs = new Map();
+  for (const action of profile.actions) {
+    const target = normalizeActionTarget(action.target, options.target, "target");
+    const existing = configs.get(target) ?? { target, delay_ms: 0, drop_rate: 0, disconnect_after_seconds: null };
+    if (action.type === "app_delay") {
+      existing.delay_ms = action.delayMs;
+    } else if (action.type === "app_drop") {
+      existing.drop_rate = action.dropRate;
+    } else if (action.type === "app_disconnect_after") {
+      existing.disconnect_after_seconds = action.seconds;
+    } else {
+      throw new Error(`network action '${action.type}' is not implemented by the app-fault wrapper`);
+    }
+    configs.set(target, existing);
+  }
+  return [...configs.values()];
+}
+
+async function resetNetworkState(options = {}) {
   const state = readJsonIfExists(networkStatePath);
   const events = [];
   if (!state) {
@@ -256,7 +407,9 @@ function resetNetworkState(options = {}) {
   const resetErrors = [];
   for (const operation of reversed) {
     try {
-      if (!dockerObjectExists("container", operation.containerName)) {
+      const requiresContainer = operation.type === "disconnect"
+        || operation.type === "partition";
+      if (requiresContainer && !dockerObjectExists("container", operation.containerName)) {
         events.push({ type: "container-missing", containerName: operation.containerName, changed: false });
         continue;
       }
@@ -287,6 +440,30 @@ function resetNetworkState(options = {}) {
             resetErrors.push(error.message);
           }
         }
+      }
+      if (operation.type === "toxiproxy") {
+        for (const toxicName of operation.toxicNames ?? []) {
+          await deleteToxiproxyToxic(operation.toxiproxyUrl, operation.proxyName, toxicName);
+        }
+        events.push({
+          type: "toxiproxy-reset",
+          target: operation.target,
+          instanceId: operation.instanceId,
+          toxiproxyUrl: operation.toxiproxyUrl,
+          proxyName: operation.proxyName,
+          toxicNames: operation.toxicNames,
+          changed: true,
+        });
+      }
+      if (operation.type === "app-fault") {
+        await writeRealtimeFaults(operation.realtimeUrl, operation.internalToken || defaultRealtimeInternalToken, operation.previousFaults);
+        events.push({
+          type: "app-fault-reset",
+          target: operation.target,
+          instanceId: operation.instanceId,
+          realtimeUrl: operation.realtimeUrl,
+          changed: true,
+        });
       }
     } catch (error) {
       resetErrors.push(error.message);
@@ -411,12 +588,127 @@ function applyDockerProfile(profile, options) {
   return { applied: true, profile: profile.name, events };
 }
 
-function applyProfile(profile, options) {
+async function applyToxiproxyProfile(profile, options) {
+  if (fs.existsSync(networkStatePath)) {
+    throw new Error("A network profile is already active. Run scripts/network.mjs --reset before applying another profile.");
+  }
+
+  const runtimeState = readJsonIfExists(runtimeStatePath);
+  const operations = [];
+  const events = [];
+  const state = {
+    profile: profile.name,
+    profilePath: profile.profilePath,
+    runtimeProfile: runtimeState?.profile ?? null,
+    appliedAt: new Date().toISOString(),
+    operations,
+    createdNetworks: [],
+  };
+
+  for (const config of combineToxiproxyActions(profile, options)) {
+    const resolved = resolveToxiproxyTarget(config.target, runtimeState);
+    for (const proxy of resolved.proxies) {
+      const previousProxy = await readToxiproxyProxy(resolved.toxiproxyUrl, proxy.name);
+      const operation = {
+        type: "toxiproxy",
+        target: config.target,
+        instanceId: resolved.instanceId,
+        toxiproxyUrl: resolved.toxiproxyUrl,
+        proxyName: proxy.name,
+        proxy,
+        toxicNames: config.toxics.map((toxic) => toxic.name),
+        previousProxy,
+      };
+      operations.push(operation);
+      writeJson(networkStatePath, state);
+
+      for (const toxic of config.toxics) {
+        await deleteToxiproxyToxic(resolved.toxiproxyUrl, proxy.name, toxic.name);
+        const appliedToxic = await addToxiproxyToxic(resolved.toxiproxyUrl, proxy.name, toxic);
+        events.push({
+          type: "toxiproxy",
+          target: config.target,
+          instanceId: resolved.instanceId,
+          toxiproxyUrl: resolved.toxiproxyUrl,
+          proxyName: proxy.name,
+          toxicName: toxic.name,
+          toxicType: toxic.type,
+          stream: toxic.stream,
+          toxicity: toxic.toxicity,
+          attributes: toxic.attributes,
+          appliedToxic,
+          changed: true,
+        });
+      }
+      writeJson(networkStatePath, state);
+    }
+  }
+
+  return { applied: true, profile: profile.name, events };
+}
+
+async function applyAppFaultProfile(profile, options) {
+  if (fs.existsSync(networkStatePath)) {
+    throw new Error("A network profile is already active. Run scripts/network.mjs --reset before applying another profile.");
+  }
+
+  const runtimeState = readJsonIfExists(runtimeStatePath);
+  const operations = [];
+  const events = [];
+  const state = {
+    profile: profile.name,
+    profilePath: profile.profilePath,
+    runtimeProfile: runtimeState?.profile ?? null,
+    appliedAt: new Date().toISOString(),
+    operations,
+    createdNetworks: [],
+  };
+
+  for (const config of combineAppFaultActions(profile, options)) {
+    const resolved = resolveTarget(config.target, runtimeState);
+    if (!resolved.realtimeUrl) {
+      throw new Error(`Runtime instance '${config.target}' does not expose realtimeUrl metadata for app-fault profiles`);
+    }
+    const previousFaults = await readRealtimeFaults(resolved.realtimeUrl, resolved.realtimeInternalToken);
+    const operation = {
+      type: "app-fault",
+      target: config.target,
+      instanceId: resolved.instanceId,
+      realtimeUrl: resolved.realtimeUrl,
+      internalToken: resolved.realtimeInternalToken,
+      previousFaults,
+      config,
+    };
+    operations.push(operation);
+    writeJson(networkStatePath, state);
+    const appliedFaults = await writeRealtimeFaults(resolved.realtimeUrl, resolved.realtimeInternalToken, config);
+    events.push({
+      type: "app-fault",
+      target: config.target,
+      instanceId: resolved.instanceId,
+      realtimeUrl: resolved.realtimeUrl,
+      config,
+      appliedFaults,
+      changed: true,
+    });
+    writeJson(networkStatePath, state);
+  }
+
+  return { applied: true, profile: profile.name, events };
+}
+
+async function applyProfile(profile, options) {
   if (profile.strategy === "reset") {
     return resetNetworkState({ forceStateRemoval: options.force });
   }
   if (profile.strategy === "docker") {
     return applyDockerProfile(profile, options);
+  }
+  if (profile.strategy === "toxiproxy") {
+    return applyToxiproxyProfile(profile, options);
+  }
+  if (profile.strategy === "app-fault") {
+    return applyAppFaultProfile(profile, options);
   }
   throw new Error(`network strategy '${profile.strategy}' is validated but not implemented in this wrapper slice`);
 }
@@ -432,11 +724,11 @@ function writeResult(result, json) {
     console.log(`[network] Reset network simulation state.${result.profile ? ` Previous profile: ${result.profile}.` : ""}`);
   }
   for (const event of result.events ?? []) {
-    console.log(`[network] ${event.type} ${event.containerName ?? event.networkName ?? ""}`.trim());
+    console.log(`[network] ${event.type} ${event.containerName ?? event.networkName ?? event.proxyName ?? ""}`.trim());
   }
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     console.log(usage());
@@ -444,7 +736,7 @@ function main() {
   }
 
   if (options.reset) {
-    writeResult(resetNetworkState({ forceStateRemoval: options.force }), options.json);
+    writeResult(await resetNetworkState({ forceStateRemoval: options.force }), options.json);
     return;
   }
 
@@ -453,11 +745,11 @@ function main() {
     throw new Error(`network profile '${profile.name}' requires --target`);
   }
 
-  writeResult(applyProfile(profile, options), options.json);
+  writeResult(await applyProfile(profile, options), options.json);
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(`[network] ERROR: ${error.message}`);
   process.exit(1);

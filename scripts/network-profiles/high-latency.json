@@ -1,8 +1,8 @@
 {
   "name": "high-latency",
-  "description": "Apply Linux netem latency and jitter to the selected runtime instance.",
-  "strategy": "netem",
-  "supportedPlatforms": ["linux"],
+  "description": "Apply Toxiproxy latency and jitter to the selected runtime instance peer link.",
+  "strategy": "toxiproxy",
+  "supportedPlatforms": ["windows", "linux", "macos"],
   "actions": [
     {
       "type": "latency",

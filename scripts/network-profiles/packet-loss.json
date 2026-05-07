@@ -1,13 +1,13 @@
 {
   "name": "packet-loss",
-  "description": "Apply Linux netem packet loss to the selected runtime instance.",
-  "strategy": "netem",
-  "supportedPlatforms": ["linux"],
+  "description": "Force peer-link loss with Toxiproxy connection timeouts on the selected runtime instance peer link.",
+  "strategy": "toxiproxy",
+  "supportedPlatforms": ["windows", "linux", "macos"],
   "actions": [
     {
       "type": "packet_loss",
       "target": "argument",
-      "lossPercent": 5
+      "lossPercent": 100
     }
   ]
 }

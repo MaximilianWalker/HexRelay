@@ -10,7 +10,7 @@ x-api-environment: &api-environment
   API_ALLOW_PUBLIC_IDENTITY_REGISTRATION: "false"
   API_ENABLE_DEV_TESTING: "false"
   API_TRUST_PROXY_HEADERS: "false"
-  API_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-dev-channel-dispatch-token-change-me
+  API_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-runtime-channel-dispatch-token-change-me
   API_PRESENCE_WATCHER_INTERNAL_TOKEN: hexrelay-dev-presence-watcher-token-change-me
   API_REALTIME_BASE_URL: http://127.0.0.1:8081
   API_SESSION_SIGNING_KEYS: v1:hexrelay-dev-signing-key-change-me
@@ -25,7 +25,7 @@ x-realtime-environment: &realtime-environment
   REALTIME_ENVIRONMENT: development
   REALTIME_API_BASE_URL: http://127.0.0.1:8080
   REALTIME_REQUIRE_API_HEALTH_ON_START: "true"
-  REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-dev-channel-dispatch-token-change-me
+  REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN: hexrelay-runtime-channel-dispatch-token-change-me
   REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN: hexrelay-dev-presence-watcher-token-change-me
   REALTIME_TRUST_PROXY_HEADERS: "false"
   REALTIME_WS_CONNECT_RATE_LIMIT: "60"
@@ -36,6 +36,7 @@ x-realtime-environment: &realtime-environment
   REALTIME_WS_MAX_CONNECTIONS_PER_IDENTITY: "3"
   REALTIME_WS_AUTH_GRACE_SECONDS: "0"
   REALTIME_WS_AUTH_CACHE_MAX_ENTRIES: "10000"
+  REALTIME_ENABLE_DEV_FAULTS: "true"
   RUST_LOG: realtime_rs=info,tower_http=info
 
 services:
@@ -148,6 +149,15 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    container_name: hexrelay-runtime-toxiproxy
+    command: ["-host", "0.0.0.0", "-port", "8474"]
+    networks:
+      - simulation
+    ports:
+      - "127.0.0.1:18474:8474"
 
   alice-node:
     image: alpine:3.20

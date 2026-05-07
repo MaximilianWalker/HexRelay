@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 added Docker runtime test stack support for PH-05 network simulation.
+- Latest meaningful change: 2026-05-07 completed Docker-only Toxiproxy support for PH-05 network simulation.
 
 ## Purpose
 
@@ -30,7 +30,7 @@
 
 ## Log Entries
 
-### 2026-05-07 (PH-05 Docker runtime test stack)
+### 2026-05-07 (PH-05 Docker runtime and network simulation)
 
 - Area affected: Local runtime testing, Docker runtime/network simulation, and script discoverability.
 - Change summary:
@@ -38,7 +38,10 @@
   - Added `scripts/runtime-docker.mjs` and root commands `npm run runtime:docker` and `npm run test:runtime`.
   - Added shared runtime tsconfig generation for containerized Next dev instances.
   - Split per-node infra networks from the shared simulation network so offline/partition profiles do not sever Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path.
-  - Validated Docker offline and partition apply/reset flows through `npm run test:runtime`.
+  - Validated Docker offline and partition apply/reset flows through `npm run test:runtime` with app-level Alice/Bob API reachability assertions.
+  - Added Docker-only Toxiproxy apply/reset for peer-link latency and timeout-based loss profiles.
+  - Added realtime dev-fault hooks and `flaky-mobile` app-fault apply/reset support.
+  - Added a separate `runtime-network-smoke` CI job for the heavier Docker runtime/network smoke.
   - Documented the hybrid model: host-process normal development plus Docker runtime/network tests.
 - Rationale:
   - PH-05 Docker network controls need real container targets, while normal Tauri/web/Rust development should keep the faster host-process loop.
@@ -167,7 +170,7 @@
 - Change summary:
   - Added `docs/planning/local-runtime-testing-plan.md` as the canonical planning authority for precreated local testing profiles, seeded fixture data, dev session bootstrap, multi-instance runtime profiles, and local network simulation.
   - Routed related planning, testing, operations, KPI/SLO, TURN/NAT, and docs index entries to the new authority without duplicating runtime config details or verification evidence rules.
-  - Captured the intended network simulation technology stack: Docker network controls, Linux `tc/netem`, dev-only app-level fault injection, and browser/runtime isolation.
+  - Captured the intended network simulation technology stack: Docker network controls, Docker-only peer proxies, dev-only app-level fault injection, and browser/runtime isolation.
 - Rationale:
   - Local manual and automated testing now need a repeatable profile/fixture/runtime plan before implementation starts, especially after PR #96 added workspace DM UI and Windows runner baseline improvements.
 - Linked docs updated:

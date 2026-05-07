@@ -212,6 +212,27 @@ jobs:
           chmod +x scripts/validate-dm-transport-policy.sh
           ./scripts/validate-dm-transport-policy.sh
 
+  runtime-network-smoke:
+    name: runtime-network-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+
+      - name: Validate runtime and network profiles
+        run: |
+          npm run validate:runtime-profiles
+          npm run validate:network-profiles
+
+      - name: Docker runtime network smoke
+        run: npm run test:runtime
+
   web-check:
     name: web-check (apps/web)
     runs-on: ubuntu-latest

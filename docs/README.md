@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added the Docker runtime test stack for PH-05 network simulation.
+- Latest meaningful change: 2026-05-07 completed PH-05 Docker runtime, Toxiproxy, app-fault, and runtime smoke coverage for local network simulation.
 
 ## Purpose
 
