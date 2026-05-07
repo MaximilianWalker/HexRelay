@@ -349,7 +349,11 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Rust coverage threshold
-        run: cargo llvm-cov --workspace --all-features --fail-under-lines 80
+        # Dev-seed CLIs are exercised by runtime-network-smoke; this gate tracks long-lived service code.
+        run: >-
+          cargo llvm-cov --workspace --all-features
+          --ignore-filename-regex 'services[\/]api-rs[\/]src[\/](dev_seed\.rs|bin[\/](reset_dev_db|seed_dev)\.rs)'
+          --fail-under-lines 80
 
   integration-smoke:
     name: integration-smoke (web->api->realtime)
