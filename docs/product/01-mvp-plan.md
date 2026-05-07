@@ -180,7 +180,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### DM Connectivity Model (MVP Locked)
 
-- DM connection bootstrap uses signed out-of-band exchange (invite link, QR, or short-code payload).
+- DM connection bootstrap uses signed out-of-band exchange (invite link, QR payload, or full manual code with a short verification code).
 - Pairing payload includes inviter identity key, endpoint hints, nonce, expiry, and signature metadata.
 - DM transport execution is direct-only and must not use infrastructure-assisted NAT traversal services.
 - Connection flow order:

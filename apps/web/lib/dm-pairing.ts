@@ -2,10 +2,21 @@ export function buildDmPairingLink(envelope: string): string {
   return `hexrelay://dm-pairing/${envelope}`;
 }
 
+export function buildDmPairingManualCode(envelope: string): string {
+  const chunks = envelope.match(/.{1,8}/g) ?? [envelope];
+  return `DM1 ${chunks.join(" ")}`;
+}
+
 export function parseDmPairingInput(rawInput: string): string | null {
   const raw = rawInput.trim();
   if (!raw) {
     return null;
+  }
+
+  const manualCode = raw.match(/^DM1[:\s]+([\s\S]+)$/i);
+  if (manualCode?.[1]) {
+    const envelope = manualCode[1].replace(/\s+/g, "");
+    return envelope || null;
   }
 
   try {

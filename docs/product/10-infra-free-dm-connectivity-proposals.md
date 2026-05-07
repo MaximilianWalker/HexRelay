@@ -71,17 +71,17 @@
 - Add direct transport provenance object and API/UI surfacing.
 - Add static and runtime guard tests for policy enforcement.
 
-## Proposition 2 (Rank 2): Out-of-Band Pairing Envelope (QR + Short Code)
+## Proposition 2 (Rank 2): Out-of-Band Pairing Envelope (QR + Manual Code)
 
 ### What changes
 
 - Replace service-based rendezvous with signed out-of-band pairing artifacts.
-- Add QR flow and short-code fallback for endpoint and identity exchange.
+- Add QR flow and full manual-code fallback for endpoint and identity exchange, with a short verification code for out-of-band comparison.
 
 ### How it works
 
 1. Sender creates a signed pairing envelope containing identity key, endpoint hints, nonce, and expiry.
-2. Envelope is shared directly (QR scan, local file transfer, or short code transcription).
+2. Envelope is shared directly (QR scan, local file transfer, or manual-code transcription).
 3. Receiver validates signature, expiry, version, and replay nonce.
 4. On success, both clients store peer identity and endpoint cards for direct dialing.
 5. On failure (expired/replayed/corrupt), UX shows deterministic reason and regeneration action.
@@ -101,7 +101,7 @@
 ### Implementation slices
 
 - Define envelope schema/versioning and signing contract.
-- Implement QR encoding/decoding plus short-code codec.
+- Implement QR encoding/decoding plus manual-code codec and short verification-code display.
 - Add replay/expiry protection and guided recovery UI.
 
 ## Proposition 3 (Rank 3): Connectivity Preflight and Deterministic Troubleshooter

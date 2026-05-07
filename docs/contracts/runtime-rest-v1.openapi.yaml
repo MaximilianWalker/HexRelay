@@ -20,6 +20,8 @@ info:
     adapter boundary without changing REST route or payload contracts. DM direct
     readiness and accepted fanout paths assert the shared direct-peer adapter
     boundary while preserving direct-only response semantics.
+    DM pairing import returns signed inviter identity-key material, endpoint hints,
+    expiry, and replay-protected provenance for QR/link/manual-code bootstrap.
 servers:
   - url: https://api.hexrelay.local
 paths:
@@ -1566,7 +1568,7 @@ paths:
           description: >-
             DM pairing envelope created. Returns the signed export bundle used for
             out-of-band sharing, including the base64url envelope, human-friendly
-            short code, expiry timestamp, and single-use pairing nonce.
+            verification code, expiry timestamp, and single-use pairing nonce.
           content:
             application/json:
               schema:
@@ -1576,7 +1578,7 @@ paths:
                   summary: Signed pairing export bundle ready to share with a contact
                   value:
                     envelope: eyJrZXlfaWQiOiJkZWZhdWx0Iiwic2lnbmVkIjp0cnVlfQ
-                    short_code: NORA-7214
+                    short_code: ABCD-1234-EF56
                     expires_at: '2026-04-06T12:30:00Z'
                     pairing_nonce: 8d4c2b9af1ce44d7a2f1aa903cf0b1c2
         '400':
@@ -1624,6 +1626,10 @@ paths:
                   summary: Verified inviter identity and hints extracted from the envelope
                   value:
                     inviter_identity_id: usr-nora-k
+                    inviter_identity_key:
+                      public_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                      algorithm: ed25519
+                      fingerprint: e0e77a507412b120f6e695cc274b1f877d70fb50d7e4553f12a0d948d9c8a0a9
                     endpoint_hints:
                       - tcp://127.0.0.1:4040
                     imported_at: '2026-04-06T12:05:00Z'
@@ -3330,6 +3336,7 @@ components:
           description: Base64url encoded signed pairing envelope payload
         short_code:
           type: string
+          description: Human-readable verification code for comparing the shared envelope out of band; import still requires the full envelope from the QR/link/manual code.
         expires_at:
           type: string
           format: date-time
@@ -3343,10 +3350,12 @@ components:
           type: string
     DmPairingImportResponse:
       type: object
-      required: [inviter_identity_id, endpoint_hints, imported_at, expires_at]
+      required: [inviter_identity_id, inviter_identity_key, endpoint_hints, imported_at, expires_at]
       properties:
         inviter_identity_id:
           type: string
+        inviter_identity_key:
+          $ref: '#/components/schemas/DmPairingIdentityKey'
         endpoint_hints:
           type: array
           items:
@@ -3357,6 +3366,19 @@ components:
         expires_at:
           type: string
           format: date-time
+    DmPairingIdentityKey:
+      type: object
+      required: [public_key, algorithm, fingerprint]
+      properties:
+        public_key:
+          type: string
+          description: Inviter public identity key embedded in the signed pairing envelope, preserving the registered hex or base64 representation.
+        algorithm:
+          type: string
+          enum: [ed25519]
+        fingerprint:
+          type: string
+          description: SHA-256 fingerprint of the decoded inviter public identity key bytes, encoded as lowercase hex.
     DmConnectivityPreflightRequest:
       type: object
       properties:
