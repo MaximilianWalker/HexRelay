@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-07 documented the realtime dev-fault flag for local app-level network simulation.
+- Latest meaningful change: 2026-05-07 tightened local-only safety notes for dev testing and realtime app-fault flags.
 
 ## Purpose
 
@@ -96,6 +96,24 @@
 | `REALTIME_ENABLE_DEV_FAULTS` | `false` | must be `false` | enables internal local-only realtime delay/drop/disconnect fault hooks; non-loopback binds require a non-default channel dispatch token |
 | `RUST_LOG` | unset in code | optional | standard Rust logging filter |
 
+## Dev-Only Testing Flags
+
+### `API_ENABLE_DEV_TESTING`
+
+- Default: `false`.
+- Production requirement: must remain `false`.
+- Purpose: exposes fixture-backed testing profile/session endpoints for local manual and browser testing.
+- Safe local use requires `API_ENVIRONMENT=development`, loopback API bind, loopback database host, and local browser origins.
+- The endpoint is an adoption aid for `docs/operations/local-runtime-testing-quickstart.md`; it is not an auth bypass for production or shared environments.
+
+### `REALTIME_ENABLE_DEV_FAULTS`
+
+- Default: `false`.
+- Production requirement: must remain `false`.
+- Purpose: exposes internal local app-fault hooks used by network simulation profiles such as `flaky-mobile`.
+- Non-loopback realtime binds require a non-default `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN` when this flag is enabled.
+- Run `npm run network -- --reset` after manual app-fault testing so the realtime process returns to baseline behavior.
+
 ## Local Development Minimum
 
 - Required local bootstrap values:
@@ -140,6 +158,7 @@
 ## Related Documents
 
 - `docs/architecture/01-system-overview.md`
+- `docs/operations/local-runtime-testing-quickstart.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/product/09-configuration-defaults-register.md`

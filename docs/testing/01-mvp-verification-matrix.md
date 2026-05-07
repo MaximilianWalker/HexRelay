@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-23
+- last_updated: 2026-05-07
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-03-23 T4.3.4 added websocket verification for `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` active-device fanout, late-device hydration, and no-duplicate replay on second reconnect using the shared Redis-backed profile-device replay model.
+- Latest meaningful change: 2026-05-07 added local runtime testing evidence paths and validators for fixture, runtime, network, and browser adoption workflows.
 
 ## Requirement to Evidence Matrix
 
@@ -25,6 +25,7 @@
 | Infrastructure-free DM connectivity conformance | T4.1.3-T4.1.8 | Direct-connect conformance report (policy gate, pairing validation, diagnostics, LAN/WAN pathing) | Direct-connect suite confirms no STUN/TURN/relay fallback and deterministic failure guidance behavior | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | DM multi-device eventual-sync convergence | T4.1.9, T4.1.10 | DM fanout + late-device catch-up report | Tests verify one message converges across all profile devices, including devices activated after first receive | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | Server-channel/presence multi-device convergence | T3.3.2, T4.3.4 | Server event fanout + hydration report | Tests verify channel/presence events hydrate all profile devices via per-device cursor after reconnect/late activation | `evidence/iteration-02/profile-device-sync/<YYYY-MM-DD>/` |
+| Local runtime testing adoption | PH-01-PH-07 | Durable evidence bundle with fixture seed summaries, runtime smoke outputs, network simulation event logs, and browser scenario notes under `outputs/` | `cargo test -p api-rs fixture`; `npm --prefix apps/web run test`; `npm run test:runtime`; `npm run test:network`; `node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir <path>` | `evidence/local-runtime-testing/{fixtures,runtime,network,browser}/<run-id>/` |
 | E2EE DM (1:1 + group) | T4.5.1-T4.5.4 | Direct user-to-user transport assertion + decrypt success + offline outbox retry report | Crypto conformance checklist and E2EE integration suite pass | `evidence/iteration-02/messaging-e2ee/<YYYY-MM-DD>/` |
 | Navigation and hubs | T4.6.1-T4.6.4 | UI checklist with screenshots (desktop + mobile) | Manual checklist completed against `docs/product/07-ui-navigation-spec.md` and `docs/product/08-screen-state-spec.md` | `evidence/iteration-02/navigation/<YYYY-MM-DD>/` |
 | Voice/screen share | T5.1.1-T5.3.1 | KPI profile run report (join success, reconnect, jitter) | TURN/NAT profile procedure passes with required metrics captured | `evidence/iteration-03/voice/turn-nat/<scenario-id>/` |
@@ -32,6 +33,20 @@
 | Observability/SLO alerts | T8.1.1, T8.2.1 | Dashboard export + fault-injection alert report | Observability evidence template completed with alert and recovery timestamps | `evidence/operations/observability/<YYYY-MM-DD>/` |
 
 Observability evidence format template: `docs/testing/observability-evidence-template.md`.
+
+Local runtime testing evidence authority: `docs/planning/local-runtime-testing-plan.md`.
+
+Operational local runtime evidence commands: `docs/operations/local-runtime-testing-quickstart.md`.
+
+Runtime/network smoke evidence files:
+
+- `scenario-config.json`
+- `runtime-status-before.json`
+- `runtime-status-after.json`
+- `event-log.ndjson`
+- `verdict.md`
+
+For durable evidence, place these raw smoke files under `outputs/` beside the required `summary.md`, `validators.txt`, and `provenance.json` files.
 
 ## Evidence Format
 
@@ -60,3 +75,5 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
 - `docs/planning/iterations/README.md`
 - `docs/planning/05-iteration-log.md`
 - `docs/planning/kpi-slo-test-profile.md`
+- `docs/planning/local-runtime-testing-plan.md`
+- `docs/operations/local-runtime-testing-quickstart.md`

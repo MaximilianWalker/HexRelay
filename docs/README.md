@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed PH-06 local runtime validation, network reset smoke entrypoints, and optional smoke evidence coverage.
+- Latest meaningful change: 2026-05-07 completed PH-07 local runtime testing documentation, troubleshooting, and evidence adoption routing.
 
 ## Purpose
 
@@ -38,6 +38,7 @@
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
 | Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs` or `services/*/.env.example` changes |
+| Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
 | Infrastructure-free DM connectivity solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM connectivity policy, direct-connect mechanisms, or acceptance criteria change |
@@ -116,6 +117,7 @@
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/02-dedicated-server-deployment.md`
 - `docs/operations/03-release-packaging.md`
+- `docs/operations/local-runtime-testing-quickstart.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
 - `docs/reference/runtime-config-reference.md`

@@ -15,7 +15,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added release packaging guidance and the Docker runtime test stack for PH-05 network simulation.
+- Latest meaningful change: 2026-05-07 added the local runtime testing quickstart and evidence adoption path.
 
 ## Project Stage
 
@@ -39,6 +39,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Documentation index and source-of-truth map: `docs/README.md`
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
+- Local runtime testing quickstart: `docs/operations/local-runtime-testing-quickstart.md`
 - Dedicated server deployment baseline: `docs/operations/02-dedicated-server-deployment.md`
 - Release packaging and artifact model: `docs/operations/03-release-packaging.md`
 - Sprint execution boards index: `docs/planning/iterations/README.md`
@@ -61,16 +62,13 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Reset and reseed the local dev DB with `npm run reset-dev-db -- --profile dm-basic --yes`; this command refuses non-local DB targets.
 - Enable `API_ENABLE_DEV_TESTING=true` only in local development to expose fixture-backed testing profile/session endpoints, then use Settings -> Testing profiles in the web app to activate Alice/Bob sessions.
 - Local runtime testing plan for seeded profiles, multi-instance launch, and network simulation: `docs/planning/local-runtime-testing-plan.md`
+- Operational quickstart and troubleshooting for local runtime testing: `docs/operations/local-runtime-testing-quickstart.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Validate network simulation profile definitions with `npm run validate:network-profiles`.
 - Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-node` or `bob-node`.
 - Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
 - Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
-- Windows-specific direct path if you want to bypass auto-detection explicitly:
-  - `npm run setup:windows`
-  - `npm run start:windows`
-  - `npm run test:windows`
-  - the PowerShell runner automatically picks conflict-free local ports and prints the chosen API/realtime/web URLs when the stack is ready
+- Cross-platform direct wrapper commands are documented in `docs/operations/local-runtime-testing-quickstart.md` for both PowerShell and Bash paths.
 
 ### Pre-Dev Gate (Deterministic)
 

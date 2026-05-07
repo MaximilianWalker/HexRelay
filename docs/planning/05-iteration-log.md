@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 completed PH-06 local runtime validation and optional smoke evidence coverage.
+- Latest meaningful change: 2026-05-07 completed PH-07 local runtime documentation and adoption closeout.
 
 ## Purpose
 
@@ -29,6 +29,27 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-07 (PH-07 local runtime documentation and adoption closeout)
+
+- Area affected: Local runtime testing operations, runtime config reference safety notes, testing evidence discoverability, and documentation routing.
+- Change summary:
+  - Added `docs/operations/local-runtime-testing-quickstart.md` for clean-checkout setup, fixture seed/reset, host-process runtime profiles, Docker runtime/network simulation, evidence commands, and troubleshooting.
+  - Tightened `API_ENABLE_DEV_TESTING` and `REALTIME_ENABLE_DEV_FAULTS` safety notes in the runtime config reference.
+  - Added local runtime testing evidence coverage to the MVP verification matrix and testing docs index.
+  - Marked PH-07 complete in the local runtime testing plan and refreshed documentation routers.
+- Rationale:
+  - PH-06 made the harness executable and validated; PH-07 makes it adoptable by future development work without relying on PR history or scattered command notes.
+- Linked docs updated:
+  - `README.md`
+  - `docs/README.md`
+  - `docs/operations/README.md`
+  - `docs/operations/local-runtime-testing-quickstart.md`
+  - `docs/reference/runtime-config-reference.md`
+  - `docs/testing/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-07 (PH-06 local runtime validation closeout)
 

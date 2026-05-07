@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-07 completed PH-06 fixture, web helper, runtime smoke, network reset, and optional smoke evidence validation coverage.
+- Latest meaningful change: 2026-05-07 completed PH-07 operations quickstart, runtime config safety notes, and evidence discoverability.
 
 ## Organization Decision
 
@@ -21,7 +21,7 @@
 - Reason: the work spans `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, `scripts`, and evidence docs, so it belongs in `docs/planning/` with the other cross-repo test-profile plans.
 - Related verification docs remain in `docs/testing/` and should link here instead of duplicating profile or fixture definitions.
 - Runtime environment variable details remain in `docs/reference/runtime-config-reference.md` and should be linked when implementation introduces new config flags.
-- Operational how-to guides may later summarize commands in `docs/operations/`, but this file remains the source of truth for design, scope, sequencing, and acceptance criteria.
+- Operational how-to guidance lives in `docs/operations/local-runtime-testing-quickstart.md`, while this file remains the source of truth for design, scope, sequencing, and acceptance criteria.
 
 ## Scope
 
@@ -488,7 +488,7 @@ npm run network -- --reset
 - `test:runtime` validates Toxiproxy peer-link latency and timeout apply/reset without kernel-level network shaping.
 - `test:runtime` validates realtime app-fault apply/reset against the runtime stack.
 - `test:network` runs the same Docker runtime network scenario set explicitly through `scripts/test-network.mjs`.
-- `runtime-docker.mjs smoke --evidence-dir <path>` writes `scenario-config.json`, `runtime-status-before.json`, `runtime-status-after.json`, `event-log.ndjson`, and `verdict.md` for reproducible local evidence.
+- `runtime-docker.mjs smoke --evidence-dir <path>` writes raw smoke output files that can be copied under a durable evidence bundle's `outputs/` directory.
 
 ### CI Strategy
 
@@ -499,20 +499,27 @@ npm run network -- --reset
 
 ## Evidence Artifacts
 
-### Proposed Paths
+### Durable Evidence Paths
 
-- Fixture seed summaries: `evidence/local-runtime-testing/fixtures/<run-id>/seed-summary.json`.
+- Fixture seed summaries: `evidence/local-runtime-testing/fixtures/<run-id>/`.
 - Runtime profile smoke outputs: `evidence/local-runtime-testing/runtime/<profile>/<run-id>/`.
 - Network simulation runs: `evidence/local-runtime-testing/network/<profile>/<scenario>/<run-id>/`.
 - Browser scenario outputs: `evidence/local-runtime-testing/browser/<scenario>/<run-id>/`.
 
-### Required Evidence Per Network Run
+### Required Durable Evidence Per Run
 
-- `scenario-config.json`: runtime profile, network profile, targets, and shaping parameters.
-- `runtime-status-before.json`: health and ports before simulation.
-- `runtime-status-after.json`: health and ports after reset.
-- `event-log.ndjson`: ordered events for apply, observe, fail/pass, and reset.
-- `verdict.md`: explicit pass/fail outcome with failed checks.
+- `summary.md`: requirement IDs, scope, outcome, owner, and missing-artifact rationale if any output is unavailable.
+- `validators.txt`: exact commands or manual checks run.
+- `provenance.json`: commit SHA, PR or run ID, and generation timestamp.
+- `outputs/`: raw generated artifacts, screenshots, logs, or exports referenced by `summary.md`.
+
+### Runtime/Network Smoke Output Files
+
+- `outputs/scenario-config.json`: runtime profile, network profile, targets, and shaping parameters.
+- `outputs/runtime-status-before.json`: health and ports before simulation.
+- `outputs/runtime-status-after.json`: health and ports after reset.
+- `outputs/event-log.ndjson`: ordered events for apply, observe, fail/pass, and reset.
+- `outputs/verdict.md`: explicit pass/fail outcome with failed checks.
 
 ## Implementation Phases
 
@@ -524,7 +531,7 @@ npm run network -- --reset
 | PH-04 | Multi-instance runtime profiles | Start multiple local app instances with clear lifecycle and ports | done |
 | PH-05 | Network simulation | Add local offline, partition, latency, and deterministic fault simulation | done |
 | PH-06 | Validation and evidence | Add tests and evidence outputs for fixture, runtime, and network workflows | done |
-| PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | ready |
+| PH-07 | Documentation and adoption | Add runbook summaries and troubleshooting docs | done |
 
 ### PH-01 Tasks
 
@@ -584,9 +591,9 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-07-EP-01-ST-01-TK-01 | Add operations quickstart after implementation | `docs/operations/` | Follow from clean checkout | Developer can seed and launch profiles from docs | ready |
-| PH-07-EP-01-ST-01-TK-02 | Update runtime config reference when env flags land | `docs/reference/runtime-config-reference.md` | Docs review | New dev-only env vars have defaults and safety notes | ready |
-| PH-07-EP-01-ST-01-TK-03 | Update evidence and verification docs | `docs/testing/` | Docs review | Runtime and network evidence paths are discoverable | ready |
+| PH-07-EP-01-ST-01-TK-01 | Add operations quickstart after implementation | `docs/operations/local-runtime-testing-quickstart.md`, `docs/operations/README.md`, `README.md` | Docs review against clean-checkout flow | Developer can seed, launch, inspect, stop, run Docker runtime smoke, and troubleshoot profiles from docs | done |
+| PH-07-EP-01-ST-01-TK-02 | Update runtime config reference when env flags land | `docs/reference/runtime-config-reference.md` | Docs review | Dev-only env vars have defaults, production requirements, and safety notes | done |
+| PH-07-EP-01-ST-01-TK-03 | Update evidence and verification docs | `docs/testing/README.md`, `docs/testing/01-mvp-verification-matrix.md` | Docs review | Runtime and network evidence paths and files are discoverable | done |
 
 ## Dependencies and Critical Path
 
@@ -663,6 +670,7 @@ Critical path:
 
 - `README.md`
 - `docs/README.md`
+- `docs/operations/local-runtime-testing-quickstart.md`
 - `docs/planning/README.md`
 - `docs/testing/README.md`
 - `docs/reference/runtime-config-reference.md`
