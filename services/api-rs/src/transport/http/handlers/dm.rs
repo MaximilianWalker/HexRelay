@@ -1905,10 +1905,10 @@ fn observed_lan_source_ip(headers: &HeaderMap) -> ApiResult<IpAddr> {
             "LAN discovery packet source IP is invalid",
         )
     })?;
-    if !communication_core::is_lan_only_ip(ip) {
+    if !matches!(ip, IpAddr::V4(_)) || !communication_core::is_lan_only_ip(ip) {
         return Err(bad_request(
             "lan_discovery_invalid",
-            "LAN discovery packet source IP must be local-only",
+            "LAN discovery packet source IP must be private or link-local IPv4",
         ));
     }
 
@@ -1942,6 +1942,12 @@ async fn validate_lan_discovery_advertisement(
         return Err(bad_request(
             "lan_discovery_invalid",
             "LAN discovery advertisement nonce must be non-empty and <= 128 chars",
+        ));
+    }
+    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
         ));
     }
 
@@ -2015,6 +2021,12 @@ async fn verify_lan_discovery_advertisement_signature(
             "LAN discovery advertisement identity key is invalid",
         )
     })?;
+    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
+        ));
+    }
     let signature_bytes = hex::decode(&advertisement.signature).map_err(|_| {
         bad_request(
             "lan_discovery_invalid",

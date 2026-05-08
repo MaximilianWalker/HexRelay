@@ -131,8 +131,11 @@ fn lan_endpoint_hint_error_message(error: LanEndpointHintError) -> &'static str 
             "LAN endpoint hints must use IP-literal host:port addresses"
         }
         LanEndpointHintError::ZeroPort => "LAN endpoint hints must use a non-zero port",
+        LanEndpointHintError::NonIpv4Address => {
+            "LAN endpoint hints must use IPv4 addresses until IPv6 LAN discovery is supported"
+        }
         LanEndpointHintError::NonLocalAddress => {
-            "LAN endpoint hints must use private, link-local, or unique-local IP addresses"
+            "LAN endpoint hints must use private or link-local IPv4 addresses"
         }
     }
 }
@@ -596,10 +599,10 @@ mod tests {
         };
         assert!(validate_lan_discovery_announce(&payload).is_ok());
 
-        let ula_payload = DmLanDiscoveryAnnounceRequest {
+        let invalid_ipv6 = DmLanDiscoveryAnnounceRequest {
             endpoint_hints: vec!["quic://[fd00::1]:4040".to_string()],
         };
-        assert!(validate_lan_discovery_announce(&ula_payload).is_ok());
+        assert!(validate_lan_discovery_announce(&invalid_ipv6).is_err());
 
         let invalid_empty = DmLanDiscoveryAnnounceRequest {
             endpoint_hints: vec![],

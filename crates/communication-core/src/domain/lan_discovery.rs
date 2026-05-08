@@ -9,6 +9,7 @@ pub const LAN_DISCOVERY_MULTICAST_ADDR: &str = "239.255.48.31:48999";
 
 const LAN_ENDPOINT_HINT_ALLOWED_SCHEMES: [&str; 3] = ["tcp", "udp", "quic"];
 const LAN_ENDPOINT_HINT_MAX_LENGTH: usize = 200;
+const LAN_DISCOVERY_ED25519_SIGNATURE_HEX_LENGTH: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanEndpointHint {
@@ -38,6 +39,7 @@ pub enum LanEndpointHintError {
     UnsupportedScheme,
     InvalidSocketAddress,
     ZeroPort,
+    NonIpv4Address,
     NonLocalAddress,
 }
 
@@ -65,6 +67,11 @@ pub fn lan_discovery_signing_payload(
     }
 
     payload.into_bytes()
+}
+
+pub fn is_valid_lan_discovery_signature_hex(signature: &str) -> bool {
+    signature.len() == LAN_DISCOVERY_ED25519_SIGNATURE_HEX_LENGTH
+        && signature.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn parse_lan_endpoint_hint(hint: &str) -> Result<LanEndpointHint, LanEndpointHintError> {
@@ -100,7 +107,11 @@ pub fn parse_lan_endpoint_hint(hint: &str) -> Result<LanEndpointHint, LanEndpoin
     if address.port() == 0 {
         return Err(LanEndpointHintError::ZeroPort);
     }
-    if !is_lan_only_ip(address.ip()) {
+    let ip = address.ip();
+    if !matches!(ip, IpAddr::V4(_)) {
+        return Err(LanEndpointHintError::NonIpv4Address);
+    }
+    if !is_lan_only_ip(ip) {
         return Err(LanEndpointHintError::NonLocalAddress);
     }
 

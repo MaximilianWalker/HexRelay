@@ -14,10 +14,10 @@ info:
     `docs/operations/readiness-corrections-log.md`.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
-    Authenticated clients may advertise signed LAN discovery endpoint hints through
-    `dm.lan_discovery.advertise`; the runtime stores them only as TTL-scoped local
-    multicast advertisements and acknowledges successful registration on the same
-    event type.
+    Authenticated clients may advertise signed IPv4 LAN discovery endpoint hints
+    through `dm.lan_discovery.advertise`; the runtime stores them only as
+    TTL-scoped local multicast advertisements and acknowledges successful
+    registration on the same event type.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
@@ -269,12 +269,16 @@ components:
           maxItems: 8
           items:
             type: string
-            description: Local-only IP-literal endpoint hint using tcp://, udp://, or quic://.
+            description: Local-only IPv4-literal endpoint hint using tcp://, udp://, or quic://.
         scope: { type: string, enum: [lan_subnet] }
         issued_at_epoch: { type: integer }
         expires_at_epoch: { type: integer }
         nonce: { type: string }
-        signature: { type: string }
+        signature:
+          type: string
+          minLength: 128
+          maxLength: 128
+          pattern: '^[0-9a-fA-F]{128}$'
     DmLanDiscoveryAdvertisedDataV1:
       type: object
       additionalProperties: false
@@ -288,7 +292,7 @@ components:
           maxItems: 8
           items:
             type: string
-            description: Local-only IP-literal endpoint hints accepted for TTL-scoped LAN discovery.
+            description: Local-only IPv4-literal endpoint hints accepted for TTL-scoped LAN discovery.
         scope: { type: string, enum: [lan_subnet] }
         expires_at_epoch: { type: integer }
     CallSignalOfferEventV1:

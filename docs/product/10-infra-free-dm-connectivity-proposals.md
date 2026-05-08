@@ -146,7 +146,7 @@
 ### How it works
 
 1. Client advertises presence on local subnet via mDNS/multicast.
-2. Peer discovery accepts only local-only IP-literal endpoint hints: private IPv4, IPv4 link-local, IPv6 unique-local, or IPv6 link-local addresses with non-zero ports.
+2. Peer discovery accepts only local-only IPv4-literal endpoint hints: private IPv4 or IPv4 link-local addresses with non-zero ports. IPv6 LAN hints remain out of scope until the multicast listener supports IPv6 sources.
 3. Discovery snapshots stay ephemeral and TTL-scoped; they are not persisted as durable DM convergence state.
 4. LAN hints are visible only to trusted contacts or shared-server peers whose current DM policy permits the requester.
 5. Transport attempts direct connection over local prioritized endpoints first when preflight sees fresh trusted LAN presence.

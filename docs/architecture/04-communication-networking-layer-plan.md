@@ -117,7 +117,7 @@
 - Forbidden dependencies: STUN/TURN/relay connectivity services.
 - Reliability target is durable acceptance plus bounded eventual catch-up within the decentralized model, not best-effort fire-and-forget.
 - Supported reachability enhancers:
-  - LAN discovery fast path (mDNS/multicast) using IP-literal local-only endpoint hints, multicast hop-limit `1`, trusted peer visibility, and ephemeral TTL-scoped snapshots,
+  - LAN discovery fast path (mDNS/multicast) using IPv4-literal local-only endpoint hints, multicast hop-limit `1`, trusted peer visibility, and ephemeral TTL-scoped snapshots,
   - WAN direct setup wizard (UPnP/NAT-PMP/manual mapping),
   - multi-endpoint parallel dial.
 - LAN discovery state is not durable convergence state; it must stay in-memory/ephemeral and cannot be promoted to database-backed peer history without a separate architecture decision.

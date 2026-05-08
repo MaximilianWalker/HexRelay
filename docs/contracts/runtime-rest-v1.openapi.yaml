@@ -1422,7 +1422,7 @@ paths:
   /v1/internal/dm/connectivity/lan-discovery/ingest:
     post:
       summary: Ingest a signed LAN discovery advertisement from realtime
-      description: Internal service-to-service endpoint used by `services/realtime-rs` after local multicast discovery. The API verifies the Ed25519 identity signature, TTL window, LAN-only endpoint hints, and internal token before updating ephemeral LAN presence.
+      description: Internal service-to-service endpoint used by `services/realtime-rs` after local multicast discovery. The API verifies the Ed25519 identity signature, TTL window, IPv4 LAN-only endpoint hints, and internal token before updating ephemeral LAN presence.
       parameters:
         - in: header
           name: x-hexrelay-internal-token
@@ -1435,7 +1435,7 @@ paths:
           required: true
           schema:
             type: string
-          description: UDP packet source IP observed by realtime; every advertised endpoint hint must use this same local-only IP.
+          description: UDP packet source IPv4 address observed by realtime; every advertised endpoint hint must use this same private or link-local IPv4 address.
       requestBody:
         required: true
         content:
@@ -1792,7 +1792,7 @@ paths:
   /v1/dm/connectivity/lan-discovery/announce:
     post:
       summary: Announce local-network endpoint hints for DM LAN fast path
-      description: Updates an ephemeral TTL-scoped LAN discovery snapshot for the authenticated identity. Endpoint hints must be IP-literal private, link-local, or unique-local addresses discovered over local-only LAN traffic. These local-subnet hints are intentionally not treated as durable DM convergence state and are exposed only to trusted contacts or shared-server peers whose DM policy currently permits the requester.
+      description: Updates an ephemeral TTL-scoped LAN discovery snapshot for the authenticated identity. Endpoint hints must be IPv4-literal private or link-local addresses discovered over local-only LAN traffic; IPv6 LAN hints are rejected until the multicast listener supports IPv6 sources. These local-subnet hints are intentionally not treated as durable DM convergence state and are exposed only to trusted contacts or shared-server peers whose DM policy currently permits the requester.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -3387,8 +3387,8 @@ components:
       type: string
       minLength: 1
       maxLength: 200
-      pattern: '^(tcp|udp|quic)://((\d{1,3}\.){3}\d{1,3}|\[[0-9A-Fa-f:.]+\]):[1-9][0-9]{0,4}$'
-      description: LAN fast-path endpoint hint only. Hosts must be IP-literal RFC1918/private IPv4, IPv4 link-local, IPv6 unique-local, or IPv6 link-local addresses with a non-zero port; loopback, DNS, public-routable IPs, and relay-oriented schemes are forbidden. Full address-class and port-range validation is server-side.
+      pattern: '^(tcp|udp|quic)://(\d{1,3}\.){3}\d{1,3}:[1-9][0-9]{0,4}$'
+      description: LAN fast-path endpoint hint only. Hosts must be IPv4-literal RFC1918/private or IPv4 link-local addresses with a non-zero port; loopback, DNS, public-routable IPs, IPv6 hints, and relay-oriented schemes are forbidden. Full address-class and port-range validation is server-side.
     DmPairingEnvelopeCreateRequest:
       type: object
       required: [endpoint_hints]
@@ -3571,6 +3571,9 @@ components:
           maxLength: 128
         signature:
           type: string
+          minLength: 128
+          maxLength: 128
+          pattern: '^[0-9a-fA-F]{128}$'
           description: Hex-encoded Ed25519 signature over the deterministic LAN discovery signing payload.
     DmLanPeerSummary:
       type: object

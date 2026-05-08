@@ -34,7 +34,7 @@
 
 - Area affected: DM LAN discovery validation, ephemeral peer snapshots, runtime REST contract, web API helpers, and Iteration 2 sequencing.
 - Change summary:
-  - Added shared core LAN endpoint validation that accepts only direct schemes on private, link-local, or unique-local IP-literal addresses with non-zero ports.
+  - Added shared core LAN endpoint validation that accepts only direct schemes on private or link-local IPv4-literal addresses with non-zero ports.
   - Tightened LAN discovery announcements to reject loopback, public-routable, DNS-hostname, relay-oriented, and stale/invalid endpoint hints while keeping LAN presence in memory only.
   - Restricted LAN peer listing and preflight LAN priority to trusted accepted-friend or shared-server relationships instead of arbitrary `anyone` policy matches.
   - Added explicit `expires_at` and `ttl_seconds` metadata to LAN discovery responses and peer summaries.

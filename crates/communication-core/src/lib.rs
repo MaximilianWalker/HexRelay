@@ -6,8 +6,8 @@ pub mod transport;
 pub use app::PolicyEngine;
 pub use config::CommunicationConfig;
 pub use domain::{
-    is_lan_only_ip, lan_discovery_signing_payload, parse_lan_endpoint_hint,
-    validate_lan_endpoint_hint,
+    is_lan_only_ip, is_valid_lan_discovery_signature_hex, lan_discovery_signing_payload,
+    parse_lan_endpoint_hint, validate_lan_endpoint_hint,
 };
 pub use domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,

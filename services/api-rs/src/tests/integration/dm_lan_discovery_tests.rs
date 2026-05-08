@@ -216,6 +216,7 @@ async fn rejects_non_local_lan_discovery_endpoint_hints() {
 
     for body in [
         r#"{"endpoint_hints":["udp://8.8.8.8:4040"]}"#,
+        r#"{"endpoint_hints":["udp://[fd00::1]:4040"]}"#,
         r#"{"endpoint_hints":["udp://peer.local:4040"]}"#,
         r#"{"endpoint_hints":["udp://192.168.1.12:0"]}"#,
     ] {
@@ -724,6 +725,50 @@ async fn internal_ingest_rejects_tampered_lan_discovery_signature() {
         now + LAN_DISCOVERY_TTL_SECONDS,
     );
     advertisement.signature = "00".repeat(64);
+
+    let ingest_request = Request::builder()
+        .method("POST")
+        .uri("/v1/internal/dm/connectivity/lan-discovery/ingest")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .header("x-hexrelay-observed-source-ip", "192.168.1.12")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&advertisement).expect("encode advertisement"),
+        ))
+        .expect("build LAN ingest request");
+
+    let response = app
+        .oneshot(ingest_request)
+        .await
+        .expect("LAN ingest response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read LAN ingest body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode error body");
+    assert_eq!(payload["code"], "lan_discovery_invalid");
+    assert!(state
+        .dm_lan_presence
+        .read()
+        .expect("acquire LAN presence read lock")
+        .is_empty());
+}
+
+#[tokio::test]
+async fn internal_ingest_rejects_invalid_lan_discovery_signature_format() {
+    let (app, _tokens, state) = app_with_sessions_and_state(&["usr-jules-p"]);
+    let signing_key = register_lan_identity_key(&state, "usr-jules-p");
+    let now = Utc::now().timestamp();
+    let mut advertisement = signed_lan_advertisement(
+        "usr-jules-p",
+        &signing_key,
+        now,
+        now + LAN_DISCOVERY_TTL_SECONDS,
+    );
+    advertisement.signature = "not-hex".to_string();
 
     let ingest_request = Request::builder()
         .method("POST")

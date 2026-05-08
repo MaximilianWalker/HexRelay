@@ -2,8 +2,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use chrono::Utc;
 use communication_core::{
-    parse_lan_endpoint_hint, validate_lan_endpoint_hint, LanDiscoveryAdvertisement,
-    LAN_DISCOVERY_MULTICAST_HOP_LIMIT, LAN_DISCOVERY_SCOPE, LAN_DISCOVERY_TTL_SECONDS,
+    is_valid_lan_discovery_signature_hex, parse_lan_endpoint_hint, validate_lan_endpoint_hint,
+    LanDiscoveryAdvertisement, LAN_DISCOVERY_MULTICAST_HOP_LIMIT, LAN_DISCOVERY_SCOPE,
+    LAN_DISCOVERY_TTL_SECONDS,
 };
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
@@ -40,6 +41,10 @@ pub async fn handle_lan_discovery_ws_event(
     session_identity_id: &str,
     raw: &str,
 ) -> Option<String> {
+    if !raw.contains(LAN_DISCOVERY_EVENT_TYPE) {
+        return None;
+    }
+
     let parsed = serde_json::from_str::<RealtimeInboundEnvelope>(raw).ok()?;
     if parsed.event_type != LAN_DISCOVERY_EVENT_TYPE {
         return None;
@@ -303,8 +308,11 @@ fn validate_advertisement_shape(
     if advertisement.nonce.trim().is_empty() || advertisement.nonce.len() > 128 {
         return Err(("event_invalid", "LAN discovery nonce is invalid"));
     }
-    if advertisement.signature.trim().is_empty() || advertisement.signature.len() > 256 {
-        return Err(("event_invalid", "LAN discovery signature is invalid"));
+    if !is_valid_lan_discovery_signature_hex(&advertisement.signature) {
+        return Err((
+            "event_invalid",
+            "LAN discovery signature must be a 128-character hex Ed25519 signature",
+        ));
     }
     if advertisement.issued_at_epoch > now + 30
         || advertisement.expires_at_epoch <= now
@@ -327,7 +335,7 @@ fn validate_advertisement_shape(
     {
         return Err((
             "event_invalid",
-            "LAN discovery endpoint_hints must be local-only direct addresses",
+            "LAN discovery endpoint_hints must be local-only IPv4 direct addresses",
         ));
     }
 
@@ -458,6 +466,50 @@ mod tests {
 
         assert_eq!(payload["event_type"], "error");
         assert_eq!(payload["data"]["code"], "event_identity_mismatch");
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_lan_discovery_signature_format() {
+        let state = test_state(true);
+        let mut advertisement = advertisement("usr-nora-k");
+        advertisement.signature = "not-hex".to_string();
+        let raw = serde_json::json!({
+            "event_type": LAN_DISCOVERY_EVENT_TYPE,
+            "event_version": 1,
+            "data": advertisement,
+        })
+        .to_string();
+
+        let response = handle_lan_discovery_ws_event(&state, "usr-nora-k", &raw)
+            .await
+            .expect("LAN event handled");
+        let payload: serde_json::Value = serde_json::from_str(&response).expect("decode response");
+
+        assert_eq!(payload["event_type"], "error");
+        assert_eq!(payload["data"]["code"], "event_invalid");
+        assert!(state.active_lan_advertisements.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rejects_ipv6_lan_discovery_ws_event_until_supported() {
+        let state = test_state(true);
+        let mut advertisement = advertisement("usr-nora-k");
+        advertisement.endpoint_hints = vec!["udp://[fd00::1]:4040".to_string()];
+        let raw = serde_json::json!({
+            "event_type": LAN_DISCOVERY_EVENT_TYPE,
+            "event_version": 1,
+            "data": advertisement,
+        })
+        .to_string();
+
+        let response = handle_lan_discovery_ws_event(&state, "usr-nora-k", &raw)
+            .await
+            .expect("LAN event handled");
+        let payload: serde_json::Value = serde_json::from_str(&response).expect("decode response");
+
+        assert_eq!(payload["event_type"], "error");
+        assert_eq!(payload["data"]["code"], "event_invalid");
+        assert!(state.active_lan_advertisements.lock().await.is_empty());
     }
 
     #[tokio::test]
