@@ -1668,10 +1668,12 @@ paths:
   /v1/dm/connectivity/preflight:
     post:
       summary: Run DM direct-connect preflight diagnostics and troubleshooting mapping
-      description: Runs direct-connect diagnostics using trusted runtime state only. If a peer identity is supplied, the preflight evaluates that peer's current DM inbound policy for the authenticated requester; `same_server` authorization is verified from persisted server membership records rather than client-declared context.
+      description: Runs direct-connect preflight by combining client-reported local diagnostics with trusted server-side peer checks. If a peer identity is supplied, the preflight evaluates that peer's current DM inbound policy for the authenticated requester; `same_server` authorization is verified from persisted server membership records rather than client-declared context. Cookie-authenticated requests require a matching CSRF header.
       security:
         - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
@@ -1717,7 +1719,7 @@ paths:
                   summary: Preflight request is invalid
                   value:
                     code: preflight_invalid
-                    message: peer_identity_id must not be empty when provided
+                    message: peer_identity_id must be 3-64 chars using letters, numbers, _ or -
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -3385,15 +3387,19 @@ components:
         peer_identity_id:
           type: string
           nullable: true
+          description: Optional peer identity to evaluate against trusted block, relationship, policy, and LAN presence state.
         pairing_envelope_present:
           type: boolean
           nullable: true
+          description: Client-reported indicator that this device has imported currently usable signed pairing material for the peer.
         local_bind_allowed:
           type: boolean
           nullable: true
+          description: Client-reported local diagnostic for whether the app can bind a direct-listen port on this device.
         peer_reachable_hint:
           type: boolean
           nullable: true
+          description: Client-reported peer reachability hint from the current device/runtime; trusted policy and block checks still run server-side.
     DmConnectivityPreflightResponse:
       type: object
       required: [status, reason_code, transport_profile, remediation]
@@ -3417,6 +3423,7 @@ components:
           enum: [direct_only]
         remediation:
           type: array
+          description: Ordered troubleshooting steps for the first deterministic preflight outcome.
           items:
             type: string
     DmLanDiscoveryAnnounceRequest:

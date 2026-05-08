@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-08
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-07 completed `T4.1.4` signed out-of-band DM pairing closeout.
+- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter closeout.
 
 ## Purpose
 
@@ -29,6 +29,25 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-08 (T4.1.5 DM connectivity preflight/troubleshooter closeout)
+
+- Area affected: DM connectivity preflight validation, private-chat troubleshooting UX, runtime REST contract, and Iteration 2 sequencing.
+- Change summary:
+  - Tightened preflight peer identity validation to the shared identity-id shape and expanded backend coverage for local bind denial, peer reachability failure, LAN-ready preference, and deterministic remediation text.
+  - Enforced cookie-auth CSRF parity on the preflight POST while keeping bearer-auth diagnostics unchanged.
+  - Added a web preflight API helper and private-chat troubleshooter card that reports pairing availability, peer status, direct-only transport, stable reason labels, and ordered remediation steps before enabling the composer.
+  - Stored validated imported pairing metadata in session-scoped browser storage so the private-chat preflight can distinguish missing pairing from ready/blocked direct-connect outcomes without backend rendezvous.
+  - Marked `T4.1.5` done and advanced the recommended Iteration 2 sequence to `T4.1.6` LAN discovery fast path.
+- Rationale:
+  - `T4.1.5` acceptance requires failed direct connections to map to deterministic reason codes with actionable in-product remediation, while preserving the infrastructure-free direct-only DM policy.
+- Linked docs updated:
+  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-07 (T4.1.4 signed DM pairing closeout)
 

@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-08
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 completed `T4.1.4` signed out-of-band DM pairing closeout across envelope identity-key material, QR/link/manual-code UX, replay/expiry/self-import validation, and planning docs.
+- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter across deterministic reason-code coverage, private-chat remediation UX, and runtime REST contract updates.
 
 ## Iteration Scope
 
@@ -152,12 +152,13 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | local working tree after PR #95 plus DM policy guardrail expansion | Runtime DM transport already routed direct-only and rejected non-direct profiles; CI guardrails now scan both DM runtime callsites and DM-related config/workflow surfaces so forbidden STUN/TURN/relay-style fallback terms fail before merge |
 | T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | T4.1.4 pairing closeout branch | Signed pairing envelopes now carry inviter identity-key material and endpoint hints, reject replay/expiry/self-import/tamper cases, and expose QR/link/manual-code sharing with a short verification code on the contacts surface |
+| T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | T4.1.5 connectivity preflight branch | Connectivity preflight validates peer identity input, maps missing pairing/local bind/policy/block/reachability/LAN-ready outcomes to stable reason codes, and exposes private-chat troubleshooting with session-scoped pairing metadata and ordered remediation steps |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.5` DM connectivity preflight/troubleshooter unless sequencing changes |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.6` LAN discovery fast path unless sequencing changes |
 
 ## Suggested Sprint Sequencing
 

@@ -22,6 +22,22 @@ export type DmPairingIdentityKey = {
   fingerprint: string;
 };
 
+export type DmConnectivityPreflightReasonCode =
+  | "preflight_ok"
+  | "preflight_ok_lan"
+  | "preflight_blocked_user"
+  | "pairing_missing"
+  | "port_unavailable"
+  | "policy_blocked"
+  | "peer_unreachable";
+
+export type DmConnectivityPreflightResponse = {
+  status: "ready" | "blocked";
+  reason_code: DmConnectivityPreflightReasonCode;
+  transport_profile: "direct_only";
+  remediation: string[];
+};
+
 export type TestingProfileSummary = {
   profile_id: string;
   identity_id: string;
@@ -509,6 +525,31 @@ export async function importDmPairingEnvelope(input: {
       },
       body: JSON.stringify({
         envelope: input.envelope,
+      }),
+    },
+  );
+
+  return parseResponse(response);
+}
+
+export async function runDmConnectivityPreflight(input: {
+  peerIdentityId?: string;
+  pairingEnvelopePresent?: boolean;
+  localBindAllowed?: boolean;
+  peerReachableHint?: boolean;
+}): Promise<ApiResult<DmConnectivityPreflightResponse>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/preflight`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        peer_identity_id: input.peerIdentityId,
+        pairing_envelope_present: input.pairingEnvelopePresent,
+        local_bind_allowed: input.localBindAllowed,
+        peer_reachable_hint: input.peerReachableHint,
       }),
     },
   );
