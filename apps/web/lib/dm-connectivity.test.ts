@@ -62,6 +62,16 @@ describe("DM connectivity helpers", () => {
     expect(record?.endpointHints).toEqual(["tcp://127.0.0.1:4040"]);
   });
 
+  it("stores pairing imports without object-keyed identity ids", () => {
+    installStorage();
+
+    storeDmPairingImport(pairingRecord({ inviterIdentityId: "__proto__" }));
+
+    const record = readDmPairingImport("__proto__");
+    expect(record?.inviterIdentityId).toBe("__proto__");
+    expect(Object.prototype).not.toHaveProperty("inviterIdentityId");
+  });
+
   it("treats expired pairing imports as missing", () => {
     installStorage();
 
@@ -75,28 +85,26 @@ describe("DM connectivity helpers", () => {
     const windowRef = globalThis.window as { sessionStorage: MemoryStorage };
     windowRef.sessionStorage.setItem(
       PAIRING_IMPORT_STORAGE_KEY,
-      JSON.stringify({
-        "usr-nora-k": {
+      JSON.stringify([
+        {
           inviterIdentityId: "usr-nora-k",
           inviterIdentityKey: null,
           endpointHints: "tcp://127.0.0.1:4040",
           importedAt: "2026-05-07T00:00:00.000Z",
           expiresAt: "2030-05-07T00:00:00.000Z",
         },
-      }),
+      ]),
     );
 
     expect(readDmPairingImport("usr-nora-k")).toBeNull();
   });
 
-  it("treats mismatched pairing import identities as missing", () => {
+  it("ignores pairing imports for other identities", () => {
     installStorage();
     const windowRef = globalThis.window as { sessionStorage: MemoryStorage };
     windowRef.sessionStorage.setItem(
       PAIRING_IMPORT_STORAGE_KEY,
-      JSON.stringify({
-        "usr-jules-p": pairingRecord({ inviterIdentityId: "usr-nora-k" }),
-      }),
+      JSON.stringify([pairingRecord({ inviterIdentityId: "usr-nora-k" })]),
     );
 
     expect(readDmPairingImport("usr-jules-p")).toBeNull();

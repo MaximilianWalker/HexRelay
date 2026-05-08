@@ -330,8 +330,8 @@ export default function ContactMessagesPage() {
                     <p className={styles.title}>{preflightReasonLabel(preflightResult.reason_code)}</p>
                     <p className={styles.meta}>Reason code: {preflightResult.reason_code}</p>
                     <ul>
-                      {preflightResult.remediation.map((step) => (
-                        <li className={styles.meta} key={step}>{step}</li>
+                      {preflightResult.remediation.map((step, index) => (
+                        <li className={styles.meta} key={`${preflightResult.reason_code}-${index}`}>{step}</li>
                       ))}
                     </ul>
                   </div>

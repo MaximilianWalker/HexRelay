@@ -10,7 +10,7 @@ export type DmPairingImportRecord = {
   expiresAt: string;
 };
 
-type StoredPairingImports = Record<string, DmPairingImportRecord>;
+type StoredPairingImports = Map<string, DmPairingImportRecord>;
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -45,24 +45,32 @@ function isPairingImportRecord(value: unknown): value is DmPairingImportRecord {
 }
 
 function readStoredPairingImports(): StoredPairingImports {
+  const imports: StoredPairingImports = new Map();
+
   if (typeof window === "undefined") {
-    return {};
+    return imports;
   }
 
   try {
     const raw = window.sessionStorage.getItem(PAIRING_IMPORT_STORAGE_KEY);
     if (!raw) {
-      return {};
+      return imports;
     }
 
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
+    if (!Array.isArray(parsed)) {
+      return imports;
     }
 
-    return parsed as StoredPairingImports;
+    parsed.forEach((record) => {
+      if (isPairingImportRecord(record)) {
+        imports.set(record.inviterIdentityId, record);
+      }
+    });
+
+    return imports;
   } catch {
-    return {};
+    return imports;
   }
 }
 
@@ -72,7 +80,7 @@ function writeStoredPairingImports(value: StoredPairingImports): void {
   }
 
   try {
-    window.sessionStorage.setItem(PAIRING_IMPORT_STORAGE_KEY, JSON.stringify(value));
+    window.sessionStorage.setItem(PAIRING_IMPORT_STORAGE_KEY, JSON.stringify(Array.from(value.values())));
   } catch {
     // Losing session-scoped diagnostics should not block contact management.
   }
@@ -85,25 +93,25 @@ export function isDmPairingImportFresh(record: DmPairingImportRecord, nowMs = Da
 
 export function storeDmPairingImport(record: DmPairingImportRecord): void {
   const imports = readStoredPairingImports();
-  imports[record.inviterIdentityId] = record;
+  imports.set(record.inviterIdentityId, record);
   writeStoredPairingImports(imports);
 }
 
 export function readDmPairingImport(identityId: string): DmPairingImportRecord | null {
   const imports = readStoredPairingImports();
-  const record = imports[identityId];
+  const record = imports.get(identityId);
   if (!record) {
     return null;
   }
 
   if (!isPairingImportRecord(record) || record.inviterIdentityId !== identityId) {
-    delete imports[identityId];
+    imports.delete(identityId);
     writeStoredPairingImports(imports);
     return null;
   }
 
   if (!isDmPairingImportFresh(record)) {
-    delete imports[identityId];
+    imports.delete(identityId);
     writeStoredPairingImports(imports);
     return null;
   }
