@@ -21,9 +21,10 @@ use crate::{
         dm::{
             announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
             get_dm_policy, heartbeat_dm_profile_device, import_dm_pairing_envelope,
-            list_dm_lan_peers, list_dm_thread_messages, list_dm_threads, mark_dm_thread_read,
-            register_dm_endpoint_cards, revoke_dm_endpoint_cards, run_dm_active_fanout,
-            run_dm_fanout_catch_up, run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
+            ingest_dm_lan_discovery_advertisement, list_dm_lan_peers, list_dm_thread_messages,
+            list_dm_threads, mark_dm_thread_read, register_dm_endpoint_cards,
+            revoke_dm_endpoint_cards, run_dm_active_fanout, run_dm_fanout_catch_up,
+            run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -84,6 +85,10 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/v1/internal/presence/watchers/:identity_id",
             get(list_presence_watchers),
+        )
+        .route(
+            "/v1/internal/dm/connectivity/lan-discovery/ingest",
+            post(ingest_dm_lan_discovery_advertisement),
         )
         .route("/v1/discovery/users", get(list_discovery_users))
         .route(

@@ -515,6 +515,13 @@ async fn seed_server_channel(
 }
 
 fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, String>) {
+    let (app, bearer_tokens, _) = app_with_sessions_and_state(identity_ids);
+    (app, bearer_tokens)
+}
+
+fn app_with_sessions_and_state(
+    identity_ids: &[&str],
+) -> (axum::Router, HashMap<String, String>, AppState) {
     let state = test_state_with_public_identity_registration();
     let mut bearer_tokens = HashMap::new();
 
@@ -552,6 +559,27 @@ fn app_with_sessions(identity_ids: &[&str]) -> (axum::Router, HashMap<String, St
         }
     }
 
-    (build_app(state), bearer_tokens)
+    (build_app(state.clone()), bearer_tokens, state)
+}
+
+fn seed_accepted_friendship(
+    state: &AppState,
+    requester_identity_id: &str,
+    target_identity_id: &str,
+) {
+    state
+        .friend_requests
+        .write()
+        .expect("acquire friend request write lock for tests")
+        .insert(
+            format!("fr-{requester_identity_id}-{target_identity_id}"),
+            crate::models::FriendRequestRecord {
+                request_id: format!("fr-{requester_identity_id}-{target_identity_id}"),
+                requester_identity_id: requester_identity_id.to_string(),
+                target_identity_id: target_identity_id.to_string(),
+                status: "accepted".to_string(),
+                created_at: Utc::now().to_rfc3339(),
+            },
+        );
 }
 mod integration;

@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter across deterministic reason-code coverage, private-chat remediation UX, and runtime REST contract updates.
+- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast path with local-only endpoint validation, trusted peer visibility, TTL-scoped peer snapshots, and preflight LAN-priority coverage.
 
 ## Iteration Scope
 
@@ -153,12 +153,13 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | local working tree after PR #95 plus DM policy guardrail expansion | Runtime DM transport already routed direct-only and rejected non-direct profiles; CI guardrails now scan both DM runtime callsites and DM-related config/workflow surfaces so forbidden STUN/TURN/relay-style fallback terms fail before merge |
 | T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | T4.1.4 pairing closeout branch | Signed pairing envelopes now carry inviter identity-key material and endpoint hints, reject replay/expiry/self-import/tamper cases, and expose QR/link/manual-code sharing with a short verification code on the contacts surface |
 | T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | T4.1.5 connectivity preflight branch | Connectivity preflight validates peer identity input, maps missing pairing/local bind/policy/block/reachability/LAN-ready outcomes to stable reason codes, and exposes private-chat troubleshooting with session-scoped pairing metadata and ordered remediation steps |
+| T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | T4.1.6 LAN discovery fast-path branch | LAN discovery announcements now require local-only IPv4-literal direct endpoint hints, expose TTL expiry metadata, prune stale/invalid peer snapshots, and make preflight prefer `preflight_ok_lan` only for fresh LAN-scoped presence from trusted accepted-friend or shared-server peers |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.6` LAN discovery fast path unless sequencing changes |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.7` WAN direct-connect wizard; `T4.1.8` can proceed in parallel if endpoint-card sequencing is preferred |
 
 ## Suggested Sprint Sequencing
 
@@ -200,6 +201,7 @@ Week 6:
 - DM direct-connect path is infrastructure-free and policy guardrails block STUN/TURN/relay fallback behavior.
 - DM pairing/bootstrap works through signed out-of-band envelopes (QR/link/manual code with short verification code) with replay/expiry validation.
 - DM connectivity preflight emits deterministic reason codes and guided remediation for failed direct sessions.
+- LAN discovery fast path uses local-only, TTL-scoped endpoint hints and feeds fresh trusted same-LAN peer presence into direct-connect preflight priority.
 - Off-LAN direct-connect is already represented by pairing, WAN guidance, endpoint cards, and parallel dial; future work should only revisit authorized endpoint-card freshness rather than generic discovery/rendezvous.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
 - Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.

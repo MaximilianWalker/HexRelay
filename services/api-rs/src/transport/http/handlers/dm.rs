@@ -6,17 +6,18 @@ use axum::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, TimeZone, Utc};
 use communication_core::{
-    connect_via_direct_peer, send_via_direct_peer_dispatch, CommunicationReasonCode, ConnectTarget,
-    DirectPeerDispatch, PolicyContext, TransportError,
+    connect_via_direct_peer, lan_discovery_signing_payload, send_via_direct_peer_dispatch,
+    CommunicationReasonCode, ConnectTarget, DirectPeerDispatch, LanDiscoveryAdvertisement,
+    PolicyContext, TransportError, LAN_DISCOVERY_SCOPE, LAN_DISCOVERY_TTL_SECONDS,
 };
-use ring::{digest, hmac};
+use ring::{digest, hmac, signature};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, net::IpAddr};
 
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
-    domain::auth::validation::decode_32_bytes,
+    domain::auth::validation::{decode_32_bytes, is_valid_identity_id},
     domain::dm::validation::{
         validate_connectivity_preflight, validate_dm_policy_update,
         validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
@@ -43,14 +44,13 @@ use crate::{
         DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest, DmWanWizardResponse,
         RegisteredIdentityKey,
     },
-    shared::errors::{bad_request, conflict, internal_error, ApiResult},
+    shared::errors::{bad_request, conflict, internal_error, unauthorized, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
-const LAN_DISCOVERY_TTL_SECONDS: i64 = 120;
 const DM_DIRECT_ACCEPTANCE_SENTINEL: &[u8] = b"dm-direct-acceptance";
 
 // API DM endpoints assert the direct-peer route for server-side acceptance metadata;
@@ -396,7 +396,9 @@ pub async fn dm_connectivity_preflight(
     }
 
     if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
-        if has_fresh_lan_peer(&state, peer_identity_id, Utc::now().timestamp()) {
+        if has_fresh_lan_peer(&state, peer_identity_id, Utc::now().timestamp())
+            && is_trusted_lan_peer(&state, &auth.identity_id, peer_identity_id).await?
+        {
             connect_dm_direct_peer(peer_identity_id)?;
             return Ok(Json(DmConnectivityPreflightResponse {
                 status: "ready".to_string(),
@@ -435,6 +437,7 @@ pub async fn announce_dm_lan_discovery(
         identity_id: auth.identity_id.clone(),
         endpoint_hints: payload.endpoint_hints,
         last_seen_epoch: now.timestamp(),
+        expires_at_epoch: now.timestamp() + LAN_DISCOVERY_TTL_SECONDS,
     };
 
     state
@@ -446,9 +449,37 @@ pub async fn announce_dm_lan_discovery(
     Ok(Json(DmLanDiscoveryAnnounceResponse {
         identity_id: record.identity_id,
         endpoint_hints: record.endpoint_hints,
-        scope: "lan_subnet".to_string(),
+        scope: LAN_DISCOVERY_SCOPE.to_string(),
         last_seen_at: now.to_rfc3339(),
+        expires_at: format_epoch(record.expires_at_epoch),
+        ttl_seconds: LAN_DISCOVERY_TTL_SECONDS as u32,
     }))
+}
+
+pub async fn ingest_dm_lan_discovery_advertisement(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<LanDiscoveryAdvertisement>,
+) -> ApiResult<StatusCode> {
+    enforce_internal_lan_ingest_token(&state, &headers)?;
+    let observed_source_ip = observed_lan_source_ip(&headers)?;
+    validate_lan_discovery_advertisement(&state, &payload, observed_source_ip).await?;
+
+    let now = Utc::now().timestamp();
+    let record = DmLanPresenceRecord {
+        identity_id: payload.identity_id.clone(),
+        endpoint_hints: payload.endpoint_hints,
+        last_seen_epoch: now,
+        expires_at_epoch: payload.expires_at_epoch,
+    };
+
+    state
+        .dm_lan_presence
+        .write()
+        .expect("acquire dm lan presence write lock")
+        .insert(record.identity_id.clone(), record);
+
+    Ok(StatusCode::ACCEPTED)
 }
 
 pub async fn list_dm_lan_peers(
@@ -462,7 +493,7 @@ pub async fn list_dm_lan_peers(
             .write()
             .expect("acquire dm lan presence write lock");
 
-        guard.retain(|_, record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS);
+        guard.retain(|_, record| is_fresh_lan_presence_record(record, now));
 
         guard
             .values()
@@ -474,6 +505,10 @@ pub async fn list_dm_lan_peers(
     let mut items = Vec::new();
     for record in candidate_records {
         if is_blocked_bidirectional(&state, &auth.identity_id, &record.identity_id)? {
+            continue;
+        }
+
+        if !is_trusted_lan_peer(&state, &auth.identity_id, &record.identity_id).await? {
             continue;
         }
 
@@ -489,6 +524,7 @@ pub async fn list_dm_lan_peers(
                     .single()
                     .map(|dt| dt.to_rfc3339())
                     .unwrap_or_else(|| Utc::now().to_rfc3339()),
+                expires_at: format_epoch(record.expires_at_epoch),
             });
         }
     }
@@ -1755,6 +1791,25 @@ async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
         }))
 }
 
+async fn is_trusted_lan_peer(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
+    if is_friend(state, a, b).await? {
+        return Ok(true);
+    }
+
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(false);
+    };
+
+    servers_repo::identities_share_server(pool, a, b)
+        .await
+        .map_err(|_| {
+            internal_error(
+                "storage_unavailable",
+                "failed to evaluate shared-server LAN discovery visibility",
+            )
+        })
+}
+
 enum DmInteractionPolicyDecision {
     Allowed,
     BlockedFriendsOnly,
@@ -1810,8 +1865,207 @@ fn has_fresh_lan_peer(state: &AppState, peer_identity_id: &str, now: i64) -> boo
         .read()
         .expect("acquire dm lan presence read lock")
         .get(peer_identity_id)
-        .map(|record| (now - record.last_seen_epoch) <= LAN_DISCOVERY_TTL_SECONDS)
+        .map(|record| is_fresh_lan_presence_record(record, now))
         .unwrap_or(false)
+}
+
+fn enforce_internal_lan_ingest_token(state: &AppState, headers: &HeaderMap) -> ApiResult<()> {
+    let token = headers
+        .get("x-hexrelay-internal-token")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if token == Some(state.channel_dispatch_internal_token.as_str()) {
+        return Ok(());
+    }
+
+    Err(unauthorized(
+        "internal_token_invalid",
+        "internal LAN discovery ingest token is invalid",
+    ))
+}
+
+fn observed_lan_source_ip(headers: &HeaderMap) -> ApiResult<IpAddr> {
+    let raw = headers
+        .get("x-hexrelay-observed-source-ip")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            bad_request(
+                "lan_discovery_invalid",
+                "LAN discovery packet source IP is required",
+            )
+        })?;
+
+    let ip = raw.parse::<IpAddr>().map_err(|_| {
+        bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery packet source IP is invalid",
+        )
+    })?;
+    if !matches!(ip, IpAddr::V4(_)) || !communication_core::is_lan_only_ip(ip) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery packet source IP must be private or link-local IPv4",
+        ));
+    }
+
+    Ok(ip)
+}
+
+async fn validate_lan_discovery_advertisement(
+    state: &AppState,
+    advertisement: &LanDiscoveryAdvertisement,
+    observed_source_ip: IpAddr,
+) -> ApiResult<()> {
+    if advertisement.version != 1 {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement version must be 1",
+        ));
+    }
+    if advertisement.scope != LAN_DISCOVERY_SCOPE {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement scope must be lan_subnet",
+        ));
+    }
+    if !is_valid_identity_id(&advertisement.identity_id) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement identity_id is invalid",
+        ));
+    }
+    if advertisement.nonce.trim().is_empty() || advertisement.nonce.len() > 128 {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement nonce must be non-empty and <= 128 chars",
+        ));
+    }
+    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
+        ));
+    }
+
+    let now = Utc::now().timestamp();
+    if advertisement.issued_at_epoch > now + 30
+        || advertisement.expires_at_epoch <= now
+        || advertisement.expires_at_epoch <= advertisement.issued_at_epoch
+        || advertisement.expires_at_epoch - advertisement.issued_at_epoch
+            > LAN_DISCOVERY_TTL_SECONDS
+    {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement timing is invalid or expired",
+        ));
+    }
+
+    if advertisement.endpoint_hints.is_empty()
+        || advertisement.endpoint_hints.len()
+            > crate::domain::dm::validation::DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS
+    {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement must include between 1 and 8 endpoint hints",
+        ));
+    }
+    for hint in &advertisement.endpoint_hints {
+        let endpoint = match communication_core::parse_lan_endpoint_hint(hint) {
+            Ok(value) => value,
+            Err(_) => {
+                return Err(bad_request(
+                    "lan_discovery_invalid",
+                    "LAN discovery advertisement endpoint hints must be local-only direct addresses",
+                ));
+            }
+        };
+        if endpoint.address.ip() != observed_source_ip {
+            return Err(bad_request(
+                "lan_discovery_invalid",
+                "LAN discovery advertisement endpoint hints must match observed packet source",
+            ));
+        }
+    }
+
+    verify_lan_discovery_advertisement_signature(state, advertisement).await
+}
+
+async fn verify_lan_discovery_advertisement_signature(
+    state: &AppState,
+    advertisement: &LanDiscoveryAdvertisement,
+) -> ApiResult<()> {
+    let identity_key = match load_pairing_identity_key(state, &advertisement.identity_id).await {
+        Ok(value) => value,
+        Err((StatusCode::BAD_REQUEST, _)) => {
+            return Err(bad_request(
+                "lan_discovery_invalid",
+                "LAN discovery advertisement identity key is not registered",
+            ));
+        }
+        Err(error) => return Err(error),
+    };
+    if identity_key.algorithm != "ed25519" {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement identity key algorithm is unsupported",
+        ));
+    }
+
+    let public_key = decode_32_bytes(&identity_key.public_key).ok_or_else(|| {
+        bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement identity key is invalid",
+        )
+    })?;
+    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
+        return Err(bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
+        ));
+    }
+    let signature_bytes = hex::decode(&advertisement.signature).map_err(|_| {
+        bad_request(
+            "lan_discovery_invalid",
+            "LAN discovery advertisement signature is not valid hex",
+        )
+    })?;
+    let signing_payload = lan_discovery_signing_payload(
+        &advertisement.identity_id,
+        &advertisement.endpoint_hints,
+        advertisement.issued_at_epoch,
+        advertisement.expires_at_epoch,
+        &advertisement.nonce,
+    );
+
+    signature::UnparsedPublicKey::new(&signature::ED25519, public_key)
+        .verify(&signing_payload, &signature_bytes)
+        .map_err(|_| {
+            bad_request(
+                "lan_discovery_invalid",
+                "LAN discovery advertisement signature is invalid",
+            )
+        })
+}
+
+fn is_fresh_lan_presence_record(record: &DmLanPresenceRecord, now: i64) -> bool {
+    now <= record.expires_at_epoch
+        && record.expires_at_epoch - record.last_seen_epoch <= LAN_DISCOVERY_TTL_SECONDS
+        && !record.endpoint_hints.is_empty()
+        && record
+            .endpoint_hints
+            .iter()
+            .all(|hint| communication_core::validate_lan_endpoint_hint(hint).is_ok())
+}
+
+fn format_epoch(epoch: i64) -> String {
+    Utc.timestamp_opt(epoch, 0)
+        .single()
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| Utc::now().to_rfc3339())
 }
 
 fn sign_pairing_claims(claims: &PairingEnvelopeClaims, key_secret: &str) -> ApiResult<String> {

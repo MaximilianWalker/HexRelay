@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   activateTestingSession,
+  announceDmLanDiscovery,
   createContactInvite,
   createDmPairingEnvelope,
   createFriendRequest,
@@ -15,6 +16,7 @@ import {
   fetchTestingProfiles,
   importDmPairingEnvelope,
   issueAuthChallenge,
+  listDmLanPeers,
   redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
@@ -490,6 +492,55 @@ describe("api auth transport", () => {
     expect(init?.body).toBe(
       '{"peer_identity_id":"usr-jules-p","pairing_envelope_present":true,"local_bind_allowed":true,"peer_reachable_hint":false}',
     );
+  });
+
+  it("announces and lists LAN discovery peers", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            identity_id: "usr-nora-k",
+            endpoint_hints: ["udp://192.168.1.12:4040"],
+            scope: "lan_subnet",
+            last_seen_at: "2026-05-08T00:00:00Z",
+            expires_at: "2026-05-08T00:02:00Z",
+            ttl_seconds: 120,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                identity_id: "usr-jules-p",
+                endpoint_hints: ["udp://192.168.1.20:4040"],
+                last_seen_at: "2026-05-08T00:00:10Z",
+                expires_at: "2026-05-08T00:02:10Z",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const announced = await announceDmLanDiscovery({
+      endpointHints: ["udp://192.168.1.12:4040"],
+    });
+    const peers = await listDmLanPeers();
+
+    expect(announced.ok).toBe(true);
+    expect(peers.ok).toBe(true);
+    const [announceUrl, announceInit] = fetchMock.mock.calls[0] ?? [];
+    expect(String(announceUrl)).toContain("/v1/dm/connectivity/lan-discovery/announce");
+    const announceHeaders = new Headers(announceInit?.headers ?? {});
+    expect(announceHeaders.get("x-csrf-token")).toBe("csrf-123");
+    expect(announceInit?.body).toBe('{"endpoint_hints":["udp://192.168.1.12:4040"]}');
+    const [peersUrl, peersInit] = fetchMock.mock.calls[1] ?? [];
+    expect(String(peersUrl)).toContain("/v1/dm/connectivity/lan-discovery/peers");
+    expect(peersInit?.method).toBe("GET");
   });
 
   it("loads and updates the DM privacy policy", async () => {

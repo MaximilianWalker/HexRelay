@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter documentation and runtime REST preflight schema updates.
+- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast-path documentation and runtime REST LAN endpoint schema updates.
 
 ## Purpose
 

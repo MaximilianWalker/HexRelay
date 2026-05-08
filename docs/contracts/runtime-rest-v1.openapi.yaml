@@ -1419,6 +1419,71 @@ paths:
                     message: presence watcher lookup requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/internal/dm/connectivity/lan-discovery/ingest:
+    post:
+      summary: Ingest a signed LAN discovery advertisement from realtime
+      description: Internal service-to-service endpoint used by `services/realtime-rs` after local multicast discovery. The API verifies the Ed25519 identity signature, TTL window, IPv4 LAN-only endpoint hints, and internal token before updating ephemeral LAN presence.
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared with realtime for DM connectivity events.
+        - in: header
+          name: x-hexrelay-observed-source-ip
+          required: true
+          schema:
+            type: string
+          description: UDP packet source IPv4 address observed by realtime; every advertised endpoint hint must use this same private or link-local IPv4 address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LanDiscoveryAdvertisement'
+            examples:
+              signedAdvertisement:
+                summary: Signed local-subnet advertisement
+                value:
+                  version: 1
+                  identity_id: usr-jules-p
+                  endpoint_hints:
+                    - udp://192.168.1.12:4040
+                  scope: lan_subnet
+                  issued_at_epoch: 1775000000
+                  expires_at_epoch: 1775000120
+                  nonce: nonce-1
+                  signature: b4f0a34c9f1c2a6e7d8b5c4a39281706050403020100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+      responses:
+        '202':
+          description: Signed LAN discovery advertisement accepted for ephemeral presence.
+        '400':
+          description: Invalid, stale, non-local, unknown-identity, or signature-invalid LAN discovery advertisement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lanDiscoveryInvalid:
+                  summary: Advertisement failed validation
+                  value:
+                    code: lan_discovery_invalid
+                    message: LAN discovery advertisement signature is invalid
+        '401':
+          description: Internal token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                internalTokenInvalid:
+                  summary: Internal token is invalid
+                  value:
+                    code: internal_token_invalid
+                    message: internal LAN discovery ingest token is invalid
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/discovery/users:
     get:
       summary: List discoverable users for authenticated identity
@@ -1727,7 +1792,7 @@ paths:
   /v1/dm/connectivity/lan-discovery/announce:
     post:
       summary: Announce local-network endpoint hints for DM LAN fast path
-      description: Updates an ephemeral TTL-scoped LAN discovery snapshot for the authenticated identity. These local-subnet hints are intentionally not treated as durable DM convergence state.
+      description: Updates an ephemeral TTL-scoped LAN discovery snapshot for the authenticated identity. Endpoint hints must be IPv4-literal private or link-local addresses discovered over local-only LAN traffic; IPv6 LAN hints are rejected until the multicast listener supports IPv6 sources. These local-subnet hints are intentionally not treated as durable DM convergence state and are exposed only to trusted contacts or shared-server peers whose DM policy currently permits the requester.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1758,6 +1823,8 @@ paths:
                       - udp://192.168.1.12:4040
                     scope: lan_subnet
                     last_seen_at: '2026-04-06T12:08:00Z'
+                    expires_at: '2026-04-06T12:10:00Z'
+                    ttl_seconds: 120
         '400':
           description: Invalid LAN discovery announcement
           content:
@@ -1799,6 +1866,7 @@ paths:
                         endpoint_hints:
                           - udp://192.168.1.12:4040
                         last_seen_at: '2026-04-06T12:08:00Z'
+                        expires_at: '2026-04-06T12:10:00Z'
                 noEligiblePeers:
                   summary: Empty list is still a successful response when no peers qualify
                   value:
@@ -3315,6 +3383,12 @@ components:
       maxLength: 200
       pattern: '^(tcp|udp|quic)://[^\s]+$'
       description: Direct peer endpoint hint only; relay-oriented schemes (stun://, turn://, relay://) are forbidden.
+    DmLanEndpointHint:
+      type: string
+      minLength: 1
+      maxLength: 200
+      pattern: '^(tcp|udp|quic)://(\d{1,3}\.){3}\d{1,3}:[1-9][0-9]{0,4}$'
+      description: LAN fast-path endpoint hint only. Hosts must be IPv4-literal RFC1918/private or IPv4 link-local addresses with a non-zero port; loopback, DNS, public-routable IPs, IPv6 hints, and relay-oriented schemes are forbidden. Full address-class and port-range validation is server-side.
     DmPairingEnvelopeCreateRequest:
       type: object
       required: [endpoint_hints]
@@ -3435,34 +3509,86 @@ components:
           minItems: 1
           maxItems: 8
           items:
-            $ref: '#/components/schemas/DmDirectEndpointHint'
+            $ref: '#/components/schemas/DmLanEndpointHint'
     DmLanDiscoveryAnnounceResponse:
       type: object
-      required: [identity_id, endpoint_hints, scope, last_seen_at]
+      required: [identity_id, endpoint_hints, scope, last_seen_at, expires_at, ttl_seconds]
       properties:
         identity_id:
           type: string
         endpoint_hints:
           type: array
           items:
-            $ref: '#/components/schemas/DmDirectEndpointHint'
+            $ref: '#/components/schemas/DmLanEndpointHint'
         scope:
           type: string
           enum: [lan_subnet]
         last_seen_at:
           type: string
           format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        ttl_seconds:
+          type: integer
+          enum: [120]
+    LanDiscoveryAdvertisement:
+      type: object
+      required:
+        - version
+        - identity_id
+        - endpoint_hints
+        - scope
+        - issued_at_epoch
+        - expires_at_epoch
+        - nonce
+        - signature
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        identity_id:
+          type: string
+        endpoint_hints:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/DmLanEndpointHint'
+        scope:
+          type: string
+          enum: [lan_subnet]
+        issued_at_epoch:
+          type: integer
+          format: int64
+        expires_at_epoch:
+          type: integer
+          format: int64
+          description: Must be after `issued_at_epoch`, not expired, and no more than 120 seconds after issue time.
+        nonce:
+          type: string
+          minLength: 1
+          maxLength: 128
+        signature:
+          type: string
+          minLength: 128
+          maxLength: 128
+          pattern: '^[0-9a-fA-F]{128}$'
+          description: Hex-encoded Ed25519 signature over the deterministic LAN discovery signing payload.
     DmLanPeerSummary:
       type: object
-      required: [identity_id, endpoint_hints, last_seen_at]
+      required: [identity_id, endpoint_hints, last_seen_at, expires_at]
       properties:
         identity_id:
           type: string
         endpoint_hints:
           type: array
           items:
-            $ref: '#/components/schemas/DmDirectEndpointHint'
+            $ref: '#/components/schemas/DmLanEndpointHint'
         last_seen_at:
+          type: string
+          format: date-time
+        expires_at:
           type: string
           format: date-time
     DmLanPeerListResponse:

@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-08
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-04-10 extended the realtime semantic-parity gate to include current send-side signaling success-envelope parity and shared error-envelope parity in addition to the earlier receive-side and signaling-guard checks.
+- Latest meaningful change: 2026-05-08 tightened the runtime REST/realtime LAN discovery contracts to require local-only IPv4-literal endpoint hints, exact Ed25519 signature shape, explicit TTL expiry metadata, and the `dm.lan_discovery.advertise` websocket surface for `T4.1.6`.
 
 ## Purpose
 

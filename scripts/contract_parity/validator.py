@@ -26,6 +26,7 @@ API_SURFACE_FILES = [
 ]
 REALTIME_SURFACE_FILES = [
     "services/realtime-rs/src/app/router.rs",
+    "services/realtime-rs/src/domain/lan_discovery.rs",
     "services/realtime-rs/src/domain/events/*.rs",
     "services/realtime-rs/src/transport/ws/middleware/rate_limit.rs",
     "services/realtime-rs/src/transport/ws/handlers/*.rs",
@@ -114,11 +115,13 @@ def main(argv: list[str]) -> int:
     )
     api_contract_error_codes = engine.extract_openapi_contract_error_codes(API_CONTRACT)
     realtime_runtime_events = engine.extract_realtime_runtime_events(
-        "services/realtime-rs/src/domain/events/service.rs"
+        "services/realtime-rs/src/domain/events/service.rs",
+        "services/realtime-rs/src/domain/lan_discovery.rs",
     )
     realtime_contract_events = engine.extract_asyncapi_contract_events(REALTIME_CONTRACT)
     realtime_runtime_error_codes = engine.extract_realtime_runtime_error_codes(
         "services/realtime-rs/src/domain/events/service.rs",
+        "services/realtime-rs/src/domain/lan_discovery.rs",
         "services/realtime-rs/src/transport/ws/handlers/gateway.rs",
     )
     realtime_contract_error_codes = engine.extract_asyncapi_contract_error_codes(

@@ -9,6 +9,9 @@ use crate::{
 };
 
 use crate::domain::auth::validation::is_valid_identity_id;
+use communication_core::{
+    validate_lan_endpoint_hint as validate_core_lan_endpoint_hint, LanEndpointHintError,
+};
 
 pub const DM_OFFLINE_DELIVERY_MODE: &str = "best_effort_online";
 pub const DM_PAIRING_ENVELOPE_VERSION: u32 = 1;
@@ -97,6 +100,46 @@ fn validate_direct_endpoint_hint(
     Ok(())
 }
 
+fn validate_lan_endpoint_hint(hint: &str) -> ApiResult<()> {
+    validate_core_lan_endpoint_hint(hint).map_err(|error| {
+        bad_request(
+            "lan_discovery_invalid",
+            lan_endpoint_hint_error_message(error),
+        )
+    })
+}
+
+fn lan_endpoint_hint_error_message(error: LanEndpointHintError) -> &'static str {
+    match error {
+        LanEndpointHintError::EmptyOrTooLong => {
+            "LAN endpoint hints must be non-empty and <= 200 chars"
+        }
+        LanEndpointHintError::Whitespace => {
+            "LAN endpoint hints must not include leading or trailing whitespace"
+        }
+        LanEndpointHintError::MissingScheme => {
+            "LAN endpoint hints must include a direct scheme prefix like tcp://, udp://, or quic://"
+        }
+        LanEndpointHintError::EmptyAddress => "LAN endpoint hints must include a non-empty address",
+        LanEndpointHintError::UppercaseScheme => {
+            "LAN endpoint hint scheme must be lowercase (tcp://, udp://, quic://)"
+        }
+        LanEndpointHintError::UnsupportedScheme => {
+            "LAN endpoint hints must use direct schemes: udp://, tcp://, quic://"
+        }
+        LanEndpointHintError::InvalidSocketAddress => {
+            "LAN endpoint hints must use IP-literal host:port addresses"
+        }
+        LanEndpointHintError::ZeroPort => "LAN endpoint hints must use a non-zero port",
+        LanEndpointHintError::NonIpv4Address => {
+            "LAN endpoint hints must use IPv4 addresses until IPv6 LAN discovery is supported"
+        }
+        LanEndpointHintError::NonLocalAddress => {
+            "LAN endpoint hints must use private or link-local IPv4 addresses"
+        }
+    }
+}
+
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
     if value.is_empty() {
@@ -183,7 +226,7 @@ pub fn validate_lan_discovery_announce(payload: &DmLanDiscoveryAnnounceRequest) 
     }
 
     for hint in &payload.endpoint_hints {
-        validate_direct_endpoint_hint(hint, "lan_discovery_invalid", "lan")?;
+        validate_lan_endpoint_hint(hint)?;
     }
 
     Ok(())
@@ -556,6 +599,11 @@ mod tests {
         };
         assert!(validate_lan_discovery_announce(&payload).is_ok());
 
+        let invalid_ipv6 = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["quic://[fd00::1]:4040".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_ipv6).is_err());
+
         let invalid_empty = DmLanDiscoveryAnnounceRequest {
             endpoint_hints: vec![],
         };
@@ -570,6 +618,21 @@ mod tests {
             endpoint_hints: vec!["stun://192.168.1.11:3478".to_string()],
         };
         assert!(validate_lan_discovery_announce(&invalid_scheme).is_err());
+
+        let invalid_public_ip = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["udp://8.8.8.8:4040".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_public_ip).is_err());
+
+        let invalid_hostname = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["udp://peer.local:4040".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_hostname).is_err());
+
+        let invalid_zero_port = DmLanDiscoveryAnnounceRequest {
+            endpoint_hints: vec!["udp://192.168.1.11:0".to_string()],
+        };
+        assert!(validate_lan_discovery_announce(&invalid_zero_port).is_err());
     }
 
     #[test]
