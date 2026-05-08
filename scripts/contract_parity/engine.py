@@ -2118,10 +2118,17 @@ def validate_realtime_signal_semantics(contract_path_str: str, runtime_path_str:
 
     return 0
 
-def extract_realtime_runtime_events(path: str) -> str:
-    text = pathlib.Path(path).read_text()
-    events = set(re.findall(r'"(call\.signal\.[^"]+)"\s*=>', text))
-    events.update(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', text))
+def extract_realtime_runtime_events(*paths: str) -> str:
+    events = set()
+    for path in paths:
+        runtime_path = pathlib.Path(path)
+        if not runtime_path.exists():
+            continue
+
+        text = runtime_path.read_text()
+        events.update(re.findall(r'"(call\.signal\.[^"]+)"\s*=>', text))
+        events.update(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', text))
+        events.update(re.findall(r'const\s+[A-Z0-9_]*EVENT_TYPE\s*:\s*&str\s*=\s*"([^"]+)"', text))
     return "\n".join(sorted(events))
 
 def extract_asyncapi_contract_events(path: str) -> str:
@@ -2147,7 +2154,11 @@ def extract_asyncapi_contract_events(path: str) -> str:
 def extract_realtime_runtime_error_codes(*paths: str) -> str:
     codes = set()
     for path in paths:
-        text = pathlib.Path(path).read_text()
+        runtime_path = pathlib.Path(path)
+        if not runtime_path.exists():
+            continue
+
+        text = runtime_path.read_text()
         codes.update(re.findall(r'build_error_event\(\s*"([^"]+)"', text, re.S))
         codes.update(re.findall(r'ws_rejection\(\s*[^,]+,\s*"([^"]+)"', text, re.S))
 

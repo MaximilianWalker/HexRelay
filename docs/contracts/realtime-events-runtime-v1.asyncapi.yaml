@@ -14,6 +14,10 @@ info:
     `docs/operations/readiness-corrections-log.md`.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
+    Authenticated clients may advertise signed LAN discovery endpoint hints through
+    `dm.lan_discovery.advertise`; the runtime stores them only as TTL-scoped local
+    multicast advertisements and acknowledges successful registration on the same
+    event type.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
     `/v1/auth/sessions/validate`.
@@ -48,6 +52,13 @@ channels:
     messages:
       callSignalIceCandidateV1:
         $ref: '#/components/messages/CallSignalIceCandidateV1'
+  dmLanDiscoveryAdvertise:
+    address: dm.lan_discovery.advertise
+    messages:
+      dmLanDiscoveryAdvertiseCommandV1:
+        $ref: '#/components/messages/DmLanDiscoveryAdvertiseCommandV1'
+      dmLanDiscoveryAdvertisedV1:
+        $ref: '#/components/messages/DmLanDiscoveryAdvertisedV1'
   realtimeConnected:
     address: realtime.connected
     messages:
@@ -121,6 +132,18 @@ operations:
         - event_invalid
         - event_identity_mismatch
         - event_unsupported
+  sendDmLanDiscoveryAdvertise:
+    action: send
+    channel:
+      $ref: '#/channels/dmLanDiscoveryAdvertise'
+    messages:
+      - $ref: '#/channels/dmLanDiscoveryAdvertise/messages/dmLanDiscoveryAdvertiseCommandV1'
+  receiveDmLanDiscoveryAdvertised:
+    action: receive
+    channel:
+      $ref: '#/channels/dmLanDiscoveryAdvertise'
+    messages:
+      - $ref: '#/channels/dmLanDiscoveryAdvertise/messages/dmLanDiscoveryAdvertisedV1'
   receiveRealtimeConnected:
     action: receive
     channel:
@@ -168,6 +191,12 @@ components:
     CallSignalIceCandidateV1:
       payload:
         $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
+    DmLanDiscoveryAdvertiseCommandV1:
+      payload:
+        $ref: '#/components/schemas/DmLanDiscoveryAdvertiseCommandEventV1'
+    DmLanDiscoveryAdvertisedV1:
+      payload:
+        $ref: '#/components/schemas/DmLanDiscoveryAdvertisedEventV1'
     RealtimeConnectedV1:
       payload:
         $ref: '#/components/schemas/RealtimeConnectedEventV1'
@@ -227,6 +256,41 @@ components:
         candidate: { type: string }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }
+    DmLanDiscoveryAdvertisementDataV1:
+      type: object
+      additionalProperties: false
+      required: [version, identity_id, endpoint_hints, scope, issued_at_epoch, expires_at_epoch, nonce, signature]
+      properties:
+        version: { type: integer, enum: [1] }
+        identity_id: { type: string }
+        endpoint_hints:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+            description: Local-only IP-literal endpoint hint using tcp://, udp://, or quic://.
+        scope: { type: string, enum: [lan_subnet] }
+        issued_at_epoch: { type: integer }
+        expires_at_epoch: { type: integer }
+        nonce: { type: string }
+        signature: { type: string }
+    DmLanDiscoveryAdvertisedDataV1:
+      type: object
+      additionalProperties: false
+      required: [status, identity_id, endpoint_hints, scope, expires_at_epoch]
+      properties:
+        status: { type: string, enum: [advertising] }
+        identity_id: { type: string }
+        endpoint_hints:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+            description: Local-only IP-literal endpoint hints accepted for TTL-scoped LAN discovery.
+        scope: { type: string, enum: [lan_subnet] }
+        expires_at_epoch: { type: integer }
     CallSignalOfferEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -248,6 +312,20 @@ components:
           properties:
             event_type: { const: call.signal.ice_candidate }
             data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }
+    DmLanDiscoveryAdvertiseCommandEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.lan_discovery.advertise }
+            data: { $ref: '#/components/schemas/DmLanDiscoveryAdvertisementDataV1' }
+    DmLanDiscoveryAdvertisedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.lan_discovery.advertise }
+            data: { $ref: '#/components/schemas/DmLanDiscoveryAdvertisedDataV1' }
     RealtimeConnectedDataV1:
       type: object
       additionalProperties: false
@@ -275,6 +353,7 @@ components:
             - event_serialize_failed
             - event_too_large
             - event_rate_limited
+            - lan_discovery_disabled
         message: { type: string }
     PresenceUpdatedDataV1:
       type: object

@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-08 tightened the runtime REST LAN discovery contract to require local-only IP-literal endpoint hints and explicit TTL expiry metadata for `T4.1.6`.
+- Latest meaningful change: 2026-05-08 tightened the runtime REST/realtime LAN discovery contracts to require local-only IP-literal endpoint hints, explicit TTL expiry metadata, and the `dm.lan_discovery.advertise` websocket surface for `T4.1.6`.
 
 ## Purpose
 
