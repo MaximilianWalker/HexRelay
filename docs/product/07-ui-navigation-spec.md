@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-05-08
 - Source of truth: `docs/product/07-ui-navigation-spec.md`
 
 ## Quick Context
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-03-04 added dual-mode server navigation (sidebar + topbar tabs) and burger collapse behavior.
+- Latest meaningful change: 2026-05-08 clarified DM workspace wording around node-routed private-message delivery.
 
 ## Design Direction
 
@@ -28,7 +28,7 @@
 - `Servers Hub`: global page showing all joined servers as cards.
 - `Contacts Hub`: global page showing friends/DM threads as cards or dense list.
 - `Server Workspace`: selected server with channel navigation and message area.
-- `DM Workspace`: selected direct message/group DM with message area.
+- `DM Workspace`: selected private DM/group DM with message area.
 
 ## Navigation Model (MVP)
 

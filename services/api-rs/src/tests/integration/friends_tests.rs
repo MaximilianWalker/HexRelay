@@ -1,6 +1,6 @@
 use super::*;
 
-// ── Bootstrap endpoint tests ──────────────────────────────────────────
+// ── Server-mediated peer identity bundle tests ────────────────────────
 
 #[tokio::test]
 async fn bootstrap_returns_peer_identity_after_acceptance() {
@@ -43,7 +43,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let accept_resp = app.clone().oneshot(accept_req).await.expect("accept resp");
     assert_eq!(accept_resp.status(), StatusCode::OK);
 
-    // Requester fetches bootstrap → should get target's identity material.
+    // Requester fetches relationship-scoped material without direct endpoint hints.
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
@@ -62,13 +62,16 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let bootstrap_body = to_bytes(bootstrap_resp.into_body(), usize::MAX)
         .await
         .expect("read bootstrap body");
+    let bundle_value: serde_json::Value =
+        serde_json::from_slice(&bootstrap_body).expect("decode bootstrap value");
+    assert_eq!(bundle_value.as_object().expect("bootstrap object").len(), 4);
     let bundle: IdentityBootstrapBundle =
         serde_json::from_slice(&bootstrap_body).expect("decode bootstrap bundle");
     assert_eq!(bundle.identity_id, "usr-q");
     assert_eq!(bundle.public_key, "bb".repeat(32));
     assert_eq!(bundle.algorithm, "ed25519");
 
-    // Target fetches bootstrap → should get requester's identity material.
+    // Target fetches the same server-mediated material for the requester.
     let bootstrap_req2 = Request::builder()
         .method("GET")
         .uri(format!(
@@ -87,6 +90,12 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let bootstrap_body2 = to_bytes(bootstrap_resp2.into_body(), usize::MAX)
         .await
         .expect("read bootstrap body (target)");
+    let bundle2_value: serde_json::Value =
+        serde_json::from_slice(&bootstrap_body2).expect("decode bootstrap value (target)");
+    assert_eq!(
+        bundle2_value.as_object().expect("bootstrap object").len(),
+        4
+    );
     let bundle2: IdentityBootstrapBundle =
         serde_json::from_slice(&bootstrap_body2).expect("decode bootstrap bundle (target)");
     assert_eq!(bundle2.identity_id, "usr-p");

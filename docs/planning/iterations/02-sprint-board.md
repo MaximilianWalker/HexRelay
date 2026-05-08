@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast path with local-only endpoint validation, trusted peer visibility, TTL-scoped peer snapshots, and preflight LAN-priority coverage.
+- Latest meaningful change: 2026-05-08 pivoted Iteration 2 DM delivery sequencing to node/server-routed E2EE encrypted-envelope delivery and retired user direct-DM transport/bootstrap work.
 
 ## Iteration Scope
 
@@ -48,25 +48,26 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.1 | Implement friend request state machine and DB constraints | E3 / S3.1 | L | API | T2.3.1, T2.4.1 | Requests support pending/accepted/declined/cancelled with invariant tests and mediated request routing |
 | T3.1.2 | Build friends list UI and request actions | E3 / S3.1 | M | Web | T3.1.1 | Users can send/respond to requests from UI with optimistic updates; no raw key/profile-identifying data is shown pre-acceptance |
 | T3.1.3 | Implement user contact invite token create/redeem APIs | E3 / S3.1 | M | API | T3.1.1 | Users can create expiring contact invites and redeem valid tokens; invalid/expired/exhausted cases return explicit errors |
-| T3.1.4 | Implement contact invite share/scan UX (link + QR) | E3 / S3.1 | M | Web | T3.1.3 | User can share invite link/QR and recipient can redeem from UI with deterministic success/error states |
+| T3.1.4 | Implement contact invite share UX (link only) | E3 / S3.1 | M | Web | T3.1.3 | User can share invite link and recipient can redeem from UI with deterministic success/error states |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | E3 / S3.1 | M | API | T3.1.1 | Bootstrap identity material is shared only after acceptance and is blocked on pending/declined states |
 | T3.2.1 | Implement block/mute logic and fanout filters | E3 / S3.2 | M | API | T3.1.1 | Blocked/muted users are excluded from delivery paths as defined |
 | T3.3.1 | Implement presence service with Redis ephemeral state | E3 / S3.3 | L | Realtime | T1.1.2 | Presence transitions propagate within p95 <= 1s and recover correctly after reconnect in integration tests |
 | T3.3.2 | Add profile-device presence convergence and late-device hydration | E3 / S3.3 | M | Realtime/Core | T3.3.1, T4.0.3 | Presence state converges across all active profile devices and hydrates missed transitions on later-active devices |
 | T3.4.1 | Implement global user discovery index and shared-server query | E3 / S3.4 | L | API | T3.1.1 | Discovery returns only permitted profiles, excludes blocked users, and enforces rate-limit/denylist controls in policy tests |
-| T4.0.1 | Define shared communication layer interfaces and policy engine boundary | E4 / S4.1 | M | Core | T3.3.1 | Common communication interface supports `dm_direct` and `server_channel` modes with deterministic policy routing |
-| T4.0.2 | Implement transport adapter boundaries (`DirectPeerTransport`, `NodeClientTransport`) | E4 / S4.1 | L | Core | T4.0.1 | Existing call paths route through adapter interfaces without behavior regression |
+| T4.0.1 | Define shared communication layer interfaces and policy engine boundary | E4 / S4.1 | M | Core | T3.3.1 | Common communication interface supports DM and `server_channel` modes with deterministic policy routing; envelope delivery extensions land under `T4.1.7` |
+| T4.0.2 | Implement initial node transport adapter boundaries (`NodeClientTransport`) | E4 / S4.1 | L | Core | T4.0.1 | Existing node-client call paths route through adapter interfaces without behavior regression |
 | T4.0.3 | Implement shared session provenance and reason-code taxonomy | E4 / S4.1 | M | Core | T4.0.1 | Both DM and server paths emit stable provenance + reason-code outputs |
-| T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers without guild server persistence |
+| T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers over encrypted-envelope history without server-readable plaintext |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
-| T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | DM transport rejects STUN/TURN/relay fallback paths and CI policy checks fail on forbidden config/callsites |
-| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Contact pairing works via signed envelope with replay/expiry checks and without backend rendezvous dependency |
-| T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | E4 / S4.1 | M | Core/Web | T4.1.4 | Failed direct connections map to deterministic reason codes with actionable remediation guidance |
-| T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect through local-only traffic and improved connect latency, while discovery hints remain ephemeral and TTL-scoped rather than durable DB state |
-| T4.1.7 | Implement WAN direct-connect wizard (UPnP/NAT-PMP + manual mapping) | E4 / S4.1 | L | Core/Web | T4.1.5 | Wizard emits deterministic outcomes (`success`, `manual_required`, `network_incompatible`) with verification steps |
-| T4.1.8 | Implement multi-endpoint DM endpoint cards and parallel dial orchestration | E4 / S4.1 | M | Core | T4.1.4, T4.1.6 | Parallel dial improves connect success and deterministically cancels non-winning dials |
-| T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.8 | One incoming DM payload fanouts to all currently active devices linked to recipient profile |
-| T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.9 | Devices activated after first receive replay missed payloads and converge deterministically |
+| T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay semantics while allowing encrypted-envelope store-and-forward terminology |
+| T4.1.4 | Implement relationship-scoped DM bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no direct-reachability, QR/manual-code pairing, or endpoint-hint requirement |
+| T4.1.5 | Retire user peer-routed DM preflight and deterministic troubleshooter surfaces | E4 / S4.1 | M | Core/Web | T4.1.4 | Runtime routes, web helpers, contracts, tests, and docs no longer expose DM connectivity preflight or peer-route troubleshooting |
+| T4.1.6 | Retire user DM LAN discovery fast path | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Realtime and REST surfaces no longer accept or publish user DM LAN discovery hints |
+| T4.1.7 | Implement encrypted-envelope message-node DM delivery baseline | E4 / S4.1 | XL | API/Core | T4.1.3, T4.1.4 | `EncryptedEnvelopeNodeTransport` accepts/stores/fans out ciphertext envelopes plus minimal metadata; server rejects plaintext/private-key inputs; direct reachability is not required |
+| T4.1.8 | Add DM delivery metadata minimization, retention, and abuse controls | E4 / S4.1 | L | API/Core/Security | T4.1.7 | Metadata schema excludes plaintext/private keys, retention/deletion behavior is deterministic, and rate/abuse controls operate without plaintext inspection |
+| T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.7 | One accepted ciphertext envelope fanouts to all currently active devices linked to recipient profile |
+| T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.8, T4.1.9 | Devices activated after first delivery replay missed ciphertext envelopes and converge deterministically |
+| T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no user DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.1 | Implement guild/channel/role schema | E4 / S4.2 | L | API | T4.1.1 | Roles and channel membership constraints are enforced in DB/API |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support read/create with reply and mention metadata in the runtime API baseline; edit/delete/audit-safe realtime follow in subsequent T4.3.x slices |
@@ -75,9 +76,9 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | E4 / S4.3 | L | Realtime/Core | T4.3.3, T3.3.2 | Server-channel and presence events converge across all profile devices, including devices that reconnect later |
 | T4.4.1 | Add permission middleware and authorization tests | E4 / S4.4 | L | API | T4.2.1, T4.3.1 | Permission bypass attempts fail and are covered in tests |
 | T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | E4 / S4.5 | L | Core | T4.1.1 | Peers establish encrypted sessions with verifiable identity keys |
-| T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | E4 / S4.5 | XL | Core | T4.5.1 | 1:1 DM messages travel over direct user-to-user channels, decrypt correctly on clients, and enqueue encrypted local outbox retries when recipient is offline |
+| T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | E4 / S4.5 | XL | Core | T4.5.1 | 1:1 DM messages are ciphertext envelopes, decrypt correctly on clients only, and catch up when recipient devices are offline |
 | T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | E4 / S4.6 | XL | Core | T4.5.2 | Group session keys update on member add/remove and old members cannot decrypt new traffic |
-| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | E4 / S4.6 | XL | Core | T4.5.3 | Group DM payloads use direct user-to-user transport; rekey and missing-key failures are test-covered |
+| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | E4 / S4.6 | XL | Core | T4.5.3 | Group DM payloads are ciphertext envelopes; rekey and missing-key failures are test-covered without server-side plaintext/key custody |
 | T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | E4 / S4.2 | L | Web | T4.2.2 | Search/filter/pin actions work and deep-link into server workspace |
 | T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | E4 / S4.1 | L | Web | T3.1.2 | Search/filter/open-DM actions work and state persists per user |
 | T4.6.3 | Implement dual server navigation modes and burger persistence | E4 / S4.2 | L | Web | T4.6.1 | Topbar supports open/close/reorder/pin tabs and folder assignment; burger `expanded/collapsed/hidden` preference persists per device |
@@ -88,7 +89,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | Task | Target touchpoints | Validation |
 |---|---|---|
 | T3.1.1-T3.2.1 | Friends/block/mute API handlers, DB models, fanout filters | State machine and policy integration tests pass (pending/accept/decline/block/mute paths) |
-| T3.1.2, T3.1.4 | Friends list and invite share/redeem UI flows | End-to-end UI tests confirm send/respond/update and invite link/QR redeem behavior without pre-accept identity leakage |
+| T3.1.2, T3.1.4 | Friends list and invite share/redeem UI flows | End-to-end UI tests confirm send/respond/update and invite link redeem behavior without pre-accept identity leakage |
 | T3.1.3 | Contact invite token API handlers and persistence | API tests cover create/redeem and explicit error codes for invalid/expired/exhausted tokens |
 | T3.1.5 | Friend-acceptance bootstrap policy path | API tests verify bootstrap material release only on accepted requests |
 | T3.3.1 | Presence service + realtime event emitter | Reconnect tests meet p95 <= 1s presence propagation |
@@ -96,10 +97,10 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.0.1-T4.0.3 | Shared communication layer foundation (interface, adapters, provenance/reason taxonomy) | Contract tests confirm mode routing, provenance schema stability, and deterministic reason codes |
 | T4.1.1-T4.3.1 | DM/group DM client models and server-channel message endpoints | Contract and pagination tests pass; channel CRUD/reply/mention behavior covered |
 | T4.1.2 | DM policy settings and inbound permission enforcement | Policy tests confirm default friends-only and optional same-server/anyone overrides |
-| T4.1.3-T4.1.10 | Infrastructure-free DM direct-connect stack (policy, pairing, diagnostics, LAN/WAN pathing, multi-device convergence) | Direct-connect conformance suite passes: no infra fallback, deterministic reason codes, pairing validation, reachability-path evidence, and profile-device convergence checks |
+| T4.1.3-T4.1.11 | E2EE DM envelope delivery stack (policy, relationship bootstrap, message-node delivery, metadata, direct-DM surface retirement, multi-device convergence) | Envelope-delivery conformance suite passes: ciphertext-only server handling, no private-key custody, metadata minimization, deterministic reason codes, user direct-DM negative checks, and profile-device convergence checks |
 | T4.3.2, T4.3.3, T4.3.4, T3.3.2 | Realtime websocket event fanout, adapterization, and profile-device convergence | Ordered event stream and device-cursor hydration tests show zero loss/duplication under reconnect and late-device activation |
 | T4.4.1 | Permission middleware and authorization test matrix | Bypass attempts fail across role/channel scenarios |
-| T4.5.1-T4.5.4 | E2EE session bootstrap and encrypt/decrypt flows for 1:1 + group DMs | Direct user-to-user DM transport confirmed; offline retry outbox behavior and rekey/member-change tests pass |
+| T4.5.1-T4.5.4 | E2EE session bootstrap and encrypt/decrypt flows for 1:1 + group DMs | Client-only decrypt/key ownership confirmed; encrypted-envelope delivery, offline catch-up behavior, and rekey/member-change tests pass |
 | T4.6.1-T4.6.4 | Servers/Contacts hubs + dual-mode nav + mobile nav | UI acceptance checklist passes against `docs/product/07-ui-navigation-spec.md` |
 
 ## Entry Criteria
@@ -130,7 +131,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.x-T3.2.1 | `evidence/iteration-02/social-graph/` | policy integration test suite |
 | T4.1.x-T4.5.x | `evidence/iteration-02/messaging-e2ee/` | contract + crypto integration suites |
 | T4.0.1-T4.0.3, T4.3.3 | `evidence/iteration-02/networking-layer/` | communication-layer contract + adapter conformance suite |
-| T4.1.3-T4.1.10 | `evidence/iteration-02/dm-connectivity/` | direct-connect conformance suite |
+| T4.1.3-T4.1.11 | `evidence/iteration-02/dm-connectivity/` | encrypted-envelope delivery + user direct-DM negative conformance suite |
 | T3.3.2, T4.3.4 | `evidence/iteration-02/profile-device-sync/` | profile-device convergence suite |
 | T4.6.x | `evidence/iteration-02/navigation/` | UI checklist + screenshot review |
 
@@ -142,24 +143,24 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.2 | Build friends list UI and request actions | PRs #42-#48 | Contacts hub with send/accept/decline actions, optimistic transition/rollback, busy-state guards, explicit screen states; HttpOnly cookie auth + CSRF header transport |
 | T3.1.3 | Implement user contact invite token create/redeem APIs | PRs #42-#48 | DB-backed invite persistence, Contacts hub create/redeem controls, cross-service smoke validation |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | PR #49 | `GET /v1/friends/requests/:request_id/bootstrap` endpoint; bootstrap material shared only after acceptance; 5 integration tests; OpenAPI spec updated |
-| T3.1.4 | Implement contact invite share/scan UX (link + QR) | PR #50 | API client functions, QR code generation, robust link/token parsing, copy-to-clipboard, busy/error states; 3 unit tests |
-| T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout/preflight/parallel dial and friend request creation; policy tests and OpenAPI updated |
+| T3.1.4 | Implement contact invite share UX | PR #50 | API client functions, robust link/token parsing, copy-to-clipboard, busy/error states; QR contact-invite sharing is superseded by the later QR-only-for-server-invites scope |
+| T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout and friend request creation; policy tests and OpenAPI updated |
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/v1/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
-| T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` now owns the shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and execution evidence is recorded under `evidence/iteration-02/networking-layer/` |
-| T4.0.2 | Implement transport adapter boundaries (`DirectPeerTransport`, `NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` now exposes shared direct-peer and node-client dispatch bootstraps; DM preflight, successful parallel dial, and accepted active fanout route through direct-peer adapter boundaries; server-channel and presence dispatch route through node-client adapters without the prior current-thread presence bypass |
-| T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without guild server persistence; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
+| T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` owns the initial shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and envelope-delivery extension is now tracked under `T4.1.7` |
+| T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; user direct-peer DM adapter scope is superseded by the node/server envelope baseline |
+| T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without server-readable plaintext; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
-| T4.1.3 | Enforce direct-only DM transport and infra-policy CI guardrails | local working tree after PR #95 plus DM policy guardrail expansion | Runtime DM transport already routed direct-only and rejected non-direct profiles; CI guardrails now scan both DM runtime callsites and DM-related config/workflow surfaces so forbidden STUN/TURN/relay-style fallback terms fail before merge |
-| T4.1.4 | Implement signed out-of-band DM pairing envelope + QR/manual-code bootstrap | T4.1.4 pairing closeout branch | Signed pairing envelopes now carry inviter identity-key material and endpoint hints, reject replay/expiry/self-import/tamper cases, and expose QR/link/manual-code sharing with a short verification code on the contacts surface |
-| T4.1.5 | Implement DM connectivity preflight and deterministic troubleshooter | T4.1.5 connectivity preflight branch | Connectivity preflight validates peer identity input, maps missing pairing/local bind/policy/block/reachability/LAN-ready outcomes to stable reason codes, and exposes private-chat troubleshooting with session-scoped pairing metadata and ordered remediation steps |
-| T4.1.6 | Implement LAN discovery fast path for DM direct connect (mDNS/multicast) | T4.1.6 LAN discovery fast-path branch | LAN discovery announcements now require local-only IPv4-literal direct endpoint hints, expose TTL expiry metadata, prune stale/invalid peer snapshots, and make preflight prefer `preflight_ok_lan` only for fresh LAN-scoped presence from trusted accepted-friend or shared-server peers |
+| T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | dm envelope baseline pivot branch | Direct-only policy is superseded; CI guardrails now target unsafe semantics: server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay behavior |
+| T4.1.4 | Implement relationship-scoped DM bootstrap | T4.1.4 pairing closeout branch, superseded by envelope-baseline pivot | Bootstrap authority is now accepted contact/friend relationship state plus identity/profile-device material only; QR/manual-code pairing and endpoint hints are retired |
+| T4.1.5 | Retire user peer-routed DM preflight and deterministic troubleshooter surfaces | T4.1.5 connectivity preflight branch, superseded by envelope-baseline pivot | Peer-routed DM preflight and troubleshooter surfaces are retired because normal DM delivery uses node/server encrypted envelopes |
+| T4.1.6 | Retire user DM LAN discovery fast path | T4.1.6 LAN discovery fast-path branch, superseded by envelope-baseline pivot | User DM LAN discovery surfaces are retired; server/node discovery work must remain separately scoped |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is `T4.1.7` WAN direct-connect wizard; `T4.1.8` can proceed in parallel if endpoint-card sequencing is preferred |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is completing the direct-DM surface retirement plus `T4.1.7` encrypted-envelope message-node DM delivery baseline |
 
 ## Suggested Sprint Sequencing
 
@@ -181,8 +182,9 @@ Week 5:
 
 Week 6:
 
-- T4.1.6 -> T4.1.7 and T4.1.8 in parallel after LAN path baseline
-- T4.1.8 -> T4.1.9 -> T4.1.10 for DM multi-device convergence hardening
+- T4.1.7 -> T4.1.8 to establish encrypted-envelope message-node delivery and metadata/retention controls
+- T4.1.7 -> T4.1.9 -> T4.1.10 for DM multi-device convergence over ciphertext envelopes
+- T4.1.11 direct-DM surface retirement before any new DM delivery UX work
 - T4.3.1 -> T4.3.2
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
@@ -194,20 +196,18 @@ Week 6:
 ## Iteration 2 Exit Checklist
 
 - Friends/block/mute/presence are functioning end-to-end.
-- Direct user contact invite flow (link + QR) works end-to-end.
+- Server-mediated contact invite flow (link only) works end-to-end.
 - In-server friend requests are mediated and do not expose raw identity material before acceptance.
 - User discovery works for global and shared-server contexts.
-- Shared communication layer routes both DM direct path and server-channel path through explicit adapter boundaries.
-- DM direct-connect path is infrastructure-free and policy guardrails block STUN/TURN/relay fallback behavior.
-- DM pairing/bootstrap works through signed out-of-band envelopes (QR/link/manual code with short verification code) with replay/expiry validation.
-- DM connectivity preflight emits deterministic reason codes and guided remediation for failed direct sessions.
-- LAN discovery fast path uses local-only, TTL-scoped endpoint hints and feeds fresh trusted same-LAN peer presence into direct-connect preflight priority.
-- Off-LAN direct-connect is already represented by pairing, WAN guidance, endpoint cards, and parallel dial; future work should only revisit authorized endpoint-card freshness rather than generic discovery/rendezvous.
+- Shared communication layer routes encrypted-envelope DM delivery and server-channel paths through explicit adapter boundaries.
+- DM envelope-delivery guardrails block server-readable plaintext, private-key custody, unencrypted mailboxing, and plaintext relay behavior.
+- DM bootstrap works through accepted contact/friend relationship state and releases only identity/profile-device material needed for client-side E2EE.
+- User direct-DM pairing QR/manual-code, preflight, LAN discovery, endpoint-card, WAN wizard, and parallel-dial surfaces are absent from runtime, web, contracts, tests, and docs.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
 - Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
-- Broad multi-device DM convergence is not a remaining MVP gap; accepted DM payloads now persist with durable canonical history plus replay metadata under the current runtime design.
-- Durable DM history and replay metadata are now backed by local/user-owned runtime persistence; any future DM storage work should be treated as expansion or architecture evolution, not as a still-open MVP durability caveat.
+- Broad multi-device DM convergence must operate over accepted ciphertext envelopes plus minimal replay metadata under the message-node delivery design.
+- Durable DM history and replay metadata must preserve client-only plaintext/private-key boundaries; any future storage expansion must keep ciphertext-only server behavior.
 - Recipient-targeted realtime signaling remains a separate realtime routing follow-up for live call signaling; it should not be conflated with DM convergence, presence discovery, or payload delivery semantics.
 - DM/group DM and guild channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.
@@ -233,9 +233,9 @@ Week 6:
 
 - Keep event payload contracts versioned.
 - Record authorization decision logs for node-owner debugging.
-- Guild/community servers must not relay or store DM payloads.
-- DM transport must not depend on infrastructure-assisted connectivity services.
-- Server communication path must remain isolated from DM direct-only policy routing rules.
+- Shared servers/message nodes may store/fan out only E2EE DM envelopes and minimal delivery metadata.
+- DM plaintext and private keys must remain client/device-only.
+- Server communication path must remain isolated from DM ciphertext-only and client-only-key policy routing rules.
 - Multi-device sync contracts (cursor, dedupe, hydration) must be shared across DM and server paths.
 - Core owns crypto implementation tasks (`T4.5.x`); Web/API collaborate via interface contracts.
 - Tag PRs and commits with task IDs (`T3.x.x`, `T4.x.x`).

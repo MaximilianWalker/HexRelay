@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import {
   IconCircleCheck,
   IconCircleCheckFilled,
@@ -10,10 +9,8 @@ import {
   IconCopy,
   IconInfoCircle,
   IconLink,
-  IconLock,
   IconMessageCircle,
   IconMessageCircleFilled,
-  IconQrcode,
   IconSearch,
   IconShare3,
   IconStar,
@@ -28,16 +25,11 @@ import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   acceptFriendRequest,
   createContactInvite,
-  createDmPairingEnvelope,
   declineFriendRequest,
   fetchContacts,
   fetchFriendRequests,
-  importDmPairingEnvelope,
   redeemContactInvite,
-  type DmPairingIdentityKey,
 } from "@/lib/api";
-import { storeDmPairingImport } from "@/lib/dm-connectivity";
-import { buildDmPairingLink, buildDmPairingManualCode, parseDmPairingInput } from "@/lib/dm-pairing";
 import { readActivePersonaId, readPersonas, type PersonaRecord } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -225,25 +217,6 @@ export default function ContactsPage() {
     status: string;
   } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [pairingEndpointHints, setPairingEndpointHints] = useState("");
-  const [pairingExpiresInSeconds, setPairingExpiresInSeconds] = useState("300");
-  const [pairingBusy, setPairingBusy] = useState(false);
-  const [pairingCopied, setPairingCopied] = useState(false);
-  const [createdPairing, setCreatedPairing] = useState<{
-    envelope: string;
-    short_code: string;
-    expires_at: string;
-    pairing_nonce: string;
-  } | null>(null);
-  const [pairingImportValue, setPairingImportValue] = useState("");
-  const [pairingImportBusy, setPairingImportBusy] = useState(false);
-  const [pairingImportResult, setPairingImportResult] = useState<{
-    inviter_identity_id: string;
-    inviter_identity_key: DmPairingIdentityKey;
-    endpoint_hints: string[];
-    imported_at: string;
-    expires_at: string;
-  } | null>(null);
 
   const personas = useMemo(() => readPersonas(), []);
   const identityId = useMemo(() => {
@@ -503,101 +476,6 @@ export default function ContactsPage() {
     }
   }
 
-  async function handleCreateAdvancedInvite(): Promise<void> {
-    if (!hasSession) {
-      setActionMessage("Create or select a profile before managing contacts.");
-      return;
-    }
-
-    const endpointHints = pairingEndpointHints
-      .split(/\r?\n|,/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-    const expiresInSeconds = Number.parseInt(pairingExpiresInSeconds.trim(), 10);
-
-    if (endpointHints.length === 0) {
-      setActionMessage("Add at least one connection address first.");
-      return;
-    }
-
-    setPairingBusy(true);
-    setActionMessage(null);
-    setPairingCopied(false);
-
-    try {
-      const result = await createDmPairingEnvelope({
-        endpointHints,
-        expiresInSeconds: Number.isFinite(expiresInSeconds) ? expiresInSeconds : undefined,
-      });
-
-      if (!result.ok) {
-        setActionMessage(formatApiError(result.code, result.message));
-        return;
-      }
-
-      setCreatedPairing(result.data);
-      setPairingImportResult(null);
-      setActionMessage("Advanced invite ready. Share it only with the person you want to connect with.");
-    } catch {
-      setActionMessage("Could not create advanced connection details.");
-    } finally {
-      setPairingBusy(false);
-    }
-  }
-
-  async function handleCopyAdvancedInvite(): Promise<void> {
-    if (!createdPairing) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(buildDmPairingLink(createdPairing.envelope));
-      setPairingCopied(true);
-      setActionMessage("Advanced invite copied.");
-    } catch {
-      setActionMessage("Could not copy the advanced invite.");
-    }
-  }
-
-  async function handleImportAdvancedInvite(): Promise<void> {
-    if (!hasSession) {
-      setActionMessage("Create or select a profile before managing contacts.");
-      return;
-    }
-
-    const envelope = parseDmPairingInput(pairingImportValue);
-    if (!envelope) {
-      setActionMessage("Paste advanced connection details first.");
-      return;
-    }
-
-    setPairingImportBusy(true);
-    setActionMessage(null);
-
-    try {
-      const result = await importDmPairingEnvelope({ envelope });
-      if (!result.ok) {
-        setActionMessage(formatApiError(result.code, result.message));
-        return;
-      }
-
-      setPairingImportResult(result.data);
-      storeDmPairingImport({
-        inviterIdentityId: result.data.inviter_identity_id,
-        inviterIdentityKey: result.data.inviter_identity_key,
-        endpointHints: result.data.endpoint_hints,
-        importedAt: result.data.imported_at,
-        expiresAt: result.data.expires_at,
-      });
-      setPairingImportValue("");
-      setActionMessage("Advanced connection details saved. Open the private chat to run connectivity preflight.");
-    } catch {
-      setActionMessage("Could not read those advanced connection details.");
-    } finally {
-      setPairingImportBusy(false);
-    }
-  }
-
   const inboundPending = friendRequests.filter(
     (item) => item.target_identity_id === identityId && item.status === "pending",
   );
@@ -628,7 +506,7 @@ export default function ContactsPage() {
       tabs={[
         { id: "contacts", label: "All contacts", icon: IconUsers },
         { id: "requests", label: "Requests", icon: IconClock },
-        { id: "invites", label: "Invites", icon: IconQrcode },
+        { id: "invites", label: "Invites", icon: IconLink },
       ]}
       tabActions={
         <>
@@ -648,13 +526,13 @@ export default function ContactsPage() {
         {activePanel === "add" ? (
           <section className={styles.state} aria-label="Add contact">
             <p className={styles.title}>Add contact</p>
-            <p className={styles.meta}>Paste an invite link or code from someone you know.</p>
+            <p className={styles.meta}>Paste an invite link from someone you know.</p>
             <div className={styles.inputWrap}>
               <IconLink className={styles.inputIcon} aria-hidden="true" />
             <input
               className={styles.search}
               onChange={(event) => setRedeemToken(event.target.value)}
-              placeholder="Invite link or code"
+              placeholder="Invite link"
               value={redeemToken}
             />
             </div>
@@ -688,50 +566,6 @@ export default function ContactsPage() {
                 </details>
               </div>
             ) : null}
-
-            <details className={styles.state}>
-              <summary><IconLock className={styles.icon} aria-hidden="true" /> Advanced connection setup</summary>
-              <p className={styles.meta}>
-                Use this only if someone sent you manual direct-connection details.
-              </p>
-              <textarea
-                className={styles.search}
-                onChange={(event) => setPairingImportValue(event.target.value)}
-                placeholder="Paste advanced invite link, QR payload, or DM1 manual code"
-                rows={3}
-                value={pairingImportValue}
-              />
-              <button
-                className={styles.pill}
-                disabled={pairingImportBusy}
-                onClick={() => void handleImportAdvancedInvite()}
-                type="button"
-              >
-                <IconCircleCheck className={styles.icon} aria-hidden="true" />
-                {pairingImportBusy ? "Reading details..." : "Use advanced invite"}
-              </button>
-
-              {pairingImportResult ? (
-                <div className={styles.card} style={{ marginTop: 12 }}>
-                  <p className={styles.title}>Advanced connection saved</p>
-                  <p className={styles.meta}>
-                    From {identityLabel(pairingImportResult.inviter_identity_id, identityId, personas)}.
-                  </p>
-                  <details className={styles.state}>
-                    <summary><IconInfoCircle className={styles.icon} aria-hidden="true" /> Show technical details</summary>
-                    <p className={styles.meta}>Imported: {formatDateTime(pairingImportResult.imported_at)}</p>
-                    <p className={styles.meta}>Expires: {formatDateTime(pairingImportResult.expires_at)}</p>
-                    <p className={styles.meta}>Identity key: {pairingImportResult.inviter_identity_key.algorithm}</p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Fingerprint: {pairingImportResult.inviter_identity_key.fingerprint}
-                    </p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Connection details: {pairingImportResult.endpoint_hints.join(", ")}
-                    </p>
-                  </details>
-                </div>
-              ) : null}
-            </details>
           </section>
         ) : null}
 
@@ -780,7 +614,7 @@ export default function ContactsPage() {
             {createdInvite ? (
               <div className={styles.card} style={{ marginTop: 12 }}>
                 <p className={styles.title}>Invite ready</p>
-                <p className={styles.meta}>Copy the link or show the QR code to the person you want to add.</p>
+                <p className={styles.meta}>Copy the link and send it to the person you want to add.</p>
                 <p className={styles.meta} style={{ wordBreak: "break-all", marginTop: 6 }}>
                   {buildInviteLink(createdInvite.token)}
                 </p>
@@ -790,11 +624,8 @@ export default function ContactsPage() {
                     {linkCopied ? "Copied" : "Copy invite link"}
                   </button>
                 </div>
-                <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
-                  <QRCodeSVG value={buildInviteLink(createdInvite.token)} size={160} level="M" />
-                </div>
                 <details className={styles.state}>
-                  <summary><IconQrcode className={styles.icon} aria-hidden="true" /> Invite settings</summary>
+                  <summary><IconInfoCircle className={styles.icon} aria-hidden="true" /> Invite settings</summary>
                   <p className={styles.meta}>
                     Type: {createdInvite.mode === "multi_use" ? "Reusable" : "Single-use"}
                   </p>
@@ -805,63 +636,6 @@ export default function ContactsPage() {
                 </details>
               </div>
             ) : null}
-
-            <details className={styles.state}>
-              <summary><IconLock className={styles.icon} aria-hidden="true" /> Advanced connection setup</summary>
-              <p className={styles.meta}>
-                Use this for manual direct-connection setup. Most people should use the normal invite above.
-              </p>
-              <textarea
-                className={styles.search}
-                onChange={(event) => setPairingEndpointHints(event.target.value)}
-                placeholder="Connection addresses, one per line"
-                rows={3}
-                value={pairingEndpointHints}
-              />
-              <input
-                className={styles.search}
-                onChange={(event) => setPairingExpiresInSeconds(event.target.value)}
-                placeholder="Expires in seconds"
-                value={pairingExpiresInSeconds}
-              />
-              <button
-                className={styles.pill}
-                disabled={pairingBusy}
-                onClick={() => void handleCreateAdvancedInvite()}
-                type="button"
-              >
-                <IconLock className={styles.icon} aria-hidden="true" />
-                {pairingBusy ? "Creating advanced invite..." : "Create advanced invite"}
-              </button>
-
-              {createdPairing ? (
-                <div className={styles.card} style={{ marginTop: 12 }}>
-                  <p className={styles.title}>Advanced invite ready</p>
-                  <p className={styles.meta}>Share the QR, link, or DM1 manual code only with the person you want to connect with.</p>
-                  <div className={styles.row} style={{ marginTop: 8 }}>
-                    <button className={styles.pill} onClick={() => void handleCopyAdvancedInvite()} type="button">
-                      <IconCopy className={styles.icon} aria-hidden="true" />
-                      {pairingCopied ? "Copied" : "Copy advanced invite"}
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
-                    <QRCodeSVG value={buildDmPairingLink(createdPairing.envelope)} level="M" size={160} />
-                  </div>
-                  <details className={styles.state}>
-                    <summary><IconInfoCircle className={styles.icon} aria-hidden="true" /> Show technical details</summary>
-                    <p className={styles.meta}>Verification code: {createdPairing.short_code}</p>
-                    <p className={styles.meta}>Expires: {formatDateTime(createdPairing.expires_at)}</p>
-                    <p className={styles.meta}>Security detail: {createdPairing.pairing_nonce}</p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Manual code: {buildDmPairingManualCode(createdPairing.envelope)}
-                    </p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Raw invite: {buildDmPairingLink(createdPairing.envelope)}
-                    </p>
-                  </details>
-                </div>
-              ) : null}
-            </details>
           </section>
         ) : null}
 

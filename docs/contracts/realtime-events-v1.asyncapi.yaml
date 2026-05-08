@@ -8,8 +8,9 @@ info:
     This file may include events not yet implemented in current runtime routing.
     Use `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` for current
     realtime runtime behavior.
-    DM events are direct user-to-user transport events and are not relayed
-    by guild/community servers.
+    Target-state DM events carry E2EE envelopes only. Shared servers/message
+    nodes fan out ciphertext envelopes and minimal delivery metadata, while DM
+    plaintext and private keys remain client/device-only.
 defaultContentType: application/json
 servers:
   staging:
@@ -25,7 +26,7 @@ channels:
         $ref: '#/components/messages/PresenceUpdatedV1'
   dmMessageCreated:
     address: dm.message.created
-    description: Direct peer DM message creation event.
+    description: Node/server-routed E2EE DM envelope creation event.
     messages:
       dmMessageCreatedV1:
         $ref: '#/components/messages/DmMessageCreatedV1'
@@ -181,18 +182,18 @@ components:
     DmMessageCreatedV1:
       name: DmMessageCreatedV1
       title: DM Message Created
-      summary: Published when a new direct message is created.
+      summary: Published when a new node-routed DM envelope is created.
       payload:
         $ref: '#/components/schemas/DmMessageCreatedEventV1'
       examples:
-        - name: encrypted_direct_peer
+        - name: encrypted_message_node
           payload:
             event_id: be5468a6-bb4e-4e74-bec2-6f84e81226b1
             event_type: dm.message.created
             event_version: 1
             occurred_at: 2026-03-04T14:52:01Z
             correlation_id: adfd8d5c-3b7f-474f-8f02-8ba62f33f5c6
-            producer: dm-direct-transport
+            producer: dm-message-node
             data:
               message_id: ad6b1131-e301-4b2e-a531-d6024f2f8ec4
               thread_id: 86588f8f-78f8-4234-b5fb-f53e90f8889d
@@ -201,7 +202,7 @@ components:
               ciphertext: BASE64_CIPHERTEXT_PLACEHOLDER
               key_id: dm-key-018
               thread_seq: 401
-              transport_scope: direct_peer
+              transport_scope: encrypted_envelope_node
     CallStateChangedV1:
       name: CallStateChangedV1
       title: Call State Changed
@@ -413,7 +414,7 @@ components:
           minimum: 1
         transport_scope:
           type: string
-          enum: [direct_peer]
+          enum: [encrypted_envelope_node]
     DmMessageCreatedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'

@@ -243,17 +243,6 @@ async fn handle_inbound_message(
                 return true;
             }
 
-            if let Some(response) = crate::domain::lan_discovery::handle_lan_discovery_ws_event(
-                state,
-                session_identity_id,
-                &text,
-            )
-            .await
-            {
-                let _ = outbound_tx.try_send(response);
-                return true;
-            }
-
             let response = route_inbound_event(&text, session_identity_id);
             let _ = outbound_tx.try_send(response);
             true
@@ -744,14 +733,11 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, handle_inbound_message,
-        release_connection_slot_after_failed_upgrade, should_drop_dev_fault, stable_hash,
+        cache_validated_session, release_connection_slot_after_failed_upgrade,
+        should_drop_dev_fault, stable_hash,
     };
     use crate::state::{AppState, DevFaultConfig, DevFaultState};
     use chrono::{Duration as ChronoDuration, Utc};
-    use communication_core::{
-        LanDiscoveryAdvertisement, LAN_DISCOVERY_SCOPE, LAN_DISCOVERY_TTL_SECONDS,
-    };
     use tokio::time::{sleep, Duration};
 
     #[test]
@@ -867,70 +853,5 @@ mod tests {
         release_connection_slot_after_failed_upgrade(state.clone(), "usr-1".to_string()).await;
 
         assert!(state.active_connections.lock().await.get("usr-1").is_none());
-    }
-
-    #[tokio::test]
-    async fn websocket_text_routes_lan_discovery_advertisement() {
-        let state = AppState::new(
-            "http://127.0.0.1:1".to_string(),
-            vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
-            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
-            None,
-            false,
-            60,
-            60,
-            16384,
-            120,
-            60,
-            1,
-            30,
-            10000,
-        )
-        .expect("build state")
-        .with_lan_discovery_config(
-            true,
-            "0.0.0.0:48999".parse().unwrap(),
-            "239.255.48.31:48999".parse().unwrap(),
-            Duration::from_secs(10),
-        );
-        let issued_at_epoch = Utc::now().timestamp();
-        let raw = serde_json::json!({
-            "event_type": "dm.lan_discovery.advertise",
-            "event_version": 1,
-            "correlation_id": "corr-lan-1",
-            "data": LanDiscoveryAdvertisement {
-                version: 1,
-                identity_id: "usr-nora-k".to_string(),
-                endpoint_hints: vec!["udp://192.168.1.12:4040".to_string()],
-                scope: LAN_DISCOVERY_SCOPE.to_string(),
-                issued_at_epoch,
-                expires_at_epoch: issued_at_epoch + LAN_DISCOVERY_TTL_SECONDS,
-                nonce: "nonce-1".to_string(),
-                signature: "aa".repeat(64),
-            },
-        })
-        .to_string();
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-
-        assert!(
-            handle_inbound_message(
-                &state,
-                "usr-nora-k",
-                &tx,
-                Ok(axum::extract::ws::Message::Text(raw)),
-            )
-            .await
-        );
-        let response = rx.recv().await.expect("LAN discovery response");
-        let payload: serde_json::Value = serde_json::from_str(&response).expect("decode response");
-
-        assert_eq!(payload["event_type"], "dm.lan_discovery.advertise");
-        assert_eq!(payload["correlation_id"], "corr-lan-1");
-        assert_eq!(
-            state.active_lan_advertisements.lock().await.len(),
-            1,
-            "advertisement stored by websocket router"
-        );
     }
 }

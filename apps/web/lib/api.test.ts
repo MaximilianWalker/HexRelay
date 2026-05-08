@@ -3,9 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   activateTestingSession,
-  announceDmLanDiscovery,
   createContactInvite,
-  createDmPairingEnvelope,
   createFriendRequest,
   createInvite,
   declineFriendRequest,
@@ -14,13 +12,10 @@ import {
   fetchFriendRequests,
   fetchServers,
   fetchTestingProfiles,
-  importDmPairingEnvelope,
   issueAuthChallenge,
-  listDmLanPeers,
   redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
-  runDmConnectivityPreflight,
   revokeSession,
   storeCsrfToken,
   updateDmPolicy,
@@ -400,147 +395,6 @@ describe("api auth transport", () => {
       expect(result.code).toBe("invite_expired");
       expect(result.message).toBe("Invite has expired");
     }
-  });
-
-  it("sends csrf and correct URL for DM pairing create", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          envelope: "pairing-envelope-abc",
-          short_code: "ABCD-1234",
-          expires_at: "2026-03-20T00:00:00Z",
-          pairing_nonce: "nonce-1",
-        }),
-        { status: 201, headers: { "content-type": "application/json" } },
-      ),
-    );
-
-    const result = await createDmPairingEnvelope({
-      endpointHints: ["tcp://127.0.0.1:4040"],
-      expiresInSeconds: 300,
-    });
-
-    expect(result.ok).toBe(true);
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/v1/dm/pairing-envelope");
-    expect(String(url)).not.toContain("/import");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(init?.body).toContain('"endpoint_hints":["tcp://127.0.0.1:4040"]');
-  });
-
-  it("sends csrf and correct URL for DM pairing import", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          inviter_identity_id: "usr-nora-k",
-          inviter_identity_key: {
-            public_key: "aa".repeat(32),
-            algorithm: "ed25519",
-            fingerprint: "fingerprint-1",
-          },
-          endpoint_hints: ["tcp://127.0.0.1:4040"],
-          imported_at: "2026-03-20T00:00:00Z",
-          expires_at: "2026-03-20T00:05:00Z",
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
-    );
-
-    const result = await importDmPairingEnvelope({ envelope: "pairing-envelope-abc" });
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.inviter_identity_key.algorithm).toBe("ed25519");
-      expect(result.data.inviter_identity_key.fingerprint).toBe("fingerprint-1");
-    }
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/v1/dm/pairing-envelope/import");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(init?.body).toBe('{"envelope":"pairing-envelope-abc"}');
-  });
-
-  it("sends csrf and deterministic body for DM connectivity preflight", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "blocked",
-          reason_code: "peer_unreachable",
-          transport_profile: "direct_only",
-          remediation: ["Ask your contact to keep the app online and rerun preflight."],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
-    );
-
-    const result = await runDmConnectivityPreflight({
-      peerIdentityId: "usr-jules-p",
-      pairingEnvelopePresent: true,
-      localBindAllowed: true,
-      peerReachableHint: false,
-    });
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.reason_code).toBe("peer_unreachable");
-    }
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/v1/dm/connectivity/preflight");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(init?.body).toBe(
-      '{"peer_identity_id":"usr-jules-p","pairing_envelope_present":true,"local_bind_allowed":true,"peer_reachable_hint":false}',
-    );
-  });
-
-  it("announces and lists LAN discovery peers", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            identity_id: "usr-nora-k",
-            endpoint_hints: ["udp://192.168.1.12:4040"],
-            scope: "lan_subnet",
-            last_seen_at: "2026-05-08T00:00:00Z",
-            expires_at: "2026-05-08T00:02:00Z",
-            ttl_seconds: 120,
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            items: [
-              {
-                identity_id: "usr-jules-p",
-                endpoint_hints: ["udp://192.168.1.20:4040"],
-                last_seen_at: "2026-05-08T00:00:10Z",
-                expires_at: "2026-05-08T00:02:10Z",
-              },
-            ],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      );
-
-    const announced = await announceDmLanDiscovery({
-      endpointHints: ["udp://192.168.1.12:4040"],
-    });
-    const peers = await listDmLanPeers();
-
-    expect(announced.ok).toBe(true);
-    expect(peers.ok).toBe(true);
-    const [announceUrl, announceInit] = fetchMock.mock.calls[0] ?? [];
-    expect(String(announceUrl)).toContain("/v1/dm/connectivity/lan-discovery/announce");
-    const announceHeaders = new Headers(announceInit?.headers ?? {});
-    expect(announceHeaders.get("x-csrf-token")).toBe("csrf-123");
-    expect(announceInit?.body).toBe('{"endpoint_hints":["udp://192.168.1.12:4040"]}');
-    const [peersUrl, peersInit] = fetchMock.mock.calls[1] ?? [];
-    expect(String(peersUrl)).toContain("/v1/dm/connectivity/lan-discovery/peers");
-    expect(peersInit?.method).toBe("GET");
   });
 
   it("loads and updates the DM privacy policy", async () => {

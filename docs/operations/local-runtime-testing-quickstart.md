@@ -250,7 +250,7 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 - Keep fixture/session endpoints dev-only.
 - Keep local runtime test ports bound to loopback.
 - Keep seed/reset restricted to local development databases.
-- Do not use network simulation to add indirect DM delivery behavior.
+- Do not use network simulation to add user direct-DM transport or plaintext relay behavior.
 - Reset network simulation state after manual failure testing.
 
 ## Related Documents

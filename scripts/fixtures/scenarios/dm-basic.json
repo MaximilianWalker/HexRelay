@@ -1,6 +1,6 @@
 {
   "scenario_id": "dm-basic",
-  "description": "Alice and Bob local DM happy path with accepted friendship, active sessions, direct endpoint cards, devices, and seeded message history.",
+  "description": "Alice and Bob local DM happy path with accepted friendship, active profile devices, and seeded message history.",
   "identities": [
     {
       "profile_id": "alice.primary",
@@ -47,35 +47,6 @@
       "identity_id": "usr-test-bob",
       "inbound_policy": "friends_only",
       "offline_delivery_mode": "best_effort_online"
-    }
-  ],
-  "endpoint_cards": [
-    {
-      "identity_id": "usr-test-alice",
-      "endpoint_id": "fixture-endpoint-alice-local",
-      "endpoint_hint": "tcp://127.0.0.1:18080",
-      "estimated_rtt_ms": 12,
-      "priority": 10,
-      "expires_in_seconds": 86400,
-      "revoked": false
-    },
-    {
-      "identity_id": "usr-test-bob",
-      "endpoint_id": "fixture-endpoint-bob-local",
-      "endpoint_hint": "tcp://127.0.0.1:18180",
-      "estimated_rtt_ms": 18,
-      "priority": 10,
-      "expires_in_seconds": 86400,
-      "revoked": false
-    },
-    {
-      "identity_id": "usr-test-bob",
-      "endpoint_id": "fixture-endpoint-bob-secondary",
-      "endpoint_hint": "quic://127.0.0.1:18181",
-      "estimated_rtt_ms": 28,
-      "priority": 5,
-      "expires_in_seconds": 86400,
-      "revoked": false
     }
   ],
   "devices": [

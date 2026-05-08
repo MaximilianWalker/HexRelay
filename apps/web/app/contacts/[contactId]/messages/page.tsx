@@ -13,16 +13,7 @@ import {
 } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
-import {
-  fetchContacts,
-  runDmConnectivityPreflight,
-  type DmConnectivityPreflightResponse,
-} from "@/lib/api";
-import {
-  preflightReasonLabel,
-  readDmPairingImport,
-  type DmPairingImportRecord,
-} from "@/lib/dm-connectivity";
+import { fetchContacts } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -43,12 +34,6 @@ type ContactLoad = {
   contact: Contact | null;
   error: string | null;
 };
-
-type PreflightLoad =
-  | { state: "idle" }
-  | { state: "loading" }
-  | { state: "ready"; result: DmConnectivityPreflightResponse }
-  | { state: "error"; message: string };
 
 function safeContactId(value: string): string | null {
   try {
@@ -78,15 +63,6 @@ function contactInitials(name: string): string {
     .join("");
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
-}
-
 function subscribeBrowserReady(): () => void {
   return () => {};
 }
@@ -114,14 +90,8 @@ export default function ContactMessagesPage() {
   );
   const hasSession = useMemo(() => browserReady && getPersonaSession(identityId) !== null, [browserReady, identityId]);
   const [contactLoad, setContactLoad] = useState<ContactLoad | null>(null);
-  const [preflightRunId, setPreflightRunId] = useState(0);
-  const [preflight, setPreflight] = useState<PreflightLoad>({ state: "idle" });
   const [message, setMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const pairingImport = useMemo<DmPairingImportRecord | null>(
-    () => (browserReady && contactId ? readDmPairingImport(contactId) : null),
-    [browserReady, contactId],
-  );
 
   useEffect(() => {
     let active = true;
@@ -181,49 +151,9 @@ export default function ContactMessagesPage() {
   const chatContact = contact && !contact.inboundRequest && !contact.pendingRequest ? contact : null;
   const canMessage = chatContact !== null;
 
-  useEffect(() => {
-    let active = true;
-
-    if (!hasSession || !chatContact) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const run = async (): Promise<void> => {
-      setPreflight({ state: "loading" });
-      const result = await runDmConnectivityPreflight({
-        peerIdentityId: chatContact.id,
-        pairingEnvelopePresent: pairingImport !== null,
-        localBindAllowed: true,
-        peerReachableHint: chatContact.status === "online",
-      });
-
-      if (!active) {
-        return;
-      }
-
-      if (!result.ok) {
-        setPreflight({ state: "error", message: result.message });
-        return;
-      }
-
-      setPreflight({ state: "ready", result: result.data });
-    };
-
-    void run();
-
-    return () => {
-      active = false;
-    };
-  }, [chatContact, hasSession, pairingImport, preflightRunId]);
-
-  const preflightResult = preflight.state === "ready" ? preflight.result : null;
-  const directPathReady = preflightResult?.status === "ready";
-
   function handleSend(): void {
-    if (!directPathReady) {
-      setStatusMessage("Resolve direct-connect preflight before sending a private message.");
+    if (!canMessage) {
+      setStatusMessage("Finish the contact request before sending a private message.");
       return;
     }
 
@@ -269,7 +199,7 @@ export default function ContactMessagesPage() {
             {contact?.inboundRequest ? <span className={styles.badge}>Needs approval</span> : null}
           </div>
           <p className={styles.meta}>
-            This is the first private chat surface. Message delivery will connect to the DM transport next.
+            This node-routed private-message surface will send E2EE envelopes through the server delivery path.
           </p>
         </aside>
 
@@ -282,72 +212,15 @@ export default function ContactMessagesPage() {
             <p className={styles.state}>This contact was not found in your current contacts list.</p>
           ) : null}
           {contact && !canMessage ? (
-            <p className={styles.state}>Finish the contact request before starting a private chat.</p>
+            <p className={styles.state}>Finish the contact request before starting an encrypted conversation.</p>
           ) : null}
 
           {chatContact ? (
             <>
-              <div className={styles.card} style={{ marginTop: 12 }}>
-                <p className={styles.title}>
-                  <IconInfoCircle className={styles.icon} aria-hidden="true" /> Direct-connect preflight
-                </p>
-                <p className={styles.meta}>
-                  Combines session pairing state, local app hints, and trusted DM policy checks before this chat uses direct-only transport.
-                </p>
-                <div className={styles.row}>
-                  {pairingImport ? (
-                    <span className={styles.badge}>
-                      <IconCircleCheck className={styles.icon} aria-hidden="true" /> Pairing imported
-                    </span>
-                  ) : (
-                    <span className={styles.badgeMuted}>Pairing not imported</span>
-                  )}
-                  <span className={chatContact.status === "online" ? styles.badge : styles.badgeMuted}>
-                    Peer {chatContact.status}
-                  </span>
-                  <span className={styles.badgeMuted}>Transport: direct only</span>
-                </div>
-
-                {pairingImport ? (
-                  <details className={styles.compactDetails}>
-                    <summary>
-                      <IconInfoCircle className={styles.icon} aria-hidden="true" /> Pairing details
-                    </summary>
-                    <p className={styles.meta}>Expires: {formatDateTime(pairingImport.expiresAt)}</p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Fingerprint: {pairingImport.inviterIdentityKey.fingerprint}
-                    </p>
-                    <p className={styles.meta} style={{ wordBreak: "break-all" }}>
-                      Endpoints: {pairingImport.endpointHints.join(", ") || "No endpoint hints"}
-                    </p>
-                  </details>
-                ) : null}
-
-                {preflight.state === "loading" ? <p className={styles.state}>Running preflight...</p> : null}
-                {preflight.state === "error" ? <p className={styles.state}>{preflight.message}</p> : null}
-                {preflightResult ? (
-                  <div className={styles.state}>
-                    <p className={styles.title}>{preflightReasonLabel(preflightResult.reason_code)}</p>
-                    <p className={styles.meta}>Reason code: {preflightResult.reason_code}</p>
-                    <ul>
-                      {preflightResult.remediation.map((step, index) => (
-                        <li className={styles.meta} key={`${preflightResult.reason_code}-${index}`}>{step}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                <button className={styles.pill} onClick={() => setPreflightRunId((value) => value + 1)} type="button">
-                  <IconInfoCircle className={styles.icon} aria-hidden="true" /> Rerun preflight
-                </button>
-              </div>
-
               <div className={styles.state}>
                 <p className={styles.title}>Conversation starts here</p>
                 <p className={styles.meta}>
-                  {directPathReady
-                    ? "The direct path is ready. The next backend slice will load DM thread history and send messages from this composer."
-                    : "The private chat route exists, but direct-connect troubleshooting must pass before sending."}
+                  The next backend slice will load E2EE DM thread history and send encrypted envelopes from this composer.
                 </p>
               </div>
 
@@ -365,7 +238,7 @@ export default function ContactMessagesPage() {
                   value={message}
                 />
                 <div className={styles.row}>
-                  <button className={styles.pill} disabled={!directPathReady} onClick={handleSend} type="button">
+                  <button className={styles.pill} disabled={!canMessage} onClick={handleSend} type="button">
                     <IconSend className={styles.icon} aria-hidden="true" />
                     Send
                   </button>

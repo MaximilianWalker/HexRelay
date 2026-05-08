@@ -1,41 +1,6 @@
-use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
-use crate::models::{
-    DmEndpointCardRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
-};
-
-pub async fn consume_dm_pairing_nonce(
-    pool: &PgPool,
-    nonce: &str,
-    expires_at: DateTime<Utc>,
-) -> Result<bool, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
-    sqlx::query(
-        "
-        DELETE FROM dm_pairing_nonces
-        WHERE expires_at < NOW()
-        ",
-    )
-    .execute(&mut *tx)
-    .await?;
-
-    let inserted = sqlx::query(
-        "
-        INSERT INTO dm_pairing_nonces (nonce, expires_at)
-        VALUES ($1, $2)
-        ON CONFLICT (nonce) DO NOTHING
-        ",
-    )
-    .bind(nonce)
-    .bind(expires_at)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(inserted.rows_affected() > 0)
-}
+use crate::models::{DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord};
 
 pub async fn get_dm_policy(
     pool: &PgPool,
@@ -86,113 +51,6 @@ fn map_dm_policy_row(row: sqlx::postgres::PgRow) -> Result<DmPolicy, sqlx::Error
     })
 }
 
-pub async fn upsert_dm_endpoint_cards_batch(
-    pool: &PgPool,
-    identity_id: &str,
-    records: &[DmEndpointCardRecord],
-) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
-    for record in records {
-        sqlx::query(
-            "
-            INSERT INTO dm_endpoint_cards (
-                identity_id,
-                endpoint_id,
-                endpoint_hint,
-                estimated_rtt_ms,
-                priority,
-                expires_at_epoch,
-                revoked,
-                updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (identity_id, endpoint_id) DO UPDATE
-            SET endpoint_hint = EXCLUDED.endpoint_hint,
-                estimated_rtt_ms = EXCLUDED.estimated_rtt_ms,
-                priority = EXCLUDED.priority,
-                expires_at_epoch = EXCLUDED.expires_at_epoch,
-                revoked = EXCLUDED.revoked,
-                updated_at = NOW()
-            ",
-        )
-        .bind(identity_id)
-        .bind(&record.endpoint_id)
-        .bind(&record.endpoint_hint)
-        .bind(
-            i32::try_from(record.estimated_rtt_ms)
-                .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms too large".into()))?,
-        )
-        .bind(i16::from(record.priority))
-        .bind(record.expires_at_epoch)
-        .bind(record.revoked)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn list_dm_endpoint_cards(
-    pool: &PgPool,
-    identity_id: &str,
-    now_epoch: i64,
-) -> Result<Vec<DmEndpointCardRecord>, sqlx::Error> {
-    let rows = sqlx::query(
-        "
-        SELECT endpoint_id, endpoint_hint, estimated_rtt_ms, priority, expires_at_epoch, revoked
-        FROM dm_endpoint_cards
-        WHERE identity_id = $1
-          AND expires_at_epoch >= $2
-        ORDER BY endpoint_id ASC
-        ",
-    )
-    .bind(identity_id)
-    .bind(now_epoch)
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter().map(map_dm_endpoint_card_row).collect()
-}
-
-pub async fn mark_dm_endpoint_cards_revoked(
-    pool: &PgPool,
-    identity_id: &str,
-    endpoint_ids: &[String],
-) -> Result<Vec<String>, sqlx::Error> {
-    if endpoint_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let revoked_rows = sqlx::query(
-        "
-        UPDATE dm_endpoint_cards
-        SET revoked = TRUE,
-            updated_at = NOW()
-        WHERE identity_id = $1
-          AND endpoint_id = ANY($2)
-          AND revoked = FALSE
-        RETURNING endpoint_id
-        ",
-    )
-    .bind(identity_id)
-    .bind(endpoint_ids)
-    .fetch_all(pool)
-    .await?;
-
-    let mut revoked_lookup = revoked_rows
-        .into_iter()
-        .map(|row| row.try_get::<String, _>("endpoint_id"))
-        .collect::<Result<std::collections::HashSet<_>, _>>()?;
-
-    Ok(endpoint_ids
-        .iter()
-        .filter(|endpoint_id| revoked_lookup.remove(endpoint_id.as_str()))
-        .cloned()
-        .collect())
-}
-
 pub async fn upsert_dm_profile_device(
     pool: &PgPool,
     identity_id: &str,
@@ -235,24 +93,6 @@ pub async fn list_dm_profile_devices(
     .await?;
 
     rows.into_iter().map(map_dm_profile_device_row).collect()
-}
-
-fn map_dm_endpoint_card_row(
-    row: sqlx::postgres::PgRow,
-) -> Result<DmEndpointCardRecord, sqlx::Error> {
-    let estimated_rtt_ms = row.try_get::<i32, _>("estimated_rtt_ms")?;
-    let priority = row.try_get::<i16, _>("priority")?;
-
-    Ok(DmEndpointCardRecord {
-        endpoint_id: row.try_get::<String, _>("endpoint_id")?,
-        endpoint_hint: row.try_get::<String, _>("endpoint_hint")?,
-        estimated_rtt_ms: u32::try_from(estimated_rtt_ms)
-            .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms must be non-negative".into()))?,
-        priority: u8::try_from(priority)
-            .map_err(|_| sqlx::Error::Protocol("priority must be in u8 range".into()))?,
-        expires_at_epoch: row.try_get::<i64, _>("expires_at_epoch")?,
-        revoked: row.try_get::<bool, _>("revoked")?,
-    })
 }
 
 fn map_dm_profile_device_row(

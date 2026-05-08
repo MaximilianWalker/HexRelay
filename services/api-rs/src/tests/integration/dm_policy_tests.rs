@@ -201,53 +201,13 @@ async fn persists_dm_policy_across_db_restart() {
 }
 
 #[tokio::test]
-async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
+async fn profile_devices_persist_across_db_restart() {
     let Some(app) = app_with_database().await else {
         return;
     };
 
     let identity_id = unique_identity("db-dm-device-state");
     let (session_cookie, app) = authenticate_identity(app, &identity_id).await;
-
-    let register_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/connectivity/endpoint-cards")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(
-            r#"{"cards":[{"endpoint_id":"lan-a","endpoint_hint":"udp://192.168.1.20:4040","estimated_rtt_ms":9,"priority":2}]}"#,
-        ))
-        .expect("build endpoint-card register request");
-
-    let register_response = app
-        .clone()
-        .oneshot(register_request)
-        .await
-        .expect("endpoint-card register response");
-    assert_eq!(register_response.status(), StatusCode::OK);
-
-    let policy_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/privacy-policy")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
-        .expect("build dm policy update request");
-
-    let policy_response = app
-        .clone()
-        .oneshot(policy_request)
-        .await
-        .expect("dm policy update response");
-    assert_eq!(policy_response.status(), StatusCode::OK);
 
     let heartbeat_request = Request::builder()
         .method("POST")
@@ -270,35 +230,6 @@ async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
     let Some(restarted_app) = app_with_database().await else {
         return;
     };
-
-    let dial_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/connectivity/parallel-dial")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .header("content-type", "application/json")
-        .body(Body::from(format!(
-            r#"{{"peer_identity_id":"{}"}}"#,
-            identity_id
-        )))
-        .expect("build restart parallel dial request");
-
-    let dial_response = restarted_app
-        .clone()
-        .oneshot(dial_request)
-        .await
-        .expect("parallel dial response after restart");
-    assert_eq!(dial_response.status(), StatusCode::OK);
-    let dial_body = to_bytes(dial_response.into_body(), usize::MAX)
-        .await
-        .expect("read parallel dial response body");
-    let dial_payload: serde_json::Value =
-        serde_json::from_slice(&dial_body).expect("decode parallel dial response");
-    assert_eq!(dial_payload["status"], "ready");
-    assert_eq!(dial_payload["winner_endpoint_id"], "lan-a");
 
     let catch_up_request = Request::builder()
         .method("POST")

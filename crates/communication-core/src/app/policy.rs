@@ -11,8 +11,8 @@ impl PolicyEngine {
         policy: &PolicyContext,
     ) -> Result<TransportProfile, PolicyError> {
         match mode {
-            CommunicationMode::DmDirect => match policy.dm_transport_policy {
-                DmTransportPolicy::DirectOnly => Ok(TransportProfile::DirectPeer),
+            CommunicationMode::DmEnvelope => match policy.dm_transport_policy {
+                DmTransportPolicy::EncryptedEnvelopeNode => Ok(TransportProfile::NodeClient),
             },
             CommunicationMode::ServerChannel => {
                 if policy.enable_server_channel {
@@ -35,36 +35,28 @@ impl PolicyEngine {
         profile: TransportProfile,
         intent: &ConnectIntent,
     ) -> Result<(), PolicyError> {
-        match (profile, &intent.target) {
-            (TransportProfile::DirectPeer, ConnectTarget::PeerIdentity { .. }) => Ok(()),
-            (TransportProfile::NodeClient, ConnectTarget::NodeEndpoint { .. }) => Ok(()),
-            (profile, target) => Err(PolicyError::TargetProfileMismatch {
-                profile,
-                target: target.clone(),
-            }),
-        }
+        let TransportProfile::NodeClient = profile;
+        let ConnectTarget::NodeEndpoint { .. } = &intent.target;
+        Ok(())
     }
 
     pub fn build_provenance(
         mode: CommunicationMode,
         profile: TransportProfile,
     ) -> SessionProvenance {
-        let (reason_code, assertion) = match (mode, profile) {
-            (CommunicationMode::DmDirect, TransportProfile::DirectPeer) => (
-                CommunicationReasonCode::DmDirectRouteSelected,
-                "dm_direct_policy_compliant",
+        let TransportProfile::NodeClient = profile;
+        let (reason_code, assertion) = match mode {
+            CommunicationMode::DmEnvelope => (
+                CommunicationReasonCode::DmEnvelopeNodeRouteSelected,
+                "dm_envelope_node_policy_compliant",
             ),
-            (CommunicationMode::ServerChannel, TransportProfile::NodeClient) => (
+            CommunicationMode::ServerChannel => (
                 CommunicationReasonCode::ServerChannelRouteSelected,
                 "server_channel_policy_compliant",
             ),
-            (CommunicationMode::Presence, TransportProfile::NodeClient) => (
+            CommunicationMode::Presence => (
                 CommunicationReasonCode::PresenceRouteSelected,
                 "presence_policy_compliant",
-            ),
-            _ => (
-                CommunicationReasonCode::TargetProfileMismatch,
-                "policy_violation",
             ),
         };
 

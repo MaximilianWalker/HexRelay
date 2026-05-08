@@ -1,9 +1,7 @@
 use realtime_rs::app::{build_app, AppState, RealtimeConfig};
 use realtime_rs::domain::channels::spawn_channel_subscriber;
-use realtime_rs::domain::lan_discovery::spawn_lan_discovery_tasks;
 use realtime_rs::domain::presence::spawn_presence_subscriber;
 use std::env;
-use std::time::Duration;
 use tracing::{error, info};
 
 #[tokio::main]
@@ -58,14 +56,7 @@ async fn main() {
         config.ws_auth_grace_seconds,
         config.ws_auth_cache_max_entries,
     ) {
-        Ok(value) => value
-            .with_dev_faults_enabled(config.enable_dev_faults)
-            .with_lan_discovery_config(
-                config.enable_lan_discovery,
-                config.lan_discovery_bind_addr,
-                config.lan_discovery_multicast_addr,
-                Duration::from_secs(config.lan_discovery_announce_interval_seconds),
-            ),
+        Ok(value) => value.with_dev_faults_enabled(config.enable_dev_faults),
         Err(err) => {
             error!(error = %err, "realtime startup aborted due to state initialization failure");
             std::process::exit(1);
@@ -74,7 +65,6 @@ async fn main() {
 
     spawn_presence_subscriber(state.clone());
     spawn_channel_subscriber(state.clone());
-    spawn_lan_discovery_tasks(state.clone());
 
     let app = build_app(state);
 

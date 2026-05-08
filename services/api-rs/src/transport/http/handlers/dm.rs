@@ -3,148 +3,33 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use chrono::{Duration, TimeZone, Utc};
-use communication_core::{
-    connect_via_direct_peer, lan_discovery_signing_payload, send_via_direct_peer_dispatch,
-    CommunicationReasonCode, ConnectTarget, DirectPeerDispatch, LanDiscoveryAdvertisement,
-    PolicyContext, TransportError, LAN_DISCOVERY_SCOPE, LAN_DISCOVERY_TTL_SECONDS,
-};
-use ring::{digest, hmac, signature};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, net::IpAddr};
+use chrono::{TimeZone, Utc};
+use ring::digest;
+use std::collections::HashSet;
 
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
-    domain::auth::validation::{decode_32_bytes, is_valid_identity_id},
     domain::dm::validation::{
-        validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
-        validate_fanout_dispatch, validate_lan_discovery_announce,
-        validate_pairing_envelope_create, validate_pairing_envelope_import,
-        validate_parallel_dial_request, validate_profile_device_heartbeat,
-        validate_wan_wizard_request, DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS,
-        DM_ENDPOINT_CARD_DEFAULT_RTT_MS, DM_OFFLINE_DELIVERY_MODE, DM_PAIRING_ENVELOPE_VERSION,
-        DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS,
+        validate_dm_policy_update, validate_fanout_catch_up, validate_fanout_dispatch,
+        validate_profile_device_heartbeat, DM_OFFLINE_DELIVERY_MODE,
     },
     models::{
-        ApiError, DmConnectivityPreflightRequest, DmConnectivityPreflightResponse, DmEndpointCard,
-        DmEndpointCardRecord, DmEndpointCardRegisterRequest, DmEndpointCardRegisterResponse,
-        DmEndpointCardRevokeRequest, DmEndpointCardRevokeResponse, DmFanoutCatchUpItem,
-        DmFanoutCatchUpRequest, DmFanoutCatchUpResponse, DmFanoutDeliveryRecord,
-        DmFanoutDispatchRequest, DmFanoutDispatchResponse, DmLanDiscoveryAnnounceRequest,
-        DmLanDiscoveryAnnounceResponse, DmLanPeerListResponse, DmLanPeerSummary,
-        DmLanPresenceRecord, DmMessagePage, DmPairingEnvelopeCreateRequest,
-        DmPairingEnvelopeImportRequest, DmPairingEnvelopeResponse, DmPairingIdentityKey,
-        DmPairingImportResponse, DmParallelDialAttempt, DmParallelDialRequest,
-        DmParallelDialResponse, DmPolicy, DmPolicyUpdate, DmProfileDeviceHeartbeatRequest,
+        ApiError, DmFanoutCatchUpItem, DmFanoutCatchUpRequest, DmFanoutCatchUpResponse,
+        DmFanoutDeliveryRecord, DmFanoutDispatchRequest, DmFanoutDispatchResponse, DmMessagePage,
+        DmPolicy, DmPolicyUpdate, DmProfileDeviceHeartbeatRequest,
         DmProfileDeviceHeartbeatResponse, DmProfileDeviceRecord, DmProfileDeviceSummary,
         DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
-        DmThreadMessageListQuery, DmThreadPage, DmWanWizardRequest, DmWanWizardResponse,
-        RegisteredIdentityKey,
+        DmThreadMessageListQuery, DmThreadPage,
     },
-    shared::errors::{bad_request, conflict, internal_error, unauthorized, ApiResult},
+    shared::errors::{bad_request, conflict, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
-const DM_DIRECT_ACCEPTANCE_SENTINEL: &[u8] = b"dm-direct-acceptance";
-
-// API DM endpoints assert the direct-peer route for server-side acceptance metadata;
-// actual peer I/O remains client-owned.
-struct NoopDirectPeerDispatch;
-
-impl DirectPeerDispatch for NoopDirectPeerDispatch {
-    fn connect_peer(&self, _target: &ConnectTarget) -> Result<(), TransportError> {
-        Ok(())
-    }
-
-    fn send_payload(&self, _payload: &[u8]) -> Result<(), TransportError> {
-        Ok(())
-    }
-}
-
-fn connect_dm_direct_peer(peer_identity_id: &str) -> ApiResult<()> {
-    connect_via_direct_peer(
-        PolicyContext::default(),
-        NoopDirectPeerDispatch,
-        ConnectTarget::PeerIdentity {
-            identity_id: peer_identity_id.to_string(),
-        },
-    )
-    .map(|_| ())
-    .map_err(|error| {
-        internal_error(
-            "dm_direct_transport_unavailable",
-            direct_peer_connect_error_message(error.code),
-        )
-    })
-}
-
-fn send_dm_direct_payload(payload: &[u8]) -> ApiResult<()> {
-    send_via_direct_peer_dispatch(
-        PolicyContext::default(),
-        NoopDirectPeerDispatch,
-        payload.to_vec(),
-    )
-    .map_err(|error| {
-        internal_error(
-            "dm_direct_transport_unavailable",
-            direct_peer_send_error_message(error.code),
-        )
-    })
-}
-
-fn direct_peer_connect_error_message(code: CommunicationReasonCode) -> &'static str {
-    match code {
-        CommunicationReasonCode::ModeDisabled => "direct dm transport mode disabled by policy",
-        CommunicationReasonCode::TargetProfileMismatch => {
-            "direct dm transport target was not a peer identity"
-        }
-        CommunicationReasonCode::DmDirectPolicyViolation => {
-            "direct dm transport policy rejected non-direct route"
-        }
-        CommunicationReasonCode::TransportConnectFailed => {
-            "direct dm transport adapter rejected connection"
-        }
-        _ => "direct dm transport route check failed",
-    }
-}
-
-fn direct_peer_send_error_message(code: CommunicationReasonCode) -> &'static str {
-    match code {
-        CommunicationReasonCode::ModeDisabled => "direct dm transport mode disabled by policy",
-        CommunicationReasonCode::DmDirectPolicyViolation => {
-            "direct dm transport policy rejected non-direct route"
-        }
-        CommunicationReasonCode::TransportSendFailed => {
-            "direct dm transport adapter rejected payload"
-        }
-        _ => "direct dm transport payload route check failed",
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct PairingEnvelopeClaims {
-    version: u32,
-    inviter_identity_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    inviter_identity_key: Option<DmPairingIdentityKey>,
-    endpoint_hints: Vec<String>,
-    nonce: String,
-    issued_at: i64,
-    expires_at: i64,
-}
-
-#[derive(Serialize, Deserialize)]
-struct SignedPairingEnvelope {
-    key_id: String,
-    claims: PairingEnvelopeClaims,
-    signature: String,
-}
+const DM_ENVELOPE_NODE_TRANSPORT_PROFILE: &str = "encrypted_envelope_node";
 
 pub async fn get_dm_policy(
     axum::extract::State(state): axum::extract::State<AppState>,
@@ -197,762 +82,6 @@ pub async fn update_dm_policy(
         .insert(auth.identity_id, policy.clone());
 
     Ok(Json(policy))
-}
-
-pub async fn create_dm_pairing_envelope(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmPairingEnvelopeCreateRequest>,
-) -> ApiResult<(StatusCode, Json<DmPairingEnvelopeResponse>)> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    let expires_in_seconds = validate_pairing_envelope_create(&payload)?;
-
-    let issued_at = Utc::now();
-    let expires_at = issued_at + Duration::seconds(expires_in_seconds as i64);
-    let nonce = random_hex(16);
-    let identity_key = load_pairing_identity_key(&state, &auth.identity_id).await?;
-    let inviter_identity_key = pairing_identity_key(identity_key)?;
-
-    let claims = PairingEnvelopeClaims {
-        version: DM_PAIRING_ENVELOPE_VERSION,
-        inviter_identity_id: auth.identity_id,
-        inviter_identity_key: Some(inviter_identity_key),
-        endpoint_hints: payload.endpoint_hints,
-        nonce: nonce.clone(),
-        issued_at: issued_at.timestamp(),
-        expires_at: expires_at.timestamp(),
-    };
-
-    let key_id = state.active_signing_key_id.clone();
-    let key_secret = state
-        .session_signing_keys
-        .get(&key_id)
-        .ok_or_else(|| bad_request("pairing_invalid", "active pairing signing key missing"))?;
-    let signature = sign_pairing_claims(&claims, key_secret)?;
-
-    let signed = SignedPairingEnvelope {
-        key_id,
-        claims,
-        signature,
-    };
-    let envelope_json = serde_json::to_vec(&signed)
-        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing envelope"))?;
-    let envelope = URL_SAFE_NO_PAD.encode(envelope_json);
-
-    Ok((
-        StatusCode::CREATED,
-        Json(DmPairingEnvelopeResponse {
-            short_code: short_code_from_envelope(&envelope),
-            envelope,
-            expires_at: expires_at.to_rfc3339(),
-            pairing_nonce: nonce,
-        }),
-    ))
-}
-
-pub async fn import_dm_pairing_envelope(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmPairingEnvelopeImportRequest>,
-) -> ApiResult<Json<DmPairingImportResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_pairing_envelope_import(&payload)?;
-
-    let signed = decode_signed_pairing_envelope(&payload.envelope)?;
-    verify_pairing_envelope_signature(&state, &signed)?;
-
-    if signed.claims.version != DM_PAIRING_ENVELOPE_VERSION {
-        return Err(bad_request(
-            "pairing_invalid",
-            "unsupported pairing envelope version",
-        ));
-    }
-
-    let now = Utc::now().timestamp();
-    if now > signed.claims.expires_at {
-        return Err(bad_request(
-            "pairing_expired",
-            "pairing envelope is expired",
-        ));
-    }
-
-    let inviter_identity_id = signed.claims.inviter_identity_id.clone();
-    if inviter_identity_id == auth.identity_id {
-        return Err(bad_request(
-            "identity_invalid",
-            "cannot import a pairing envelope created by the same identity",
-        ));
-    }
-
-    let expires_at = Utc
-        .timestamp_opt(signed.claims.expires_at, 0)
-        .single()
-        .ok_or_else(|| bad_request("pairing_invalid", "invalid pairing expiry timestamp"))?;
-
-    let nonce_consumed = consume_pairing_nonce(
-        &state,
-        &signed.claims.nonce,
-        signed.claims.expires_at,
-        expires_at,
-    )
-    .await?;
-    if !nonce_consumed {
-        return Err(bad_request(
-            "pairing_replayed",
-            "pairing envelope nonce was already consumed",
-        ));
-    }
-
-    let inviter_identity_key = match signed.claims.inviter_identity_key {
-        Some(identity_key) => identity_key,
-        None => {
-            pairing_identity_key(load_pairing_identity_key(&state, &inviter_identity_id).await?)?
-        }
-    };
-
-    Ok(Json(DmPairingImportResponse {
-        inviter_identity_id,
-        inviter_identity_key,
-        endpoint_hints: signed.claims.endpoint_hints,
-        imported_at: Utc::now().to_rfc3339(),
-        expires_at: expires_at.to_rfc3339(),
-    }))
-}
-
-pub async fn dm_connectivity_preflight(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmConnectivityPreflightRequest>,
-) -> ApiResult<Json<DmConnectivityPreflightResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_connectivity_preflight(&payload)?;
-
-    if !payload.pairing_envelope_present.unwrap_or(false) {
-        return Ok(Json(preflight_blocked(
-            "pairing_missing",
-            vec![
-                "Import a signed pairing envelope from your contact.",
-                "Ask your contact to regenerate the envelope if needed.",
-            ],
-        )));
-    }
-
-    if !payload.local_bind_allowed.unwrap_or(true) {
-        return Ok(Json(preflight_blocked(
-            "port_unavailable",
-            vec![
-                "Allow the app to bind a local port in your firewall settings.",
-                "Close conflicting local apps and rerun preflight.",
-            ],
-        )));
-    }
-
-    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
-        if is_blocked_bidirectional(&state, &auth.identity_id, peer_identity_id)? {
-            return Ok(Json(preflight_blocked(
-                "preflight_blocked_user",
-                vec![
-                    "Cannot establish DM connectivity with this user.",
-                    "A block relationship exists between you and this contact.",
-                ],
-            )));
-        }
-
-        match dm_interaction_policy_decision(&state, &auth.identity_id, peer_identity_id).await? {
-            DmInteractionPolicyDecision::Allowed => {}
-            DmInteractionPolicyDecision::BlockedFriendsOnly
-            | DmInteractionPolicyDecision::BlockedUnknown => {
-                return Ok(Json(preflight_blocked(
-                    "policy_blocked",
-                    vec![
-                        "Send and accept a friend request before starting this DM.",
-                        "Or ask your contact to change their DM inbound policy.",
-                    ],
-                )));
-            }
-            DmInteractionPolicyDecision::BlockedSameServer => {
-                return Ok(Json(preflight_blocked(
-                    "policy_blocked",
-                    vec![
-                        "No shared server membership could be confirmed for this contact.",
-                        "Join a shared server with your contact, or ask them to change their DM inbound policy.",
-                    ],
-                )));
-            }
-        }
-    }
-
-    if !payload.peer_reachable_hint.unwrap_or(true) {
-        return Ok(Json(preflight_blocked(
-            "peer_unreachable",
-            vec![
-                "Ask your contact to keep the app online and rerun preflight.",
-                "Confirm both clients use fresh pairing envelopes.",
-            ],
-        )));
-    }
-
-    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
-        if has_fresh_lan_peer(&state, peer_identity_id, Utc::now().timestamp())
-            && is_trusted_lan_peer(&state, &auth.identity_id, peer_identity_id).await?
-        {
-            connect_dm_direct_peer(peer_identity_id)?;
-            return Ok(Json(DmConnectivityPreflightResponse {
-                status: "ready".to_string(),
-                reason_code: "preflight_ok_lan".to_string(),
-                transport_profile: "direct_only".to_string(),
-                remediation: vec![
-                    "Peer discovered on local network; prioritize LAN direct path.".to_string(),
-                ],
-            }));
-        }
-    }
-
-    if let Some(peer_identity_id) = payload.peer_identity_id.as_deref() {
-        connect_dm_direct_peer(peer_identity_id)?;
-    }
-
-    Ok(Json(DmConnectivityPreflightResponse {
-        status: "ready".to_string(),
-        reason_code: "preflight_ok".to_string(),
-        transport_profile: "direct_only".to_string(),
-        remediation: vec!["Start direct DM connection.".to_string()],
-    }))
-}
-
-pub async fn announce_dm_lan_discovery(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmLanDiscoveryAnnounceRequest>,
-) -> ApiResult<Json<DmLanDiscoveryAnnounceResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_lan_discovery_announce(&payload)?;
-
-    let now = Utc::now();
-    let record = DmLanPresenceRecord {
-        identity_id: auth.identity_id.clone(),
-        endpoint_hints: payload.endpoint_hints,
-        last_seen_epoch: now.timestamp(),
-        expires_at_epoch: now.timestamp() + LAN_DISCOVERY_TTL_SECONDS,
-    };
-
-    state
-        .dm_lan_presence
-        .write()
-        .expect("acquire dm lan presence write lock")
-        .insert(auth.identity_id.clone(), record.clone());
-
-    Ok(Json(DmLanDiscoveryAnnounceResponse {
-        identity_id: record.identity_id,
-        endpoint_hints: record.endpoint_hints,
-        scope: LAN_DISCOVERY_SCOPE.to_string(),
-        last_seen_at: now.to_rfc3339(),
-        expires_at: format_epoch(record.expires_at_epoch),
-        ttl_seconds: LAN_DISCOVERY_TTL_SECONDS as u32,
-    }))
-}
-
-pub async fn ingest_dm_lan_discovery_advertisement(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    headers: HeaderMap,
-    Json(payload): Json<LanDiscoveryAdvertisement>,
-) -> ApiResult<StatusCode> {
-    enforce_internal_lan_ingest_token(&state, &headers)?;
-    let observed_source_ip = observed_lan_source_ip(&headers)?;
-    validate_lan_discovery_advertisement(&state, &payload, observed_source_ip).await?;
-
-    let now = Utc::now().timestamp();
-    let record = DmLanPresenceRecord {
-        identity_id: payload.identity_id.clone(),
-        endpoint_hints: payload.endpoint_hints,
-        last_seen_epoch: now,
-        expires_at_epoch: payload.expires_at_epoch,
-    };
-
-    state
-        .dm_lan_presence
-        .write()
-        .expect("acquire dm lan presence write lock")
-        .insert(record.identity_id.clone(), record);
-
-    Ok(StatusCode::ACCEPTED)
-}
-
-pub async fn list_dm_lan_peers(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-) -> ApiResult<Json<DmLanPeerListResponse>> {
-    let now = Utc::now().timestamp();
-    let candidate_records = {
-        let mut guard = state
-            .dm_lan_presence
-            .write()
-            .expect("acquire dm lan presence write lock");
-
-        guard.retain(|_, record| is_fresh_lan_presence_record(record, now));
-
-        guard
-            .values()
-            .filter(|record| record.identity_id != auth.identity_id)
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-
-    let mut items = Vec::new();
-    for record in candidate_records {
-        if is_blocked_bidirectional(&state, &auth.identity_id, &record.identity_id)? {
-            continue;
-        }
-
-        if !is_trusted_lan_peer(&state, &auth.identity_id, &record.identity_id).await? {
-            continue;
-        }
-
-        if matches!(
-            dm_interaction_policy_decision(&state, &auth.identity_id, &record.identity_id).await?,
-            DmInteractionPolicyDecision::Allowed
-        ) {
-            items.push(DmLanPeerSummary {
-                identity_id: record.identity_id,
-                endpoint_hints: record.endpoint_hints,
-                last_seen_at: Utc
-                    .timestamp_opt(record.last_seen_epoch, 0)
-                    .single()
-                    .map(|dt| dt.to_rfc3339())
-                    .unwrap_or_else(|| Utc::now().to_rfc3339()),
-                expires_at: format_epoch(record.expires_at_epoch),
-            });
-        }
-    }
-
-    items.sort_by(|a, b| a.identity_id.cmp(&b.identity_id));
-
-    Ok(Json(DmLanPeerListResponse { items }))
-}
-
-pub async fn run_dm_wan_wizard(
-    _auth: AuthSession,
-    Json(payload): Json<DmWanWizardRequest>,
-) -> ApiResult<Json<DmWanWizardResponse>> {
-    validate_wan_wizard_request(&payload)?;
-
-    let profile = payload
-        .network_profile
-        .unwrap_or_else(|| "home_nat".to_string());
-    let upnp_available = payload.upnp_available.unwrap_or(false);
-    let nat_pmp_available = payload.nat_pmp_available.unwrap_or(false);
-    let auto_mapping_succeeds = payload.auto_mapping_succeeds.unwrap_or(false);
-    let external_port_open = payload.external_port_open.unwrap_or(false);
-    let port = payload.preferred_port.unwrap_or(4040);
-
-    if upnp_available && auto_mapping_succeeds {
-        return Ok(Json(DmWanWizardResponse {
-            outcome: "success".to_string(),
-            method: "upnp".to_string(),
-            reason_code: "wan_path_ready".to_string(),
-            checklist: vec![
-                format!("UPnP opened port {port} successfully."),
-                "Use direct DM connection over WAN now.".to_string(),
-            ],
-        }));
-    }
-
-    if nat_pmp_available && auto_mapping_succeeds {
-        return Ok(Json(DmWanWizardResponse {
-            outcome: "success".to_string(),
-            method: "nat_pmp".to_string(),
-            reason_code: "wan_path_ready".to_string(),
-            checklist: vec![
-                format!("NAT-PMP opened port {port} successfully."),
-                "Use direct DM connection over WAN now.".to_string(),
-            ],
-        }));
-    }
-
-    if external_port_open {
-        return Ok(Json(DmWanWizardResponse {
-            outcome: "success".to_string(),
-            method: "manual".to_string(),
-            reason_code: "wan_path_ready_manual".to_string(),
-            checklist: vec![
-                format!("Port {port} is externally reachable."),
-                "Proceed with direct DM connection.".to_string(),
-            ],
-        }));
-    }
-
-    if matches!(
-        profile.as_str(),
-        "symmetric_nat" | "carrier_nat" | "enterprise_restricted"
-    ) {
-        return Ok(Json(DmWanWizardResponse {
-            outcome: "network_incompatible".to_string(),
-            method: "none".to_string(),
-            reason_code: "wan_path_unavailable".to_string(),
-            checklist: vec![
-                "Current network profile blocks direct inbound WAN connectivity.".to_string(),
-                "Try connecting on a shared LAN or different home network.".to_string(),
-            ],
-        }));
-    }
-
-    Ok(Json(DmWanWizardResponse {
-        outcome: "manual_required".to_string(),
-        method: "manual".to_string(),
-        reason_code: "wan_manual_mapping_required".to_string(),
-        checklist: vec![
-            format!("Create manual router port-forward for UDP/TCP {port}."),
-            "Re-run WAN wizard after applying router changes.".to_string(),
-        ],
-    }))
-}
-
-pub async fn register_dm_endpoint_cards(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmEndpointCardRegisterRequest>,
-) -> ApiResult<Json<DmEndpointCardRegisterResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_endpoint_card_register(&payload)?;
-
-    let now = Utc::now();
-    let now_epoch = now.timestamp();
-    let identity_id = auth.identity_id.clone();
-    let mut cards = if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::list_dm_endpoint_cards(pool, &identity_id, now_epoch)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
-            .into_iter()
-            .map(|record| (record.endpoint_id.clone(), record))
-            .collect::<std::collections::HashMap<_, _>>()
-    } else {
-        let mut cards_by_identity = state
-            .dm_endpoint_cards
-            .write()
-            .expect("acquire endpoint cards write lock");
-        let cards = cards_by_identity.entry(identity_id.clone()).or_default();
-        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
-        cards.clone()
-    };
-
-    let mut new_records = Vec::with_capacity(payload.cards.len());
-    for card in payload.cards {
-        let endpoint_id = card.endpoint_id.trim().to_string();
-        let expires_in_seconds = card
-            .expires_in_seconds
-            .unwrap_or(DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS);
-        let record = DmEndpointCardRecord {
-            endpoint_id: endpoint_id.clone(),
-            endpoint_hint: card.endpoint_hint.trim().to_string(),
-            estimated_rtt_ms: card
-                .estimated_rtt_ms
-                .unwrap_or(DM_ENDPOINT_CARD_DEFAULT_RTT_MS),
-            priority: card.priority.unwrap_or(0),
-            expires_at_epoch: now_epoch + expires_in_seconds as i64,
-            revoked: false,
-        };
-        cards.insert(endpoint_id, record.clone());
-        new_records.push(record);
-    }
-
-    if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::upsert_dm_endpoint_cards_batch(pool, &identity_id, &new_records)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to persist endpoint cards")
-            })?;
-    } else {
-        state
-            .dm_endpoint_cards
-            .write()
-            .expect("acquire endpoint cards write lock")
-            .insert(identity_id.clone(), cards.clone());
-    }
-
-    Ok(Json(DmEndpointCardRegisterResponse {
-        identity_id,
-        cards: cards_to_response(&cards, now_epoch),
-    }))
-}
-
-pub async fn revoke_dm_endpoint_cards(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmEndpointCardRevokeRequest>,
-) -> ApiResult<Json<DmEndpointCardRevokeResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_endpoint_card_revoke(&payload)?;
-
-    let now_epoch = Utc::now().timestamp();
-    let identity_id = auth.identity_id.clone();
-    let endpoint_ids = payload
-        .endpoint_ids
-        .iter()
-        .map(|value| value.trim().to_string())
-        .collect::<Vec<_>>();
-
-    let mut cards = if let Some(pool) = state.db_pool.as_ref() {
-        let revoked_endpoint_ids =
-            dm_repo::mark_dm_endpoint_cards_revoked(pool, &identity_id, &endpoint_ids)
-                .await
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to revoke endpoint cards")
-                })?;
-        let cards = dm_repo::list_dm_endpoint_cards(pool, &identity_id, now_epoch)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
-            .into_iter()
-            .map(|record| (record.endpoint_id.clone(), record))
-            .collect::<std::collections::HashMap<_, _>>();
-
-        return Ok(Json(DmEndpointCardRevokeResponse {
-            identity_id,
-            revoked_endpoint_ids,
-            remaining_cards: cards_to_response(&cards, now_epoch),
-        }));
-    } else {
-        let mut cards_by_identity = state
-            .dm_endpoint_cards
-            .write()
-            .expect("acquire endpoint cards write lock");
-        let cards = cards_by_identity.entry(identity_id.clone()).or_default();
-        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
-        cards.clone()
-    };
-
-    let mut revoked_endpoint_ids = Vec::new();
-    for normalized_endpoint_id in endpoint_ids {
-        if let Some(record) = cards.get_mut(&normalized_endpoint_id) {
-            if !record.revoked {
-                record.revoked = true;
-                revoked_endpoint_ids.push(normalized_endpoint_id);
-            }
-        }
-    }
-
-    state
-        .dm_endpoint_cards
-        .write()
-        .expect("acquire endpoint cards write lock")
-        .insert(identity_id.clone(), cards.clone());
-
-    Ok(Json(DmEndpointCardRevokeResponse {
-        identity_id,
-        revoked_endpoint_ids,
-        remaining_cards: cards_to_response(&cards, now_epoch),
-    }))
-}
-
-pub async fn run_dm_parallel_dial(
-    axum::extract::State(state): axum::extract::State<AppState>,
-    auth: AuthSession,
-    headers: HeaderMap,
-    Json(payload): Json<DmParallelDialRequest>,
-) -> ApiResult<Json<DmParallelDialResponse>> {
-    enforce_csrf_for_cookie_auth(&auth, &headers)?;
-    validate_parallel_dial_request(&payload)?;
-
-    let now_epoch = Utc::now().timestamp();
-    let max_attempts = payload
-        .max_parallel_attempts
-        .unwrap_or(DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS) as usize;
-    let peer_identity_id = payload.peer_identity_id.trim().to_string();
-
-    if is_blocked_bidirectional(&state, &auth.identity_id, &peer_identity_id)? {
-        return Ok(Json(DmParallelDialResponse {
-            status: "blocked".to_string(),
-            reason_code: "parallel_dial_blocked_user".to_string(),
-            transport_profile: "direct_only".to_string(),
-            winner_endpoint_id: None,
-            canceled_endpoint_ids: vec![],
-            attempts: vec![],
-            remediation: vec![
-                "Cannot dial this user — a block relationship exists.".to_string(),
-                "If you blocked them, remove the block; if they blocked you, ask them to remove it.".to_string(),
-            ],
-        }));
-    }
-
-    match dm_interaction_policy_decision(&state, &auth.identity_id, &peer_identity_id).await? {
-        DmInteractionPolicyDecision::Allowed => {}
-        DmInteractionPolicyDecision::BlockedFriendsOnly
-        | DmInteractionPolicyDecision::BlockedUnknown => {
-            return Ok(Json(DmParallelDialResponse {
-                status: "blocked".to_string(),
-                reason_code: "parallel_dial_policy_blocked".to_string(),
-                transport_profile: "direct_only".to_string(),
-                winner_endpoint_id: None,
-                canceled_endpoint_ids: vec![],
-                attempts: vec![],
-                remediation: vec![
-                    "Recipient DM policy currently blocks direct connectivity attempts from this sender."
-                        .to_string(),
-                    "Send and accept a friend request, or ask recipient to change DM inbound policy."
-                        .to_string(),
-                ],
-            }));
-        }
-        DmInteractionPolicyDecision::BlockedSameServer => {
-            return Ok(Json(DmParallelDialResponse {
-                status: "blocked".to_string(),
-                reason_code: "parallel_dial_same_server_context_required".to_string(),
-                transport_profile: "direct_only".to_string(),
-                winner_endpoint_id: None,
-                canceled_endpoint_ids: vec![],
-                attempts: vec![],
-                remediation: vec![
-                    "Recipient DM policy is same_server but no shared server membership could be confirmed."
-                        .to_string(),
-                    "Join a shared server with the recipient, or ask them to change their DM inbound policy."
-                        .to_string(),
-                ],
-            }));
-        }
-    }
-
-    let unreachable: HashSet<String> = payload
-        .unreachable_endpoint_ids
-        .unwrap_or_default()
-        .into_iter()
-        .map(|value| value.trim().to_string())
-        .collect();
-
-    let mut candidates = if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::list_dm_endpoint_cards(pool, &peer_identity_id, now_epoch)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load endpoint cards"))?
-            .into_iter()
-            .filter(|record| !record.revoked)
-            .collect::<Vec<_>>()
-    } else {
-        let mut cards_by_identity = state
-            .dm_endpoint_cards
-            .write()
-            .expect("acquire endpoint cards write lock");
-        let Some(cards) = cards_by_identity.get_mut(&peer_identity_id) else {
-            return Ok(Json(DmParallelDialResponse {
-                status: "blocked".to_string(),
-                reason_code: "endpoint_cards_missing".to_string(),
-                transport_profile: "direct_only".to_string(),
-                winner_endpoint_id: None,
-                canceled_endpoint_ids: vec![],
-                attempts: vec![],
-                remediation: vec![
-                    "Ask your contact to publish fresh endpoint cards.".to_string(),
-                    "Retry parallel dial after endpoint-card sync completes.".to_string(),
-                ],
-            }));
-        };
-        cards.retain(|_, record| record.expires_at_epoch >= now_epoch);
-        cards
-            .values()
-            .filter(|record| !record.revoked)
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-
-    if candidates.is_empty() {
-        return Ok(Json(DmParallelDialResponse {
-            status: "blocked".to_string(),
-            reason_code: "endpoint_cards_missing".to_string(),
-            transport_profile: "direct_only".to_string(),
-            winner_endpoint_id: None,
-            canceled_endpoint_ids: vec![],
-            attempts: vec![],
-            remediation: vec![
-                "Ask your contact to publish fresh endpoint cards.".to_string(),
-                "Retry parallel dial after endpoint-card sync completes.".to_string(),
-            ],
-        }));
-    }
-
-    candidates.sort_by(|a, b| {
-        a.estimated_rtt_ms
-            .cmp(&b.estimated_rtt_ms)
-            .then_with(|| b.priority.cmp(&a.priority))
-    });
-    candidates.truncate(max_attempts);
-
-    let winner = candidates
-        .iter()
-        .find(|record| !unreachable.contains(&record.endpoint_id));
-
-    let mut attempts = Vec::with_capacity(candidates.len());
-    let mut canceled_endpoint_ids = Vec::new();
-
-    if let Some(winner) = winner {
-        for record in &candidates {
-            if unreachable.contains(&record.endpoint_id) {
-                attempts.push(DmParallelDialAttempt {
-                    endpoint_id: record.endpoint_id.clone(),
-                    endpoint_hint: record.endpoint_hint.clone(),
-                    estimated_rtt_ms: record.estimated_rtt_ms,
-                    status: "failed".to_string(),
-                    cancellation_reason: Some("dial_unreachable".to_string()),
-                });
-            } else if record.endpoint_id == winner.endpoint_id {
-                attempts.push(DmParallelDialAttempt {
-                    endpoint_id: record.endpoint_id.clone(),
-                    endpoint_hint: record.endpoint_hint.clone(),
-                    estimated_rtt_ms: record.estimated_rtt_ms,
-                    status: "connected".to_string(),
-                    cancellation_reason: None,
-                });
-            } else {
-                canceled_endpoint_ids.push(record.endpoint_id.clone());
-                attempts.push(DmParallelDialAttempt {
-                    endpoint_id: record.endpoint_id.clone(),
-                    endpoint_hint: record.endpoint_hint.clone(),
-                    estimated_rtt_ms: record.estimated_rtt_ms,
-                    status: "cancelled".to_string(),
-                    cancellation_reason: Some("winner_selected".to_string()),
-                });
-            }
-        }
-
-        connect_dm_direct_peer(&peer_identity_id)?;
-
-        return Ok(Json(DmParallelDialResponse {
-            status: "ready".to_string(),
-            reason_code: "parallel_dial_connected".to_string(),
-            transport_profile: "direct_only".to_string(),
-            winner_endpoint_id: Some(winner.endpoint_id.clone()),
-            canceled_endpoint_ids,
-            attempts,
-            remediation: vec![
-                "Parallel dial selected the fastest reachable endpoint card.".to_string(),
-            ],
-        }));
-    }
-
-    for record in &candidates {
-        attempts.push(DmParallelDialAttempt {
-            endpoint_id: record.endpoint_id.clone(),
-            endpoint_hint: record.endpoint_hint.clone(),
-            estimated_rtt_ms: record.estimated_rtt_ms,
-            status: "failed".to_string(),
-            cancellation_reason: Some("dial_unreachable".to_string()),
-        });
-    }
-
-    Ok(Json(DmParallelDialResponse {
-        status: "blocked".to_string(),
-        reason_code: "parallel_dial_exhausted".to_string(),
-        transport_profile: "direct_only".to_string(),
-        winner_endpoint_id: None,
-        canceled_endpoint_ids,
-        attempts,
-        remediation: vec![
-            "All attempted endpoint cards were unreachable.".to_string(),
-            "Refresh endpoint cards and retry direct connection.".to_string(),
-        ],
-    }))
 }
 
 pub async fn heartbeat_dm_profile_device(
@@ -1027,11 +156,21 @@ pub async fn run_dm_active_fanout(
 
     let recipient_identity_id = payload.recipient_identity_id.trim();
 
+    let recipient_exists = auth_repo::identity_exists(pool, recipient_identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load recipient identity"))?;
+    if !recipient_exists {
+        return Err(bad_request(
+            "fanout_invalid",
+            "recipient_identity_id must reference a registered identity",
+        ));
+    }
+
     if is_blocked_bidirectional(&state, &auth.identity_id, recipient_identity_id)? {
         return Ok(Json(DmFanoutDispatchResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_blocked_user".to_string(),
-            transport_profile: "direct_only".to_string(),
+            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
             delivery_state: "rejected".to_string(),
             reachability_state: "blocked".to_string(),
             fanout_count: 0,
@@ -1047,7 +186,7 @@ pub async fn run_dm_active_fanout(
             return Ok(Json(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_policy_blocked".to_string(),
-                transport_profile: "direct_only".to_string(),
+                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
                 delivery_state: "rejected".to_string(),
                 reachability_state: "blocked".to_string(),
                 fanout_count: 0,
@@ -1059,7 +198,7 @@ pub async fn run_dm_active_fanout(
             return Ok(Json(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_same_server_context_required".to_string(),
-                transport_profile: "direct_only".to_string(),
+                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
                 delivery_state: "rejected".to_string(),
                 reachability_state: "blocked".to_string(),
                 fanout_count: 0,
@@ -1081,11 +220,11 @@ pub async fn run_dm_active_fanout(
         .map(|record| (record.device_id.clone(), record))
         .collect::<std::collections::HashMap<_, _>>();
 
-    let (mut delivered_device_ids, mut skipped_device_ids) = {
+    let (mut active_device_ids, mut skipped_device_ids) = {
         if profile_devices.is_empty() {
             (Vec::new(), Vec::new())
         } else {
-            let mut delivered = Vec::new();
+            let mut active = Vec::new();
             let mut skipped = Vec::new();
             for record in profile_devices.values() {
                 if !record.active {
@@ -1093,41 +232,28 @@ pub async fn run_dm_active_fanout(
                     continue;
                 }
 
-                if source_device_id
-                    .as_ref()
-                    .map(|value| value == &record.device_id)
-                    .unwrap_or(false)
-                {
-                    skipped.push(record.device_id.clone());
-                    continue;
-                }
-
-                delivered.push(record.device_id.clone());
+                active.push(record.device_id.clone());
             }
 
-            (delivered, skipped)
+            (active, skipped)
         }
     };
 
-    delivered_device_ids.sort();
+    active_device_ids.sort();
     skipped_device_ids.sort();
 
-    let message_id = payload.message_id.trim().to_string();
-    let (delivery_state, reachability_state, reason_code) = if delivered_device_ids.is_empty() {
-        (
-            "pending_delivery".to_string(),
-            "unreachable".to_string(),
-            "fanout_pending_delivery".to_string(),
-        )
-    } else {
-        (
-            "delivered_to_active_devices".to_string(),
-            "reachable".to_string(),
-            "fanout_ok".to_string(),
-        )
-    };
+    let delivered_device_ids = Vec::new();
+    let fanout_count = 0;
 
-    send_dm_direct_payload(DM_DIRECT_ACCEPTANCE_SENTINEL)?;
+    let reachability_state = if active_device_ids.is_empty() {
+        "unreachable"
+    } else {
+        "unknown"
+    };
+    let message_id = payload.message_id.trim().to_string();
+    let delivery_state = "pending_delivery".to_string();
+    let reachability_state = reachability_state.to_string();
+    let reason_code = "fanout_pending_delivery".to_string();
 
     let mut tx = pool.begin().await.map_err(|_| {
         internal_error(
@@ -1210,10 +336,10 @@ pub async fn run_dm_active_fanout(
     Ok(Json(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
         reason_code,
-        transport_profile: "direct_only".to_string(),
+        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
         delivery_state,
         reachability_state,
-        fanout_count: delivered_device_ids.len() as u32,
+        fanout_count,
         delivered_device_ids,
         skipped_device_ids,
     }))
@@ -1255,7 +381,7 @@ pub async fn run_dm_fanout_catch_up(
             return Ok(Json(DmFanoutCatchUpResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_device_unknown".to_string(),
-                transport_profile: "direct_only".to_string(),
+                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
                 device_id,
                 replay_count: 0,
                 next_cursor: "0".to_string(),
@@ -1268,7 +394,7 @@ pub async fn run_dm_fanout_catch_up(
             return Ok(Json(DmFanoutCatchUpResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_device_unknown".to_string(),
-                transport_profile: "direct_only".to_string(),
+                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
                 device_id,
                 replay_count: 0,
                 next_cursor: "0".to_string(),
@@ -1281,7 +407,7 @@ pub async fn run_dm_fanout_catch_up(
             return Ok(Json(DmFanoutCatchUpResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_device_inactive".to_string(),
-                transport_profile: "direct_only".to_string(),
+                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
                 device_id,
                 replay_count: 0,
                 next_cursor: "0".to_string(),
@@ -1424,7 +550,7 @@ pub async fn run_dm_fanout_catch_up(
     Ok(Json(DmFanoutCatchUpResponse {
         status: "ready".to_string(),
         reason_code: reason_code.to_string(),
-        transport_profile: "direct_only".to_string(),
+        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
         device_id,
         replay_count: items.len() as u32,
         next_cursor: committed_cursor.to_string(),
@@ -1572,82 +698,6 @@ pub async fn mark_dm_thread_read(
     }))
 }
 
-async fn consume_pairing_nonce(
-    state: &AppState,
-    nonce: &str,
-    expires_at_epoch: i64,
-    expires_at: chrono::DateTime<Utc>,
-) -> ApiResult<bool> {
-    if let Some(pool) = &state.db_pool {
-        return dm_repo::consume_dm_pairing_nonce(pool, nonce, expires_at)
-            .await
-            .map_err(|_| {
-                internal_error(
-                    "pairing_store_unavailable",
-                    "failed to persist pairing nonce replay state",
-                )
-            });
-    }
-
-    let now = Utc::now().timestamp();
-    let mut nonce_guard = state
-        .dm_pairing_nonces
-        .write()
-        .expect("acquire dm pairing nonce write lock");
-    nonce_guard.retain(|_, expiry| *expiry >= now);
-    if nonce_guard.contains_key(nonce) {
-        return Ok(false);
-    }
-    nonce_guard.insert(nonce.to_string(), expires_at_epoch);
-    Ok(true)
-}
-
-async fn load_pairing_identity_key(
-    state: &AppState,
-    identity_id: &str,
-) -> ApiResult<RegisteredIdentityKey> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        return auth_repo::get_identity_key(pool, identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load identity key"))?
-            .ok_or_else(|| bad_request("identity_invalid", "identity key is not registered"));
-    }
-
-    #[cfg(test)]
-    {
-        return state
-            .identity_keys
-            .read()
-            .expect("acquire identity key read lock")
-            .get(identity_id)
-            .cloned()
-            .ok_or_else(|| bad_request("identity_invalid", "identity key is not registered"));
-    }
-
-    #[cfg(not(test))]
-    {
-        Err(internal_error(
-            "storage_unavailable",
-            "identity key lookup requires configured database pool",
-        ))
-    }
-}
-
-fn pairing_identity_key(key: RegisteredIdentityKey) -> ApiResult<DmPairingIdentityKey> {
-    Ok(DmPairingIdentityKey {
-        fingerprint: identity_key_fingerprint(&key.public_key)?,
-        public_key: key.public_key,
-        algorithm: key.algorithm,
-    })
-}
-
-fn identity_key_fingerprint(public_key: &str) -> ApiResult<String> {
-    let key_bytes = decode_32_bytes(public_key)
-        .ok_or_else(|| bad_request("identity_invalid", "identity public key is invalid"))?;
-    let digest = digest::digest(&digest::SHA256, &key_bytes);
-    Ok(hex::encode(digest.as_ref()))
-}
-
 fn parse_limit(value: Option<u32>) -> ApiResult<usize> {
     let raw = value.unwrap_or(DEFAULT_PAGE_LIMIT as u32);
     if raw == 0 {
@@ -1701,48 +751,6 @@ async fn current_dm_policy(state: &AppState, identity_id: &str) -> ApiResult<DmP
         .unwrap_or_else(default_dm_policy))
 }
 
-fn preflight_blocked(reason_code: &str, remediation: Vec<&str>) -> DmConnectivityPreflightResponse {
-    DmConnectivityPreflightResponse {
-        status: "blocked".to_string(),
-        reason_code: reason_code.to_string(),
-        transport_profile: "direct_only".to_string(),
-        remediation: remediation
-            .into_iter()
-            .map(std::string::ToString::to_string)
-            .collect(),
-    }
-}
-
-fn cards_to_response(
-    cards: &std::collections::HashMap<String, DmEndpointCardRecord>,
-    now_epoch: i64,
-) -> Vec<DmEndpointCard> {
-    let mut items = cards
-        .values()
-        .filter(|record| record.expires_at_epoch >= now_epoch)
-        .map(|record| DmEndpointCard {
-            endpoint_id: record.endpoint_id.clone(),
-            endpoint_hint: record.endpoint_hint.clone(),
-            estimated_rtt_ms: record.estimated_rtt_ms,
-            priority: record.priority,
-            expires_at: Utc
-                .timestamp_opt(record.expires_at_epoch, 0)
-                .single()
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| {
-                    Utc.timestamp_opt(now_epoch, 0)
-                        .single()
-                        .map(|dt| dt.to_rfc3339())
-                        .unwrap_or_else(|| Utc::now().to_rfc3339())
-                }),
-            revoked: record.revoked,
-        })
-        .collect::<Vec<_>>();
-
-    items.sort_by(|a, b| a.endpoint_id.cmp(&b.endpoint_id));
-    items
-}
-
 fn profile_devices_to_response(
     devices: &std::collections::HashMap<String, DmProfileDeviceRecord>,
     now_epoch: i64,
@@ -1789,25 +797,6 @@ async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
                 && ((record.requester_identity_id == a && record.target_identity_id == b)
                     || (record.requester_identity_id == b && record.target_identity_id == a))
         }))
-}
-
-async fn is_trusted_lan_peer(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
-    if is_friend(state, a, b).await? {
-        return Ok(true);
-    }
-
-    let Some(pool) = state.db_pool.as_ref() else {
-        return Ok(false);
-    };
-
-    servers_repo::identities_share_server(pool, a, b)
-        .await
-        .map_err(|_| {
-            internal_error(
-                "storage_unavailable",
-                "failed to evaluate shared-server LAN discovery visibility",
-            )
-        })
 }
 
 enum DmInteractionPolicyDecision {
@@ -1859,277 +848,9 @@ async fn dm_interaction_policy_decision(
     }
 }
 
-fn has_fresh_lan_peer(state: &AppState, peer_identity_id: &str, now: i64) -> bool {
-    state
-        .dm_lan_presence
-        .read()
-        .expect("acquire dm lan presence read lock")
-        .get(peer_identity_id)
-        .map(|record| is_fresh_lan_presence_record(record, now))
-        .unwrap_or(false)
-}
-
-fn enforce_internal_lan_ingest_token(state: &AppState, headers: &HeaderMap) -> ApiResult<()> {
-    let token = headers
-        .get("x-hexrelay-internal-token")
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-
-    if token == Some(state.channel_dispatch_internal_token.as_str()) {
-        return Ok(());
-    }
-
-    Err(unauthorized(
-        "internal_token_invalid",
-        "internal LAN discovery ingest token is invalid",
-    ))
-}
-
-fn observed_lan_source_ip(headers: &HeaderMap) -> ApiResult<IpAddr> {
-    let raw = headers
-        .get("x-hexrelay-observed-source-ip")
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            bad_request(
-                "lan_discovery_invalid",
-                "LAN discovery packet source IP is required",
-            )
-        })?;
-
-    let ip = raw.parse::<IpAddr>().map_err(|_| {
-        bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery packet source IP is invalid",
-        )
-    })?;
-    if !matches!(ip, IpAddr::V4(_)) || !communication_core::is_lan_only_ip(ip) {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery packet source IP must be private or link-local IPv4",
-        ));
-    }
-
-    Ok(ip)
-}
-
-async fn validate_lan_discovery_advertisement(
-    state: &AppState,
-    advertisement: &LanDiscoveryAdvertisement,
-    observed_source_ip: IpAddr,
-) -> ApiResult<()> {
-    if advertisement.version != 1 {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement version must be 1",
-        ));
-    }
-    if advertisement.scope != LAN_DISCOVERY_SCOPE {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement scope must be lan_subnet",
-        ));
-    }
-    if !is_valid_identity_id(&advertisement.identity_id) {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement identity_id is invalid",
-        ));
-    }
-    if advertisement.nonce.trim().is_empty() || advertisement.nonce.len() > 128 {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement nonce must be non-empty and <= 128 chars",
-        ));
-    }
-    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
-        ));
-    }
-
-    let now = Utc::now().timestamp();
-    if advertisement.issued_at_epoch > now + 30
-        || advertisement.expires_at_epoch <= now
-        || advertisement.expires_at_epoch <= advertisement.issued_at_epoch
-        || advertisement.expires_at_epoch - advertisement.issued_at_epoch
-            > LAN_DISCOVERY_TTL_SECONDS
-    {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement timing is invalid or expired",
-        ));
-    }
-
-    if advertisement.endpoint_hints.is_empty()
-        || advertisement.endpoint_hints.len()
-            > crate::domain::dm::validation::DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS
-    {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement must include between 1 and 8 endpoint hints",
-        ));
-    }
-    for hint in &advertisement.endpoint_hints {
-        let endpoint = match communication_core::parse_lan_endpoint_hint(hint) {
-            Ok(value) => value,
-            Err(_) => {
-                return Err(bad_request(
-                    "lan_discovery_invalid",
-                    "LAN discovery advertisement endpoint hints must be local-only direct addresses",
-                ));
-            }
-        };
-        if endpoint.address.ip() != observed_source_ip {
-            return Err(bad_request(
-                "lan_discovery_invalid",
-                "LAN discovery advertisement endpoint hints must match observed packet source",
-            ));
-        }
-    }
-
-    verify_lan_discovery_advertisement_signature(state, advertisement).await
-}
-
-async fn verify_lan_discovery_advertisement_signature(
-    state: &AppState,
-    advertisement: &LanDiscoveryAdvertisement,
-) -> ApiResult<()> {
-    let identity_key = match load_pairing_identity_key(state, &advertisement.identity_id).await {
-        Ok(value) => value,
-        Err((StatusCode::BAD_REQUEST, _)) => {
-            return Err(bad_request(
-                "lan_discovery_invalid",
-                "LAN discovery advertisement identity key is not registered",
-            ));
-        }
-        Err(error) => return Err(error),
-    };
-    if identity_key.algorithm != "ed25519" {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement identity key algorithm is unsupported",
-        ));
-    }
-
-    let public_key = decode_32_bytes(&identity_key.public_key).ok_or_else(|| {
-        bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement identity key is invalid",
-        )
-    })?;
-    if !communication_core::is_valid_lan_discovery_signature_hex(&advertisement.signature) {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement signature must be a 128-character hex Ed25519 signature",
-        ));
-    }
-    let signature_bytes = hex::decode(&advertisement.signature).map_err(|_| {
-        bad_request(
-            "lan_discovery_invalid",
-            "LAN discovery advertisement signature is not valid hex",
-        )
-    })?;
-    let signing_payload = lan_discovery_signing_payload(
-        &advertisement.identity_id,
-        &advertisement.endpoint_hints,
-        advertisement.issued_at_epoch,
-        advertisement.expires_at_epoch,
-        &advertisement.nonce,
-    );
-
-    signature::UnparsedPublicKey::new(&signature::ED25519, public_key)
-        .verify(&signing_payload, &signature_bytes)
-        .map_err(|_| {
-            bad_request(
-                "lan_discovery_invalid",
-                "LAN discovery advertisement signature is invalid",
-            )
-        })
-}
-
-fn is_fresh_lan_presence_record(record: &DmLanPresenceRecord, now: i64) -> bool {
-    now <= record.expires_at_epoch
-        && record.expires_at_epoch - record.last_seen_epoch <= LAN_DISCOVERY_TTL_SECONDS
-        && !record.endpoint_hints.is_empty()
-        && record
-            .endpoint_hints
-            .iter()
-            .all(|hint| communication_core::validate_lan_endpoint_hint(hint).is_ok())
-}
-
-fn format_epoch(epoch: i64) -> String {
-    Utc.timestamp_opt(epoch, 0)
-        .single()
-        .map(|dt| dt.to_rfc3339())
-        .unwrap_or_else(|| Utc::now().to_rfc3339())
-}
-
-fn sign_pairing_claims(claims: &PairingEnvelopeClaims, key_secret: &str) -> ApiResult<String> {
-    let claims_json = serde_json::to_vec(claims)
-        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing claims"))?;
-    let key = hmac::Key::new(hmac::HMAC_SHA256, key_secret.as_bytes());
-    let digest = hmac::sign(&key, &claims_json);
-    Ok(hex::encode(digest.as_ref()))
-}
-
-fn decode_signed_pairing_envelope(encoded: &str) -> ApiResult<SignedPairingEnvelope> {
-    let bytes = URL_SAFE_NO_PAD
-        .decode(encoded)
-        .map_err(|_| bad_request("pairing_invalid", "pairing envelope is not valid base64url"))?;
-    serde_json::from_slice::<SignedPairingEnvelope>(&bytes)
-        .map_err(|_| bad_request("pairing_invalid", "pairing envelope payload is invalid"))
-}
-
-fn verify_pairing_envelope_signature(
-    state: &AppState,
-    envelope: &SignedPairingEnvelope,
-) -> ApiResult<()> {
-    let key_secret = state
-        .session_signing_keys
-        .get(&envelope.key_id)
-        .ok_or_else(|| bad_request("pairing_invalid", "unknown pairing signing key"))?;
-
-    let claims_json = serde_json::to_vec(&envelope.claims)
-        .map_err(|_| bad_request("pairing_invalid", "failed to encode pairing claims"))?;
-    let key = hmac::Key::new(hmac::HMAC_SHA256, key_secret.as_bytes());
-    let signature_bytes = hex::decode(&envelope.signature)
-        .map_err(|_| bad_request("pairing_invalid", "signature is not valid hex"))?;
-    hmac::verify(&key, &claims_json, &signature_bytes).map_err(|_| {
-        bad_request(
-            "pairing_invalid",
-            "pairing envelope signature verification failed",
-        )
-    })?;
-
-    Ok(())
-}
-
 fn ciphertext_fingerprint(value: &str) -> [u8; 32] {
     let digest = digest::digest(&digest::SHA256, value.as_bytes());
     let mut bytes = [0_u8; 32];
     bytes.copy_from_slice(digest.as_ref());
     bytes
-}
-
-fn random_hex(bytes_len: usize) -> String {
-    use rand::RngCore;
-
-    let mut bytes = vec![0u8; bytes_len];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    hex::encode(bytes)
-}
-
-fn short_code_from_envelope(envelope: &str) -> String {
-    let digest = ring::digest::digest(&ring::digest::SHA256, envelope.as_bytes());
-    let encoded = hex::encode(digest.as_ref());
-    format!(
-        "{}-{}-{}",
-        &encoded[0..4].to_uppercase(),
-        &encoded[4..8].to_uppercase(),
-        &encoded[8..12].to_uppercase()
-    )
 }

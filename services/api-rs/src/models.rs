@@ -242,153 +242,6 @@ pub struct DmPolicyUpdate {
 }
 
 #[derive(Deserialize)]
-pub struct DmPairingEnvelopeCreateRequest {
-    pub endpoint_hints: Vec<String>,
-    pub expires_in_seconds: Option<u32>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct DmPairingIdentityKey {
-    pub public_key: String,
-    pub algorithm: String,
-    pub fingerprint: String,
-}
-
-#[derive(Serialize)]
-pub struct DmPairingEnvelopeResponse {
-    pub envelope: String,
-    pub short_code: String,
-    pub expires_at: String,
-    pub pairing_nonce: String,
-}
-
-#[derive(Deserialize)]
-pub struct DmPairingEnvelopeImportRequest {
-    pub envelope: String,
-}
-
-#[derive(Deserialize)]
-pub struct DmConnectivityPreflightRequest {
-    pub peer_identity_id: Option<String>,
-    pub pairing_envelope_present: Option<bool>,
-    pub local_bind_allowed: Option<bool>,
-    pub peer_reachable_hint: Option<bool>,
-}
-
-#[derive(Serialize)]
-pub struct DmConnectivityPreflightResponse {
-    pub status: String,
-    pub reason_code: String,
-    pub transport_profile: String,
-    pub remediation: Vec<String>,
-}
-
-#[derive(Deserialize)]
-pub struct DmLanDiscoveryAnnounceRequest {
-    pub endpoint_hints: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct DmLanDiscoveryAnnounceResponse {
-    pub identity_id: String,
-    pub endpoint_hints: Vec<String>,
-    pub scope: String,
-    pub last_seen_at: String,
-    pub expires_at: String,
-    pub ttl_seconds: u32,
-}
-
-#[derive(Clone, Serialize)]
-pub struct DmLanPeerSummary {
-    pub identity_id: String,
-    pub endpoint_hints: Vec<String>,
-    pub last_seen_at: String,
-    pub expires_at: String,
-}
-
-#[derive(Serialize)]
-pub struct DmLanPeerListResponse {
-    pub items: Vec<DmLanPeerSummary>,
-}
-
-#[derive(Clone)]
-pub struct DmLanPresenceRecord {
-    pub identity_id: String,
-    pub endpoint_hints: Vec<String>,
-    pub last_seen_epoch: i64,
-    pub expires_at_epoch: i64,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct DmEndpointCardInput {
-    pub endpoint_id: String,
-    pub endpoint_hint: String,
-    pub estimated_rtt_ms: Option<u32>,
-    pub priority: Option<u8>,
-    pub expires_in_seconds: Option<u32>,
-}
-
-#[derive(Deserialize)]
-pub struct DmEndpointCardRegisterRequest {
-    pub cards: Vec<DmEndpointCardInput>,
-}
-
-#[derive(Clone, Serialize)]
-pub struct DmEndpointCard {
-    pub endpoint_id: String,
-    pub endpoint_hint: String,
-    pub estimated_rtt_ms: u32,
-    pub priority: u8,
-    pub expires_at: String,
-    pub revoked: bool,
-}
-
-#[derive(Serialize)]
-pub struct DmEndpointCardRegisterResponse {
-    pub identity_id: String,
-    pub cards: Vec<DmEndpointCard>,
-}
-
-#[derive(Deserialize)]
-pub struct DmEndpointCardRevokeRequest {
-    pub endpoint_ids: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct DmEndpointCardRevokeResponse {
-    pub identity_id: String,
-    pub revoked_endpoint_ids: Vec<String>,
-    pub remaining_cards: Vec<DmEndpointCard>,
-}
-
-#[derive(Deserialize)]
-pub struct DmParallelDialRequest {
-    pub peer_identity_id: String,
-    pub max_parallel_attempts: Option<u8>,
-    pub unreachable_endpoint_ids: Option<Vec<String>>,
-}
-
-#[derive(Clone, Serialize)]
-pub struct DmParallelDialAttempt {
-    pub endpoint_id: String,
-    pub endpoint_hint: String,
-    pub estimated_rtt_ms: u32,
-    pub status: String,
-    pub cancellation_reason: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct DmParallelDialResponse {
-    pub status: String,
-    pub reason_code: String,
-    pub transport_profile: String,
-    pub winner_endpoint_id: Option<String>,
-    pub canceled_endpoint_ids: Vec<String>,
-    pub attempts: Vec<DmParallelDialAttempt>,
-    pub remediation: Vec<String>,
-}
-
-#[derive(Deserialize)]
 pub struct DmProfileDeviceHeartbeatRequest {
     pub device_id: String,
     pub active: bool,
@@ -455,16 +308,6 @@ pub struct DmFanoutCatchUpResponse {
 }
 
 #[derive(Clone)]
-pub struct DmEndpointCardRecord {
-    pub endpoint_id: String,
-    pub endpoint_hint: String,
-    pub estimated_rtt_ms: u32,
-    pub priority: u8,
-    pub expires_at_epoch: i64,
-    pub revoked: bool,
-}
-
-#[derive(Clone)]
 pub struct DmProfileDeviceRecord {
     pub device_id: String,
     pub active: bool,
@@ -481,33 +324,6 @@ pub struct DmFanoutDeliveryRecord {
     pub delivery_state: String,
     pub reachability_state: String,
     pub delivered_device_ids: Vec<String>,
-}
-
-#[derive(Deserialize)]
-pub struct DmWanWizardRequest {
-    pub preferred_port: Option<u16>,
-    pub upnp_available: Option<bool>,
-    pub nat_pmp_available: Option<bool>,
-    pub auto_mapping_succeeds: Option<bool>,
-    pub external_port_open: Option<bool>,
-    pub network_profile: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct DmWanWizardResponse {
-    pub outcome: String,
-    pub method: String,
-    pub reason_code: String,
-    pub checklist: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct DmPairingImportResponse {
-    pub inviter_identity_id: String,
-    pub inviter_identity_key: DmPairingIdentityKey,
-    pub endpoint_hints: Vec<String>,
-    pub imported_at: String,
-    pub expires_at: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -578,7 +394,6 @@ pub struct IdentityBootstrapBundle {
     pub identity_id: String,
     pub public_key: String,
     pub algorithm: String,
-    pub endpoint_cards: Vec<DmEndpointCard>,
     pub devices: Vec<DmProfileDeviceSummary>,
 }
 

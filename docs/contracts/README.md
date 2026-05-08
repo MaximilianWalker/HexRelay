@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-08 tightened the runtime REST/realtime LAN discovery contracts to require local-only IPv4-literal endpoint hints, exact Ed25519 signature shape, explicit TTL expiry metadata, and the `dm.lan_discovery.advertise` websocket surface for `T4.1.6`.
+- Latest meaningful change: 2026-05-08 aligned runtime REST/realtime contracts with node/server-routed E2EE DM envelope delivery and removed user direct-DM bootstrap/connectivity surfaces.
 
 ## Purpose
 
@@ -23,6 +23,7 @@
 
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
 - REST legacy alias path (non-authoritative): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- Runtime REST DM schemas describe node/server-routed E2EE envelope fanout and catch-up only; user direct-DM pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; realtime signaling remains self-targeted loopback only until recipient fanout exists.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`

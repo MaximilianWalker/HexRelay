@@ -1,7 +1,6 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use communication_core::{LanDiscoveryAdvertisement, LAN_DISCOVERY_MULTICAST_ADDR};
 use serde::Serialize;
 use tokio::sync::{mpsc::Sender, Mutex};
 
@@ -34,12 +33,7 @@ pub struct AppState {
     pub ws_auth_grace_seconds: u64,
     pub ws_auth_cache_max_entries: usize,
     pub enable_dev_faults: bool,
-    pub enable_lan_discovery: bool,
-    pub lan_discovery_bind_addr: SocketAddr,
-    pub lan_discovery_multicast_addr: SocketAddr,
-    pub lan_discovery_announce_interval: Duration,
     pub dev_faults: Arc<Mutex<DevFaultState>>,
-    pub active_lan_advertisements: Arc<Mutex<HashMap<String, LanDiscoveryAdvertisement>>>,
     pub active_connections: Arc<Mutex<HashMap<String, usize>>>,
     pub connection_senders: Arc<Mutex<ConnectionSenderMap>>,
     pub validated_session_cache: Arc<Mutex<HashMap<String, CachedSession>>>,
@@ -107,16 +101,7 @@ impl AppState {
             ws_auth_grace_seconds,
             ws_auth_cache_max_entries,
             enable_dev_faults: false,
-            enable_lan_discovery: false,
-            lan_discovery_bind_addr: "0.0.0.0:48999"
-                .parse()
-                .expect("default LAN discovery bind address parses"),
-            lan_discovery_multicast_addr: LAN_DISCOVERY_MULTICAST_ADDR
-                .parse()
-                .expect("default LAN discovery multicast address parses"),
-            lan_discovery_announce_interval: Duration::from_secs(10),
             dev_faults: Arc::default(),
-            active_lan_advertisements: Arc::new(Mutex::new(HashMap::new())),
             active_connections: Arc::new(Mutex::new(HashMap::new())),
             connection_senders: Arc::new(Mutex::new(HashMap::new())),
             validated_session_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -125,20 +110,6 @@ impl AppState {
 
     pub fn with_dev_faults_enabled(mut self, enable: bool) -> Self {
         self.enable_dev_faults = enable;
-        self
-    }
-
-    pub fn with_lan_discovery_config(
-        mut self,
-        enable: bool,
-        bind_addr: SocketAddr,
-        multicast_addr: SocketAddr,
-        announce_interval: Duration,
-    ) -> Self {
-        self.enable_lan_discovery = enable;
-        self.lan_discovery_bind_addr = bind_addr;
-        self.lan_discovery_multicast_addr = multicast_addr;
-        self.lan_discovery_announce_interval = announce_interval;
         self
     }
 }

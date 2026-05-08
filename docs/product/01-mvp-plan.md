@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-08
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-07 locked Windows/Linux release parity, Tauri desktop default, and separate dedicated-server package direction.
+- Latest meaningful change: 2026-05-08 locked MVP DM delivery to node/server-routed E2EE envelopes and removed user direct-DM transport/bootstrap scope.
 
 ## 1) Product Intent and Constraints
 
@@ -32,12 +32,12 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Target audience for beta: broad communities (gamers, dev groups, private communities).
 - Multiple personas/accounts per device are supported in MVP.
 - Profile model: global profile by default, optional per-server overrides.
-- User discovery: direct user discovery supported globally and from shared servers.
-- DM transport is independent of guild/community servers (no server-mediated DM relay).
+- User discovery: server/node-mediated user discovery supported globally and from shared servers.
+- DM plaintext and private keys remain client/device-only; shared servers/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata.
 - Message defaults: edits and mentions are required; retention default is forever and configurable per server.
 - Moderation model: no centralized platform moderation; only node-owner controls.
 - Privacy baseline: encrypted transport and at-rest encryption everywhere; E2EE DMs in MVP.
-- DM transport baseline: direct user-to-user channels; guild/community servers do not relay/store DM payloads.
+- DM delivery baseline: encrypted-envelope store-and-forward through shared servers/message nodes only; LAN/WAN peer-routed DM transport is out of scope.
 - Voice target: competitive quality; screen share included in MVP.
 - UI direction: heavily Discord-inspired interaction model, except server navigation uses scalable list/card paradigms (no small circular server rail).
 - Server navigation supports dual mode: sidebar list/folders and topbar tabbed navigation (browser-like tabs/saved tabs).
@@ -62,12 +62,13 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Execution hardening aligned E2EE scope across plan/risk/iteration tasks and introduced contract/dependency gates.
 - 2026-03-04: Locked server invite policy allowing non-expiring multi-use invite links as an open-access pattern.
 - 2026-03-04: Locked privacy-first social policy: mediated friend requests, no default key/profile scraping, and opt-in DM permissions.
-- 2026-03-04: Locked DM transport to direct user-to-user channels; guild servers do not relay/store DM payloads.
-- 2026-03-04: Locked MVP DM offline policy to durable sender-side acceptance with bounded eventual catch-up and explicit reachability degradation rather than best-effort-only online delivery.
+- 2026-03-04: Initially locked DM transport to peer-routed user channels; superseded by the 2026-05-08 encrypted-envelope delivery decision.
+- 2026-03-04: Locked MVP DM offline policy to durable sender-side acceptance with bounded eventual catch-up and explicit delivery-state tracking rather than best-effort-only online delivery.
 - 2026-03-04: Locked deployment model to bundled desktop local-first runtime with optional dedicated server mode.
-- 2026-03-12: Locked DM connectivity to infrastructure-free direct paths only (no STUN/TURN/relay dependency) with explicit failure guidance when direct connection is unavailable.
+- 2026-03-12: Initially locked DM connectivity to infrastructure-free peer paths only; superseded by the 2026-05-08 encrypted-envelope delivery decision.
 - 2026-03-12: Locked profile-device convergence requirement: incoming communication must sync to all profile devices, including devices that become active after first delivery.
 - 2026-05-07: Locked Windows and Linux as first-class release targets, Tauri as the default desktop shell, and dedicated server delivery as a separate service/package family from the desktop installer.
+- 2026-05-08: Locked shared-server/message-node E2EE envelope delivery as the MVP DM baseline. Servers may store and forward ciphertext envelopes and minimal delivery metadata only; user direct-DM transport/bootstrap surfaces are out of scope.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -107,14 +108,14 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Portable identity (public/private key), profile, device sessions.
 - Multiple personas/accounts on one device.
 - Friends graph: add/remove/block/mute + presence.
-- User discovery (global and shared-server contexts) with direct contact requests.
-- Direct user-to-user add flow via expiring contact invite link or QR.
+- User discovery (global and shared-server contexts) with server-mediated contact requests.
+- Contact invite add flow via expiring node-mediated contact invite link.
 - Friend requests via servers are intent-based and mediated; raw key/profile-identifying data is not exposed by default.
 - Dedicated global hubs for browsing servers and contacts with searchable card views.
 - Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
 - Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
 - DM and group DM messaging (edits, mentions, deletes, replies).
-- Infrastructure-free DM connectivity stack: direct-only enforcement, signed out-of-band pairing, deterministic preflight diagnostics, LAN fast path, WAN direct wizard, and multi-endpoint parallel dial.
+- E2EE DM delivery stack: ciphertext-envelope node delivery, relationship-scoped contact/encryption bootstrap, delivery metadata minimization, and deterministic delivery-state UI.
 - Profile-device eventual-sync stack: active-device fanout plus late-device replay/catch-up by per-device cursor for DM and server communication.
 - Servers (guilds), text channels, role/permission v1.
 - Voice channels, 1:1 calls, and screen share.
@@ -138,10 +139,10 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - Keep default registry discovery and optional custom registries.
   - Add trusted-registry scopes for friend/community-only visibility.
 - Phase B (hybrid discovery):
-  - Support simultaneous federation + P2P discovery.
+  - Support simultaneous default registry and server-to-server federation discovery.
   - Node/user discoverability policies remain explicit (`private`, `trusted`, `public`).
-- Phase C (full P2P optional path):
-  - Add decentralized discovery (DHT/gossip style) as an opt-in mode.
+- Phase C (decentralized registry path):
+  - Add decentralized server/node discovery as an opt-in mode.
   - Preserve self-hosting and privacy controls so users/servers can stay non-global if desired.
 
 ## 4) Identity, Auth, and Profile Portability (Locked)
@@ -165,38 +166,33 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### User Contact Invite Flow (MVP)
 
-- Users can generate direct contact invites for adding friends without relying on global discovery.
+- Users can generate contact invites for adding friends without relying on global discovery.
 - Contact invite formats:
   - Shareable link (`hexrelay://contact-invite/<token>`)
-  - QR payload encoding the same token.
 - Contact invite token requirements:
   - Expiration required.
   - One-time by default; optional bounded max-uses for trusted sharing.
   - Bound to inviter identity id and signature metadata.
 - Redeem behavior:
   - Recipient redeems token and sees inviter identity preview.
-  - Accepting invite creates a friend request or direct friend edge per user settings.
+  - Accepting invite creates a server-mediated friend request or accepted friend edge per user settings.
   - Expired/invalid/exhausted tokens fail with deterministic error codes.
 
-### DM Connectivity Model (MVP Locked)
+### DM Delivery Model (MVP Locked)
 
-- DM connection bootstrap uses signed out-of-band exchange (invite link, QR payload, or full manual code with a short verification code).
-- Pairing payload includes inviter identity key, endpoint hints, nonce, expiry, and signature metadata.
-- DM transport execution is direct-only and must not use infrastructure-assisted NAT traversal services.
-- Connection flow order:
-  - Validate pairing envelope authenticity/replay/expiry.
-  - Run direct-connect preflight checks and select direct dial candidates.
-  - Attempt direct session establishment.
-  - If direct session cannot be established, return deterministic reason code and remediation guidance.
-- Reliability enhancers that remain in-scope under this policy:
-  - local-network discovery fast path (mDNS/multicast),
-  - WAN setup wizard (UPnP/NAT-PMP and manual mapping guidance),
-  - multi-endpoint parallel dial across user-owned devices.
-- Multi-device convergence requirements under this policy:
-  - if any recipient device receives a DM payload, all profile-linked devices must eventually converge when they become active,
-  - convergence uses per-device cursors and idempotent replay/dedupe,
-  - no DM payload relay/storage on guild/community servers.
-- Non-goal: hidden or optional relay fallback for DM payload transport.
+- DM relationship and encryption bootstrap uses accepted contact-invite redemption or accepted mediated friend-request bootstrap.
+- Bootstrap material includes only the identity key and profile-device data required for client-side E2EE setup; user direct endpoint hints, DM pairing QR payloads, and manual-code bootstrap are out of scope.
+- Normal DM send success uses the node/server encrypted-envelope path and must not require direct peer reachability.
+- Shared servers/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata needed for authorization, routing, dedupe, delivery state, retention, and abuse controls.
+- DM plaintext, decrypted message views, and private keys remain client/device-only and must never be uploaded for server-side processing.
+- Delivery flow order:
+  - Validate relationship, block state, DM policy, and bootstrap authenticity/replay/expiry.
+  - Client encrypts per-recipient/device envelope payloads before handing them to a shared server/message node.
+  - Message node durably accepts ciphertext envelopes and minimal delivery metadata before sender-visible success.
+  - Active recipient devices receive envelopes through node fanout.
+  - Later-active devices catch up through per-device cursors and idempotent replay/dedupe over ciphertext envelopes.
+- User direct-DM LAN discovery, WAN setup wizard, endpoint cards, preflight, pairing QR/manual code, and parallel dial are out of scope.
+- Non-goals: server-readable DM content, private-key custody/upload, unencrypted DM mailboxing, or plaintext relay behavior.
 
 ### Profile-Device Sync (DM and Server Communication)
 
@@ -204,7 +200,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Incoming communication must fan out to all currently active profile devices.
 - Devices that were offline at first receive must catch up on later activation.
 - Convergence contract applies to:
-  - DM direct communication (payload envelope replay across profile devices),
+  - DM encrypted-envelope delivery (ciphertext envelope replay across profile devices),
   - server-channel and presence communication (node-authoritative event hydration by per-device cursor).
 - Reconciliation baseline:
   - per-device cursor checkpoints are tracked and persisted,
@@ -218,7 +214,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Friend requests through a server are mediated actions:
   - User A requests contact with User B through server-local reference.
   - Server sends request notification to User B.
-  - Only after User B accepts, both sides receive bootstrap material required for direct relationship setup.
+  - Only after User B accepts, both sides receive bootstrap material required for DM relationship and encryption setup.
 - Server-channel message authorship is valid only while the author is a current member of that server; write boundaries must reject non-member authors even for internal callers.
 - Server-channel live websocket fanout is currently best-effort after persistence; message history durability is stronger than live delivery guarantees until an outbox/retry design exists.
 - Realtime outbound backpressure must degrade delivery without silently unregistering still-open websocket sessions; queue saturation is not equivalent to disconnect.
@@ -231,8 +227,8 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 - Transport: TLS for all client/server and server/server channels.
 - At-rest: database and blob encryption for node-stored data.
-- DMs: E2EE with forward secrecy over direct user-to-user channels (no guild server relay/storage for DM payloads).
-- Offline delivery policy (MVP): sender-side success means durable acceptance into canonical DM history; live delivery remains direct-only, repeated failures downgrade reachability assumptions, and later reconnects use bounded eventual catch-up rather than fire-and-forget retry semantics.
+- DMs: E2EE with forward secrecy; shared servers/message nodes handle ciphertext envelopes only, while plaintext and private keys remain client/device-only.
+- Offline delivery policy (MVP): sender-side success means durable acceptance of encrypted DM envelopes into canonical DM history plus minimal delivery metadata; live delivery uses node fanout, while later reconnects use bounded eventual catch-up rather than fire-and-forget retry semantics.
 - Keys: private keys remain client-controlled and encrypted at rest on device.
 
 ### Authentication Flow

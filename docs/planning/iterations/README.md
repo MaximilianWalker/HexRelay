@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-11
+- last_updated: 2026-05-08
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-04-11 refreshed iteration planning after closing `T4.0.1` with shared communication-layer evidence.
+- Latest meaningful change: 2026-05-08 pivoted Iteration 2 DM task tracing to node/server-routed E2EE encrypted-envelope delivery and user direct-DM surface retirement.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 
@@ -29,7 +29,7 @@
 | Requirement area | Task IDs |
 |---|---|
 | Identity key registration and auth challenge/verify | T2.1.1, T2.3.1 |
-| Direct user add via contact invite link/QR | T3.1.3, T3.1.4 |
+| Server-mediated contact add via contact invite link | T3.1.3, T3.1.4 |
 | Server-mediated friend request privacy model | T3.1.1, T3.1.2, T3.1.5 |
 | Multi-persona support and switching | T2.1.3 |
 | Mandatory recovery phrase onboarding | T2.1.4 |
@@ -38,8 +38,8 @@
 | Friends/block/mute/presence | T3.1.1, T3.1.2, T3.2.1, T3.3.1 |
 | Global/shared-server user discovery with abuse controls | T3.4.1 |
 | Shared communication networking layer abstraction (mode routing, adapters, diagnostics model) | T4.0.1, T4.0.2, T4.0.3, T4.3.3 |
-| DM/group DM direct transport + server-channel messaging primitives | T4.1.1, T4.3.1, T4.3.2 |
-| Infrastructure-free DM connectivity stack (direct-only, pairing, diagnostics, LAN/WAN setup, multi-endpoint dial) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8 |
+| DM/group DM encrypted-envelope delivery + server-channel messaging primitives | T4.1.1, T4.1.7, T4.3.1, T4.3.2 |
+| E2EE DM delivery stack (policy, relationship bootstrap, message-node delivery, metadata, user direct-DM surface retirement) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8, T4.1.11 |
 | Multi-device eventual sync for DM and server communication | T4.1.9, T4.1.10, T4.3.4, T3.3.2 |
 | DM inbound policy defaults and user overrides | T4.1.2 |
 | E2EE 1:1 DM | T4.5.1, T4.5.2 |
@@ -51,7 +51,7 @@
 | Export/import/full migration and cutover | T7.1.1, T7.1.2, T7.5.1, T7.5.2, T7.5.3, T7.5.4, T7.5.5 |
 | Observability, SLOs, beta docs | T8.1.1, T8.2.1, T8.3.1 |
 | NFR: reliability (reconnect, ordering, consistency) | T3.3.1, T4.3.2, T5.1.1, T5.3.1 |
-| NFR: security (nonce replay, auth verification, no guild-server DM relay/storage, no infra DM fallback) | T2.3.1, T2.4.1, T4.1.3, T4.1.4, T4.5.2, T4.5.4 |
+| NFR: security (nonce replay, auth verification, ciphertext-only DM server handling, no private-key custody, no plaintext relay) | T2.3.1, T2.4.1, T4.1.3, T4.1.4, T4.1.7, T4.1.8, T4.5.2, T4.5.4 |
 | NFR: performance (chat latency, call setup/jitter, alert detection windows) | T4.3.2, T5.2.1, T8.2.1 |
 | NFR: operability (compose-first, CI gates, observability dashboards) | T1.1.2, T1.2.1, T8.1.1 |
 | KPI: message delivery p95 < 300ms | T4.3.2, T8.1.1, T8.2.1 |

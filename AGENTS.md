@@ -24,9 +24,10 @@ Only project-specific constraints are defined here.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
 - For MVP-stage protocol and API work, prefer the cleanest single-shape design that can evolve later; avoid speculative versioning, dual-schema migrations, or compatibility layers unless an actual consumer or rollout constraint already makes them necessary.
-- Keep DM transport direct user-to-user; do not reintroduce guild/server relay for DM payloads.
-- Reject networking solutions that require always-on third-party or project-operated infrastructure for DM connectivity (for example STUN/TURN relay services).
-- Prefer infrastructure-free peer connectivity modes only; if direct connection cannot be established, fail explicitly with user guidance rather than introducing infra fallback.
+- DM plaintext and private keys must remain client/device-only; shared servers/message nodes may carry and store only end-to-end encrypted DM envelopes plus minimal delivery metadata.
+- User-to-user direct LAN/WAN DM transport and bootstrap are out of scope for MVP; server/node discovery work must not reintroduce user direct-DM paths.
+- Do not introduce server-readable DM content, private-key upload, or unencrypted DM mailbox/relay behavior.
+- Do not implement new DM delivery UX changes until the user explicitly approves the proposed flow, copy, and advanced-control behavior.
 
 ## 4) Readiness Feedback Loop (Required)
 
