@@ -6,7 +6,7 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-05-08
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM connectivity solution candidates under the no-infrastructure rule.
 - Update this file when direct-connect architecture, feasibility assumptions, or acceptance criteria change.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-03-16 aligned multi-endpoint DM proposal with profile-device eventual-sync convergence requirements.
+- Latest meaningful change: 2026-05-08 aligned the local-network fast path with local-only endpoint validation, trusted peer visibility, TTL-scoped snapshots, and direct preflight priority.
 
 ## Purpose
 
@@ -146,19 +146,24 @@
 ### How it works
 
 1. Client advertises presence on local subnet via mDNS/multicast.
-2. Peer discovery exchanges signed endpoint cards locally.
-3. Transport attempts direct connection over local prioritized endpoints first.
-4. If local discovery fails, user falls back to out-of-band pairing from Proposition 2.
+2. Peer discovery accepts only local-only IP-literal endpoint hints: private IPv4, IPv4 link-local, IPv6 unique-local, or IPv6 link-local addresses with non-zero ports.
+3. Discovery snapshots stay ephemeral and TTL-scoped; they are not persisted as durable DM convergence state.
+4. LAN hints are visible only to trusted contacts or shared-server peers whose current DM policy permits the requester.
+5. Transport attempts direct connection over local prioritized endpoints first when preflight sees fresh trusted LAN presence.
+6. If local discovery fails, user falls back to out-of-band pairing from Proposition 2.
 
 ### Trade-offs and risks
 
 - Discovery may be blocked on enterprise or segmented networks.
 - Additional platform networking code paths increase maintenance.
+- Stale or spoofed local hints can mislead dialing unless freshness, policy, and local-only validation remain enforced.
 
 ### Acceptance criteria
 
 - High same-LAN discovery and connect success in controlled test matrix.
 - Discovery traffic never leaves local subnet.
+- LAN discovery responses expose explicit expiry metadata and stale hints are pruned.
+- LAN hint listing and preflight priority require an accepted-friend or trusted shared-server relationship, not just an arbitrary `anyone` policy match.
 - Local-path median connect latency beats non-local path baseline.
 
 ### Implementation slices
@@ -166,6 +171,7 @@
 - Add mDNS advertisement and discovery service.
 - Add multicast fallback and network capability detection.
 - Add local-first dial prioritization and test harness coverage.
+- Enforce local-only endpoint validation in the shared core/API boundary and reject DNS/public/relay-style LAN hints.
 
 ## Proposition 5 (Rank 5): WAN Direct Connectivity Wizard (UPnP/NAT-PMP + Manual Mapping)
 

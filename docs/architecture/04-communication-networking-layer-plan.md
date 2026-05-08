@@ -6,14 +6,14 @@
 - Owner: Architecture, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-06
+- last_updated: 2026-05-08
 - Source of truth: `docs/architecture/04-communication-networking-layer-plan.md`
 
 ## Quick Context
 
 - Primary edit location for networking-layer architecture and execution across both direct DM and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-04-06 clarified MVP DM reliability semantics: durable sender-side acceptance, bounded eventual catch-up, and explicit reachability downgrades without message loss.
+- Latest meaningful change: 2026-05-08 clarified the LAN discovery fast path as local-only, trusted-peer scoped, TTL-scoped, and non-durable for direct DM preflight priority.
 
 ## Purpose
 
@@ -117,9 +117,11 @@
 - Forbidden dependencies: STUN/TURN/relay connectivity services.
 - Reliability target is durable acceptance plus bounded eventual catch-up within the decentralized model, not best-effort fire-and-forget.
 - Supported reachability enhancers:
-  - LAN discovery fast path (mDNS/multicast),
+  - LAN discovery fast path (mDNS/multicast) using IP-literal local-only endpoint hints, multicast hop-limit `1`, trusted peer visibility, and ephemeral TTL-scoped snapshots,
   - WAN direct setup wizard (UPnP/NAT-PMP/manual mapping),
   - multi-endpoint parallel dial.
+- LAN discovery state is not durable convergence state; it must stay in-memory/ephemeral and cannot be promoted to database-backed peer history without a separate architecture decision.
+- LAN discovery hints may prioritize direct preflight only for accepted-friend or trusted shared-server peers; arbitrary `anyone` policy matches are insufficient for LAN endpoint exposure.
 
 ## Scenario B: Server Communication
 

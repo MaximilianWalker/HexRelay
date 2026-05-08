@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 use std::{env, net::SocketAddr};
 
+use communication_core::LAN_DISCOVERY_MULTICAST_ADDR;
 use reqwest::Url;
 
 pub struct RealtimeConfig {
@@ -21,6 +22,10 @@ pub struct RealtimeConfig {
     pub ws_auth_grace_seconds: u64,
     pub ws_auth_cache_max_entries: usize,
     pub enable_dev_faults: bool,
+    pub enable_lan_discovery: bool,
+    pub lan_discovery_bind_addr: SocketAddr,
+    pub lan_discovery_multicast_addr: SocketAddr,
+    pub lan_discovery_announce_interval_seconds: u64,
 }
 
 impl RealtimeConfig {
@@ -67,6 +72,15 @@ impl RealtimeConfig {
             .filter(|value| !value.is_empty());
         let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
         let enable_dev_faults = parse_bool_env("REALTIME_ENABLE_DEV_FAULTS", false)?;
+        let enable_lan_discovery = parse_bool_env("REALTIME_ENABLE_LAN_DISCOVERY", false)?;
+        let lan_discovery_bind_addr =
+            parse_socket_addr_env("REALTIME_LAN_DISCOVERY_BIND", "0.0.0.0:48999")?;
+        let lan_discovery_multicast_addr = parse_socket_addr_env(
+            "REALTIME_LAN_DISCOVERY_MULTICAST_ADDR",
+            LAN_DISCOVERY_MULTICAST_ADDR,
+        )?;
+        let lan_discovery_announce_interval_seconds =
+            parse_u64_env("REALTIME_LAN_DISCOVERY_ANNOUNCE_INTERVAL_SECONDS", 10)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
         let rate_limit_window_seconds = parse_u64_env("REALTIME_RATE_LIMIT_WINDOW_SECONDS", 60)?;
         let ws_max_inbound_message_bytes =
@@ -144,6 +158,38 @@ impl RealtimeConfig {
                 "Invalid REALTIME_WS_AUTH_CACHE_MAX_ENTRIES. Expected integer greater than 0"
                     .to_string(),
             );
+        }
+
+        if enable_lan_discovery {
+            if !matches!(lan_discovery_bind_addr.ip(), IpAddr::V4(_)) {
+                return Err(
+                    "Invalid REALTIME_LAN_DISCOVERY_BIND. Expected IPv4 socket address".to_string(),
+                );
+            }
+
+            match lan_discovery_multicast_addr.ip() {
+                IpAddr::V4(ip) if ip.is_multicast() => {}
+                _ => {
+                    return Err(
+                        "Invalid REALTIME_LAN_DISCOVERY_MULTICAST_ADDR. Expected IPv4 multicast socket address"
+                            .to_string(),
+                    );
+                }
+            }
+
+            if lan_discovery_announce_interval_seconds == 0 {
+                return Err(
+                    "Invalid REALTIME_LAN_DISCOVERY_ANNOUNCE_INTERVAL_SECONDS. Expected integer greater than 0"
+                        .to_string(),
+                );
+            }
+
+            if lan_discovery_bind_addr.port() != lan_discovery_multicast_addr.port() {
+                return Err(
+                    "Invalid REALTIME_LAN_DISCOVERY_BIND. Port must match REALTIME_LAN_DISCOVERY_MULTICAST_ADDR"
+                        .to_string(),
+                );
+            }
         }
 
         if ws_max_inbound_message_bytes < 256 {
@@ -228,6 +274,10 @@ impl RealtimeConfig {
             ws_auth_grace_seconds,
             ws_auth_cache_max_entries,
             enable_dev_faults,
+            enable_lan_discovery,
+            lan_discovery_bind_addr,
+            lan_discovery_multicast_addr,
+            lan_discovery_announce_interval_seconds,
         })
     }
 }
@@ -261,6 +311,13 @@ fn parse_u64_env(key: &str, default: u64) -> Result<u64, String> {
             .map_err(|_| format!("Invalid {}='{}'. Expected positive integer", key, value)),
         Err(_) => Ok(default),
     }
+}
+
+fn parse_socket_addr_env(key: &str, default: &str) -> Result<SocketAddr, String> {
+    let raw = env::var(key).unwrap_or_else(|_| default.to_string());
+    raw.trim()
+        .parse::<SocketAddr>()
+        .map_err(|_| format!("Invalid {key}='{raw}'. Expected socket address host:port"))
 }
 
 fn is_loopback_host(host: Option<&str>) -> bool {
@@ -299,6 +356,10 @@ mod tests {
         "REALTIME_PRESENCE_REDIS_URL",
         "REALTIME_TRUST_PROXY_HEADERS",
         "REALTIME_ENABLE_DEV_FAULTS",
+        "REALTIME_ENABLE_LAN_DISCOVERY",
+        "REALTIME_LAN_DISCOVERY_BIND",
+        "REALTIME_LAN_DISCOVERY_MULTICAST_ADDR",
+        "REALTIME_LAN_DISCOVERY_ANNOUNCE_INTERVAL_SECONDS",
         "REALTIME_WS_CONNECT_RATE_LIMIT",
         "REALTIME_RATE_LIMIT_WINDOW_SECONDS",
         "REALTIME_WS_MAX_INBOUND_MESSAGE_BYTES",
@@ -453,6 +514,65 @@ mod tests {
                 assert_eq!(config.ws_auth_cache_max_entries, 200);
             },
         );
+    }
+
+    #[test]
+    fn parses_lan_discovery_configuration_when_enabled() {
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                ("REALTIME_ENABLE_LAN_DISCOVERY", Some("true")),
+                ("REALTIME_LAN_DISCOVERY_BIND", Some("0.0.0.0:48999")),
+                (
+                    "REALTIME_LAN_DISCOVERY_MULTICAST_ADDR",
+                    Some("239.255.48.31:48999"),
+                ),
+                (
+                    "REALTIME_LAN_DISCOVERY_ANNOUNCE_INTERVAL_SECONDS",
+                    Some("3"),
+                ),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert!(config.enable_lan_discovery);
+                assert_eq!(config.lan_discovery_bind_addr.to_string(), "0.0.0.0:48999");
+                assert_eq!(
+                    config.lan_discovery_multicast_addr.to_string(),
+                    "239.255.48.31:48999"
+                );
+                assert_eq!(config.lan_discovery_announce_interval_seconds, 3);
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_lan_discovery_configuration_when_enabled() {
+        for (key, value) in [
+            (
+                "REALTIME_LAN_DISCOVERY_MULTICAST_ADDR",
+                "192.168.1.12:48999",
+            ),
+            ("REALTIME_LAN_DISCOVERY_BIND", "[::]:48999"),
+            ("REALTIME_LAN_DISCOVERY_BIND", "0.0.0.0:49000"),
+            ("REALTIME_LAN_DISCOVERY_ANNOUNCE_INTERVAL_SECONDS", "0"),
+        ] {
+            with_realtime_env(
+                &[
+                    ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                    ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                    ("REALTIME_ENABLE_LAN_DISCOVERY", Some("true")),
+                    (key, Some(value)),
+                ],
+                || {
+                    let err = match RealtimeConfig::from_env() {
+                        Ok(_) => panic!("invalid LAN discovery config should fail"),
+                        Err(err) => err,
+                    };
+                    assert!(err.contains(key));
+                },
+            );
+        }
     }
 
     #[test]

@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-08 clarified `T4.1.5` DM connectivity preflight/troubleshooter evidence coverage under the infrastructure-free DM connectivity conformance row.
+- Latest meaningful change: 2026-05-08 clarified `T4.1.6` LAN discovery evidence coverage under the infrastructure-free DM connectivity conformance row.
 
 ## Requirement to Evidence Matrix
 
@@ -22,7 +22,7 @@
 | Identity/auth/invites | T2.1.1, T2.2.1, T2.3.1, T2.4.1 | OpenAPI conformance + auth/invite integration report | `npm --prefix apps/web run e2e:smoke` and `cargo test -p api-rs --all-features` | `evidence/iteration-01/identity-auth-invites/<YYYY-MM-DD>/` |
 | Friend request privacy mediation | T3.1.1, T3.1.2, T3.1.5 | Privacy policy test report (no pre-accept identity exposure) | Friend-request integration tests assert redaction before acceptance | `evidence/iteration-02/friend-privacy/<YYYY-MM-DD>/` |
 | DM inbound policy defaults/overrides | T4.1.2 | DM policy matrix test output | Integration tests cover default + override policy matrix outcomes | `evidence/iteration-03/dm-policy/<YYYY-MM-DD>/` |
-| Infrastructure-free DM connectivity conformance | T4.1.3-T4.1.8 | Direct-connect conformance report (policy gate, pairing validation, preflight diagnostics, troubleshooter remediation, LAN/WAN pathing) | Direct-connect suite confirms no STUN/TURN/relay fallback and deterministic failure guidance behavior | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
+| Infrastructure-free DM connectivity conformance | T4.1.3-T4.1.8 | Direct-connect conformance report (policy gate, pairing validation, preflight diagnostics, troubleshooter remediation, LAN/WAN pathing, local-only LAN endpoint proof) | Direct-connect suite confirms no STUN/TURN/relay fallback, deterministic failure guidance behavior, trusted-peer LAN visibility, TTL-scoped LAN peer pruning, and rejection of loopback/public/DNS/relay-style LAN hints | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | DM multi-device eventual-sync convergence | T4.1.9, T4.1.10 | DM fanout + late-device catch-up report | Tests verify one message converges across all profile devices, including devices activated after first receive | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | Server-channel/presence multi-device convergence | T3.3.2, T4.3.4 | Server event fanout + hydration report | Tests verify channel/presence events hydrate all profile devices via per-device cursor after reconnect/late activation | `evidence/iteration-02/profile-device-sync/<YYYY-MM-DD>/` |
 | Local runtime testing adoption | PH-01-PH-07 | Durable evidence bundle with fixture seed summaries, runtime smoke outputs, network simulation event logs, and browser scenario notes under `outputs/` | `cargo test -p api-rs fixture`; `npm --prefix apps/web run test`; `npm run test:runtime`; `npm run test:network`; `node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir <path>` | `evidence/local-runtime-testing/fixtures/<run-id>/`; `evidence/local-runtime-testing/runtime/<profile>/<run-id>/`; `evidence/local-runtime-testing/network/<profile>/<scenario>/<run-id>/`; `evidence/local-runtime-testing/browser/<scenario>/<run-id>/` |

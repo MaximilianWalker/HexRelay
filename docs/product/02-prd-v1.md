@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-08
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-07 summarized Windows/Linux release parity and desktop/server packaging boundaries.
+- Latest meaningful change: 2026-05-08 clarified LAN fast-path requirements for local-only, trusted-peer, TTL-scoped DM endpoint discovery.
 
 ## Product Summary
 
@@ -185,6 +185,7 @@ Build a communication stack where users and communities control identity, data l
   - Out-of-band signed pairing (QR/link/manual code with short verification code) is required.
   - Connectivity preflight and troubleshooter states are required for failed direct attempts, covering missing pairing, blocked users, recipient policy, local bind denial, peer reachability failure, and LAN-ready direct paths.
   - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
+  - LAN fast-path discovery hints must be local-only, trusted-peer scoped, TTL-scoped, and non-durable; they may prioritize direct preflight but must not become a rendezvous or relay substitute.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.
   - Delivery failures must downgrade current reachability assumptions without discarding accepted messages.
   - If direct connectivity cannot be established, product must fail explicitly with user guidance; infra fallback is out of scope.

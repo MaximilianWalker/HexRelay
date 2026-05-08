@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of infrastructure-free DM connectivity.
 - Update this plan when direct-connect task sequencing, acceptance criteria, or risk controls change.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-08 completed `T4.1.5` deterministic DM connectivity preflight/troubleshooter and advanced the next recommended direct-connect slice to LAN discovery.
+- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast path with local-only endpoint validation and TTL-scoped LAN peer snapshots.
 
 ## Purpose
 
@@ -77,7 +77,7 @@
 | T4.1.3 | Enforce direct-only DM transport and infra-policy CI gate | Core | T4.1.1 | DM connect path uses direct dial only; CI rejects forbidden infra fallbacks/configs |
 | T4.1.4 | Implement signed out-of-band pairing envelope + QR/manual-code UX | Core/Web | T3.1.4, T4.1.3 | Pairing works without backend rendezvous; replay/expiry checks are enforced |
 | T4.1.5 | Add DM connectivity preflight and deterministic troubleshooter | Core/Web | T4.1.4 | Done: failed connections emit stable reason codes and actionable remediation in the private-chat troubleshooter |
-| T4.1.6 | Add LAN discovery fast path (mDNS/multicast, local-first dialing) | Realtime/Core | T4.1.5 | Same-LAN peers discover/connect with local-only traffic and improved latency |
+| T4.1.6 | Add LAN discovery fast path (mDNS/multicast, local-first dialing) | Realtime/Core | T4.1.5 | Done: LAN announcements accept only local-only IP-literal direct endpoint hints, expose TTL expiry metadata, prune stale/invalid peer snapshots, and drive `preflight_ok_lan` before generic direct-ready outcomes only for trusted accepted-friend or shared-server peers |
 | T4.1.7 | Add WAN direct-connect setup wizard (UPnP/NAT-PMP + manual) | Core/Web | T4.1.5 | Wizard produces deterministic outcomes: success/manual_required/network_incompatible |
 | T4.1.8 | Add multi-endpoint cards and parallel dial orchestration | Core | T4.1.4, T4.1.6 | Parallel dial improves connect success and cancels non-winning attempts safely |
 | T4.1.9 | Add DM active-device fanout for profile-linked devices | Core/Realtime | T4.1.8 | Incoming DM payload reaches all currently active devices linked to recipient profile |
@@ -88,7 +88,7 @@
 - `T4.1.3`: policy gate report + direct transport integration tests.
 - `T4.1.4`: pairing conformance report (signature/expiry/replay checks) + UX state screenshots.
 - `T4.1.5`: reason-code matrix report and remediation action coverage through API integration tests plus private-chat web helper/UI validation.
-- `T4.1.6`: LAN discovery/connect benchmarks with local-subnet-only traffic proof and explicit confirmation that discovery hints stay ephemeral/TTL-scoped rather than DB-persisted.
+- `T4.1.6`: LAN discovery/connect evidence covers local-subnet-only endpoint validation, trusted-peer visibility, TTL expiry metadata, stale-peer pruning, `preflight_ok_lan` priority, and explicit confirmation that discovery hints stay ephemeral/in-memory rather than DB-persisted.
 - `T4.1.7`: WAN wizard scenario matrix with deterministic result classification.
 - Broad off-LAN discovery is not a separate MVP feature; existing off-LAN bootstrap/pathing is pairing + WAN guidance + endpoint cards + parallel dial. Any future extension should be limited to authorized endpoint-card freshness for already-paired peers.
 - Profile-device convergence is already represented by active-device fanout plus later-active catch-up. Any future extension should be limited to self/profile device-state UX or authorized endpoint-card freshness, not broad device discovery semantics.

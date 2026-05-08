@@ -38,6 +38,22 @@ export type DmConnectivityPreflightResponse = {
   remediation: string[];
 };
 
+export type DmLanDiscoverySnapshot = {
+  identity_id: string;
+  endpoint_hints: string[];
+  scope: "lan_subnet";
+  last_seen_at: string;
+  expires_at: string;
+  ttl_seconds: 120;
+};
+
+export type DmLanPeerSummary = {
+  identity_id: string;
+  endpoint_hints: string[];
+  last_seen_at: string;
+  expires_at: string;
+};
+
 export type TestingProfileSummary = {
   profile_id: string;
   identity_id: string;
@@ -551,6 +567,36 @@ export async function runDmConnectivityPreflight(input: {
         local_bind_allowed: input.localBindAllowed,
         peer_reachable_hint: input.peerReachableHint,
       }),
+    },
+  );
+
+  return parseResponse(response);
+}
+
+export async function announceDmLanDiscovery(input: {
+  endpointHints: string[];
+}): Promise<ApiResult<DmLanDiscoverySnapshot>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/lan-discovery/announce`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        endpoint_hints: input.endpointHints,
+      }),
+    },
+  );
+
+  return parseResponse(response);
+}
+
+export async function listDmLanPeers(): Promise<ApiResult<{ items: DmLanPeerSummary[] }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/lan-discovery/peers`,
+    {
+      method: "GET",
     },
   );
 

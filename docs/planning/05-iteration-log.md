@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-08 completed `T4.1.5` DM connectivity preflight/troubleshooter closeout.
+- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast-path closeout.
 
 ## Purpose
 
@@ -29,6 +29,28 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-08 (T4.1.6 LAN discovery fast-path closeout)
+
+- Area affected: DM LAN discovery validation, ephemeral peer snapshots, runtime REST contract, web API helpers, and Iteration 2 sequencing.
+- Change summary:
+  - Added shared core LAN endpoint validation that accepts only direct schemes on private, link-local, or unique-local IP-literal addresses with non-zero ports.
+  - Tightened LAN discovery announcements to reject loopback, public-routable, DNS-hostname, relay-oriented, and stale/invalid endpoint hints while keeping LAN presence in memory only.
+  - Restricted LAN peer listing and preflight LAN priority to trusted accepted-friend or shared-server relationships instead of arbitrary `anyone` policy matches.
+  - Added explicit `expires_at` and `ttl_seconds` metadata to LAN discovery responses and peer summaries.
+  - Kept preflight LAN priority deterministic by returning `preflight_ok_lan` only for fresh local-only peer snapshots, otherwise falling through to the normal direct-ready result.
+  - Marked `T4.1.6` done and advanced the recommended Iteration 2 sequence to `T4.1.7` WAN direct-connect wizard, with `T4.1.8` available in parallel.
+- Rationale:
+  - `T4.1.6` acceptance requires same-LAN direct-connect improvements without introducing infrastructure fallback or durable LAN discovery state.
+- Linked docs updated:
+  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/README.md`
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
 
 ### 2026-05-08 (T4.1.5 DM connectivity preflight/troubleshooter closeout)
 

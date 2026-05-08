@@ -294,6 +294,8 @@ pub struct DmLanDiscoveryAnnounceResponse {
     pub endpoint_hints: Vec<String>,
     pub scope: String,
     pub last_seen_at: String,
+    pub expires_at: String,
+    pub ttl_seconds: u32,
 }
 
 #[derive(Clone, Serialize)]
@@ -301,6 +303,7 @@ pub struct DmLanPeerSummary {
     pub identity_id: String,
     pub endpoint_hints: Vec<String>,
     pub last_seen_at: String,
+    pub expires_at: String,
 }
 
 #[derive(Serialize)]
@@ -313,6 +316,7 @@ pub struct DmLanPresenceRecord {
     pub identity_id: String,
     pub endpoint_hints: Vec<String>,
     pub last_seen_epoch: i64,
+    pub expires_at_epoch: i64,
 }
 
 #[derive(Clone, Deserialize)]

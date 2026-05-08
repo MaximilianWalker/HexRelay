@@ -198,7 +198,8 @@ async fn preflight_ready_when_policy_allows_and_direct_hints_present() {
 
 #[tokio::test]
 async fn preflight_prefers_lan_reason_when_peer_has_fresh_lan_presence() {
-    let (app, tokens) = app_with_sessions(&["usr-nora-k", "usr-jules-p"]);
+    let (app, tokens, state) = app_with_sessions_and_state(&["usr-nora-k", "usr-jules-p"]);
+    seed_accepted_friendship(&state, "usr-nora-k", "usr-jules-p");
 
     let policy_update = Request::builder()
         .method("POST")
