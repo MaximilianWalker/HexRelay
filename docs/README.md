@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 updated documentation routing for node/server-routed DM encrypted-envelope delivery and retired user direct-DM transport work.
+- Latest meaningful change: 2026-05-08 routed target-state realtime DM envelope dispatch and ack contract updates.
 
 ## Purpose
 

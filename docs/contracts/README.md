@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-08 aligned runtime REST/realtime contracts with node/server-routed E2EE DM envelope delivery and removed user direct-DM bootstrap/connectivity surfaces.
+- Latest meaningful change: 2026-05-08 defined target-state realtime DM envelope dispatch, device ack, and delivery-state update contracts.
 
 ## Purpose
 
@@ -44,6 +44,7 @@
 
 - Future REST coverage model: `docs/contracts/mvp-rest-v1.openapi.yaml`
 - Future realtime event model: `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- Target-state realtime DM events distinguish durable envelope creation, per-device ciphertext dispatch, recipient-device acknowledgement, and ack-derived delivery-state updates; current runtime support remains in `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`.
 
 ## Usage Rule
 

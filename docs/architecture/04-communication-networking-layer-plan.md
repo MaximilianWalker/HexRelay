@@ -77,7 +77,7 @@
 - Profile-level requirement: all devices linked to a profile eventually converge to the same inbound communication state.
 - Convergence includes devices that were offline when first delivery occurred and become active later.
 - Successful DM send means durable sender-side acceptance, not merely attempted live fanout.
-- Delivery model is two-phase: active-device fanout, then deferred convergence by per-device cursor and idempotent dedupe.
+- Delivery model is staged: durable acceptance, realtime dispatch attempt, ack-backed delivery receipt, then deferred convergence by per-device cursor and idempotent dedupe.
 - Dedup identity is stable by `(message_id, profile_device_id)` for DM and `(event_id, profile_device_id)` for server-channel/presence.
 - DM convergence must preserve ciphertext-only server behavior: message nodes may store/replay E2EE envelopes and minimal metadata, never plaintext or private keys.
 - Live fanout failure must not discard an accepted DM; it only changes current reachability assumptions and pending delivery state.
@@ -90,13 +90,13 @@
 2. API releases only the identity and profile-device bootstrap material required for client-side E2EE setup.
 3. Client encrypts message content into per-recipient/device E2EE envelopes before handing it to a shared server/message node.
 4. `EncryptedEnvelopeNodeTransport` durably accepts ciphertext envelopes plus minimal delivery metadata.
-5. Message node fans out ciphertext envelopes to active recipient devices and exposes per-device cursor catch-up for later-active devices.
+5. Message node dispatches ciphertext envelopes to active recipient devices, persists device acks as delivery receipts, and exposes per-device cursor catch-up for later-active devices.
 
 ### DM Requirements
 
 - Sender-side success must happen only after durable acceptance of encrypted envelopes into canonical DM history plus minimal delivery metadata.
 - Sender prepares per-recipient-device envelopes using recipient profile device manifest.
-- Recipient devices receive ciphertext envelopes through message-node fanout and decrypt locally.
+- Recipient devices receive ciphertext envelopes through message-node dispatch, ack receipt, and decrypt locally.
 - Offline sibling devices pull missed ciphertext envelopes on activation using idempotent per-device cursor replay.
 - Read-state reconciliation uses per-device cursor plus profile-level merge rule; convergence must be deterministic.
 - Forbidden behavior: server-readable DM content, private-key upload/custody, server-side decryption, unencrypted DM mailboxing, plaintext relay, or user direct-DM transport/bootstrap.
@@ -132,7 +132,7 @@
 
 - `EncryptedEnvelopeNodeTransport`:
   - input: authenticated sender context, ciphertext envelopes, and minimal delivery metadata.
-  - output: durable acceptance, active-device fanout, or deterministic delivery-state reason code.
+  - output: durable acceptance, realtime dispatch attempt, ack-backed delivery receipt, or deterministic delivery-state reason code.
 - `NodeClientTransport`:
   - input: node endpoint and auth/session context.
   - output: node session or node-failure reason code.
@@ -140,7 +140,7 @@
 ### Convergence Contracts
 
 - `DeviceManifest`: profile-linked device ids, keys, status, and revision.
-- `DeliveryReceipt`: `(entity_id, profile_device_id, delivered_at)` with idempotent upsert semantics.
+- `DeliveryReceipt`: `(entity_id, profile_device_id, acked_at)` with idempotent upsert semantics.
 - `CatchUpRequest`: profile-device cursor request for missed DM/server entities.
 - `CatchUpResponse`: ordered missing entities plus new cursor checkpoint.
 
@@ -161,7 +161,7 @@
 
 - Conformance suite ensures ciphertext-only message-node handling, no server-side plaintext/private-key custody, and metadata minimization.
 - Relationship bootstrap tests ensure bootstrap material is released only after accepted contact/friend state and contains no direct endpoint material.
-- Active-device fanout tests ensure all online profile devices receive DM payload envelopes.
+- Active-device fanout tests ensure online profile devices receive DM ciphertext envelopes and only acked devices count as delivered.
 - Late-device activation tests ensure missed DM payloads converge by cursor replay.
 - Guardrail tests reject user direct-DM routes, contracts, config, and runtime identifiers.
 

@@ -25,6 +25,7 @@
    - Avoid endpoint hints/cards or direct reachability fields.
 
 3. Define realtime DM envelope dispatch and ack contracts.
+   - Status: implemented in target-state contract in the current working tree after `604516e`.
    - Distinguish durable acceptance, realtime dispatch attempt, device ack, offline/pending, and catch-up replay.
    - Keep dispatch response as `pending_delivery` until ack evidence exists.
 
