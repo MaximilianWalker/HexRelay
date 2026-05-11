@@ -5,10 +5,14 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use communication_core::{
-    DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor, StaticPeerRegistry,
+    ed25519_public_key_hex, DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor,
+    StaticPeerRegistry,
 };
 use reqwest::Url;
+
+use crate::domain::node_identity::LocalNodeIdentity;
 
 #[derive(Clone)]
 pub struct ApiRateLimitConfig {
@@ -28,6 +32,7 @@ pub struct ApiConfig {
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
+    pub local_node_identity: Option<LocalNodeIdentity>,
     pub discovery_denylist: Vec<String>,
     pub static_peer_registry: StaticPeerRegistry,
     pub presence_watcher_internal_token: String,
@@ -82,6 +87,12 @@ impl ApiConfig {
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
         let static_peer_descriptor_max_ttl_seconds =
             parse_i64_env("API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS", 86_400)?;
+        let local_node_identity = parse_local_node_identity(
+            "API_LOCAL_NODE_DESCRIPTOR_JSON",
+            "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+            static_peer_descriptor_max_ttl_seconds,
+            &node_fingerprint,
+        )?;
         let static_peer_registry = parse_static_peer_registry(
             "API_STATIC_PEER_DESCRIPTORS_JSON",
             static_peer_descriptor_max_ttl_seconds,
@@ -307,6 +318,7 @@ impl ApiConfig {
             allowed_origins,
             database_url,
             node_fingerprint,
+            local_node_identity,
             discovery_denylist,
             static_peer_registry,
             presence_watcher_internal_token,
@@ -504,6 +516,75 @@ fn parse_static_peer_registry(
         .map_err(|error| format!("Invalid {env_key}: {error:?}"))
 }
 
+fn parse_local_node_identity(
+    descriptor_env_key: &str,
+    private_key_env_key: &str,
+    max_ttl_seconds: i64,
+    expected_node_id: &str,
+) -> Result<Option<LocalNodeIdentity>, String> {
+    let descriptor_raw = env::var(descriptor_env_key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let private_key_raw = env::var(private_key_env_key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    match (descriptor_raw, private_key_raw) {
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(format!(
+            "Invalid {descriptor_env_key}. {private_key_env_key} is required when local node descriptor is configured"
+        )),
+        (None, Some(_)) => Err(format!(
+            "Invalid {private_key_env_key}. {descriptor_env_key} is required when local node private key is configured"
+        )),
+        (Some(descriptor_raw), Some(private_key_raw)) => {
+            let descriptor = serde_json::from_str::<NodeDescriptor>(&descriptor_raw)
+                .map_err(|error| format!("Invalid {descriptor_env_key}. Expected JSON object: {error}"))?;
+            let private_key_pkcs8 = BASE64.decode(private_key_raw.as_bytes()).map_err(|_| {
+                format!(
+                    "Invalid {private_key_env_key}. Expected base64-encoded Ed25519 PKCS#8 bytes"
+                )
+            })?;
+            let public_key = ed25519_public_key_hex(&private_key_pkcs8).map_err(|error| {
+                format!("Invalid {private_key_env_key}. Could not derive Ed25519 public key: {error:?}")
+            })?;
+
+            if descriptor.node_id != expected_node_id.trim() {
+                return Err(format!(
+                    "Invalid {descriptor_env_key}. descriptor node_id must match API_NODE_FINGERPRINT"
+                ));
+            }
+
+            if descriptor.node_public_key != public_key {
+                return Err(format!(
+                    "Invalid {private_key_env_key}. Private key does not match local node descriptor public key"
+                ));
+            }
+
+            let context = DescriptorValidationContext {
+                now_epoch_seconds: current_epoch_seconds()?,
+                max_ttl_seconds,
+                revoked_descriptor_ids: Vec::new(),
+            };
+            descriptor
+                .validate_with_signature(&context, &Ed25519DescriptorVerifier)
+                .map_err(|error| {
+                    format!(
+                        "Invalid {descriptor_env_key} descriptor '{}': {error:?}",
+                        descriptor.descriptor_id
+                    )
+                })?;
+
+            Ok(Some(LocalNodeIdentity {
+                descriptor,
+                private_key_pkcs8,
+            }))
+        }
+    }
+}
+
 fn current_epoch_seconds() -> Result<i64, String> {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -516,6 +597,7 @@ fn current_epoch_seconds() -> Result<i64, String> {
 #[cfg(test)]
 mod tests {
     use super::{current_epoch_seconds, ApiConfig};
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
         NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
@@ -539,6 +621,8 @@ mod tests {
         "API_DATABASE_URL",
         "API_ALLOWED_ORIGINS",
         "API_DISCOVERY_DENYLIST",
+        "API_LOCAL_NODE_DESCRIPTOR_JSON",
+        "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
         "API_STATIC_PEER_DESCRIPTORS_JSON",
         "API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS",
         "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
@@ -602,15 +686,15 @@ mod tests {
         }
     }
 
-    fn signed_static_peer_json() -> String {
+    fn signed_descriptor(node_id: &str, descriptor_id: &str) -> (NodeDescriptor, Vec<u8>) {
         let pkcs8 =
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
         let now = current_epoch_seconds().expect("read current epoch");
         let mut descriptor = NodeDescriptor {
-            node_id: "node-a".to_string(),
+            node_id: node_id.to_string(),
             node_public_key: public_key,
-            descriptor_id: "descriptor-a".to_string(),
+            descriptor_id: descriptor_id.to_string(),
             issued_at_epoch_seconds: now - 1,
             expires_at_epoch_seconds: now + 300,
             network_mode: NetworkMode::PrivatePeers,
@@ -619,7 +703,7 @@ mod tests {
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec!["https://node-a.example".to_string()],
+            addresses: vec![format!("https://{node_id}.example")],
             supported_protocols: vec!["hexrelay-node-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
@@ -632,6 +716,11 @@ mod tests {
         descriptor.signature.value =
             sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
 
+        (descriptor, pkcs8.as_ref().to_vec())
+    }
+
+    fn signed_static_peer_json() -> String {
+        let (descriptor, _) = signed_descriptor("node-a", "descriptor-a");
         serde_json::to_string(&vec![descriptor]).expect("serialize static peer descriptor")
     }
 
@@ -717,6 +806,74 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("API_STATIC_PEER_DESCRIPTORS_JSON"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_and_validates_local_node_identity() {
+        let (descriptor, private_key_pkcs8) = signed_descriptor("node-local", "descriptor-local");
+        let descriptor_json =
+            serde_json::to_string(&descriptor).expect("serialize local node descriptor");
+        let private_key = BASE64.encode(&private_key_pkcs8);
+
+        with_api_env(
+            &[
+                ("API_NODE_FINGERPRINT", Some("node-local")),
+                (
+                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
+                    Some(descriptor_json.as_str()),
+                ),
+                (
+                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+                    Some(private_key.as_str()),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                let identity = config
+                    .local_node_identity
+                    .expect("local node identity should parse");
+                assert_eq!(identity.descriptor.node_id, "node-local");
+                assert_eq!(identity.private_key_pkcs8, private_key_pkcs8);
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_local_node_identity_when_private_key_mismatches_descriptor() {
+        let (descriptor, _) = signed_descriptor("node-local", "descriptor-local");
+        let (_, wrong_private_key_pkcs8) = signed_descriptor("node-other", "descriptor-other");
+        let descriptor_json =
+            serde_json::to_string(&descriptor).expect("serialize local node descriptor");
+        let private_key = BASE64.encode(wrong_private_key_pkcs8);
+
+        with_api_env(
+            &[
+                ("API_NODE_FINGERPRINT", Some("node-local")),
+                (
+                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
+                    Some(descriptor_json.as_str()),
+                ),
+                (
+                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+                    Some(private_key.as_str()),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("mismatched local node key should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64"));
             },
         );
     }

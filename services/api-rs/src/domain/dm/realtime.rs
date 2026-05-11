@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
     domain::dm::routing::{
         plan_dm_envelope_route, DmEnvelopeForwardingRoute, DmEnvelopeRouteRequest,
     },
@@ -169,11 +170,23 @@ pub async fn dispatch_dm_envelope(
     )
     .map_err(|error| format!("plan DM envelope route: {error}"))?;
 
-    if !matches!(route, DmEnvelopeForwardingRoute::LocalRealtime { .. }) {
-        return Err(format!(
-            "server-node forwarding transport is not implemented for route kind {}",
-            route.kind()
-        ));
+    if let DmEnvelopeForwardingRoute::StaticPeer { route } = route {
+        return forward_dm_envelope_to_static_peer(
+            state,
+            &route,
+            ForwardDmEnvelopeInput {
+                message_id: input.message_id,
+                thread_id: input.thread_id,
+                sender_identity_id: input.sender_identity_id,
+                recipient_identity_id: input.recipient_identity_id,
+                ciphertext: input.ciphertext,
+                source_device_id: input.source_device_id,
+                accepted_at: input.accepted_at,
+                delivery_cursor: input.delivery_cursor,
+                target_device_ids: input.target_device_ids,
+            },
+        )
+        .await;
     }
 
     let request = DmEnvelopeDispatchRequest {
@@ -283,7 +296,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dispatch_fails_closed_for_static_peer_destination_until_forwarder_exists() {
+    async fn dispatch_fails_closed_for_static_peer_destination_without_local_identity() {
         let registry =
             StaticPeerRegistry::try_new(vec![signed_descriptor("node-peer", "descriptor-peer")])
                 .expect("registry should build");
@@ -305,9 +318,8 @@ mod tests {
             },
         )
         .await
-        .expect_err("static peer dispatch should fail closed until forwarding transport exists");
+        .expect_err("static peer dispatch should fail closed without local node identity");
 
-        assert!(error.contains("server-node forwarding transport is not implemented"));
-        assert!(error.contains("static_peer_direct"));
+        assert!(error.contains("local node identity"));
     }
 }

@@ -10,6 +10,7 @@ use sqlx::PgPool;
 
 use crate::{
     config::ApiRateLimitConfig,
+    domain::node_identity::LocalNodeIdentity,
     models::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
         FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
@@ -42,6 +43,7 @@ pub struct AppState {
     pub invites: Arc<RwLock<HashMap<String, InviteRecord>>>,
     pub muted_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
     pub node_fingerprint: String,
+    pub local_node_identity: Option<LocalNodeIdentity>,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
     pub session_cookie_domain: Option<String>,
@@ -100,6 +102,7 @@ impl AppState {
             invites: Arc::default(),
             muted_users: Arc::default(),
             node_fingerprint,
+            local_node_identity: None,
             rate_limiter: RateLimiter::default(),
             rate_limits,
             session_cookie_domain,
@@ -128,6 +131,11 @@ impl AppState {
 
     pub fn with_static_peer_registry(mut self, registry: StaticPeerRegistry) -> Self {
         self.static_peer_registry = registry;
+        self
+    }
+
+    pub fn with_local_node_identity(mut self, identity: Option<LocalNodeIdentity>) -> Self {
+        self.local_node_identity = identity;
         self
     }
 }
