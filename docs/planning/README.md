@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 reframed DM execution planning around server-node P2P encrypted-envelope delivery and retired node-bypassing client DM transport.
+- Latest meaningful change: 2026-05-11 recorded the server-node policy graph architecture lock and routed planning readers to the networking authority.
 
 - `Status: ready` means this index is the canonical planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before planning against unsettled behavior.
 

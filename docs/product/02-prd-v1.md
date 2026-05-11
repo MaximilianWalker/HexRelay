@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, and broadened UX approval to all UX decisions.
+- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, broadened UX approval to all UX decisions, and aligned discovery requirements with the dynamic server-node policy graph.
 
 ## Product Summary
 
@@ -75,7 +75,7 @@ Build a communication stack where users and communities control identity, data l
 ## Out of Scope (MVP)
 
 - Full DHT-based decentralized discovery.
-- Cross-server DMs.
+- Full arbitrary cross-server DMs beyond the policy-controlled encrypted-envelope architecture.
 - Full bot/plugin platform.
 - Enterprise-grade global active-active architecture.
 
@@ -83,7 +83,9 @@ Build a communication stack where users and communities control identity, data l
 
 - Keep federation discovery as a supported path (default registry + optional custom registries).
 - Add trusted-registry scopes for friend/community-only discoverability.
-- Add optional decentralized server/node discovery later, while preserving private/invite-only operation.
+- Preserve local-only, LAN-only, private online, invite-only, member-visible, trusted registry, and public opt-in operation.
+- Add user-consented node introductions where the introduced server descriptor explicitly permits that sharing.
+- Add optional decentralized server/node discovery later for signed descriptor lookup only, while preserving private/invite-only operation.
 
 ## Key User Flows
 
@@ -109,9 +111,10 @@ Build a communication stack where users and communities control identity, data l
 2. API releases only the public identity and profile-device bootstrap material required for client-side E2EE setup after relationship acceptance.
 3. Client encrypts outbound DM payloads into per-recipient/device E2EE envelopes.
 4. Server nodes/message nodes in the server-node P2P network carry and store only ciphertext envelopes plus minimal delivery metadata.
-5. Recipient client decrypts locally; server-side plaintext access and private-key custody are forbidden.
-6. If recipient is offline or currently unreachable, accepted encrypted envelopes remain in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
-7. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
+5. Origin, delivery, and optional relay nodes are selected by current node policy and route availability; no node role owns the user's identity.
+6. Recipient client decrypts locally; server-side plaintext access and private-key custody are forbidden.
+7. If recipient is offline or currently unreachable, accepted encrypted envelopes remain in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
+8. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
 
 ### 4) New Device Restore
 
@@ -183,6 +186,8 @@ Build a communication stack where users and communities control identity, data l
   - No UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
 - DM delivery execution model
   - E2EE envelope delivery through server nodes/message nodes in the server-node P2P network is the only MVP DM transport path.
+  - Server-node discovery, peering, relay, delivery, and encrypted storage permissions are separate.
+  - Relay is optional and policy-controlled; a server may be discoverable or peered while refusing relay or DM forwarding.
   - Accepted contact-invite redemption or accepted mediated friend-request bootstrap is required before encryption material is trusted.
   - Delivery-state diagnostics are required for blocked policy, missing bootstrap, offline recipient, message-node unavailable, and catch-up/replay failures; these diagnostics must not become a DM preflight/troubleshooter UX.
   - Recipient-device pairing QR/manual code, LAN discovery, WAN wizard, endpoint cards, connectivity preflight, and parallel dial are out of scope for DM delivery.
@@ -203,7 +208,11 @@ Build a communication stack where users and communities control identity, data l
   - Competitive baseline quality and screen share support.
 - Discovery
   - Global and shared-server user discovery.
-  - Server discovery supports public listings; private hidden by default.
+  - Server discovery is opt-in and descriptor-scoped.
+  - Server discovery supports public listings; private, invite-only, LAN-only, and local-only nodes remain hidden by default.
+  - Online servers may remain private and non-discoverable.
+  - User-consented node introductions are allowed only when the introduced server descriptor permits that discovery path and the user explicitly consents.
+  - Discovery never implies peering, relay, delivery, storage, membership, or trust.
   - Discovery endpoints enforce rate limiting and node-level denylist controls.
 - Data Portability
   - Export/import and full migration paths with integrity verification.
@@ -230,7 +239,8 @@ Build a communication stack where users and communities control identity, data l
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
-- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
+- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts, LANs, or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
+- Server-node topology: dynamic opt-in policy graph with portable user identity, no primary-server assumption, and separate discovery/peering/relay/delivery/storage permissions.
 
 ## Success Metrics (MVP)
 

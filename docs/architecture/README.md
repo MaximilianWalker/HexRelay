@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-11
 - Source of truth: `docs/architecture/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 refreshed the runtime deployment ADR summary for release target parity and desktop/server package boundaries.
+- Latest meaningful change: 2026-05-11 refreshed the communication networking summary for the dynamic server-node policy graph and opt-in discovery/relay model.
 
 ## Purpose
 
@@ -35,4 +35,4 @@
 
 - `docs/architecture/02-data-lifecycle-retention-replication.md`: persistence boundaries, retention, and reconciliation behavior.
 - `docs/architecture/03-rust-service-migration-baseline.md`: migration baseline, coverage snapshot, and current-to-target module mapping for Rust service structure migration.
-- `docs/architecture/04-communication-networking-layer-plan.md`: shared communication layer architecture and DM-vs-server networking implementation plan.
+- `docs/architecture/04-communication-networking-layer-plan.md`: shared communication layer architecture, server-node policy graph, opt-in discovery/relay model, and DM-vs-server networking implementation plan.

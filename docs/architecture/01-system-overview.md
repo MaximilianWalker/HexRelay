@@ -13,7 +13,7 @@
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-11 locked whole-system DM trust boundaries to server-node P2P E2EE envelope delivery and removed node-bypassing client DM transport/bootstrap scope.
+- Latest meaningful change: 2026-05-11 aligned whole-system topology with the dynamic server-node policy graph: no primary-server assumption, opt-in discovery, private/LAN/local-only nodes, user-consented node introductions, and ciphertext-only relay/delivery.
 
 ## Purpose
 
@@ -54,7 +54,10 @@ Detailed mode authority:
 - object storage
   - durable blob/media storage when enabled by feature scope
 - server-node P2P DM path
-  - server nodes/message nodes peer as the DM delivery network and store/forward E2EE DM envelopes plus minimal delivery metadata only
+  - server nodes/message nodes form a dynamic policy graph for discovery, peering, relay, and delivery
+  - nodes can be local-only, LAN-only, private online, allowlisted, or public opt-in
+  - nodes may act as origin, delivery, relay, or discoverable nodes depending on local policy
+  - nodes store/forward E2EE DM envelopes plus minimal delivery metadata only
   - never stores DM plaintext or client private keys
 
 ## Topology by Mode
@@ -71,6 +74,8 @@ Detailed mode authority:
 - Browser clients connect remotely through operator-managed ingress.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
 - Dedicated server runtimes may participate as peers in the server-node P2P network; clients still attach to nodes rather than forming DM transport paths between recipient devices.
+- A dedicated server may be hosted online and still remain private, non-discoverable, non-relaying, or invite-only.
+- P2P participation is policy-scoped. Discovery, peering, relay, delivery, and durable encrypted storage are separate permissions.
 
 ## Trust Boundaries
 
@@ -89,6 +94,9 @@ Detailed mode authority:
 - `server-node P2P DM path`
   - server nodes may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
   - server must not decrypt DM content, receive private keys, or provide an unencrypted DM mailbox/relay
+  - discovery must expose only signed descriptors allowed by the discovered node's current policy
+  - relay paths are valid only when every hop explicitly allows relay
+  - user-consented introductions can create candidate peers only when the introduced node descriptor permits that sharing
 
 Detailed authorities:
 - `docs/contracts/runtime-rest-v1.openapi.yaml`
@@ -105,6 +113,7 @@ Detailed authorities:
   - sessions, invites, friends, server memberships, server-channel messages
   - encrypted DM envelopes and minimal delivery metadata accepted by a server node/message node in the server-node P2P network
   - server-side authz and policy decisions
+  - node descriptors, discovery policy, peering policy, relay policy, and delivery policy for that node
 - ephemeral/shared runtime state
   - Redis-backed live cursors, presence snapshots, pubsub coordination, and replay acceleration state
 - replicated but not primary truth
@@ -127,6 +136,8 @@ Detailed authority:
 - `DM delivery`
   - relationship, policy, and public bootstrap material come from API control-plane flows
   - client encrypts DM payloads before server-node delivery; message nodes in the server-node P2P network store/fan out ciphertext envelopes only
+  - sender and recipient identities are portable and are not assumed to belong to a permanent primary server
+  - origin, delivery, relay, and discoverable node roles are selected by current node policy and route availability
   - sender success semantics must mean durable encrypted-envelope acceptance, not merely attempted live fanout
 
 ## Current Guarantees and Non-Guarantees
@@ -146,6 +157,10 @@ Detailed authority:
 - reachability vs presence
   - repeated failed delivery should downgrade current reachability assumptions without deleting the message
   - live node fanout may fail while durable encrypted-envelope delivery remains healthy, so reachability should not silently redefine canonical message durability
+- server-node network topology
+  - no node needs a global network view
+  - small private P2P networks are valid first-class deployments
+  - discovery is opt-in and does not imply peering, relay, or delivery permission
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`

@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-05-11 aligned DM delivery risks with server-node P2P E2EE envelope delivery and node-bypassing client transport guardrails.
+- Latest meaningful change: 2026-05-11 aligned discovery and relay risks with the dynamic server-node policy graph, opt-in descriptors, and user-consented node introductions.
 
 ## Purpose
 
@@ -39,13 +39,13 @@
 
 | ID | Risk | Severity | Likelihood | Mitigation | Owner |
 |---|---|---|---|---|---|
-| R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery | Product |
+| R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery plus explicit server-node policy boundaries; defer Kademlia/HyParView/Plumtree until public opt-in networks need them | Product |
 | R-002 | Voice/screen-share connection failure across NAT-restricted network conditions | high | high | Enforce Iteration 3 TURN/NAT constrained-network profile (`NAT-01`..`NAT-04`), keep relay fallback success thresholds, and block iteration sign-off until profile passes | Realtime |
 | R-003 | E2EE implementation complexity delays messaging roadmap | high | medium | Keep 1:1 and group DM E2EE in MVP scope; reduce risk by phased delivery (1:1 baseline then group rollout in Iteration 2 with explicit test gates) | API |
 | R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
-| R-007 | User identity scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, hide raw key/profile-identifying data by default, release bootstrap data only on accepted requests | API |
+| R-007 | User identity or private-node scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, signed opt-in node descriptors, descriptor-scope validation, rate limits, denylists, and bootstrap release only on accepted requests | API |
 | R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, retention policy, abuse controls, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
 | R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, and active+late-device convergence tests for DM and server paths | Core/Realtime |
 
@@ -54,7 +54,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-05-11 (aligned DM delivery risk ownership with server-node P2P ciphertext-envelope delivery, metadata/key-custody controls, and node-bypassing client transport guardrails).
+- Last reviewed: 2026-05-11 (aligned DM delivery and discovery/relay risk ownership with server-node P2P ciphertext-envelope delivery, opt-in descriptors, user-consented introductions, and node-bypassing client transport guardrails).
 
 ## Risk to Task Mitigation Matrix
 
@@ -76,13 +76,14 @@
 | DEC-001 | MVP stack baseline uses Next.js + Rust + PostgreSQL + Redis + S3-compatible storage + coturn | accepted | `docs/architecture/adr-0001-stack-baseline.md` |
 | DEC-002 | Task-level execution authority is owned by iteration boards, not strategy docs | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-003 | Profile data authority remains user-signed canonical data; server replicas are non-authoritative except server-owned security/membership fields | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-004 | Post-MVP discovery roadmap is hybrid: federation supported, trusted registries added, and decentralized server/node discovery optional | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-004 | Post-MVP discovery roadmap is hybrid: private/trusted discovery first, federation registries supported, user-consented node introductions allowed by descriptor policy, and decentralized server/node discovery optional | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-005 | Server invite policy allows optional expiration/max-uses, including non-expiring multi-use links for open-access behavior | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-006 | Friend requests are server-mediated with privacy-first identity exposure; DM inbound defaults to friends-only with user-configurable overrides | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-007 | DM delivery baseline uses server nodes/message nodes in the server-node P2P network for E2EE envelope store-and-forward; DM plaintext and private keys remain client/device-only | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-008 | MVP DM offline behavior requires durable encrypted-envelope acceptance into canonical DM history plus bounded eventual catch-up | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-009 | Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope | accepted | `docs/product/03-clarifications.md` |
 | DEC-010 | Incoming communication must converge across all profile-linked devices (active fanout + late-device catch-up) for DM and server communication domains | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-011 | Server-node P2P topology is a dynamic policy graph with no primary-server assumption; discovery, peering, relay, delivery, and storage permissions are separate | accepted | `docs/architecture/04-communication-networking-layer-plan.md` |
 
 ## Related Documents
 
