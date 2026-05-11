@@ -67,6 +67,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     assert_eq!(bundle.identity_id, "usr-q");
     assert_eq!(bundle.public_key, "bb".repeat(32));
     assert_eq!(bundle.algorithm, "ed25519");
+    assert!(bundle.devices.is_empty());
 
     // Target fetches the same server-mediated material for the requester.
     let bootstrap_req2 = Request::builder()
@@ -98,6 +99,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     assert_eq!(bundle2.identity_id, "usr-p");
     assert_eq!(bundle2.public_key, "aa".repeat(32));
     assert_eq!(bundle2.algorithm, "ed25519");
+    assert!(bundle2.devices.is_empty());
 }
 
 #[tokio::test]

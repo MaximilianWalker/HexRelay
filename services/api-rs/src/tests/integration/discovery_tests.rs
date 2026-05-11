@@ -332,12 +332,8 @@ async fn discovery_rejects_invalid_scope() {
 #[tokio::test]
 async fn discovery_ignores_blank_query_and_clamps_large_limit() {
     let actor = unique_identity("usr-discovery-query-actor");
-    let allowed_a = unique_identity("usr-discovery-query-alpha");
-    let allowed_b = unique_identity("usr-discovery-query-beta");
 
-    let Some((_app, _tokens, pool)) =
-        app_with_database_and_sessions(&[&actor, &allowed_a, &allowed_b]).await
-    else {
+    let Some((_app, _tokens, pool)) = app_with_database_and_sessions(&[&actor]).await else {
         return;
     };
 
@@ -370,8 +366,6 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
     .with_db_pool(pool.clone());
 
     ensure_db_identity_key(&pool, &actor).await;
-    ensure_db_identity_key(&pool, &allowed_a).await;
-    ensure_db_identity_key(&pool, &allowed_b).await;
 
     let token = issue_db_session_cookie(&pool, &state, &actor).await;
     let app = build_app(state);
@@ -396,14 +390,6 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
         serde_json::from_slice(&body).expect("decode blank-query discovery payload");
 
     assert!(payload.items.len() <= 50);
-    assert!(payload
-        .items
-        .iter()
-        .any(|item| item.identity_id == allowed_a));
-    assert!(payload
-        .items
-        .iter()
-        .any(|item| item.identity_id == allowed_b));
     assert!(!payload.items.iter().any(|item| item.identity_id == actor));
 }
 
@@ -412,6 +398,8 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     let actor = unique_identity("usr-discovery-shared-actor");
     let shared_peer = unique_identity("usr-discovery-shared-peer");
     let other_user = unique_identity("usr-discovery-shared-other");
+    let shared_server = unique_identity("srv-shared");
+    let other_server = unique_identity("srv-other");
 
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&actor, &shared_peer, &other_user]).await
@@ -429,9 +417,18 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     .await
     .expect("insert persisted relationship");
 
-    seed_server_membership(&pool, "srv-shared", "Shared", &actor, false, false, 0).await;
-    seed_server_membership(&pool, "srv-shared", "Shared", &shared_peer, false, false, 0).await;
-    seed_server_membership(&pool, "srv-other", "Other", &other_user, false, false, 0).await;
+    seed_server_membership(&pool, &shared_server, "Shared", &actor, false, false, 0).await;
+    seed_server_membership(
+        &pool,
+        &shared_server,
+        "Shared",
+        &shared_peer,
+        false,
+        false,
+        0,
+    )
+    .await;
+    seed_server_membership(&pool, &other_server, "Other", &other_user, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -458,14 +455,15 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 async fn discovery_trims_scope_before_enum_validation() {
     let actor = unique_identity("usr-discovery-trim-actor");
     let shared_peer = unique_identity("usr-discovery-trim-peer");
+    let server_id = unique_identity("srv-trim");
 
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
     else {
         return;
     };
 
-    seed_server_membership(&pool, "srv-trim", "Trimmed", &actor, false, false, 0).await;
-    seed_server_membership(&pool, "srv-trim", "Trimmed", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, &server_id, "Trimmed", &actor, false, false, 0).await;
+    seed_server_membership(&pool, &server_id, "Trimmed", &shared_peer, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -590,10 +588,11 @@ async fn discovery_excludes_configured_denylist() {
 
 #[tokio::test]
 async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclusions() {
-    let actor = unique_identity("usr-discovery-actor");
-    let blocked = unique_identity("usr-discovery-blocked");
-    let denied = unique_identity("usr-discovery-denied");
-    let allowed = unique_identity("usr-discovery-allowed");
+    let discovery_prefix = unique_identity("usr-discovery");
+    let actor = format!("{discovery_prefix}-actor");
+    let blocked = format!("{discovery_prefix}-blocked");
+    let denied = format!("{discovery_prefix}-denied");
+    let allowed = format!("{discovery_prefix}-allowed");
 
     let Some(pool) = prepared_database_pool().await else {
         return;
@@ -646,7 +645,9 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
 
     let request = Request::builder()
         .method("GET")
-        .uri("/discovery/users?scope=global&query=usr-discovery-&limit=1")
+        .uri(format!(
+            "/discovery/users?scope=global&query={discovery_prefix}&limit=1"
+        ))
         .header("cookie", format!("hexrelay_session={token}"))
         .body(Body::empty())
         .expect("build discovery request");

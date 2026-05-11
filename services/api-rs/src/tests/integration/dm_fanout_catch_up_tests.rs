@@ -15,6 +15,10 @@ fn device_secret(device_id: &str) -> String {
     format!("secret-{device_id}")
 }
 
+fn unique_message_id(prefix: &str) -> String {
+    format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
+
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
     let request = Request::builder()
         .method("POST")
@@ -546,6 +550,7 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
 async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
+    let message_id = unique_message_id("msg-2001");
     let Some((app, tokens, _pool)) =
         app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
@@ -578,11 +583,14 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let dispatch = Request::builder()
         .method("POST")
         .uri("/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-2001","ciphertext":"enc:late-2001"}}"#,
-            recipient
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:late-2001"}}"#,
+            recipient, message_id
         )))
         .expect("build fanout dispatch request");
     let dispatch_response = app
@@ -640,13 +648,17 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     assert_eq!(payload["reason_code"], "fanout_catch_up_ok");
     assert_eq!(payload["replay_count"], 1);
     assert_eq!(payload["next_cursor"], "1");
-    assert_eq!(payload["items"][0]["message_id"], "msg-2001");
+    assert_eq!(payload["items"][0]["message_id"], message_id.as_str());
 }
 
 #[tokio::test]
 async fn fanout_catch_up_replays_until_ack_advances_cursor() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
+    let message_ids = [
+        unique_message_id("msg-dup-a"),
+        unique_message_id("msg-dup-b"),
+    ];
     let Some((app, tokens, _pool)) =
         app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
@@ -676,7 +688,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
         assert_eq!(heartbeat_response.status(), StatusCode::OK);
     }
 
-    for message_id in ["msg-dup-a", "msg-dup-b"] {
+    for message_id in &message_ids {
         let dispatch = Request::builder()
             .method("POST")
             .uri("/dm/fanout/dispatch")
@@ -743,8 +755,8 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
     assert_eq!(payload["reason_code"], "fanout_catch_up_ok");
     assert_eq!(payload["replay_count"], 2);
     assert_eq!(payload["next_cursor"], "2");
-    assert_eq!(payload["items"][0]["message_id"], "msg-dup-a");
-    assert_eq!(payload["items"][1]["message_id"], "msg-dup-b");
+    assert_eq!(payload["items"][0]["message_id"], message_ids[0].as_str());
+    assert_eq!(payload["items"][1]["message_id"], message_ids[1].as_str());
     assert!(payload["items"][0]["envelope_id"]
         .as_str()
         .expect("envelope id")
@@ -849,6 +861,8 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
 async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
+    let first_message_id = unique_message_id("msg-order-a");
+    let second_message_id = unique_message_id("msg-order-b");
     let Some((app, tokens, _pool)) =
         app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
@@ -861,7 +875,7 @@ async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
         &app,
         &tokens[sender.as_str()],
         &recipient,
-        "msg-order-a",
+        &first_message_id,
         "enc:order-a",
     )
     .await;
@@ -869,7 +883,7 @@ async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
         &app,
         &tokens[sender.as_str()],
         &recipient,
-        "msg-order-b",
+        &second_message_id,
         "enc:order-b",
     )
     .await;
@@ -900,7 +914,7 @@ async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
     assert_eq!(after_out_of_order_ack["items"][0]["cursor"], "1");
     assert_eq!(
         after_out_of_order_ack["items"][0]["message_id"],
-        "msg-order-a"
+        first_message_id.as_str()
     );
 
     let first = &items[0];
@@ -929,6 +943,7 @@ async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
 async fn fanout_ack_rejects_mismatched_envelope_id_and_unknown_device() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
+    let message_id = unique_message_id("msg-ack-validate");
     let Some((app, tokens, _pool)) =
         app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
@@ -941,7 +956,7 @@ async fn fanout_ack_rejects_mismatched_envelope_id_and_unknown_device() {
         &app,
         &tokens[sender.as_str()],
         &recipient,
-        "msg-ack-validate",
+        &message_id,
         "enc:ack-validate",
     )
     .await;
@@ -987,6 +1002,18 @@ async fn fanout_ack_rejects_mismatched_envelope_id_and_unknown_device() {
 async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
+    let variants = [
+        (
+            unique_message_id("msg-variant-1"),
+            "enc:variant-1",
+            "sender-main",
+        ),
+        (
+            unique_message_id("msg-variant-2"),
+            "enc:variant-2",
+            "tablet-main",
+        ),
+    ];
     let Some((app, tokens, _pool)) =
         app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
     else {
@@ -1016,10 +1043,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
         assert_eq!(heartbeat_response.status(), StatusCode::OK);
     }
 
-    for (message_id, ciphertext, source_device_id) in [
-        ("msg-variant-1", "enc:variant-1", "sender-main"),
-        ("msg-variant-2", "enc:variant-2", "tablet-main"),
-    ] {
+    for (message_id, ciphertext, source_device_id) in &variants {
         let dispatch = Request::builder()
             .method("POST")
             .uri("/dm/fanout/dispatch")

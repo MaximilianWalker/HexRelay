@@ -86,7 +86,6 @@ struct FriendRequestPage {
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 struct IdentityBootstrapBundle {
     identity_id: String,
     public_key: String,

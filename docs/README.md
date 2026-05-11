@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide and added the app-to-node connection/capability contract plus two-node HTTP forwarding smoke pointer.
+- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide, added the app-to-node connection/capability contract, and cleaned active Iteration 2 DM sequencing after server-node forwarding evidence landed.
 
 ## Purpose
 

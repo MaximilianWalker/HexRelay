@@ -64,6 +64,7 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
     let server_id = unique_identity("srv-repo-delete");
     let channel_id = unique_identity("chan-repo-delete");
     let author_id = unique_identity("usr-repo-delete-author");
+    let message_id = format!("scm-delete-repo-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
@@ -73,7 +74,7 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
         "general",
         &[&author_id],
         &[(
-            "scm-delete-repo",
+            message_id.as_str(),
             &author_id,
             1,
             "hello",
@@ -97,7 +98,7 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
         &pool,
         &server_id,
         &channel_id,
-        "scm-delete-repo",
+        &message_id,
         &author_id,
         "2026-04-01T01:00:00Z",
     )
@@ -433,6 +434,7 @@ async fn fanout_friends_only_uses_db_friendship_state() {
 
     let requester_identity = unique_identity("db-dm-policy-a");
     let target_identity = unique_identity("db-dm-policy-b");
+    let message_id = format!("msg-db-friendship-ok-{}", Uuid::new_v4().simple());
     let (requester_cookie, app) = authenticate_identity(app, &requester_identity).await;
     let (target_cookie, app) = authenticate_identity(app, &target_identity).await;
 
@@ -490,8 +492,8 @@ async fn fanout_friends_only_uses_db_friendship_state() {
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-db-friendship-ok","ciphertext":"enc:db-friendship"}}"#,
-            target_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:db-friendship"}}"#,
+            target_identity, message_id
         )))
         .expect("build dm fanout request");
     let fanout_response = app
