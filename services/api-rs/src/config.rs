@@ -728,7 +728,10 @@ mod tests {
     use std::sync::{Mutex, OnceLock};
 
     use crate::domain::{
-        node_identity::{generate_node_identity, LocalNodeIdentity, NodeIdentityGenerateOptions},
+        node_identity::{
+            generate_node_identity, GeneratedNodeIdentity, LocalNodeIdentity,
+            NodeIdentityGenerateOptions,
+        },
         peer_invites::{issue_peer_invite, PeerInviteIssueOptions},
     };
 
@@ -887,6 +890,32 @@ mod tests {
         serde_json::to_string(&vec![envelope]).expect("serialize static peer invite")
     }
 
+    fn generated_node_identity(
+        node_id: &str,
+        descriptor_id: &str,
+    ) -> (GeneratedNodeIdentity, LocalNodeIdentity) {
+        generate_node_identity(
+            &NodeIdentityGenerateOptions {
+                node_id: node_id.to_string(),
+                descriptor_id: Some(descriptor_id.to_string()),
+                ttl_seconds: 300,
+                max_ttl_seconds: 86_400,
+                network_mode: NetworkMode::PrivatePeers,
+                discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+                peering_policy: PeeringPolicy::InviteToken,
+                relay_policy: RelayPolicy::None,
+                dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+                storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+                addresses: vec![format!("https://{node_id}.example")],
+                supported_protocols: vec!["hexrelay-node-http".to_string()],
+                trust_labels: Vec::new(),
+                revocation_pointer: None,
+            },
+            current_epoch_seconds().expect("read current epoch") - 1,
+        )
+        .expect("generate local node identity")
+    }
+
     #[test]
     fn rejects_invalid_environment_value() {
         with_api_env(
@@ -976,6 +1005,75 @@ mod tests {
     }
 
     #[test]
+    fn bootstraps_two_node_private_mesh_from_generated_identity_and_signed_invite() {
+        let (_, node_a_identity) = generated_node_identity("node-a", "descriptor-node-a");
+        let (node_b_output, node_b_identity) =
+            generated_node_identity("node-b", "descriptor-node-b");
+        let invite = issue_peer_invite(
+            &node_a_identity,
+            &PeerInviteIssueOptions {
+                invite_id: Some("peer-invite-node-a-to-node-b".to_string()),
+                subject_node_id: Some("node-b".to_string()),
+                allow_unbound: false,
+                ttl_seconds: 300,
+                max_ttl_seconds: 86_400,
+                discovery_path: DiscoveryPath::PrivateAllowlist,
+                max_uses: Some(1),
+            },
+            current_epoch_seconds().expect("read current epoch") - 1,
+        )
+        .expect("issue node-a to node-b peer invite");
+        let invite_json =
+            serde_json::to_string(&vec![invite]).expect("serialize node-a peer invite");
+        let node_b_descriptor_json =
+            serde_json::to_string(&node_b_output.api_local_node_descriptor_json)
+                .expect("serialize node-b local descriptor");
+
+        with_api_env(
+            &[
+                ("API_NODE_FINGERPRINT", Some("node-b")),
+                (
+                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
+                    Some(node_b_descriptor_json.as_str()),
+                ),
+                (
+                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+                    Some(
+                        node_b_output
+                            .api_local_node_private_key_pkcs8_base64
+                            .as_str(),
+                    ),
+                ),
+                ("API_STATIC_PEER_INVITES_JSON", Some(invite_json.as_str())),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("node-b config should load");
+                let local_identity = config
+                    .local_node_identity
+                    .expect("node-b local identity should parse");
+                assert_eq!(local_identity.descriptor.node_id, "node-b");
+                assert_eq!(
+                    local_identity.private_key_pkcs8,
+                    node_b_identity.private_key_pkcs8
+                );
+
+                let descriptors = config.static_peer_registry.descriptors();
+                assert_eq!(descriptors.len(), 1);
+                assert_eq!(descriptors[0].node_id, "node-a");
+                assert_eq!(descriptors[0].peering_policy, PeeringPolicy::InviteToken);
+                assert_eq!(
+                    descriptors[0].addresses,
+                    vec!["https://node-a.example".to_string()]
+                );
+            },
+        );
+    }
+
+    #[test]
     fn rejects_static_peer_invite_for_different_subject_node() {
         let invite_json = signed_static_peer_invite_json("node-other");
 
@@ -1055,26 +1153,8 @@ mod tests {
 
     #[test]
     fn parses_and_validates_local_node_identity() {
-        let (generated, generated_identity) = generate_node_identity(
-            &NodeIdentityGenerateOptions {
-                node_id: "node-local".to_string(),
-                descriptor_id: Some("descriptor-local".to_string()),
-                ttl_seconds: 300,
-                max_ttl_seconds: 86_400,
-                network_mode: NetworkMode::PrivatePeers,
-                discovery_policy: DiscoveryPolicy::PrivateAllowlist,
-                peering_policy: PeeringPolicy::InviteToken,
-                relay_policy: RelayPolicy::None,
-                dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
-                storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-                addresses: vec!["https://node-local.example".to_string()],
-                supported_protocols: vec!["hexrelay-node-http".to_string()],
-                trust_labels: Vec::new(),
-                revocation_pointer: None,
-            },
-            current_epoch_seconds().expect("read current epoch") - 1,
-        )
-        .expect("generate local node identity");
+        let (generated, generated_identity) =
+            generated_node_identity("node-local", "descriptor-local");
         let descriptor_json = serde_json::to_string(&generated.api_local_node_descriptor_json)
             .expect("serialize local node descriptor");
 
