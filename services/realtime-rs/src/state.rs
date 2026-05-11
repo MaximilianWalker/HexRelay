@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{HashMap, VecDeque},
     sync::Arc,
     time::Duration,
 };
@@ -43,7 +43,7 @@ pub struct AppState {
     pub dev_faults: Arc<Mutex<DevFaultState>>,
     pub active_connections: Arc<Mutex<HashMap<String, usize>>>,
     pub connection_senders: Arc<Mutex<ConnectionSenderMap>>,
-    pub locally_dispatched_channel_event_ids: Arc<Mutex<BTreeSet<String>>>,
+    pub locally_dispatched_channel_event_ids: Arc<Mutex<VecDeque<String>>>,
     pub validated_session_cache: Arc<Mutex<HashMap<String, CachedSession>>>,
 }
 

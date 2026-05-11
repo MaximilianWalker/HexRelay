@@ -1023,34 +1023,36 @@ async fn remember_locally_dispatched_channel_event(state: &AppState, event_id: &
         return;
     }
     let mut guard = state.locally_dispatched_channel_event_ids.lock().await;
-    if guard.len() >= LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX {
-        if let Some(event_id) = guard.iter().next().cloned() {
-            guard.remove(&event_id);
-        }
+    if let Some(position) = guard.iter().position(|value| value == event_id) {
+        guard.remove(position);
     }
-    guard.insert(event_id.to_string());
+    if guard.len() >= LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX {
+        guard.pop_front();
+    }
+    guard.push_back(event_id.to_string());
 }
 
 async fn forget_locally_dispatched_channel_event(state: &AppState, event_id: &str) {
     if event_id.is_empty() {
         return;
     }
-    state
-        .locally_dispatched_channel_event_ids
-        .lock()
-        .await
-        .remove(event_id);
+    let mut guard = state.locally_dispatched_channel_event_ids.lock().await;
+    if let Some(position) = guard.iter().position(|value| value == event_id) {
+        guard.remove(position);
+    }
 }
 
 async fn consume_locally_dispatched_channel_event(state: &AppState, event_id: &str) -> bool {
     if event_id.is_empty() {
         return false;
     }
-    state
-        .locally_dispatched_channel_event_ids
-        .lock()
-        .await
-        .remove(event_id)
+    let mut guard = state.locally_dispatched_channel_event_ids.lock().await;
+    if let Some(position) = guard.iter().position(|value| value == event_id) {
+        guard.remove(position);
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -1222,5 +1224,20 @@ mod tests {
         assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
         let guard = state.connection_senders.lock().await;
         assert!(!guard.contains_key("usr-stale"));
+    }
+
+    #[tokio::test]
+    async fn locally_dispatched_channel_event_cache_evicts_oldest_inserted_id() {
+        let state = test_state();
+
+        remember_locally_dispatched_channel_event(&state, "z-oldest").await;
+        for index in 0..(LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX - 1) {
+            remember_locally_dispatched_channel_event(&state, &format!("a-{index:04}")).await;
+        }
+        remember_locally_dispatched_channel_event(&state, "m-newest").await;
+
+        assert!(!consume_locally_dispatched_channel_event(&state, "z-oldest").await);
+        assert!(consume_locally_dispatched_channel_event(&state, "a-0000").await);
+        assert!(consume_locally_dispatched_channel_event(&state, "m-newest").await);
     }
 }
