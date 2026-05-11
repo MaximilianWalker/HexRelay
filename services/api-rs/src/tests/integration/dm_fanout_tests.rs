@@ -25,6 +25,12 @@ fn device_secret(device_id: &str) -> String {
     format!("secret-{device_id}")
 }
 
+fn unique_message_id(prefix: &str) -> String {
+    format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
+
+const TEST_RETRY_STALE_ATTEMPT_SECONDS: i64 = 60;
+
 struct SignedNodeDescriptor {
     descriptor: NodeDescriptor,
     private_key_pkcs8: Vec<u8>,
@@ -273,6 +279,28 @@ async fn seed_due_failed_outbound_forward(
     .expect("seed failed outbound forward");
 }
 
+async fn delete_outbound_forward_record(
+    pool: &sqlx::PgPool,
+    sender: &str,
+    destination_node_id: &str,
+    message_id: &str,
+) {
+    sqlx::query(
+        "
+        DELETE FROM dm_outbound_forwarding_log
+        WHERE sender_identity_id = $1
+          AND destination_node_id = $2
+          AND message_id = $3
+        ",
+    )
+    .bind(sender)
+    .bind(destination_node_id)
+    .bind(message_id)
+    .execute(pool)
+    .await
+    .expect("delete test outbound forward record");
+}
+
 #[tokio::test]
 async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     let Some(pool) = prepared_database_pool().await else {
@@ -315,7 +343,7 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     let node_b_handle = spawn_api_node(node_b_listener, build_app(node_b_state));
     let node_a_handle = spawn_api_node(node_a_listener, build_app(node_a_state));
 
-    let message_id = format!("msg-two-node-http-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-two-node-http");
     let response = reqwest::Client::new()
         .post(format!("{node_a_base_url}/dm/fanout/dispatch"))
         .header("authorization", format!("Bearer {sender_token}"))
@@ -367,6 +395,7 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     assert_eq!(accepted.delivery_state, "pending_delivery");
     assert_eq!(accepted.reachability_state, "unknown");
 
+    delete_outbound_forward_record(&pool, &sender, &node_b.descriptor.node_id, &message_id).await;
     node_a_handle.abort();
     node_b_handle.abort();
 }
@@ -420,7 +449,7 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
             StaticPeerRegistry::try_new(vec![origin.descriptor.clone()]).expect("registry"),
         );
     let app = build_app(state);
-    let message_id = format!("msg-node-forward-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-node-forward");
     let (body, timestamp, nonce, signature) = signed_node_forward_body(
         &origin,
         &local.descriptor.node_id,
@@ -499,7 +528,7 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
             StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
         );
     let app = build_app(state);
-    let message_id = format!("msg-static-peer-forward-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-static-peer-forward");
 
     let request = Request::builder()
         .method("POST")
@@ -567,6 +596,9 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     assert_eq!(record.forwarding_state, "forwarded");
     assert_eq!(record.attempt_count, 1);
     assert!(record.last_error.is_none());
+
+    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
+        .await;
 }
 
 #[tokio::test]
@@ -599,7 +631,7 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
             StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
         );
     let app = build_app(state);
-    let message_id = format!("msg-static-peer-failed-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-static-peer-failed");
 
     let request = Request::builder()
         .method("POST")
@@ -648,6 +680,9 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
         .last_error
         .as_deref()
         .is_some_and(|value| value.contains("500 Internal Server Error")));
+
+    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
+        .await;
 }
 
 #[tokio::test]
@@ -668,7 +703,7 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
         "descriptor-destination",
         &destination_base_url,
     );
-    let message_id = format!("msg-static-peer-retry-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-static-peer-retry");
     seed_due_failed_outbound_forward(
         &pool,
         &sender,
@@ -692,7 +727,7 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
         DmOutboundForwardRetryConfig {
             limit: 10,
             max_attempts: 5,
-            stale_attempt_seconds: 0,
+            stale_attempt_seconds: TEST_RETRY_STALE_ATTEMPT_SECONDS,
         },
     )
     .await
@@ -724,6 +759,9 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     assert_eq!(record.forwarding_state, "forwarded");
     assert_eq!(record.attempt_count, 2);
     assert!(record.next_attempt_at.is_none());
+
+    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
+        .await;
 }
 
 #[tokio::test]
@@ -745,7 +783,7 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
         "descriptor-destination",
         &destination_base_url,
     );
-    let message_id = format!("msg-static-peer-retry-failed-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-static-peer-retry-failed");
     seed_due_failed_outbound_forward(
         &pool,
         &sender,
@@ -770,7 +808,7 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
         DmOutboundForwardRetryConfig {
             limit: 10,
             max_attempts: 5,
-            stale_attempt_seconds: 0,
+            stale_attempt_seconds: TEST_RETRY_STALE_ATTEMPT_SECONDS,
         },
     )
     .await
@@ -806,6 +844,9 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     assert!(record
         .next_attempt_at
         .is_some_and(|value| value > before_retry));
+
+    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
+        .await;
 }
 
 #[tokio::test]
@@ -816,7 +857,7 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
         return;
     };
     let destination_node_id = "node-missing";
-    let message_id = format!("msg-static-peer-retry-terminal-{}", Uuid::new_v4().simple());
+    let message_id = unique_message_id("msg-static-peer-retry-terminal");
     seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
         .await;
     let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
@@ -826,7 +867,7 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
         DmOutboundForwardRetryConfig {
             limit: 10,
             max_attempts: 5,
-            stale_attempt_seconds: 0,
+            stale_attempt_seconds: TEST_RETRY_STALE_ATTEMPT_SECONDS,
         },
     )
     .await
@@ -855,6 +896,8 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
         .await
         .expect("list due outbound forwards after terminal failure");
     assert!(due.iter().all(|record| record.message_id != message_id));
+
+    delete_outbound_forward_record(&pool, &sender, destination_node_id, &message_id).await;
 }
 
 #[tokio::test]
@@ -867,6 +910,7 @@ async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery()
         return;
     };
     let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    let message_id = unique_message_id("msg-catch-up");
 
     for (device_id, active) in [
         ("desktop-main", true),
@@ -897,11 +941,14 @@ async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery()
     let fanout_request = Request::builder()
         .method("POST")
         .uri("/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-1001","ciphertext":"enc:abcd1234"}}"#,
-            recipient
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:abcd1234"}}"#,
+            recipient, message_id
         )))
         .expect("build fanout request");
     let fanout_response = app
@@ -942,6 +989,7 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
         return;
     };
     let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    let message_id = unique_message_id("msg-source-device");
 
     for device_id in ["desktop-main", "phone-main"] {
         let heartbeat = Request::builder()
@@ -971,8 +1019,8 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-1002","ciphertext":"enc:abcd9999","source_device_id":"desktop-main"}}"#,
-            recipient
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:abcd9999","source_device_id":"desktop-main"}}"#,
+            recipient, message_id
         )))
         .expect("build fanout request");
     let fanout_response = app
@@ -1022,7 +1070,7 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
     let catch_up_payload: serde_json::Value =
         serde_json::from_slice(&catch_up_body).expect("decode catch-up payload");
     assert_eq!(catch_up_payload["replay_count"], 1);
-    assert_eq!(catch_up_payload["items"][0]["message_id"], "msg-1002");
+    assert_eq!(catch_up_payload["items"][0]["message_id"], message_id);
 }
 
 #[tokio::test]
@@ -1035,13 +1083,20 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
         return;
     };
     let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    let message_id = unique_message_id("msg-no-active-device");
 
     let fanout_request = Request::builder()
         .method("POST")
         .uri("/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
         .header("content-type", "application/json")
-        .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-1003","ciphertext":"enc:abcd5555"}}"#, recipient)))
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:abcd5555"}}"#,
+            recipient, message_id
+        )))
         .expect("build fanout request");
     let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
@@ -1073,10 +1128,13 @@ async fn dm_message_seq_allocation_is_serialized_per_thread() {
         dm_history_repo::ensure_direct_dm_thread_in_tx(&mut setup_tx, &sender, &recipient)
             .await
             .expect("ensure dm thread");
+    let seed_message_id = unique_message_id("msg-seq-seed");
+    let first_message_id = unique_message_id("msg-seq-a");
+    let second_message_id = unique_message_id("msg-seq-b");
     dm_history_repo::insert_dm_message_in_tx(
         &mut setup_tx,
         dm_history_repo::DmMessageInsertParams {
-            message_id: "msg-seq-seed",
+            message_id: &seed_message_id,
             thread_id: &thread_id,
             author_id: &sender,
             seq: 1,
@@ -1095,6 +1153,8 @@ async fn dm_message_seq_allocation_is_serialized_per_thread() {
     let thread_b = thread_id.clone();
     let sender_a = sender.clone();
     let sender_b = sender.clone();
+    let first_message_id_for_task = first_message_id.clone();
+    let second_message_id_for_task = second_message_id.clone();
 
     let (first, second) = tokio::join!(
         async move {
@@ -1105,7 +1165,7 @@ async fn dm_message_seq_allocation_is_serialized_per_thread() {
             dm_history_repo::insert_dm_message_in_tx(
                 &mut tx,
                 dm_history_repo::DmMessageInsertParams {
-                    message_id: "msg-seq-a",
+                    message_id: &first_message_id_for_task,
                     thread_id: &thread_a,
                     author_id: &sender_a,
                     seq,
@@ -1127,7 +1187,7 @@ async fn dm_message_seq_allocation_is_serialized_per_thread() {
             dm_history_repo::insert_dm_message_in_tx(
                 &mut tx,
                 dm_history_repo::DmMessageInsertParams {
-                    message_id: "msg-seq-b",
+                    message_id: &second_message_id_for_task,
                     thread_id: &thread_b,
                     author_id: &sender_b,
                     seq,
@@ -1180,13 +1240,20 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
     else {
         return;
     };
+    let message_id = unique_message_id("msg-policy-blocked");
 
     let request = Request::builder()
         .method("POST")
         .uri("/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[sender.as_str()]),
+        )
         .header("content-type", "application/json")
-        .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-policy-blocked","ciphertext":"enc:block"}}"#, recipient)))
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:block"}}"#,
+            recipient, message_id
+        )))
         .expect("build fanout request");
     let response = app.oneshot(request).await.expect("fanout response");
     assert_eq!(response.status(), StatusCode::OK);
@@ -1210,6 +1277,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
     else {
         return;
     };
+    let message_id = unique_message_id("msg-shared-server");
 
     seed_server_membership(
         &pool,
@@ -1290,8 +1358,8 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-shared-server","ciphertext":"enc:shared"}}"#,
-            recipient
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:shared"}}"#,
+            recipient, message_id
         )))
         .expect("build fanout request");
     let response = app.oneshot(request).await.expect("fanout response");
