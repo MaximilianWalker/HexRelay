@@ -3,14 +3,24 @@ use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 
 use super::{
     DescriptorSignatureVerifier, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, NodeDescriptor,
-    NodeRateLimit, NodeSignatureAlgorithm, PeeringPolicy, RateLimitScope, RelayPolicy,
+    NodeRateLimit, NodeSignatureAlgorithm, PeerInvite, PeeringPolicy, RateLimitScope, RelayPolicy,
     StoragePolicy,
 };
 
 const DESCRIPTOR_SIGNING_DOMAIN: &str = "hexrelay.node_descriptor.v1";
+const PEER_INVITE_SIGNING_DOMAIN: &str = "hexrelay.peer_invite.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeDescriptorSignatureError {
+    UnsupportedAlgorithm,
+    InvalidPublicKeyEncoding,
+    InvalidSignatureEncoding,
+    InvalidPrivateKey,
+    SignatureVerificationFailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PeerInviteSignatureError {
     UnsupportedAlgorithm,
     InvalidPublicKeyEncoding,
     InvalidSignatureEncoding,
@@ -53,6 +63,23 @@ pub fn ed25519_public_key_hex(
     Ok(hex::encode(key_pair.public_key().as_ref()))
 }
 
+pub fn sign_peer_invite_ed25519_pkcs8(
+    invite: &PeerInvite,
+    private_key_pkcs8: &[u8],
+) -> Result<String, PeerInviteSignatureError> {
+    if invite.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
+        return Err(PeerInviteSignatureError::UnsupportedAlgorithm);
+    }
+
+    let key_pair = Ed25519KeyPair::from_pkcs8(private_key_pkcs8)
+        .map_err(|_| PeerInviteSignatureError::InvalidPrivateKey)?;
+
+    let payload = canonical_peer_invite_signing_payload(invite);
+    let signature = key_pair.sign(&payload);
+
+    Ok(hex::encode(signature.as_ref()))
+}
+
 pub fn verify_descriptor_ed25519(
     descriptor: &NodeDescriptor,
 ) -> Result<(), NodeDescriptorSignatureError> {
@@ -69,6 +96,25 @@ pub fn verify_descriptor_ed25519(
     let key = UnparsedPublicKey::new(&ED25519, public_key);
     key.verify(&payload, &signature)
         .map_err(|_| NodeDescriptorSignatureError::SignatureVerificationFailed)
+}
+
+pub fn verify_peer_invite_ed25519(
+    invite: &PeerInvite,
+    issuer_descriptor: &NodeDescriptor,
+) -> Result<(), PeerInviteSignatureError> {
+    if invite.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
+        return Err(PeerInviteSignatureError::UnsupportedAlgorithm);
+    }
+
+    let public_key = decode_fixed_len(&issuer_descriptor.node_public_key, 32)
+        .ok_or(PeerInviteSignatureError::InvalidPublicKeyEncoding)?;
+    let signature = decode_fixed_len(&invite.signature.value, 64)
+        .ok_or(PeerInviteSignatureError::InvalidSignatureEncoding)?;
+    let payload = canonical_peer_invite_signing_payload(invite);
+
+    let key = UnparsedPublicKey::new(&ED25519, public_key);
+    key.verify(&payload, &signature)
+        .map_err(|_| PeerInviteSignatureError::SignatureVerificationFailed)
 }
 
 pub fn canonical_descriptor_signing_payload(descriptor: &NodeDescriptor) -> Vec<u8> {
@@ -140,6 +186,52 @@ pub fn canonical_descriptor_signing_payload(descriptor: &NodeDescriptor) -> Vec<
     payload
 }
 
+pub fn canonical_peer_invite_signing_payload(invite: &PeerInvite) -> Vec<u8> {
+    let mut payload = Vec::new();
+
+    push_str(&mut payload, "domain", PEER_INVITE_SIGNING_DOMAIN);
+    push_str(&mut payload, "invite_id", &invite.invite_id);
+    push_str(&mut payload, "issuer_node_id", &invite.issuer_node_id);
+    push_str(
+        &mut payload,
+        "issuer_descriptor_id",
+        &invite.issuer_descriptor_id,
+    );
+    push_optional_str(
+        &mut payload,
+        "subject_node_id",
+        invite.subject_node_id.as_deref(),
+    );
+    push_i64(
+        &mut payload,
+        "issued_at_epoch_seconds",
+        invite.issued_at_epoch_seconds,
+    );
+    push_i64(
+        &mut payload,
+        "expires_at_epoch_seconds",
+        invite.expires_at_epoch_seconds,
+    );
+    push_str(
+        &mut payload,
+        "discovery_path",
+        discovery_path_name(invite.discovery_path),
+    );
+    push_str(
+        &mut payload,
+        "peering_policy",
+        peering_policy_name(invite.peering_policy),
+    );
+    push_optional_u32(&mut payload, "max_uses", invite.max_uses);
+    push_str(
+        &mut payload,
+        "signature_algorithm",
+        signature_algorithm_name(invite.signature.algorithm),
+    );
+
+    payload
+}
+
 fn push_str(payload: &mut Vec<u8>, name: &str, value: &str) {
     push_field(payload, name, value.as_bytes());
 }
@@ -159,6 +251,19 @@ fn push_optional_str(payload: &mut Vec<u8>, name: &str, value: Option<&str>) {
 
 fn push_i64(payload: &mut Vec<u8>, name: &str, value: i64) {
     push_field(payload, name, &value.to_be_bytes());
+}
+
+fn push_optional_u32(payload: &mut Vec<u8>, name: &str, value: Option<u32>) {
+    match value {
+        Some(value) => {
+            push_u32(payload, 1);
+            push_field(payload, name, &value.to_be_bytes());
+        }
+        None => {
+            push_u32(payload, 0);
+            push_field(payload, name, &[]);
+        }
+    }
 }
 
 fn push_u32(payload: &mut Vec<u8>, value: u32) {
@@ -231,6 +336,17 @@ fn discovery_policy_name(value: DiscoveryPolicy) -> &'static str {
         DiscoveryPolicy::UserConsentedIntroduction => "user_consented_introduction",
         DiscoveryPolicy::PublicRegistry => "public_registry",
         DiscoveryPolicy::PublicDht => "public_dht",
+    }
+}
+
+fn discovery_path_name(value: super::DiscoveryPath) -> &'static str {
+    match value {
+        super::DiscoveryPath::LanAnnounce => "lan_announce",
+        super::DiscoveryPath::PrivateAllowlist => "private_allowlist",
+        super::DiscoveryPath::MemberVisible => "member_visible",
+        super::DiscoveryPath::UserConsentedIntroduction => "user_consented_introduction",
+        super::DiscoveryPath::PublicRegistry => "public_registry",
+        super::DiscoveryPath::PublicDht => "public_dht",
     }
 }
 

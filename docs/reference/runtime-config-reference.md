@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-11 added API local server-node signing identity config for authenticated static-peer forwarding.
+- Latest meaningful change: 2026-05-11 added API signed peer-invite config for private server-node meshes.
 
 ## Purpose
 
@@ -61,6 +61,7 @@
 | `API_LOCAL_NODE_DESCRIPTOR_JSON` | unset | optional | signed local node descriptor JSON; required with `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64` for authenticated server-node forwarding and descriptor `node_id` must match `API_NODE_FINGERPRINT` |
 | `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64` | unset | optional secret | base64-encoded Ed25519 PKCS#8 server-node signing key; required with `API_LOCAL_NODE_DESCRIPTOR_JSON`, must match the descriptor public key, and must stay server-local |
 | `API_STATIC_PEER_DESCRIPTORS_JSON` | unset | optional | JSON array of signed node descriptors for static private-mesh peers; each descriptor is signature/TTL/policy validated at startup |
+| `API_STATIC_PEER_INVITES_JSON` | unset | optional | JSON array of signed peer-invite envelopes; each envelope contains an issuer descriptor plus signed invite, must validate against `API_NODE_FINGERPRINT` when subject-bound, and joins the same static peer registry as configured descriptors |
 | `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` | `86400` | optional | positive integer TTL ceiling applied to configured static peer descriptors |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
 | `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
