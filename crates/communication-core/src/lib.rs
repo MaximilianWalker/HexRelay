@@ -6,6 +6,10 @@ pub mod transport;
 pub use app::PolicyEngine;
 pub use config::CommunicationConfig;
 pub use domain::{
+    canonical_descriptor_signing_payload, ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8,
+    verify_descriptor_ed25519, Ed25519DescriptorVerifier, NodeDescriptorSignatureError,
+};
+pub use domain::{
     CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, StaticPeerRegistry,
     StaticPeerRegistryError,
 };
