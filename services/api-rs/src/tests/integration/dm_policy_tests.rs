@@ -1,5 +1,9 @@
 use super::*;
 
+fn device_secret(device_id: &str) -> String {
+    format!("secret-{device_id}")
+}
+
 #[tokio::test]
 async fn returns_default_dm_policy_for_new_identity() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
@@ -21,7 +25,10 @@ async fn returns_default_dm_policy_for_new_identity() {
         serde_json::from_slice(&body).expect("decode dm policy get response");
 
     assert_eq!(payload["inbound_policy"], "friends_only");
-    assert_eq!(payload["offline_delivery_mode"], "best_effort_online");
+    assert_eq!(
+        payload["offline_delivery_mode"],
+        "encrypted_envelope_catchup"
+    );
 }
 
 #[tokio::test]
@@ -112,7 +119,10 @@ async fn updates_dm_policy_to_same_server_and_reads_back_unchanged() {
     let read_payload: serde_json::Value =
         serde_json::from_slice(&read_body).expect("decode same-server dm policy response");
     assert_eq!(read_payload["inbound_policy"], "same_server");
-    assert_eq!(read_payload["offline_delivery_mode"], "best_effort_online");
+    assert_eq!(
+        read_payload["offline_delivery_mode"],
+        "encrypted_envelope_catchup"
+    );
 }
 
 #[tokio::test]
@@ -197,57 +207,20 @@ async fn persists_dm_policy_across_db_restart() {
     let read_payload: serde_json::Value =
         serde_json::from_slice(&read_body).expect("decode dm policy response");
     assert_eq!(read_payload["inbound_policy"], "anyone");
-    assert_eq!(read_payload["offline_delivery_mode"], "best_effort_online");
+    assert_eq!(
+        read_payload["offline_delivery_mode"],
+        "encrypted_envelope_catchup"
+    );
 }
 
 #[tokio::test]
-async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
+async fn profile_devices_persist_across_db_restart() {
     let Some(app) = app_with_database().await else {
         return;
     };
 
     let identity_id = unique_identity("db-dm-device-state");
     let (session_cookie, app) = authenticate_identity(app, &identity_id).await;
-
-    let register_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/connectivity/endpoint-cards")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(
-            r#"{"cards":[{"endpoint_id":"lan-a","endpoint_hint":"udp://192.168.1.20:4040","estimated_rtt_ms":9,"priority":2}]}"#,
-        ))
-        .expect("build endpoint-card register request");
-
-    let register_response = app
-        .clone()
-        .oneshot(register_request)
-        .await
-        .expect("endpoint-card register response");
-    assert_eq!(register_response.status(), StatusCode::OK);
-
-    let policy_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/privacy-policy")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
-        .expect("build dm policy update request");
-
-    let policy_response = app
-        .clone()
-        .oneshot(policy_request)
-        .await
-        .expect("dm policy update response");
-    assert_eq!(policy_response.status(), StatusCode::OK);
 
     let heartbeat_request = Request::builder()
         .method("POST")
@@ -258,7 +231,10 @@ async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
             format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}","active":true}}"#,
+            device_secret("desktop-main")
+        )))
         .expect("build device heartbeat request");
 
     let heartbeat_response = app
@@ -271,35 +247,6 @@ async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
         return;
     };
 
-    let dial_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/connectivity/parallel-dial")
-        .header(
-            "cookie",
-            format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .header("content-type", "application/json")
-        .body(Body::from(format!(
-            r#"{{"peer_identity_id":"{}"}}"#,
-            identity_id
-        )))
-        .expect("build restart parallel dial request");
-
-    let dial_response = restarted_app
-        .clone()
-        .oneshot(dial_request)
-        .await
-        .expect("parallel dial response after restart");
-    assert_eq!(dial_response.status(), StatusCode::OK);
-    let dial_body = to_bytes(dial_response.into_body(), usize::MAX)
-        .await
-        .expect("read parallel dial response body");
-    let dial_payload: serde_json::Value =
-        serde_json::from_slice(&dial_body).expect("decode parallel dial response");
-    assert_eq!(dial_payload["status"], "ready");
-    assert_eq!(dial_payload["winner_endpoint_id"], "lan-a");
-
     let catch_up_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
@@ -309,7 +256,10 @@ async fn endpoint_cards_and_profile_devices_persist_across_db_restart() {
         )
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"desktop-main"}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}"}}"#,
+            device_secret("desktop-main")
+        )))
         .expect("build restart catch-up request");
 
     let catch_up_response = restarted_app
@@ -366,7 +316,8 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
             )
             .header("x-csrf-token", "test-csrf")
             .body(Body::from(format!(
-                r#"{{"device_id":"{device_id}","active":{active}}}"#
+                r#"{{"device_id":"{device_id}","device_secret":"{}","active":{active}}}"#,
+                device_secret(device_id)
             )))
             .expect("build heartbeat request");
         let heartbeat_response = app
@@ -411,7 +362,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
             format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}","active":true}}"#,
+            device_secret("phone-main")
+        )))
         .expect("build activation request");
     let activate_response = restarted_app
         .clone()
@@ -454,7 +408,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
             format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"phone-main"}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}"}}"#,
+            device_secret("phone-main")
+        )))
         .expect("build catch-up request");
     let catch_up_response = restarted_app
         .clone()
@@ -471,6 +428,31 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
     assert_eq!(first_payload["replay_count"], 1);
     assert_eq!(first_payload["next_cursor"], "1");
 
+    let first_item = &first_payload["items"][0];
+    let ack_request = Request::builder()
+        .method("POST")
+        .uri("/v1/internal/dm/envelopes/ack")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"envelope_id":"{}","message_id":"{}","thread_id":"{}","recipient_identity_id":"{}","device_id":"phone-main","delivery_cursor":"{}","ack_status":"received","received_at":"2026-03-26T00:00:01Z"}}"#,
+            first_item["envelope_id"].as_str().expect("envelope id"),
+            first_item["message_id"].as_str().expect("message id"),
+            first_item["thread_id"].as_str().expect("thread id"),
+            recipient_identity,
+            first_item["cursor"].as_str().expect("cursor"),
+        )))
+        .expect("build ack request");
+    let ack_response = restarted_app
+        .clone()
+        .oneshot(ack_request)
+        .await
+        .expect("ack response");
+    assert_eq!(ack_response.status(), StatusCode::ACCEPTED);
+
     let second_catch_up_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
@@ -480,7 +462,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
             format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"phone-main"}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}"}}"#,
+            device_secret("phone-main")
+        )))
         .expect("build second catch-up request");
     let second_catch_up_response = restarted_app
         .oneshot(second_catch_up_request)
@@ -591,7 +576,10 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
             format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"phone-main","active":true}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}","active":true}}"#,
+            device_secret("phone-main")
+        )))
         .expect("build activation request");
     let activate_response = restarted_app
         .clone()
@@ -609,7 +597,10 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
             format!("hexrelay_session={recipient_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"device_id":"phone-main"}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}"}}"#,
+            device_secret("phone-main")
+        )))
         .expect("build catch-up request");
     let catch_up_response = restarted_app
         .oneshot(catch_up_request)
@@ -739,7 +730,9 @@ async fn rejects_invalid_profile_device_heartbeat() {
             format!("Bearer {}", tokens["usr-device-invalid"]),
         )
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"   ","active":true}"#))
+        .body(Body::from(
+            r#"{"device_id":"   ","device_secret":"secret-desktop-main","active":true}"#,
+        ))
         .expect("build invalid device heartbeat request");
 
     let response = app

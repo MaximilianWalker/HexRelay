@@ -344,97 +344,6 @@ async fn verifies_db_challenge_after_app_restart() {
 }
 
 #[tokio::test]
-async fn rejects_replayed_pairing_envelope_nonce_after_app_restart() {
-    let Some(app) = app_with_database().await else {
-        return;
-    };
-
-    let inviter_identity = unique_identity("db-dm-pair-inviter");
-    let first_importer_identity = unique_identity("db-dm-pair-importer-a");
-    let second_importer_identity = unique_identity("db-dm-pair-importer-b");
-
-    let (inviter_cookie, app) = authenticate_identity(app, &inviter_identity).await;
-    let (first_importer_cookie, app) = authenticate_identity(app, &first_importer_identity).await;
-
-    let create_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/pairing-envelope")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={inviter_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(
-            r#"{"endpoint_hints":["tcp://127.0.0.1:4040"],"expires_in_seconds":300}"#,
-        ))
-        .expect("build pairing envelope create request");
-    let create_response = app
-        .clone()
-        .oneshot(create_request)
-        .await
-        .expect("pairing envelope create response");
-    assert_eq!(create_response.status(), StatusCode::CREATED);
-
-    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
-        .await
-        .expect("read pairing envelope create body");
-    let create_payload: serde_json::Value =
-        serde_json::from_slice(&create_bytes).expect("decode pairing envelope create body");
-    let envelope = create_payload["envelope"]
-        .as_str()
-        .expect("pairing envelope payload present")
-        .to_string();
-
-    let first_import_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/pairing-envelope/import")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={first_importer_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(format!(r#"{{"envelope":"{envelope}"}}"#)))
-        .expect("build first pairing envelope import request");
-    let first_import_response = app
-        .oneshot(first_import_request)
-        .await
-        .expect("first pairing envelope import response");
-    assert_eq!(first_import_response.status(), StatusCode::OK);
-
-    let Some(app_after_restart) = app_with_database().await else {
-        return;
-    };
-    let (second_importer_cookie, app_after_restart) =
-        authenticate_identity(app_after_restart, &second_importer_identity).await;
-
-    let second_import_request = Request::builder()
-        .method("POST")
-        .uri("/v1/dm/pairing-envelope/import")
-        .header("content-type", "application/json")
-        .header(
-            "cookie",
-            format!("hexrelay_session={second_importer_cookie}; hexrelay_csrf=test-csrf"),
-        )
-        .header("x-csrf-token", "test-csrf")
-        .body(Body::from(format!(r#"{{"envelope":"{envelope}"}}"#)))
-        .expect("build second pairing envelope import request");
-    let second_import_response = app_after_restart
-        .oneshot(second_import_request)
-        .await
-        .expect("second pairing envelope import response");
-    assert_eq!(second_import_response.status(), StatusCode::BAD_REQUEST);
-
-    let second_import_body = to_bytes(second_import_response.into_body(), usize::MAX)
-        .await
-        .expect("read second pairing envelope import body");
-    let second_import_payload: serde_json::Value = serde_json::from_slice(&second_import_body)
-        .expect("decode second pairing envelope import body");
-    assert_eq!(second_import_payload["code"], "pairing_replayed");
-}
-
-#[tokio::test]
 async fn persists_friend_flow_and_lists_contacts_from_db() {
     let Some(app) = app_with_database().await else {
         return;
@@ -520,7 +429,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 }
 
 #[tokio::test]
-async fn preflight_friends_only_uses_db_friendship_state() {
+async fn fanout_friends_only_uses_db_friendship_state() {
     let Some(app) = app_with_database().await else {
         return;
     };
@@ -577,33 +486,36 @@ async fn preflight_friends_only_uses_db_friendship_state() {
         .expect("accept friend request response");
     assert_eq!(accept_response.status(), StatusCode::OK);
 
-    let preflight_request = Request::builder()
+    let fanout_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/connectivity/preflight")
+        .uri("/v1/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
-            format!("hexrelay_session={target_cookie}; hexrelay_csrf=test-csrf"),
+            format!("hexrelay_session={requester_cookie}; hexrelay_csrf=test-csrf"),
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"pairing_envelope_present":true,"peer_identity_id":"{}","local_bind_allowed":true,"peer_reachable_hint":true}}"#,
-            requester_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"msg-db-friendship-ok","ciphertext":"enc:db-friendship"}}"#,
+            target_identity
         )))
-        .expect("build dm preflight request");
-    let preflight_response = app
-        .oneshot(preflight_request)
+        .expect("build dm fanout request");
+    let fanout_response = app
+        .oneshot(fanout_request)
         .await
-        .expect("dm preflight response");
-    assert_eq!(preflight_response.status(), StatusCode::OK);
+        .expect("dm fanout response");
+    assert_eq!(fanout_response.status(), StatusCode::OK);
 
-    let preflight_body = to_bytes(preflight_response.into_body(), usize::MAX)
+    let fanout_body = to_bytes(fanout_response.into_body(), usize::MAX)
         .await
-        .expect("read dm preflight body");
-    let preflight_payload: serde_json::Value =
-        serde_json::from_slice(&preflight_body).expect("decode dm preflight payload");
-    assert_eq!(preflight_payload["status"], "ready");
-    assert_eq!(preflight_payload["reason_code"], "preflight_ok");
+        .expect("read dm fanout body");
+    let fanout_payload: serde_json::Value =
+        serde_json::from_slice(&fanout_body).expect("decode dm fanout payload");
+    assert_eq!(fanout_payload["status"], "accepted");
+    assert_eq!(
+        fanout_payload["transport_profile"],
+        "encrypted_envelope_node"
+    );
 }
 
 #[tokio::test]

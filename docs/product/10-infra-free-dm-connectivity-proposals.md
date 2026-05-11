@@ -1,290 +1,167 @@
-# Infrastructure-Free DM Connectivity Proposals
+# DM Encrypted-Envelope Delivery Proposals
 
 ## Document Metadata
 
-- Doc ID: infra-free-dm-connectivity-proposals
+- Doc ID: dm-envelope-delivery-proposals
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
 
-- Primary edit location for detailed DM connectivity solution candidates under the no-infrastructure rule.
-- Update this file when direct-connect architecture, feasibility assumptions, or acceptance criteria change.
+- Primary edit location for detailed DM delivery solution candidates and trade-offs.
+- The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free node-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-08 aligned the local-network fast path with local-only endpoint validation, trusted peer visibility, TTL-scoped snapshots, and direct preflight priority.
+- Latest meaningful change: 2026-05-11 locked proposals to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap proposals, and broadened UX approval to all UX decisions.
 
 ## Purpose
 
-- Convert the infrastructure-free DM policy into concrete implementation options.
-- Define option trade-offs and DM-specific behavior candidates.
+- Convert the MVP DM delivery baseline into concrete implementation options.
+- Keep the security boundary explicit: server nodes/message nodes may carry ciphertext envelopes, never DM plaintext or private keys.
+- Keep node-bypassing client DM transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, and parallel dial out of MVP scope.
 - Keep execution sequencing in `docs/planning/infra-free-dm-connectivity-execution-plan.md` and avoid duplicating full implementation architecture here.
 
 ## Locked Constraints
 
-- DM transport must remain direct user-to-user.
-- Solutions that require connectivity infrastructure are out of scope for DM transport.
-- No STUN, TURN, or relay dependency is allowed for DM connectivity.
-- When direct connectivity cannot be established, the product must fail explicitly with actionable user guidance.
+- DM plaintext, decrypted views, and private keys remain client/device-only.
+- Server nodes/message nodes in the server-node P2P network may carry and store only E2EE DM envelopes plus minimal delivery metadata.
+- Normal DM send success uses server-node P2P encrypted-envelope delivery.
+- Contact/friend bootstrap may expose only the identity and profile-device material required for client-side E2EE setup after relationship acceptance.
+- Unencrypted DM mailboxing, server-side decryption, server-readable DM content, private-key upload/custody, plaintext relay behavior, and node-bypassing DM transport/bootstrap are out of scope.
 
 ## Evaluation Criteria
 
-- **Policy compliance**: no infra dependency introduced by design or fallback.
-- **Connect success rate**: measurable improvement without violating constraints.
-- **User effort**: number of manual steps to establish first DM session.
-- **Deterministic diagnostics**: each failure maps to a stable reason code and remediation.
+- **Confidentiality boundary**: no server-readable plaintext or private-key custody.
+- **Metadata minimization**: delivery metadata is necessary, bounded, and covered by retention/deletion policy.
+- **Normal-user reliability**: successful DM delivery works without NAT/router setup, LAN discovery, or recipient-device network reachability.
+- **Client-only decryption**: recipients decrypt locally and failures are recoverable without server secrets.
+- **Relationship-gated bootstrap**: public identity and profile-device material are released only through accepted contact/friend state.
 - **Implementation risk**: complexity and portability across target desktop environments.
 
-## Proposition 1 (Rank 1): Direct-Only Transport Core and Policy Guardrails
+## Proposition 1 (Rank 1): E2EE Envelope Message-Node Baseline
 
-### What changes
+### What Changes
 
-- Remove and block relay-oriented code paths/configuration from DM transport execution.
-- Expose direct transport provenance in runtime state and UI.
-- Add CI policy checks that reject infra fallback reintroduction.
+- Make server nodes/message nodes in the server-node P2P network the default and only MVP DM delivery path for ciphertext envelopes.
+- Store canonical encrypted DM history and minimal delivery metadata before sender-visible success.
+- Remove node-bypassing bootstrap/connectivity assumptions from API, realtime, web, contracts, docs, and tests.
 
-### How it works
+### How It Works
 
-1. User initiates DM connection.
-2. Transport layer attempts direct endpoint dialing only (no service candidate gathering).
-3. Session establishes if direct path succeeds; session metadata marks `direct=true` and stores endpoint provenance.
-4. If all direct attempts fail, connection ends with explicit reason code and guided actions.
-5. CI/build-time policy checks fail if forbidden infra keys or fallback callsites are added.
+1. Sender client validates relationship, DM policy, block state, and trusted bootstrap material.
+2. Sender client encrypts per-recipient/device DM envelopes locally.
+3. Message node accepts only ciphertext envelopes and minimal metadata for routing, dedupe, delivery state, retention, and abuse controls.
+4. Message node fans out envelopes to active recipient devices and exposes per-device cursor catch-up for later-active devices.
+5. Recipient clients decrypt locally and merge delivery/read state deterministically.
 
-### Trade-offs and risks
+### Trade-Offs and Risks
 
-- Lower success rate under restrictive NAT/firewall conditions.
-- Higher pressure on diagnostics and setup UX quality.
-- Requires strict governance to prevent accidental policy drift.
+- Metadata minimization needs explicit schema discipline.
+- Abuse/spam controls must work without inspecting DM plaintext.
+- Server storage expands to ciphertext envelope durability while preserving client-only plaintext/key ownership.
 
-### Acceptance criteria
+### Acceptance Criteria
 
-- Integration tests show zero STUN/TURN/relay network calls during DM setup.
-- Session details expose direct-path provenance for 100% successful DM sessions.
-- CI policy gate fails on introduction of banned infra connectivity flags/paths.
+- Server-side tests prove DM plaintext/private keys are never accepted, stored, logged, or returned.
+- DM send success requires durable ciphertext-envelope acceptance plus delivery metadata.
+- Offline and later-active devices catch up from encrypted envelopes by per-device cursor.
+- Operator-visible diagnostics expose delivery state without plaintext.
 
-### Implementation slices
+## Proposition 2 (Rank 2): Client-Only Key and Envelope Guardrails
 
-- Remove infra-related runtime flags and fallback paths from DM transport code.
-- Add direct transport provenance object and API/UI surfacing.
-- Add static and runtime guard tests for policy enforcement.
+### What Changes
 
-## Proposition 2 (Rank 2): Out-of-Band Pairing Envelope (QR + Manual Code)
+- Add durable guardrails around key custody, envelope shapes, logging, and server-side validation.
+- Reject unsafe semantics and reintroduced node-bypassing DM surfaces mechanically.
 
-### What changes
+### How It Works
 
-- Replace service-based rendezvous with signed out-of-band pairing artifacts.
-- Add QR flow and full manual-code fallback for endpoint and identity exchange, with a short verification code for out-of-band comparison.
+1. Client-side crypto owns private keys and envelope encryption/decryption.
+2. Runtime APIs accept ciphertext envelope fields and reject plaintext-like DM payload fields.
+3. Logs and audit events record ids, state, and reason codes only.
+4. CI policy checks reject server-readable plaintext, private-key upload/custody, unencrypted mailbox, plaintext relay semantics, and node-bypassing DM routes/config/contracts.
 
-### How it works
+### Acceptance Criteria
 
-1. Sender creates a signed pairing envelope containing identity key, endpoint hints, nonce, and expiry.
-2. Envelope is shared directly (QR scan, local file transfer, or manual-code transcription).
-3. Receiver validates signature, expiry, version, and replay nonce.
-4. On success, both clients store peer identity and endpoint cards for direct dialing.
-5. On failure (expired/replayed/corrupt), UX shows deterministic reason and regeneration action.
+- CI guardrail passes legitimate `encrypted envelope`, `store-and-forward`, and `message node` terminology.
+- CI guardrail fails fixtures or callsites that introduce plaintext DM storage, server-side decryption, private-key upload semantics, or node-bypassing DM endpoints.
+- Crypto and API tests cover envelope-only server handling and client-only decrypt behavior.
 
-### Trade-offs and risks
+## Proposition 3 (Rank 3): Relationship and Encryption Bootstrap
 
-- More steps than service-mediated invites.
-- Endpoint hints can become stale.
-- Requires careful UX for non-technical users.
+### What Changes
 
-### Acceptance criteria
+- Use accepted contact-invite redemption and accepted mediated friend requests as trust gates for identity and encryption bootstrap material.
+- Decouple bootstrap from recipient-device endpoint reachability entirely.
 
-- Pairing flow runs without backend rendezvous dependency.
-- Replayed and expired envelopes are rejected in all security tests.
-- Median time-to-pair remains within target usability budget.
+### How It Works
 
-### Implementation slices
+1. Contact-invite redemption or accepted friend request establishes trusted relationship state.
+2. API returns only the peer identity key and profile-device snapshot required for client-side E2EE setup.
+3. Block state, request state, and DM policy checks fail closed before bootstrap material is released.
+4. Once trusted, the message-node path carries encrypted envelopes without requiring recipient-device dial success.
 
-- Define envelope schema/versioning and signing contract.
-- Implement QR encoding/decoding plus manual-code codec and short verification-code display.
-- Add replay/expiry protection and guided recovery UI.
+### Acceptance Criteria
 
-## Proposition 3 (Rank 3): Connectivity Preflight and Deterministic Troubleshooter
+- Accepted mediated friend requests release only the bootstrap material needed for DM relationship and encryption setup.
+- Pending/declined/blocked relationships cannot retrieve bootstrap material.
+- Bootstrap responses contain no recipient-device endpoint hints/cards, LAN/WAN data, QR/manual-code pairing payloads, or relay secrets.
 
-### What changes
+## Proposition 4 (Rank 4): Delivery Metadata, Retention, and Abuse Controls
 
-- Add pre-connect checks and a fixed failure taxonomy.
-- Provide guided remediation before and after failed direct attempts.
+### What Changes
 
-### How it works
+- Define the minimum metadata message nodes need to route, dedupe, retain, delete, and rate-limit encrypted envelopes.
+- Add explicit retention/deletion behavior for encrypted envelopes and delivery receipts.
 
-1. User clicks "Start DM" and preflight combines local client checks (pairing material, port bind ability, local interface state) with trusted server checks (block/policy state and known LAN indicators).
-2. Client scores readiness and selects direct dial strategy.
-3. On failure, system maps event to a bounded reason code set (for example: `pairing_missing`, `port_unavailable`, `policy_blocked`, `peer_unreachable`).
-4. UI shows exact next actions (retry window, local firewall exception, router mapping guidance, local network alternative).
-5. User can re-run preflight and compare outcomes.
+### How It Works
 
-### Trade-offs and risks
+1. Each accepted envelope has stable message/thread ids, sender/recipient/device routing ids, timestamps, delivery state, and dedupe metadata.
+2. Metadata excludes plaintext, plaintext-derived searchable content, private keys, and recipient-device endpoint material.
+3. Retention policy applies to ciphertext envelopes and delivery metadata separately from client-local decrypted views.
+4. Abuse controls use relationship state, rate limits, deny/block state, and envelope counts rather than content inspection.
 
-- False diagnostics can hurt trust.
-- Platform-specific network behaviors require per-OS tuning.
+### Acceptance Criteria
 
-### Acceptance criteria
+- Metadata schema is documented and covered by tests for omission of plaintext/private-key/direct-endpoint material.
+- Retention/deletion tests cover ciphertext envelope tombstones and per-device cursor behavior.
+- Abuse/rate-limit tests work without plaintext inspection.
 
-- Every failed direct attempt emits one stable reason code.
-- Troubleshooter provides at least one concrete remediation action for each reason code.
-- First-attempt failure rate decreases measurably after rollout.
+## Proposition 5 (Rank 5): Delivery State and Diagnostic Semantics
 
-### Implementation slices
+### What Changes
 
-- Implement preflight probe module for pairing, local bind, policy/block, reachability, and LAN-ready outcomes.
-- Define reason-code contract and UI mapping.
-- Add rerunnable private-chat troubleshooter with before/after diagnostics visibility.
+- Model delivery states around node acceptance, live fanout, pending delivery, and catch-up rather than peer connectivity.
+- Keep all UX flow, copy, control, and behavior changes behind explicit user approval.
 
-## Proposition 4 (Rank 4): Local-Network Fast Path (mDNS/Multicast + Direct QUIC/TCP)
+### How It Works
 
-### What changes
+1. Sender-visible success means durable envelope acceptance.
+2. Live fanout failures become pending delivery states with bounded retry/catch-up semantics.
+3. Later-active devices use per-device cursor replay and dedupe to converge.
+4. Delivery diagnostics explain policy blocks, missing bootstrap, message-node availability, and replay/catch-up failures without adding DM preflight/troubleshooter controls or asking normal users to configure routers or LAN discovery.
 
-- Prioritize same-LAN discovery and direct connect path.
-- Reduce initial friction for users on shared/home/local networks.
+### Acceptance Criteria
 
-### How it works
-
-1. Client advertises presence on local subnet via mDNS/multicast.
-2. Peer discovery accepts only local-only IPv4-literal endpoint hints: private IPv4 or IPv4 link-local addresses with non-zero ports. IPv6 LAN hints remain out of scope until the multicast listener supports IPv6 sources.
-3. Discovery snapshots stay ephemeral and TTL-scoped; they are not persisted as durable DM convergence state.
-4. LAN hints are visible only to trusted contacts or shared-server peers whose current DM policy permits the requester.
-5. Transport attempts direct connection over local prioritized endpoints first when preflight sees fresh trusted LAN presence.
-6. If local discovery fails, user falls back to out-of-band pairing from Proposition 2.
-
-### Trade-offs and risks
-
-- Discovery may be blocked on enterprise or segmented networks.
-- Additional platform networking code paths increase maintenance.
-- Stale or spoofed local hints can mislead dialing unless freshness, policy, and local-only validation remain enforced.
-
-### Acceptance criteria
-
-- High same-LAN discovery and connect success in controlled test matrix.
-- Discovery traffic never leaves local subnet.
-- LAN discovery responses expose explicit expiry metadata and stale hints are pruned.
-- LAN hint listing and preflight priority require an accepted-friend or trusted shared-server relationship, not just an arbitrary `anyone` policy match.
-- Local-path median connect latency beats non-local path baseline.
-
-### Implementation slices
-
-- Add mDNS advertisement and discovery service.
-- Add multicast fallback and network capability detection.
-- Add local-first dial prioritization and test harness coverage.
-- Enforce local-only endpoint validation in the shared core/API boundary and reject DNS/public/relay-style LAN hints.
-
-## Proposition 5 (Rank 5): WAN Direct Connectivity Wizard (UPnP/NAT-PMP + Manual Mapping)
-
-### What changes
-
-- Add guided setup for direct WAN reachability without relay infrastructure.
-- Use automation first, then deterministic manual guidance.
-
-### How it works
-
-1. Wizard attempts automatic router mapping with UPnP/NAT-PMP.
-2. Client validates reachable port state from user-provided peer test.
-3. If automation fails, UI shows deterministic manual mapping steps and verification checklist.
-4. User reruns validation until direct path success or explicit "not possible on this network" outcome.
-
-### Trade-offs and risks
-
-- Router behaviors vary widely; success cannot be guaranteed.
-- Some networks remain fundamentally incompatible with direct inbound flows.
-
-### Acceptance criteria
-
-- Home-network matrix produces target minimum WAN direct success.
-- Wizard emits deterministic outcomes: `success`, `manual_required`, `network_incompatible`.
-- Manual path documentation is validated against representative routers.
-
-### Implementation slices
-
-- Implement UPnP/NAT-PMP attempt module with bounded timeouts.
-- Implement reachable-port validation routine and result contract.
-- Implement manual wizard UI and copyable diagnostics packet.
-
-## Proposition 6 (Rank 6): Multi-Endpoint Parallel Dial (User-Owned Devices Only)
-
-### What changes
-
-- Allow each user to publish multiple direct endpoint cards (desktop/laptop/phone).
-- Improve success rates by racing direct attempts across valid endpoints and converging payloads across profile devices.
-
-### How it works
-
-1. Pairing envelope carries multiple endpoint cards with expiry and signing metadata.
-2. Initiator launches parallel direct dial attempts with deterministic concurrency limits.
-3. First successful direct session wins; remaining attempts are canceled.
-4. Any device that first receives payloads triggers profile-device fanout and cursor-based catch-up for sibling devices that become active later.
-5. Endpoint health stats update locally to prioritize better cards in subsequent sessions.
-
-### Trade-offs and risks
-
-- More endpoint lifecycle complexity (expiry, revocation, stale cards).
-- Slight additional power/network cost during connect windows.
-- Requires deterministic per-device cursor and dedupe semantics to avoid divergence.
-
-### Acceptance criteria
-
-- Connection success improves versus single-endpoint mode in controlled test profile.
-- Endpoint revocation blocks stale endpoint usage deterministically.
-- Parallel dial limits prevent resource exhaustion under repeated retries.
-- Later-active devices converge on missed payloads with deterministic replay behavior.
-
-### Implementation slices
-
-- Extend pairing envelope to include endpoint card arrays.
-- Implement parallel dial orchestration and winner selection.
-- Add profile-device fanout + catch-up rules and endpoint management/revocation handling.
-
-## Scope Clarification: Off-LAN Direct Connect
-
-- The MVP already covers off-LAN direct-connect bootstrap and path selection through signed pairing, WAN setup guidance, endpoint cards, and parallel dial.
-- A broad new "off-LAN discovery" feature is not planned because it risks drifting into forbidden rendezvous semantics.
-- The only plausible future gap to revisit is authorized endpoint-card freshness or rediscovery for already-paired peers when stored endpoint hints drift.
-- Any future design for that gap must stay metadata-only, contact-authorized, and must not introduce STUN/TURN/relay or project-operated discovery infrastructure.
-
-## Scope Clarification: Profile-Device Announcement
-
-- The MVP already covers the required profile-device outcome through active-device fanout and later-active catch-up by cursor.
-- A broad new device-announcement/discovery feature is not planned because it risks drifting into contact presence or rendezvous semantics rather than convergence semantics.
-- The only plausible future extensions are optional self/profile device-state UX or authorized endpoint-card freshness for already-paired peers.
-
-## Scope Clarification: Contact-Aware Device Discovery
-
-- The MVP does not include friend-visible device awareness or online-device discovery as part of DM seamlessness.
-- Privacy-first social-graph boundaries and direct-only DM rules make broad contact-facing device presence too easy to overexpose.
-- If a future extension is needed, it must stay contact-authorized, pull-based, and limited to endpoint-card freshness metadata for already-paired peers.
-
-## Scope Clarification: Multi-Device DM Sync Durability
-
-- The MVP already covers broad multi-device DM convergence through active-device fanout, later-active catch-up, persisted endpoint/profile/cursor metadata, and deterministic dedupe.
-- The only remaining unresolved gap is replay payload durability when the API process restarts or the bounded replay backlog is exhausted.
-- Any future solution must choose explicitly between peer-only sibling-device replay and bounded encrypted server-side replay storage; this is a boundary decision, not a generic convergence feature gap.
-
-## Scope Clarification: Durable DM History
-
-- Durable DM history is still a valid follow-up because the current thread/message list endpoints are fixture-backed.
-- The intended target is user-owned history persisted locally on client devices or via the local desktop runtime service, not server-authoritative DM payload history.
-- Server-side persistence remains limited to DM metadata/control state unless an explicit architecture decision expands that boundary.
-
-## Scope Clarification: Recipient-Targeted Realtime Signaling
-
-- Recipient-targeted websocket signaling is still a valid follow-up for live call/session setup.
-- It should stay narrowly scoped to authenticated offer/answer/ICE routing between currently connected peers.
-- It must not expand into offline signaling queues, device discovery, friend-visible presence, or DM payload relay/storage behavior.
+- Reason codes are deterministic and do not reference recipient-device network connectivity.
+- Pending delivery/catch-up states preserve accepted encrypted-envelope history.
+- UX-facing changes are proposed and explicitly approved before implementation.
 
 ## Delivery Ownership
 
 - This document is the option catalog and trade-off authority.
 - Sequencing and task ownership are canonical in `docs/planning/infra-free-dm-connectivity-execution-plan.md`.
+- Architecture boundaries are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
 
 ## Non-Goals
 
-- No infrastructure-assisted NAT traversal for DM transport.
-- No guild/community server relay path for DM payload delivery.
-- No hidden fallback that violates policy while preserving apparent UX success.
+- Server-readable DM content.
+- Private-key upload, escrow, or server custody.
+- Unencrypted DM mailboxing or plaintext relay behavior.
+- Node-bypassing LAN/WAN DM transport, endpoint hints/cards, connectivity preflight, pairing QR/manual-code bootstrap, WAN wizard, or parallel dial.
+- Reworking unrelated app-layer features while implementing DM delivery changes.
 
 ## Related Documents
 

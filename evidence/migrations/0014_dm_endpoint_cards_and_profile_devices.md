@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-18
+- last_updated: 2026-05-11
 - Source of truth: `evidence/migrations/0014_dm_endpoint_cards_and_profile_devices.md`
 
 ## Quick Context
 
 - Purpose: record deterministic validation evidence for migration `0014_dm_endpoint_cards_and_profile_devices.sql`.
 - Primary edit location: update when persisted endpoint-card or profile-device evidence changes.
-- Latest meaningful change: 2026-03-18 added delivery-pass evidence for restart-stable direct endpoint cards and active-device records.
+- Latest meaningful change: 2026-05-11 clarified that endpoint-card evidence is historical and superseded by the server-node P2P DM envelope baseline.
 
 ## Migration Metadata
 
@@ -56,4 +56,4 @@
 
 - Reviewer: OpenCode agent (delivery validation pass)
 - Decision: pass
-- Notes: This migration preserves direct-only connectivity metadata across restart while keeping ownership on user/device-controlled state.
+- Notes: This historical migration preserved now-retired connectivity metadata across restart while keeping ownership on client/device-controlled state.

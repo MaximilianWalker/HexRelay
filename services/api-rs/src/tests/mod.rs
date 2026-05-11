@@ -91,7 +91,6 @@ struct IdentityBootstrapBundle {
     identity_id: String,
     public_key: String,
     algorithm: String,
-    endpoint_cards: Vec<serde_json::Value>,
     devices: Vec<serde_json::Value>,
 }
 
@@ -562,24 +561,4 @@ fn app_with_sessions_and_state(
     (build_app(state.clone()), bearer_tokens, state)
 }
 
-fn seed_accepted_friendship(
-    state: &AppState,
-    requester_identity_id: &str,
-    target_identity_id: &str,
-) {
-    state
-        .friend_requests
-        .write()
-        .expect("acquire friend request write lock for tests")
-        .insert(
-            format!("fr-{requester_identity_id}-{target_identity_id}"),
-            crate::models::FriendRequestRecord {
-                request_id: format!("fr-{requester_identity_id}-{target_identity_id}"),
-                requester_identity_id: requester_identity_id.to_string(),
-                target_identity_id: target_identity_id.to_string(),
-                status: "accepted".to_string(),
-                created_at: Utc::now().to_rfc3339(),
-            },
-        );
-}
 mod integration;

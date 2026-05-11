@@ -16,42 +16,31 @@ export type DmPolicyResponse = {
   offline_delivery_mode: string;
 };
 
-export type DmPairingIdentityKey = {
-  public_key: string;
-  algorithm: string;
-  fingerprint: string;
+export type DmProfileDeviceHeartbeatResponse = {
+  identity_id: string;
+  devices: Array<{
+    device_id: string;
+    active: boolean;
+    last_seen_at: string;
+  }>;
 };
 
-export type DmConnectivityPreflightReasonCode =
-  | "preflight_ok"
-  | "preflight_ok_lan"
-  | "preflight_blocked_user"
-  | "pairing_missing"
-  | "port_unavailable"
-  | "policy_blocked"
-  | "peer_unreachable";
-
-export type DmConnectivityPreflightResponse = {
+export type DmFanoutCatchUpResponse = {
   status: "ready" | "blocked";
-  reason_code: DmConnectivityPreflightReasonCode;
-  transport_profile: "direct_only";
-  remediation: string[];
-};
-
-export type DmLanDiscoverySnapshot = {
-  identity_id: string;
-  endpoint_hints: string[];
-  scope: "lan_subnet";
-  last_seen_at: string;
-  expires_at: string;
-  ttl_seconds: 120;
-};
-
-export type DmLanPeerSummary = {
-  identity_id: string;
-  endpoint_hints: string[];
-  last_seen_at: string;
-  expires_at: string;
+  reason_code: string;
+  transport_profile: "encrypted_envelope_node";
+  device_id: string;
+  replay_count: number;
+  next_cursor: string;
+  deduped_message_ids: string[];
+  items: Array<{
+    envelope_id: string;
+    cursor: string;
+    thread_id: string;
+    message_id: string;
+    ciphertext: string;
+    source_device_id?: string | null;
+  }>;
 };
 
 export type TestingProfileSummary = {
@@ -449,6 +438,54 @@ export async function updateDmPolicy(input: {
   return parseResponse(response);
 }
 
+export async function heartbeatDmProfileDevice(input: {
+  deviceId: string;
+  deviceSecret: string;
+  active: boolean;
+}): Promise<ApiResult<DmProfileDeviceHeartbeatResponse>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/profile-devices/heartbeat`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      device_id: input.deviceId,
+      device_secret: input.deviceSecret,
+      active: input.active,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
+export async function catchUpDmFanout(input: {
+  deviceId: string;
+  deviceSecret: string;
+  cursor?: string;
+  limit?: number;
+}): Promise<ApiResult<DmFanoutCatchUpResponse>> {
+  const body: { device_id: string; device_secret: string; cursor?: string; limit?: number } = {
+    device_id: input.deviceId,
+    device_secret: input.deviceSecret,
+  };
+  if (input.cursor) {
+    body.cursor = input.cursor;
+  }
+  if (input.limit !== undefined) {
+    body.limit = input.limit;
+  }
+
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/fanout/catch-up`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseResponse(response);
+}
+
 export async function redeemInvite(input: {
   token: string;
   nodeFingerprint: string;
@@ -492,113 +529,6 @@ export async function createContactInvite(input: {
       expires_at: input.expiresAt,
     }),
   });
-
-  return parseResponse(response);
-}
-
-export async function createDmPairingEnvelope(input: {
-  endpointHints: string[];
-  expiresInSeconds?: number;
-}): Promise<
-  ApiResult<{
-    envelope: string;
-    short_code: string;
-    expires_at: string;
-    pairing_nonce: string;
-  }>
-> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/pairing-envelope`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      endpoint_hints: input.endpointHints,
-      expires_in_seconds: input.expiresInSeconds,
-    }),
-  });
-
-  return parseResponse(response);
-}
-
-export async function importDmPairingEnvelope(input: {
-  envelope: string;
-}): Promise<
-  ApiResult<{
-    inviter_identity_id: string;
-    inviter_identity_key: DmPairingIdentityKey;
-    endpoint_hints: string[];
-    imported_at: string;
-    expires_at: string;
-  }>
-> {
-  const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/pairing-envelope/import`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        envelope: input.envelope,
-      }),
-    },
-  );
-
-  return parseResponse(response);
-}
-
-export async function runDmConnectivityPreflight(input: {
-  peerIdentityId?: string;
-  pairingEnvelopePresent?: boolean;
-  localBindAllowed?: boolean;
-  peerReachableHint?: boolean;
-}): Promise<ApiResult<DmConnectivityPreflightResponse>> {
-  const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/preflight`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        peer_identity_id: input.peerIdentityId,
-        pairing_envelope_present: input.pairingEnvelopePresent,
-        local_bind_allowed: input.localBindAllowed,
-        peer_reachable_hint: input.peerReachableHint,
-      }),
-    },
-  );
-
-  return parseResponse(response);
-}
-
-export async function announceDmLanDiscovery(input: {
-  endpointHints: string[];
-}): Promise<ApiResult<DmLanDiscoverySnapshot>> {
-  const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/lan-discovery/announce`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        endpoint_hints: input.endpointHints,
-      }),
-    },
-  );
-
-  return parseResponse(response);
-}
-
-export async function listDmLanPeers(): Promise<ApiResult<{ items: DmLanPeerSummary[] }>> {
-  const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/connectivity/lan-discovery/peers`,
-    {
-      method: "GET",
-    },
-  );
 
   return parseResponse(response);
 }

@@ -3,39 +3,15 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use crate::app::{router::assert_dm_direct_profile, CommunicationError, CommunicationRouter};
+use crate::app::{CommunicationError, CommunicationRouter};
 use crate::domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, PolicyContext,
     SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{
-    connect_via_direct_peer, send_via_direct_peer_dispatch, send_via_node_dispatch,
-    DirectPeerDispatch, DirectPeerTransport, DispatchingDirectPeerTransport,
-    DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch, TransportError,
+    send_via_node_dispatch, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,
+    TransportError,
 };
-
-#[derive(Clone)]
-struct RecordingDirectPeer {
-    connect_calls: Arc<AtomicUsize>,
-    send_calls: Arc<AtomicUsize>,
-}
-
-impl DirectPeerTransport for RecordingDirectPeer {
-    fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
-        self.connect_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(SessionProvenance {
-            mode: intent.mode,
-            profile: TransportProfile::DirectPeer,
-            reason_code: CommunicationReasonCode::DmDirectRouteSelected,
-            policy_assertions: vec!["dm_direct_policy_compliant".to_string()],
-        })
-    }
-
-    fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
-        self.send_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(())
-    }
-}
 
 #[derive(Clone)]
 struct RecordingNodeClient {
@@ -49,8 +25,8 @@ impl NodeClientTransport for RecordingNodeClient {
         Ok(SessionProvenance {
             mode: intent.mode,
             profile: TransportProfile::NodeClient,
-            reason_code: CommunicationReasonCode::ServerChannelRouteSelected,
-            policy_assertions: vec!["server_channel_policy_compliant".to_string()],
+            reason_code: CommunicationReasonCode::DmEnvelopeNodeRouteSelected,
+            policy_assertions: vec!["dm_envelope_node_policy_compliant".to_string()],
         })
     }
 
@@ -60,79 +36,16 @@ impl NodeClientTransport for RecordingNodeClient {
     }
 }
 
-struct TestCounters {
-    direct_connect_calls: Arc<AtomicUsize>,
-    direct_send_calls: Arc<AtomicUsize>,
-    node_connect_calls: Arc<AtomicUsize>,
-    node_send_calls: Arc<AtomicUsize>,
-}
+#[derive(Clone)]
+struct FailingNodeClient;
 
-impl TestCounters {
-    fn new() -> Self {
-        Self {
-            direct_connect_calls: Arc::new(AtomicUsize::new(0)),
-            direct_send_calls: Arc::new(AtomicUsize::new(0)),
-            node_connect_calls: Arc::new(AtomicUsize::new(0)),
-            node_send_calls: Arc::new(AtomicUsize::new(0)),
-        }
-    }
-
-    fn direct_peer(&self) -> RecordingDirectPeer {
-        RecordingDirectPeer {
-            connect_calls: Arc::clone(&self.direct_connect_calls),
-            send_calls: Arc::clone(&self.direct_send_calls),
-        }
-    }
-
-    fn node_client(&self) -> RecordingNodeClient {
-        RecordingNodeClient {
-            connect_calls: Arc::clone(&self.node_connect_calls),
-            send_calls: Arc::clone(&self.node_send_calls),
-        }
-    }
-}
-
-struct FailingDirectPeer;
-
-impl DirectPeerTransport for FailingDirectPeer {
+impl NodeClientTransport for FailingNodeClient {
     fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
         Err(TransportError::ConnectFailed)
     }
 
     fn send(&self, _envelope: &SendEnvelope) -> Result<(), TransportError> {
         Err(TransportError::SendFailed)
-    }
-}
-
-struct RecordingDirectDispatch {
-    connect_targets: Arc<Mutex<Vec<ConnectTarget>>>,
-    payloads: Arc<Mutex<Vec<Vec<u8>>>>,
-}
-
-impl RecordingDirectDispatch {
-    fn new(payloads: Arc<Mutex<Vec<Vec<u8>>>>) -> Self {
-        Self {
-            connect_targets: Arc::new(Mutex::new(Vec::new())),
-            payloads,
-        }
-    }
-}
-
-impl DirectPeerDispatch for RecordingDirectDispatch {
-    fn connect_peer(&self, target: &ConnectTarget) -> Result<(), TransportError> {
-        self.connect_targets
-            .lock()
-            .expect("acquire direct connect lock")
-            .push(target.clone());
-        Ok(())
-    }
-
-    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
-        self.payloads
-            .lock()
-            .expect("acquire direct payload lock")
-            .push(payload.to_vec());
-        Ok(())
     }
 }
 
@@ -151,75 +64,55 @@ impl NodeDispatch for RecordingDispatch {
 }
 
 #[test]
-fn routes_dm_connect_through_direct_peer_adapter() {
-    let counters = TestCounters::new();
+fn routes_dm_envelope_connect_through_node_adapter() {
+    let node_connect_calls = Arc::new(AtomicUsize::new(0));
+    let node_send_calls = Arc::new(AtomicUsize::new(0));
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        counters.direct_peer(),
-        counters.node_client(),
+        RecordingNodeClient {
+            connect_calls: Arc::clone(&node_connect_calls),
+            send_calls: node_send_calls,
+        },
     );
 
     let result = router.connect(&ConnectIntent {
-        mode: CommunicationMode::DmDirect,
-        target: ConnectTarget::PeerIdentity {
-            identity_id: "peer-a".to_string(),
+        mode: CommunicationMode::DmEnvelope,
+        target: ConnectTarget::NodeEndpoint {
+            endpoint: "https://node.example".to_string(),
         },
     });
 
     assert!(result.is_ok());
-    assert_eq!(counters.direct_connect_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(counters.node_connect_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(node_connect_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
-fn routes_dm_send_through_direct_peer_adapter() {
-    let counters = TestCounters::new();
+fn routes_dm_envelope_send_through_node_adapter() {
+    let node_connect_calls = Arc::new(AtomicUsize::new(0));
+    let node_send_calls = Arc::new(AtomicUsize::new(0));
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        counters.direct_peer(),
-        counters.node_client(),
+        RecordingNodeClient {
+            connect_calls: node_connect_calls,
+            send_calls: Arc::clone(&node_send_calls),
+        },
     );
 
     let result = router.send(&SendEnvelope {
-        mode: CommunicationMode::DmDirect,
-        payload: b"dm".to_vec(),
+        mode: CommunicationMode::DmEnvelope,
+        payload: b"dm-envelope".to_vec(),
     });
 
     assert_eq!(result, Ok(()));
-    assert_eq!(counters.direct_send_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(counters.node_send_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(node_send_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
-fn routes_server_send_through_node_adapter() {
-    let counters = TestCounters::new();
-    let router = CommunicationRouter::new(
-        PolicyContext::default(),
-        counters.direct_peer(),
-        counters.node_client(),
-    );
-
-    let result = router.send(&SendEnvelope {
-        mode: CommunicationMode::ServerChannel,
-        payload: b"hello".to_vec(),
-    });
-
-    assert_eq!(result, Ok(()));
-    assert_eq!(counters.node_send_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(counters.direct_send_calls.load(Ordering::SeqCst), 0);
-}
-
-#[test]
-fn rejects_target_profile_mismatch_before_adapter_call() {
-    let counters = TestCounters::new();
-    let router = CommunicationRouter::new(
-        PolicyContext::default(),
-        counters.direct_peer(),
-        counters.node_client(),
-    );
+fn maps_transport_connect_failure_to_reason_code() {
+    let router = CommunicationRouter::new(PolicyContext::default(), FailingNodeClient);
 
     let result = router.connect(&ConnectIntent {
-        mode: CommunicationMode::DmDirect,
+        mode: CommunicationMode::DmEnvelope,
         target: ConnectTarget::NodeEndpoint {
             endpoint: "https://node.invalid".to_string(),
         },
@@ -228,37 +121,9 @@ fn rejects_target_profile_mismatch_before_adapter_call() {
     assert_eq!(
         result,
         Err(CommunicationError {
-            code: CommunicationReasonCode::TargetProfileMismatch,
-            mode: CommunicationMode::DmDirect,
-            profile: Some(TransportProfile::DirectPeer),
-        })
-    );
-    assert_eq!(counters.direct_connect_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(counters.node_connect_calls.load(Ordering::SeqCst), 0);
-}
-
-#[test]
-fn maps_transport_connect_failure_to_reason_code() {
-    let counters = TestCounters::new();
-    let router = CommunicationRouter::new(
-        PolicyContext::default(),
-        FailingDirectPeer,
-        counters.node_client(),
-    );
-
-    let result = router.connect(&ConnectIntent {
-        mode: CommunicationMode::DmDirect,
-        target: ConnectTarget::PeerIdentity {
-            identity_id: "peer-a".to_string(),
-        },
-    });
-
-    assert_eq!(
-        result,
-        Err(CommunicationError {
             code: CommunicationReasonCode::TransportConnectFailed,
-            mode: CommunicationMode::DmDirect,
-            profile: Some(TransportProfile::DirectPeer),
+            mode: CommunicationMode::DmEnvelope,
+            profile: Some(TransportProfile::NodeClient),
         })
     );
 }
@@ -269,8 +134,7 @@ fn maps_mode_disabled_to_reason_code() {
         enable_server_channel: false,
         ..PolicyContext::default()
     };
-    let counters = TestCounters::new();
-    let router = CommunicationRouter::new(policy, counters.direct_peer(), counters.node_client());
+    let router = CommunicationRouter::new(policy, FailingNodeClient);
 
     let result = router.send(&SendEnvelope {
         mode: CommunicationMode::ServerChannel,
@@ -283,21 +147,6 @@ fn maps_mode_disabled_to_reason_code() {
             code: CommunicationReasonCode::ModeDisabled,
             mode: CommunicationMode::ServerChannel,
             profile: None,
-        })
-    );
-}
-
-#[test]
-fn rejects_non_direct_profile_for_dm_mode() {
-    let result =
-        assert_dm_direct_profile(CommunicationMode::DmDirect, TransportProfile::NodeClient);
-
-    assert_eq!(
-        result,
-        Err(CommunicationError {
-            code: CommunicationReasonCode::DmDirectPolicyViolation,
-            mode: CommunicationMode::DmDirect,
-            profile: Some(TransportProfile::NodeClient),
         })
     );
 }
@@ -319,114 +168,6 @@ fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
 
     assert_eq!(result, Err(TransportError::SendFailed));
     assert!(payloads.lock().expect("acquire payload lock").is_empty());
-}
-
-#[test]
-fn dispatching_direct_peer_transport_rejects_wrong_mode_payload() {
-    let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport =
-        DispatchingDirectPeerTransport::new(RecordingDirectDispatch::new(Arc::clone(&payloads)));
-
-    let result = transport.send(&SendEnvelope {
-        mode: CommunicationMode::ServerChannel,
-        payload: b"hello".to_vec(),
-    });
-
-    assert_eq!(result, Err(TransportError::SendFailed));
-    assert!(payloads.lock().expect("acquire payload lock").is_empty());
-}
-
-#[test]
-fn dispatching_direct_peer_transport_forwards_connect_for_dm_mode() {
-    let connect_targets = Arc::new(Mutex::new(Vec::new()));
-    let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport = DispatchingDirectPeerTransport::new(RecordingDirectDispatch {
-        connect_targets: Arc::clone(&connect_targets),
-        payloads,
-    });
-    let target = ConnectTarget::PeerIdentity {
-        identity_id: "peer-a".to_string(),
-    };
-
-    let result = transport.connect(&ConnectIntent {
-        mode: CommunicationMode::DmDirect,
-        target: target.clone(),
-    });
-
-    assert!(result.is_ok());
-    assert_eq!(
-        connect_targets
-            .lock()
-            .expect("acquire direct connect lock")
-            .as_slice(),
-        &[target]
-    );
-}
-
-#[test]
-fn dispatching_direct_peer_transport_forwards_payload_for_dm_mode() {
-    let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport =
-        DispatchingDirectPeerTransport::new(RecordingDirectDispatch::new(Arc::clone(&payloads)));
-
-    let result = transport.send(&SendEnvelope {
-        mode: CommunicationMode::DmDirect,
-        payload: b"dm".to_vec(),
-    });
-
-    assert_eq!(result, Ok(()));
-    assert_eq!(
-        payloads.lock().expect("acquire payload lock").as_slice(),
-        &[b"dm".to_vec()]
-    );
-}
-
-#[test]
-fn connect_via_direct_peer_routes_through_shared_direct_peer_bootstrap() {
-    let connect_targets = Arc::new(Mutex::new(Vec::new()));
-    let payloads = Arc::new(Mutex::new(Vec::new()));
-    let target = ConnectTarget::PeerIdentity {
-        identity_id: "peer-a".to_string(),
-    };
-
-    let result = connect_via_direct_peer(
-        PolicyContext::default(),
-        RecordingDirectDispatch {
-            connect_targets: Arc::clone(&connect_targets),
-            payloads,
-        },
-        target.clone(),
-    );
-
-    assert!(result.is_ok());
-    assert_eq!(
-        result.expect("direct provenance").profile,
-        TransportProfile::DirectPeer
-    );
-    assert_eq!(
-        connect_targets
-            .lock()
-            .expect("acquire direct connect lock")
-            .as_slice(),
-        &[target]
-    );
-}
-
-#[test]
-fn send_via_direct_peer_dispatch_routes_through_shared_direct_peer_bootstrap() {
-    let payloads = Arc::new(Mutex::new(Vec::new()));
-
-    let result = send_via_direct_peer_dispatch(
-        PolicyContext::default(),
-        RecordingDirectDispatch::new(Arc::clone(&payloads)),
-        b"dm".to_vec(),
-    );
-
-    assert_eq!(result, Ok(()));
-    assert_eq!(
-        payloads.lock().expect("acquire payload lock").as_slice(),
-        &[b"dm".to_vec()]
-    );
 }
 
 #[test]
@@ -472,21 +213,21 @@ fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
 }
 
 #[test]
-fn send_via_node_dispatch_routes_through_shared_node_client_bootstrap() {
+fn send_via_node_dispatch_routes_dm_envelope_through_node_client_bootstrap() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
 
     let result = send_via_node_dispatch(
-        CommunicationMode::ServerChannel,
+        CommunicationMode::DmEnvelope,
         PolicyContext::default(),
         RecordingDispatch {
             payloads: Arc::clone(&payloads),
         },
-        b"server".to_vec(),
+        b"dm-envelope".to_vec(),
     );
 
     assert_eq!(result, Ok(()));
     assert_eq!(
         payloads.lock().expect("acquire payload lock").as_slice(),
-        &[b"server".to_vec()]
+        &[b"dm-envelope".to_vec()]
     );
 }

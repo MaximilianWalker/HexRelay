@@ -76,6 +76,18 @@ const MIGRATIONS: &[Migration] = &[
         "0018_dm_durable_delivery_log",
         include_str!("../migrations/0018_dm_durable_delivery_log.sql"),
     ),
+    (
+        "0019_remove_dm_direct_connect_tables",
+        include_str!("../migrations/0019_remove_dm_direct_connect_tables.sql"),
+    ),
+    (
+        "0020_dm_profile_device_secret_hash",
+        include_str!("../migrations/0020_dm_profile_device_secret_hash.sql"),
+    ),
+    (
+        "0021_dm_encrypted_envelope_catchup_policy",
+        include_str!("../migrations/0021_dm_encrypted_envelope_catchup_policy.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

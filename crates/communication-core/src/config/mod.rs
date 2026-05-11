@@ -10,7 +10,7 @@ pub struct CommunicationConfig {
 impl Default for CommunicationConfig {
     fn default() -> Self {
         Self {
-            dm_transport_policy: DmTransportPolicy::DirectOnly,
+            dm_transport_policy: DmTransportPolicy::EncryptedEnvelopeNode,
             enable_server_channel: true,
             enable_presence: true,
         }

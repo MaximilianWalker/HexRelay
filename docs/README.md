@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 completed `T4.1.6` LAN discovery fast-path documentation and runtime REST LAN endpoint schema updates.
+- Latest meaningful change: 2026-05-11 aligned DM documentation routing with server-node P2P envelope delivery and the global UX approval gate.
 
 ## Purpose
 
@@ -41,8 +41,8 @@
 | Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
-| Infrastructure-free DM connectivity solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM connectivity policy, direct-connect mechanisms, or acceptance criteria change |
-| Infrastructure-free DM connectivity execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM connectivity sequencing, task gates, or acceptance evidence changes |
+| DM encrypted-envelope delivery solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM delivery policy, server-node/message-node envelope semantics, node-bypassing DM surface retirement, or acceptance criteria change |
+| DM encrypted-envelope delivery execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM delivery sequencing, task gates, node-bypassing DM surface retirement work, or acceptance evidence changes |
 | Dependencies and risk register | `docs/product/04-dependencies-risks.md` | Product/architecture maintainers | Dependency status or risk severity/mitigation changes |
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |

@@ -854,6 +854,7 @@ mod tests {
                     crate::state::ConnectionSenderEntry {
                         sender: open_tx,
                         device_id: Some("device-a".to_string()),
+                        dm_device_verified: false,
                     },
                 ),
                 (
@@ -861,6 +862,7 @@ mod tests {
                     crate::state::ConnectionSenderEntry {
                         sender: stale_tx,
                         device_id: Some("device-b".to_string()),
+                        dm_device_verified: false,
                     },
                 ),
             ]),
@@ -915,6 +917,7 @@ mod tests {
                 crate::state::ConnectionSenderEntry {
                     sender: full_tx,
                     device_id: Some("device-a".to_string()),
+                    dm_device_verified: false,
                 },
             )]),
         );

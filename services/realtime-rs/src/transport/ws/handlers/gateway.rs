@@ -2,7 +2,7 @@ use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     extract::ConnectInfo,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, Uri},
     response::{IntoResponse, Response},
     Json,
 };
@@ -19,6 +19,8 @@ use uuid::Uuid;
 use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
+const MIN_DEVICE_SECRET_LEN: usize = 16;
+const MAX_DEVICE_SECRET_LEN: usize = 128;
 const DROP_DEBT_EPSILON: f64 = 1.0e-12;
 
 pub async fn health() -> &'static str {
@@ -29,6 +31,7 @@ pub async fn ws_handler(
     State(state): State<AppState>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    uri: Uri,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     if !is_allowed_origin(&state, &headers) {
@@ -77,7 +80,8 @@ pub async fn ws_handler(
         }
     };
 
-    let device_id = websocket_device_id(&headers);
+    let device_id = websocket_device_id(&headers, uri.query());
+    let device_secret = websocket_device_secret(&headers);
 
     if !try_acquire_connection_slot(&state, &session.identity_id).await {
         warn!(
@@ -116,6 +120,7 @@ pub async fn ws_handler(
             identity_id,
             connection_id,
             device_id,
+            device_secret,
         )
     })
 }
@@ -126,6 +131,7 @@ async fn handle_socket(
     session_identity_id: String,
     connection_id: String,
     device_id: Option<String>,
+    initial_device_secret: Option<String>,
 ) {
     let (mut sender, mut receiver) = socket.split();
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
@@ -148,6 +154,22 @@ async fn handle_socket(
     });
 
     let _ = outbound_tx.try_send(connection_ready_banner());
+    if let (Some(device_id), Some(device_secret)) =
+        (device_id.as_deref(), initial_device_secret.as_deref())
+    {
+        let (response, verified) = crate::domain::dms::verify_dm_device_binding(
+            &state,
+            &session_identity_id,
+            device_id,
+            device_secret,
+            None,
+        )
+        .await;
+        if verified {
+            mark_connection_dm_device_verified(&state, &session_identity_id, &connection_id).await;
+        }
+        let _ = outbound_tx.try_send(response);
+    }
     crate::domain::presence::hydrate_presence_backlog_if_needed(
         &state,
         &session_identity_id,
@@ -184,7 +206,16 @@ async fn handle_socket(
                 }
                 message = receiver.next() => {
                     let Some(message) = message else { break; };
-                    if !handle_inbound_message(&state, &session_identity_id, &outbound_tx, message).await {
+                    if !handle_inbound_message(
+                        &state,
+                        &session_identity_id,
+                        &connection_id,
+                        device_id.as_deref(),
+                        &outbound_tx,
+                        message,
+                    )
+                    .await
+                    {
                         break;
                     }
                 }
@@ -193,7 +224,16 @@ async fn handle_socket(
             let Some(message) = receiver.next().await else {
                 break;
             };
-            if !handle_inbound_message(&state, &session_identity_id, &outbound_tx, message).await {
+            if !handle_inbound_message(
+                &state,
+                &session_identity_id,
+                &connection_id,
+                device_id.as_deref(),
+                &outbound_tx,
+                message,
+            )
+            .await
+            {
                 break;
             }
         }
@@ -217,6 +257,8 @@ async fn dev_fault_disconnect_due(state: &AppState, connected_at: tokio::time::I
 async fn handle_inbound_message(
     state: &AppState,
     session_identity_id: &str,
+    connection_id: &str,
+    device_id: Option<&str>,
     outbound_tx: &mpsc::Sender<String>,
     message: Result<Message, axum::Error>,
 ) -> bool {
@@ -243,18 +285,38 @@ async fn handle_inbound_message(
                 return true;
             }
 
-            if let Some(response) = crate::domain::lan_discovery::handle_lan_discovery_ws_event(
-                state,
-                session_identity_id,
-                &text,
-            )
-            .await
-            {
-                let _ = outbound_tx.try_send(response);
-                return true;
-            }
-
-            let response = route_inbound_event(&text, session_identity_id);
+            let response = if crate::domain::dms::is_dm_device_proof_event(&text) {
+                let (response, verified) = crate::domain::dms::handle_dm_device_proof(
+                    state,
+                    session_identity_id,
+                    device_id,
+                    &text,
+                )
+                .await;
+                if verified {
+                    mark_connection_dm_device_verified(state, session_identity_id, connection_id)
+                        .await;
+                }
+                response
+            } else if crate::domain::dms::is_dm_envelope_ack_event(&text) {
+                let dm_device_verified = connection_dm_device_verified(
+                    state,
+                    session_identity_id,
+                    connection_id,
+                    device_id,
+                )
+                .await;
+                crate::domain::dms::handle_dm_envelope_ack(
+                    state,
+                    session_identity_id,
+                    device_id,
+                    dm_device_verified,
+                    &text,
+                )
+                .await
+            } else {
+                route_inbound_event(&text, session_identity_id)
+            };
             let _ = outbound_tx.try_send(response);
             true
         }
@@ -382,16 +444,51 @@ fn build_error_event(code: &str, message: &str) -> String {
     crate::domain::events::service::build_error_event(code, message)
 }
 
-fn websocket_device_id(headers: &HeaderMap) -> Option<String> {
+fn websocket_device_id(headers: &HeaderMap, query: Option<&str>) -> Option<String> {
     headers
         .get("x-hexrelay-device-id")
         .and_then(|value| value.to_str().ok())
         .and_then(validate_device_id)
+        .or_else(|| query.and_then(websocket_query_device_id))
+}
+
+fn websocket_query_device_id(query: &str) -> Option<String> {
+    query.split('&').find_map(|pair| {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        if key == "device_id" {
+            validate_device_id(value)
+        } else {
+            None
+        }
+    })
+}
+
+fn websocket_device_secret(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-hexrelay-device-secret")
+        .and_then(|value| value.to_str().ok())
+        .and_then(validate_device_secret)
 }
 
 fn validate_device_id(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() || trimmed.len() > MAX_DEVICE_ID_LEN {
+        return None;
+    }
+
+    if !trimmed
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return None;
+    }
+
+    Some(trimmed.to_owned())
+}
+
+fn validate_device_secret(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.len() < MIN_DEVICE_SECRET_LEN || trimmed.len() > MAX_DEVICE_SECRET_LEN {
         return None;
     }
 
@@ -712,8 +809,44 @@ async fn register_connection_sender(
     let mut guard = state.connection_senders.lock().await;
     guard.entry(identity_id.to_string()).or_default().insert(
         connection_id.to_string(),
-        ConnectionSenderEntry { sender, device_id },
+        ConnectionSenderEntry {
+            sender,
+            device_id,
+            dm_device_verified: false,
+        },
     );
+}
+
+async fn mark_connection_dm_device_verified(
+    state: &AppState,
+    identity_id: &str,
+    connection_id: &str,
+) {
+    let mut guard = state.connection_senders.lock().await;
+    if let Some(entry) = guard
+        .get_mut(identity_id)
+        .and_then(|connections| connections.get_mut(connection_id))
+    {
+        entry.dm_device_verified = true;
+    }
+}
+
+async fn connection_dm_device_verified(
+    state: &AppState,
+    identity_id: &str,
+    connection_id: &str,
+    device_id: Option<&str>,
+) -> bool {
+    let Some(device_id) = device_id else {
+        return false;
+    };
+    let guard = state.connection_senders.lock().await;
+    guard
+        .get(identity_id)
+        .and_then(|connections| connections.get(connection_id))
+        .is_some_and(|entry| {
+            entry.dm_device_verified && entry.device_id.as_deref() == Some(device_id)
+        })
 }
 
 async fn unregister_connection_sender(state: &AppState, identity_id: &str, connection_id: &str) {
@@ -744,14 +877,12 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, handle_inbound_message,
-        release_connection_slot_after_failed_upgrade, should_drop_dev_fault, stable_hash,
+        cache_validated_session, release_connection_slot_after_failed_upgrade,
+        should_drop_dev_fault, stable_hash, websocket_device_id, websocket_device_secret,
     };
     use crate::state::{AppState, DevFaultConfig, DevFaultState};
+    use axum::http::{HeaderMap, HeaderValue};
     use chrono::{Duration as ChronoDuration, Utc};
-    use communication_core::{
-        LanDiscoveryAdvertisement, LAN_DISCOVERY_SCOPE, LAN_DISCOVERY_TTL_SECONDS,
-    };
     use tokio::time::{sleep, Duration};
 
     #[test]
@@ -794,6 +925,77 @@ mod tests {
 
         assert_eq!(decisions.iter().filter(|drop| **drop).count(), 9);
         assert!(decisions.iter().any(|drop| !*drop));
+    }
+
+    #[test]
+    fn websocket_device_id_accepts_query_for_browser_clients() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(
+            websocket_device_id(&headers, Some("device_id=web-main")),
+            Some("web-main".to_string())
+        );
+    }
+
+    #[test]
+    fn websocket_device_id_prefers_header_over_query() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-hexrelay-device-id",
+            HeaderValue::from_static("native-main"),
+        );
+
+        assert_eq!(
+            websocket_device_id(&headers, Some("device_id=web-main")),
+            Some("native-main".to_string())
+        );
+    }
+
+    #[test]
+    fn websocket_device_id_rejects_invalid_query_value() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(
+            websocket_device_id(&headers, Some("device_id=bad%2Fdevice")),
+            None
+        );
+    }
+
+    #[test]
+    fn websocket_device_secret_accepts_header_for_native_clients() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-hexrelay-device-secret",
+            HeaderValue::from_static("secret-native-main"),
+        );
+
+        assert_eq!(
+            websocket_device_secret(&headers),
+            Some("secret-native-main".to_string())
+        );
+    }
+
+    #[test]
+    fn websocket_device_secret_rejects_query_for_browser_clients() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(websocket_device_secret(&headers), None);
+    }
+
+    #[test]
+    fn websocket_device_secret_rejects_short_or_non_url_safe_header_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-hexrelay-device-secret",
+            HeaderValue::from_static("short"),
+        );
+
+        assert_eq!(websocket_device_secret(&headers), None);
+        headers.insert(
+            "x-hexrelay-device-secret",
+            HeaderValue::from_static("bad/secret-value"),
+        );
+        assert_eq!(websocket_device_secret(&headers), None);
     }
 
     #[tokio::test]
@@ -867,70 +1069,5 @@ mod tests {
         release_connection_slot_after_failed_upgrade(state.clone(), "usr-1".to_string()).await;
 
         assert!(state.active_connections.lock().await.get("usr-1").is_none());
-    }
-
-    #[tokio::test]
-    async fn websocket_text_routes_lan_discovery_advertisement() {
-        let state = AppState::new(
-            "http://127.0.0.1:1".to_string(),
-            vec!["http://localhost:3002".to_string()],
-            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
-            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
-            None,
-            false,
-            60,
-            60,
-            16384,
-            120,
-            60,
-            1,
-            30,
-            10000,
-        )
-        .expect("build state")
-        .with_lan_discovery_config(
-            true,
-            "0.0.0.0:48999".parse().unwrap(),
-            "239.255.48.31:48999".parse().unwrap(),
-            Duration::from_secs(10),
-        );
-        let issued_at_epoch = Utc::now().timestamp();
-        let raw = serde_json::json!({
-            "event_type": "dm.lan_discovery.advertise",
-            "event_version": 1,
-            "correlation_id": "corr-lan-1",
-            "data": LanDiscoveryAdvertisement {
-                version: 1,
-                identity_id: "usr-nora-k".to_string(),
-                endpoint_hints: vec!["udp://192.168.1.12:4040".to_string()],
-                scope: LAN_DISCOVERY_SCOPE.to_string(),
-                issued_at_epoch,
-                expires_at_epoch: issued_at_epoch + LAN_DISCOVERY_TTL_SECONDS,
-                nonce: "nonce-1".to_string(),
-                signature: "aa".repeat(64),
-            },
-        })
-        .to_string();
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-
-        assert!(
-            handle_inbound_message(
-                &state,
-                "usr-nora-k",
-                &tx,
-                Ok(axum::extract::ws::Message::Text(raw)),
-            )
-            .await
-        );
-        let response = rx.recv().await.expect("LAN discovery response");
-        let payload: serde_json::Value = serde_json::from_str(&response).expect("decode response");
-
-        assert_eq!(payload["event_type"], "dm.lan_discovery.advertise");
-        assert_eq!(payload["correlation_id"], "corr-lan-1");
-        assert_eq!(
-            state.active_lan_advertisements.lock().await.len(),
-            1,
-            "advertisement stored by websocket router"
-        );
     }
 }

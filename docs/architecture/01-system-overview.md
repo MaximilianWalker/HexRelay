@@ -6,18 +6,18 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-03
+- last_updated: 2026-05-11
 - Source of truth: `docs/architecture/01-system-overview.md`
 
 ## Quick Context
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-04-03 created the first canonical whole-system overview and linked detailed authorities instead of relying on scattered summaries.
+- Latest meaningful change: 2026-05-11 locked whole-system DM trust boundaries to server-node P2P E2EE envelope delivery and removed node-bypassing client DM transport/bootstrap scope.
 
 ## Purpose
 
-- Explain how the current system fits together at runtime.
+- Explain how the accepted MVP system fits together at runtime, including migration caveats where implementation still trails the target architecture.
 - Identify which components own which responsibilities and data.
 - Make current guarantees and non-guarantees explicit before readers drop into detailed docs.
 
@@ -42,7 +42,7 @@ Detailed mode authority:
   - talks to API over HTTP and realtime over websocket
 - `services/api-rs`
   - HTTP control plane
-  - auth/session validation, invites, friends, DM metadata, server/channel persistence, policy checks
+  - auth/session validation, invites, friends, DM encrypted-envelope metadata/storage, server/channel persistence, policy checks
 - `services/realtime-rs`
   - websocket/runtime fanout plane
   - websocket auth validation, live event fanout, replay hydration, presence and server-channel event delivery
@@ -53,8 +53,9 @@ Detailed mode authority:
   - ephemeral/shared runtime state for presence snapshots, replay logs, cursors, and pubsub fanout coordination
 - object storage
   - durable blob/media storage when enabled by feature scope
-- direct peer path
-  - DM payload transport remains direct user-to-user, not server-relayed
+- server-node P2P DM path
+  - server nodes/message nodes peer as the DM delivery network and store/forward E2EE DM envelopes plus minimal delivery metadata only
+  - never stores DM plaintext or client private keys
 
 ## Topology by Mode
 
@@ -69,6 +70,7 @@ Detailed mode authority:
 - API and realtime run as separate headless services.
 - Browser clients connect remotely through operator-managed ingress.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
+- Dedicated server runtimes may participate as peers in the server-node P2P network; clients still attach to nodes rather than forming DM transport paths between recipient devices.
 
 ## Trust Boundaries
 
@@ -84,8 +86,9 @@ Detailed mode authority:
   - default trust boundary for desktop local-first mode
 - `operator ingress`
   - dedicated deployments must provide TLS termination and header sanitization
-- `direct peer DM path`
-  - DM connectivity remains direct-only and must not silently fall back to project-operated relay infrastructure
+- `server-node P2P DM path`
+  - server nodes may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
+  - server must not decrypt DM content, receive private keys, or provide an unencrypted DM mailbox/relay
 
 Detailed authorities:
 - `docs/contracts/runtime-rest-v1.openapi.yaml`
@@ -96,10 +99,11 @@ Detailed authorities:
 ## Authoritative Data Ownership
 
 - user/device-authoritative
-  - DM payload path and direct connectivity state
+  - DM plaintext, decrypted views, private keys, and local client encryption state
   - local runtime state in desktop local-first mode
 - node-authoritative
   - sessions, invites, friends, server memberships, server-channel messages
+  - encrypted DM envelopes and minimal delivery metadata accepted by a server node/message node in the server-node P2P network
   - server-side authz and policy decisions
 - ephemeral/shared runtime state
   - Redis-backed live cursors, presence snapshots, pubsub coordination, and replay acceleration state
@@ -120,10 +124,10 @@ Detailed authority:
 - `Server-channel messaging`
   - write path is API-authoritative and persisted first
   - realtime fanout happens afterward through protected internal publish routes
-- `DM connectivity`
-  - metadata/bootstrap comes from API control-plane flows
-  - payload transport remains direct peer-to-peer
-  - sender success semantics must mean durable sender-side acceptance, not merely attempted live fanout
+- `DM delivery`
+  - relationship, policy, and public bootstrap material come from API control-plane flows
+  - client encrypts DM payloads before server-node delivery; message nodes in the server-node P2P network store/fan out ciphertext envelopes only
+  - sender success semantics must mean durable encrypted-envelope acceptance, not merely attempted live fanout
 
 ## Current Guarantees and Non-Guarantees
 
@@ -131,7 +135,7 @@ Detailed authority:
   - API-persisted server/channel state in Postgres
   - session and social-graph persistence handled by API-side durable stores
 - durable within the intended decentralized boundary
-  - accepted DM messages should remain durable message history rather than expire by delivery status alone
+  - accepted encrypted DM envelopes should remain durable message history rather than expire by delivery status alone
   - delivery/replay guarantees should be defined in terms of durable acceptance plus bounded eventual catch-up, not instant reachability
 - best-effort
   - server-channel live websocket fanout after persistence
@@ -141,7 +145,7 @@ Detailed authority:
   - canonical messages should not be discarded just because delivery was delayed or already completed
 - reachability vs presence
   - repeated failed delivery should downgrade current reachability assumptions without deleting the message
-  - a recipient may be online yet temporarily unreachable, so reachability should not silently redefine canonical message durability
+  - live node fanout may fail while durable encrypted-envelope delivery remains healthy, so reachability should not silently redefine canonical message durability
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`

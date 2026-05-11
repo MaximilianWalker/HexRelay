@@ -1,0 +1,222 @@
+use communication_core::{
+    domain::CommunicationMode,
+    send_via_node_dispatch,
+    transport::{NodeDispatch, TransportError},
+};
+use serde::{Deserialize, Serialize};
+use tracing::warn;
+
+use crate::state::AppState;
+
+const INTERNAL_DM_ENVELOPE_DISPATCH_PATH: &str = "/internal/dm/envelopes/dispatch";
+
+#[derive(Serialize)]
+struct DmEnvelopeDispatchRequest<'a> {
+    message_id: &'a str,
+    thread_id: &'a str,
+    sender_identity_id: &'a str,
+    recipient_identity_id: &'a str,
+    ciphertext: &'a str,
+    source_device_id: Option<&'a str>,
+    accepted_at: &'a str,
+    delivery_cursor: u64,
+    target_device_ids: &'a [String],
+}
+
+#[derive(Deserialize, Serialize)]
+struct OwnedDmEnvelopeDispatchRequest {
+    message_id: String,
+    thread_id: String,
+    sender_identity_id: String,
+    recipient_identity_id: String,
+    ciphertext: String,
+    source_device_id: Option<String>,
+    accepted_at: String,
+    delivery_cursor: u64,
+    target_device_ids: Vec<String>,
+}
+
+pub struct DispatchDmEnvelopeInput<'a> {
+    pub message_id: &'a str,
+    pub thread_id: &'a str,
+    pub sender_identity_id: &'a str,
+    pub recipient_identity_id: &'a str,
+    pub ciphertext: &'a str,
+    pub source_device_id: Option<&'a str>,
+    pub accepted_at: &'a str,
+    pub delivery_cursor: u64,
+    pub target_device_ids: &'a [String],
+}
+
+#[derive(Clone)]
+struct RealtimeNodeDispatchSender {
+    http_client: reqwest::Client,
+    realtime_base_url: String,
+    internal_token: String,
+}
+
+impl NodeDispatch for RealtimeNodeDispatchSender {
+    fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
+        let dispatch = RealtimeNodeDispatch::from_payload(payload)?;
+        let http_client = self.http_client.clone();
+        let url = format!(
+            "{}{}",
+            self.realtime_base_url.trim_end_matches('/'),
+            dispatch.path()
+        );
+        let path = dispatch.path().to_string();
+        let message_id = dispatch.message_id().to_string();
+        let thread_id = dispatch.thread_id().to_string();
+        let recipient_identity_id = dispatch.recipient_identity_id().to_string();
+        let internal_token = self.internal_token.clone();
+        let body = dispatch.body().to_vec();
+        let handle =
+            tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
+        handle.spawn(async move {
+            match http_client
+                .post(url)
+                .header("x-hexrelay-internal-token", internal_token)
+                .header("content-type", "application/json")
+                .body(body)
+                .send()
+                .await
+            {
+                Ok(response) if response.status().is_success() => {}
+                Ok(response) => {
+                    warn!(
+                        %path,
+                        %message_id,
+                        %thread_id,
+                        %recipient_identity_id,
+                        status = %response.status(),
+                        "NodeClientTransport DM envelope dispatch failed"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        %path,
+                        %message_id,
+                        %thread_id,
+                        %recipient_identity_id,
+                        error = %error,
+                        "NodeClientTransport DM envelope dispatch errored"
+                    );
+                }
+            }
+        });
+
+        Ok(())
+    }
+}
+
+struct RealtimeNodeDispatch {
+    body: Vec<u8>,
+    message_id: String,
+    thread_id: String,
+    recipient_identity_id: String,
+}
+
+impl RealtimeNodeDispatch {
+    fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
+        let body: OwnedDmEnvelopeDispatchRequest =
+            serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
+        Ok(Self {
+            body: serde_json::to_vec(&body).map_err(|_| TransportError::SendFailed)?,
+            message_id: body.message_id,
+            thread_id: body.thread_id,
+            recipient_identity_id: body.recipient_identity_id,
+        })
+    }
+
+    fn path(&self) -> &'static str {
+        INTERNAL_DM_ENVELOPE_DISPATCH_PATH
+    }
+
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+
+    fn message_id(&self) -> &str {
+        &self.message_id
+    }
+
+    fn thread_id(&self) -> &str {
+        &self.thread_id
+    }
+
+    fn recipient_identity_id(&self) -> &str {
+        &self.recipient_identity_id
+    }
+}
+
+pub async fn dispatch_dm_envelope(
+    state: &AppState,
+    input: DispatchDmEnvelopeInput<'_>,
+) -> Result<(), String> {
+    let request = DmEnvelopeDispatchRequest {
+        message_id: input.message_id,
+        thread_id: input.thread_id,
+        sender_identity_id: input.sender_identity_id,
+        recipient_identity_id: input.recipient_identity_id,
+        ciphertext: input.ciphertext,
+        source_device_id: input.source_device_id,
+        accepted_at: input.accepted_at,
+        delivery_cursor: input.delivery_cursor,
+        target_device_ids: input.target_device_ids,
+    };
+    let payload = serde_json::to_vec(&request)
+        .map_err(|error| format!("encode DM envelope dispatch payload: {error}"))?;
+
+    send_via_node_dispatch(
+        CommunicationMode::DmEnvelope,
+        communication_core::PolicyContext::default(),
+        RealtimeNodeDispatchSender {
+            http_client: state.http_client.clone(),
+            realtime_base_url: state.realtime_base_url.clone(),
+            internal_token: state.channel_dispatch_internal_token.clone(),
+        },
+        payload,
+    )
+    .map_err(|error| {
+        format!(
+            "dispatch DM envelope via NodeClientTransport: {:?}",
+            error.code
+        )
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dispatch_payload_maps_to_internal_dm_envelope_path() {
+        let target_device_ids = vec!["desktop-main".to_string(), "phone-main".to_string()];
+        let payload = serde_json::to_vec(&DmEnvelopeDispatchRequest {
+            message_id: "msg-1",
+            thread_id: "thread-1",
+            sender_identity_id: "usr-1",
+            recipient_identity_id: "usr-2",
+            ciphertext: "enc:abcdefghijklmnopqrstuvwxyz",
+            source_device_id: Some("sender-desktop"),
+            accepted_at: "2026-03-26T00:00:00Z",
+            delivery_cursor: 7,
+            target_device_ids: &target_device_ids,
+        })
+        .expect("encode dispatch request");
+
+        let dispatch = RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch");
+        assert_eq!(dispatch.path(), INTERNAL_DM_ENVELOPE_DISPATCH_PATH);
+
+        let body_value: serde_json::Value =
+            serde_json::from_slice(dispatch.body()).expect("parse dispatch body");
+        assert_eq!(body_value["message_id"], "msg-1");
+        assert_eq!(body_value["thread_id"], "thread-1");
+        assert_eq!(body_value["recipient_identity_id"], "usr-2");
+        assert_eq!(body_value["delivery_cursor"], 7);
+        assert_eq!(
+            body_value["target_device_ids"],
+            serde_json::json!(target_device_ids)
+        );
+    }
+}

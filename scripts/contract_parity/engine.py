@@ -172,17 +172,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/users/mute'),
         ('GET', '/v1/internal/presence/watchers/{identity_id}'),
         ('POST', '/v1/dm/privacy-policy'),
-        ('POST', '/v1/dm/pairing-envelope'),
-        ('POST', '/v1/dm/pairing-envelope/import'),
-        ('POST', '/v1/dm/connectivity/preflight'),
-        ('POST', '/v1/dm/connectivity/lan-discovery/announce'),
-        ('POST', '/v1/dm/connectivity/wan-wizard'),
-        ('POST', '/v1/dm/connectivity/endpoint-cards'),
-        ('POST', '/v1/dm/connectivity/endpoint-cards/revoke'),
-        ('POST', '/v1/dm/connectivity/parallel-dial'),
         ('POST', '/v1/dm/profile-devices/heartbeat'),
         ('POST', '/v1/dm/fanout/dispatch'),
         ('POST', '/v1/dm/fanout/catch-up'),
+        ('POST', '/v1/internal/dm/envelopes/ack'),
         ('POST', '/v1/invites'),
         ('POST', '/v1/contact-invites'),
         ('POST', '/v1/auth/verify'),
@@ -226,19 +219,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/users/block'): {'identity_invalid', 'already_blocked'},
         ('POST', '/v1/users/mute'): {'identity_invalid', 'already_muted'},
         ('POST', '/v1/dm/privacy-policy'): {'dm_policy_invalid'},
-        ('POST', '/v1/dm/pairing-envelope'): {'pairing_invalid'},
-        ('POST', '/v1/dm/pairing-envelope/import'): {
-            'pairing_invalid',
-            'pairing_expired',
-            'pairing_replayed',
-            'identity_invalid',
-        },
-        ('POST', '/v1/dm/connectivity/preflight'): {'preflight_invalid'},
-        ('POST', '/v1/dm/connectivity/lan-discovery/announce'): {'lan_discovery_invalid'},
-        ('POST', '/v1/dm/connectivity/wan-wizard'): {'wan_wizard_invalid'},
-        ('POST', '/v1/dm/connectivity/endpoint-cards'): {'endpoint_cards_invalid'},
-        ('POST', '/v1/dm/connectivity/endpoint-cards/revoke'): {'endpoint_cards_invalid'},
-        ('POST', '/v1/dm/connectivity/parallel-dial'): {'parallel_dial_invalid'},
         ('POST', '/v1/dm/profile-devices/heartbeat'): {'profile_device_invalid'},
         ('POST', '/v1/invites'): {'invite_invalid'},
         ('POST', '/v1/contact-invites'): {'invite_invalid'},
@@ -290,6 +270,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/v1/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
         ('POST', '/v1/dm/fanout/dispatch'): {'fanout_invalid'},
         ('POST', '/v1/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
+        ('POST', '/v1/internal/dm/envelopes/ack'): {
+            'dm_ack_invalid',
+            'dm_ack_unknown',
+            'internal_token_invalid',
+        },
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
         ('POST', '/v1/identity/keys/register'): {
@@ -327,6 +312,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             '409': {'already_muted'},
         },
         ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
+            '401': {'internal_token_invalid'},
+        },
+        ('POST', '/v1/internal/dm/envelopes/ack'): {
+            '400': {'dm_ack_invalid', 'dm_ack_unknown'},
             '401': {'internal_token_invalid'},
         },
         ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
@@ -2127,6 +2116,7 @@ def extract_realtime_runtime_events(*paths: str) -> str:
 
         text = runtime_path.read_text()
         events.update(re.findall(r'"(call\.signal\.[^"]+)"\s*=>', text))
+        events.update(re.findall(r'event_type\s*(?:==|!=)\s*"([^"]+)"', text))
         events.update(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', text))
         events.update(re.findall(r'const\s+[A-Z0-9_]*EVENT_TYPE\s*:\s*&str\s*=\s*"([^"]+)"', text))
     return "\n".join(sorted(events))
@@ -2160,6 +2150,7 @@ def extract_realtime_runtime_error_codes(*paths: str) -> str:
 
         text = runtime_path.read_text()
         codes.update(re.findall(r'build_error_event\(\s*"([^"]+)"', text, re.S))
+        codes.update(re.findall(r'code:\s*"([^"]+)"', text, re.S))
         codes.update(re.findall(r'ws_rejection\(\s*[^,]+,\s*"([^"]+)"', text, re.S))
 
     return "\n".join(sorted(codes))

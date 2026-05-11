@@ -2,14 +2,15 @@ asyncapi: 3.0.0
 id: urn:hexrelay:contracts:realtime-events:v1
 info:
   title: HexRelay Realtime Events Contract
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Target-state realtime event contract baseline for Iteration 2 and Iteration 3.
     This file may include events not yet implemented in current runtime routing.
     Use `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` for current
     realtime runtime behavior.
-    DM events are direct user-to-user transport events and are not relayed
-    by guild/community servers.
+    Target-state DM events carry E2EE envelopes only. Shared servers/message
+    nodes fan out ciphertext envelopes and minimal delivery metadata, while DM
+    plaintext and private keys remain client/device-only.
 defaultContentType: application/json
 servers:
   staging:
@@ -25,10 +26,34 @@ channels:
         $ref: '#/components/messages/PresenceUpdatedV1'
   dmMessageCreated:
     address: dm.message.created
-    description: Direct peer DM message creation event.
+    description: Node/server-routed E2EE DM envelope creation event.
     messages:
       dmMessageCreatedV1:
         $ref: '#/components/messages/DmMessageCreatedV1'
+  dmEnvelopeDispatched:
+    address: dm.envelope.dispatched
+    description: Message-node dispatch of a ciphertext DM envelope to one target profile device.
+    messages:
+      dmEnvelopeDispatchedV1:
+        $ref: '#/components/messages/DmEnvelopeDispatchedV1'
+  dmEnvelopeAck:
+    address: dm.envelope.ack
+    description: Recipient profile-device acknowledgement for a ciphertext DM envelope.
+    messages:
+      dmEnvelopeAckV1:
+        $ref: '#/components/messages/DmEnvelopeAckV1'
+  dmDeliveryUpdated:
+    address: dm.delivery.updated
+    description: Delivery-state update derived from durable acceptance, dispatch attempts, and device acknowledgements.
+    messages:
+      dmDeliveryUpdatedV1:
+        $ref: '#/components/messages/DmDeliveryUpdatedV1'
+  dmMessageRead:
+    address: dm.message.read
+    description: Explicit DM read receipt or reader-profile read-state sync event, separate from envelope delivery acknowledgement.
+    messages:
+      dmMessageReadV1:
+        $ref: '#/components/messages/DmMessageReadV1'
   callStateChanged:
     address: call.state.changed
     description: Voice/call lifecycle state transition event.
@@ -90,6 +115,36 @@ operations:
       $ref: '#/channels/dmMessageCreated'
     messages:
       - $ref: '#/channels/dmMessageCreated/messages/dmMessageCreatedV1'
+  receiveDmEnvelopeDispatched:
+    action: receive
+    channel:
+      $ref: '#/channels/dmEnvelopeDispatched'
+    messages:
+      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatchedV1'
+  sendDmEnvelopeAck:
+    action: send
+    channel:
+      $ref: '#/channels/dmEnvelopeAck'
+    messages:
+      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAckV1'
+  receiveDmDeliveryUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/dmDeliveryUpdated'
+    messages:
+      - $ref: '#/channels/dmDeliveryUpdated/messages/dmDeliveryUpdatedV1'
+  sendDmMessageRead:
+    action: send
+    channel:
+      $ref: '#/channels/dmMessageRead'
+    messages:
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
+  receiveDmMessageRead:
+    action: receive
+    channel:
+      $ref: '#/channels/dmMessageRead'
+    messages:
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
   receiveCallStateChanged:
     action: receive
     channel:
@@ -181,18 +236,18 @@ components:
     DmMessageCreatedV1:
       name: DmMessageCreatedV1
       title: DM Message Created
-      summary: Published when a new direct message is created.
+      summary: Published when a new node-routed DM envelope is created.
       payload:
         $ref: '#/components/schemas/DmMessageCreatedEventV1'
       examples:
-        - name: encrypted_direct_peer
+        - name: encrypted_message_node
           payload:
             event_id: be5468a6-bb4e-4e74-bec2-6f84e81226b1
             event_type: dm.message.created
             event_version: 1
             occurred_at: 2026-03-04T14:52:01Z
             correlation_id: adfd8d5c-3b7f-474f-8f02-8ba62f33f5c6
-            producer: dm-direct-transport
+            producer: dm-message-node
             data:
               message_id: ad6b1131-e301-4b2e-a531-d6024f2f8ec4
               thread_id: 86588f8f-78f8-4234-b5fb-f53e90f8889d
@@ -201,7 +256,126 @@ components:
               ciphertext: BASE64_CIPHERTEXT_PLACEHOLDER
               key_id: dm-key-018
               thread_seq: 401
-              transport_scope: direct_peer
+              transport_scope: encrypted_envelope_node
+    DmEnvelopeDispatchedV1:
+      name: DmEnvelopeDispatchedV1
+      title: DM Envelope Dispatched
+      summary: Published to a recipient device when a message node dispatches an accepted ciphertext envelope.
+      payload:
+        $ref: '#/components/schemas/DmEnvelopeDispatchedEventV1'
+      examples:
+        - name: dispatched_to_profile_device
+          payload:
+            event_id: 2a5e37f2-4d4c-48f7-a35a-3b5fe6eae91d
+            event_type: dm.envelope.dispatched
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:00Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: dm-message-node
+            data:
+              envelope_id: env-01hx7k5c9q5r0x9f5d7s0v4a6c
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              sender_identity_id: usr-sender
+              recipient_identity_id: usr-recipient
+              target_device_id: laptop-main
+              ciphertext: BASE64_CIPHERTEXT_PLACEHOLDER
+              accepted_at: 2026-05-08T14:59:59Z
+              dispatched_at: 2026-05-08T15:00:00Z
+              delivery_cursor: '42'
+              transport_scope: encrypted_envelope_node
+    DmEnvelopeAckV1:
+      name: DmEnvelopeAckV1
+      title: DM Envelope Ack
+      summary: Sent by a recipient device after it receives a ciphertext envelope from the message node.
+      payload:
+        $ref: '#/components/schemas/DmEnvelopeAckEventV1'
+      examples:
+        - name: device_received_envelope
+          payload:
+            event_id: 16c7e139-03b1-4576-80eb-c52382fe9fe7
+            event_type: dm.envelope.ack
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:01Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: web-client
+            data:
+              envelope_id: env-01hx7k5c9q5r0x9f5d7s0v4a6c
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              recipient_identity_id: usr-recipient
+              device_id: laptop-main
+              delivery_cursor: '42'
+              ack_status: received
+              received_at: 2026-05-08T15:00:01Z
+    DmDeliveryUpdatedV1:
+      name: DmDeliveryUpdatedV1
+      title: DM Delivery Updated
+      summary: Published when delivery metadata changes after acceptance, dispatch, or device acknowledgement.
+      payload:
+        $ref: '#/components/schemas/DmDeliveryUpdatedEventV1'
+      examples:
+        - name: acked_by_device
+          payload:
+            event_id: e8d42369-5ad8-45da-8f7b-aeb22c7b1981
+            event_type: dm.delivery.updated
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:01Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: dm-message-node
+            data:
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              sender_identity_id: usr-sender
+              recipient_identity_id: usr-recipient
+              delivery_state: acked
+              delivery_cursor: '42'
+              dispatched_device_ids: [laptop-main]
+              acked_device_ids: [laptop-main]
+              pending_device_ids: [phone-main]
+              failed_device_ids: []
+              updated_at: 2026-05-08T15:00:01Z
+    DmMessageReadV1:
+      name: DmMessageReadV1
+      title: DM Message Read
+      summary: Sent when a reader device advances explicit DM read state; participant fanout happens only when reader privacy allows it.
+      payload:
+        $ref: '#/components/schemas/DmMessageReadEventV1'
+      examples:
+        - name: participant_visible_read_receipt
+          payload:
+            event_id: 42f52f03-cd6f-46ec-8df4-9f9f6d625a17
+            event_type: dm.message.read
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:05Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: web-client
+            data:
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              reader_identity_id: usr-recipient
+              reader_device_id: laptop-main
+              read_cursor: '42'
+              read_at: 2026-05-08T15:00:05Z
+              receipt_scope: participants
+              fanout_scope: thread_participants
+        - name: reader_profile_sync_only
+          payload:
+            event_id: 8712ae9c-597a-488e-8b7a-5a9d92ef1d07
+            event_type: dm.message.read
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:05Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: web-client
+            data:
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              reader_identity_id: usr-recipient
+              reader_device_id: laptop-main
+              read_cursor: '42'
+              read_at: 2026-05-08T15:00:05Z
+              receipt_scope: self_devices
+              fanout_scope: reader_profile_devices
     CallStateChangedV1:
       name: CallStateChangedV1
       title: Call State Changed
@@ -413,7 +587,7 @@ components:
           minimum: 1
         transport_scope:
           type: string
-          enum: [direct_peer]
+          enum: [encrypted_envelope_node]
     DmMessageCreatedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -425,6 +599,180 @@ components:
               const: dm.message.created
             data:
               $ref: '#/components/schemas/DmMessageCreatedDataV1'
+    DmEnvelopeDispatchedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - envelope_id
+        - message_id
+        - thread_id
+        - sender_identity_id
+        - recipient_identity_id
+        - target_device_id
+        - ciphertext
+        - accepted_at
+        - dispatched_at
+        - delivery_cursor
+        - transport_scope
+      properties:
+        envelope_id: { type: string, minLength: 8, maxLength: 128 }
+        message_id: { type: string, minLength: 3, maxLength: 128 }
+        thread_id: { type: string, minLength: 3, maxLength: 128 }
+        sender_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        recipient_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        target_device_id: { type: string, minLength: 1, maxLength: 64 }
+        ciphertext: { type: string, minLength: 24 }
+        accepted_at: { type: string, format: date-time }
+        dispatched_at: { type: string, format: date-time }
+        delivery_cursor: { type: string, minLength: 1 }
+        transport_scope:
+          type: string
+          enum: [encrypted_envelope_node]
+    DmEnvelopeDispatchedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.envelope.dispatched
+            data:
+              $ref: '#/components/schemas/DmEnvelopeDispatchedDataV1'
+    DmEnvelopeAckDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - envelope_id
+        - message_id
+        - thread_id
+        - recipient_identity_id
+        - device_id
+        - delivery_cursor
+        - ack_status
+        - received_at
+      properties:
+        envelope_id: { type: string, minLength: 8, maxLength: 128 }
+        message_id: { type: string, minLength: 3, maxLength: 128 }
+        thread_id: { type: string, minLength: 3, maxLength: 128 }
+        recipient_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        device_id: { type: string, minLength: 1, maxLength: 64 }
+        delivery_cursor: { type: string, minLength: 1 }
+        ack_status:
+          type: string
+          enum: [received]
+        received_at: { type: string, format: date-time }
+    DmEnvelopeAckEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.envelope.ack
+            data:
+              $ref: '#/components/schemas/DmEnvelopeAckDataV1'
+    DmDeliveryUpdatedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - message_id
+        - thread_id
+        - sender_identity_id
+        - recipient_identity_id
+        - delivery_state
+        - delivery_cursor
+        - dispatched_device_ids
+        - acked_device_ids
+        - pending_device_ids
+        - failed_device_ids
+        - updated_at
+      properties:
+        message_id: { type: string, minLength: 3, maxLength: 128 }
+        thread_id: { type: string, minLength: 3, maxLength: 128 }
+        sender_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        recipient_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        delivery_state:
+          type: string
+          enum: [pending_delivery, dispatched, acked, catch_up_required, failed]
+        delivery_cursor: { type: string, minLength: 1 }
+        dispatched_device_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 64 }
+        acked_device_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 64 }
+        pending_device_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 64 }
+        failed_device_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 64 }
+        updated_at: { type: string, format: date-time }
+    DmDeliveryUpdatedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.delivery.updated
+            data:
+              $ref: '#/components/schemas/DmDeliveryUpdatedDataV1'
+    DmMessageReadDataV1:
+      type: object
+      additionalProperties: false
+      oneOf:
+        - properties:
+            receipt_scope:
+              const: participants
+            fanout_scope:
+              const: thread_participants
+        - properties:
+            receipt_scope:
+              const: self_devices
+            fanout_scope:
+              const: reader_profile_devices
+      required:
+        - message_id
+        - thread_id
+        - reader_identity_id
+        - reader_device_id
+        - read_cursor
+        - read_at
+        - receipt_scope
+        - fanout_scope
+      properties:
+        message_id: { type: string, minLength: 3, maxLength: 128 }
+        thread_id: { type: string, minLength: 3, maxLength: 128 }
+        reader_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        reader_device_id: { type: string, minLength: 1, maxLength: 64 }
+        read_cursor:
+          type: string
+          minLength: 1
+          description: Reader-visible thread cursor advanced by the explicit read action.
+        read_at: { type: string, format: date-time }
+        receipt_scope:
+          type: string
+          enum: [participants, self_devices]
+          description: Participant-visible receipts require reader privacy consent; self-device scope must not fan out to other participants.
+        fanout_scope:
+          type: string
+          enum: [thread_participants, reader_profile_devices]
+          description: Target audience selected after applying thread membership and reader read-receipt privacy policy.
+    DmMessageReadEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.message.read
+            data:
+              $ref: '#/components/schemas/DmMessageReadDataV1'
     CallStateChangedDataV1:
       type: object
       additionalProperties: false

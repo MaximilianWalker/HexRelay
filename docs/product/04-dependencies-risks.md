@@ -6,14 +6,14 @@
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/04-dependencies-risks.md`
 
 ## Quick Context
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-03-16 separated DM vs voice TURN/NAT dependency ownership and corrected constrained-network mitigation scope.
+- Latest meaningful change: 2026-05-11 aligned DM delivery risks with server-node P2P E2EE envelope delivery and node-bypassing client transport guardrails.
 
 ## Purpose
 
@@ -30,7 +30,7 @@
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | Infrastructure-free NAT test environment for direct DM peer connectivity scenarios | External | deferred | DM NAT-restricted behavior cannot be characterized with repeatable evidence | Platform/Realtime | STUN/TURN/relay dependency is disallowed for DM connectivity; this dependency is DM-only |
+| D-007 | E2EE DM envelope delivery conformance profile | Internal | ready | DM baseline could drift into server-readable payloads, excess metadata, private-key custody, or retired node-bypassing client DM surfaces without repeatable evidence | Core/API/QA | Conformance must prove ciphertext-only server-node/message-node handling, client-only plaintext/private keys, and absence of node-bypassing client DM transport/bootstrap surfaces |
 | D-010 | TURN/NAT constrained-network validation profile for Iteration 3 voice/screen-share flows | Internal | ready | Voice/screen-share constrained-network behavior cannot be signed off with repeatable evidence | Platform/Realtime | Canonical profile: `docs/planning/turn-nat-test-profile.md`; scoped to voice/screen-share only |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
@@ -46,7 +46,7 @@
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
 | R-007 | User identity scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, hide raw key/profile-identifying data by default, release bootstrap data only on accepted requests | API |
-| R-008 | Missed DM delivery when recipient remains offline | medium | medium | Encrypted local outbox retries, explicit delivery-state UI, and user guidance that offline queue is best-effort in MVP | Core/Web |
+| R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, retention policy, abuse controls, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
 | R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, and active+late-device convergence tests for DM and server paths | Core/Realtime |
 
 ## Review Cadence
@@ -54,7 +54,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-03-16 (split DM-only D-007 from voice TURN/NAT D-010 and aligned voice constrained-network risk mitigation).
+- Last reviewed: 2026-05-11 (aligned DM delivery risk ownership with server-node P2P ciphertext-envelope delivery, metadata/key-custody controls, and node-bypassing client transport guardrails).
 
 ## Risk to Task Mitigation Matrix
 
@@ -67,7 +67,7 @@
 | R-005 | T2.2.1, T2.3.1, T2.4.1 |
 | R-006 | T2.1.4, T7.5.2, T8.3.1 |
 | R-007 | T3.1.1, T3.1.2, T3.1.5, T4.1.2 |
-| R-008 | T4.5.2, T4.5.4, T4.1.2 |
+| R-008 | T4.1.3, T4.1.7, T4.1.8, T4.5.2, T4.5.4 |
 
 ## Decisions
 
@@ -76,12 +76,12 @@
 | DEC-001 | MVP stack baseline uses Next.js + Rust + PostgreSQL + Redis + S3-compatible storage + coturn | accepted | `docs/architecture/adr-0001-stack-baseline.md` |
 | DEC-002 | Task-level execution authority is owned by iteration boards, not strategy docs | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-003 | Profile data authority remains user-signed canonical data; server replicas are non-authoritative except server-owned security/membership fields | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-004 | Post-MVP discovery roadmap is hybrid: federation supported, trusted registries added, and full P2P discovery optional | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-004 | Post-MVP discovery roadmap is hybrid: federation supported, trusted registries added, and decentralized server/node discovery optional | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-005 | Server invite policy allows optional expiration/max-uses, including non-expiring multi-use links for open-access behavior | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-006 | Friend requests are server-mediated with privacy-first identity exposure; DM inbound defaults to friends-only with user-configurable overrides | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-007 | DM transport is direct user-to-user and guild/community servers do not relay/store DM payloads | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-008 | MVP DM offline behavior is best-effort online with encrypted local outbox retries and no guaranteed offline queue | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-009 | Candidate solutions that require connectivity infrastructure (STUN/TURN/relay) are rejected for DM transport; only infrastructure-free direct connectivity is acceptable | accepted | `docs/product/03-clarifications.md` |
+| DEC-007 | DM delivery baseline uses server nodes/message nodes in the server-node P2P network for E2EE envelope store-and-forward; DM plaintext and private keys remain client/device-only | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-008 | MVP DM offline behavior requires durable encrypted-envelope acceptance into canonical DM history plus bounded eventual catch-up | accepted | `docs/product/01-mvp-plan.md` |
+| DEC-009 | Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope | accepted | `docs/product/03-clarifications.md` |
 | DEC-010 | Incoming communication must converge across all profile-linked devices (active fanout + late-device catch-up) for DM and server communication domains | accepted | `docs/product/01-mvp-plan.md` |
 
 ## Related Documents

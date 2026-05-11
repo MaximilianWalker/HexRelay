@@ -6,7 +6,7 @@ use crate::{
     },
     infra::db::repos::friends_repo::{self, FriendRequestRepoError},
     models::{
-        DmEndpointCard, DmProfileDeviceSummary, FriendRequestCreateRequest, FriendRequestListQuery,
+        DmProfileDeviceSummary, FriendRequestCreateRequest, FriendRequestListQuery,
         FriendRequestPage, FriendRequestRecord, IdentityBootstrapBundle,
     },
     shared::errors::{bad_request, conflict, forbidden, unauthorized, ApiResult},
@@ -379,7 +379,7 @@ pub async fn get_friend_request_bootstrap(
         {
             return Err(internal_error(
                 "storage_unavailable",
-                "bootstrap requires configured database pool",
+                "peer identity material requires configured database pool",
             ));
         }
 
@@ -406,7 +406,7 @@ pub async fn get_friend_request_bootstrap(
     if request.status != "accepted" {
         return Err(forbidden(
             "bootstrap_not_available",
-            "identity bootstrap material is only available after friend request acceptance",
+            "identity material is only available after friend request acceptance",
         ));
     }
 
@@ -419,7 +419,7 @@ pub async fn get_friend_request_bootstrap(
     if is_blocked_bidirectional(&state, &actor_identity, peer_identity_id)? {
         return Err(forbidden(
             "blocked_user",
-            "identity bootstrap material is unavailable while a block relationship exists between these users",
+            "identity material is unavailable while a block relationship exists between these users",
         ));
     }
 
@@ -437,35 +437,6 @@ pub async fn get_friend_request_bootstrap(
                 "peer identity key is not registered",
             )
         })?;
-
-    let now_epoch = chrono::Utc::now().timestamp();
-    let card_records = dm_repo::list_dm_endpoint_cards(pool, peer_identity_id, now_epoch)
-        .await
-        .map_err(|_| internal_error("storage_failure", "failed to retrieve peer endpoint cards"))?;
-
-    let endpoint_cards: Vec<DmEndpointCard> = card_records
-        .into_iter()
-        .filter(|card| !card.revoked)
-        .map(|card| {
-            let expires_at = chrono::DateTime::from_timestamp(card.expires_at_epoch, 0)
-                .unwrap_or_else(|| {
-                    tracing::warn!(
-                        expires_at_epoch = card.expires_at_epoch,
-                        endpoint_id = %card.endpoint_id,
-                        "invalid expires_at_epoch in endpoint card, falling back to now"
-                    );
-                    chrono::Utc::now()
-                });
-            DmEndpointCard {
-                endpoint_id: card.endpoint_id,
-                endpoint_hint: card.endpoint_hint,
-                estimated_rtt_ms: card.estimated_rtt_ms,
-                priority: card.priority,
-                expires_at: expires_at.to_rfc3339(),
-                revoked: false,
-            }
-        })
-        .collect();
 
     let device_records = dm_repo::list_dm_profile_devices(pool, peer_identity_id)
         .await
@@ -497,7 +468,6 @@ pub async fn get_friend_request_bootstrap(
         identity_id: peer_identity_id.to_string(),
         public_key: identity_key.public_key,
         algorithm: identity_key.algorithm,
-        endpoint_cards,
         devices,
     }))
 }
@@ -530,7 +500,7 @@ fn get_friend_request_bootstrap_in_memory(
         if request.status != "accepted" {
             return Err(forbidden(
                 "bootstrap_not_available",
-                "identity bootstrap material is only available after friend request acceptance",
+                "identity material is only available after friend request acceptance",
             ));
         }
 
@@ -543,7 +513,7 @@ fn get_friend_request_bootstrap_in_memory(
         if is_blocked_bidirectional(&state, &actor_identity, &peer_identity_id)? {
             return Err(forbidden(
                 "blocked_user",
-                "identity bootstrap material is unavailable while a block relationship exists between these users",
+                "identity material is unavailable while a block relationship exists between these users",
             ));
         }
 
@@ -560,31 +530,6 @@ fn get_friend_request_bootstrap_in_memory(
             "peer identity key is not registered",
         )
     })?;
-
-    let cards_guard = state
-        .dm_endpoint_cards
-        .read()
-        .expect("acquire endpoint cards read lock");
-    let now_epoch = chrono::Utc::now().timestamp();
-    let endpoint_cards: Vec<DmEndpointCard> = cards_guard
-        .get(&peer_identity_id)
-        .map(|cards| {
-            cards
-                .values()
-                .filter(|card| !card.revoked && card.expires_at_epoch >= now_epoch)
-                .map(|card| DmEndpointCard {
-                    endpoint_id: card.endpoint_id.clone(),
-                    endpoint_hint: card.endpoint_hint.clone(),
-                    estimated_rtt_ms: card.estimated_rtt_ms,
-                    priority: card.priority,
-                    expires_at: chrono::DateTime::from_timestamp(card.expires_at_epoch, 0)
-                        .unwrap_or_else(chrono::Utc::now)
-                        .to_rfc3339(),
-                    revoked: false,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
 
     let devices_guard = state
         .dm_profile_devices
@@ -610,7 +555,6 @@ fn get_friend_request_bootstrap_in_memory(
         identity_id: peer_identity_id,
         public_key: identity_key.public_key.clone(),
         algorithm: identity_key.algorithm.clone(),
-        endpoint_cards,
         devices,
     }))
 }

@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-16
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-03-16 added profile-device sync defaults for active fanout and late-device catch-up convergence.
+- Latest meaningful change: 2026-05-11 locked DM defaults to server-node P2P encrypted-envelope delivery and removed node-bypassing client DM transport defaults.
 
 ## Override Precedence
 
@@ -31,13 +31,11 @@
 | `contact_invite.expires_at` | `24h` | ISO date-time | user |
 | `contact_invite.max_uses` | `1` | integer >= 1 | user |
 | `dm.inbound_policy` | `friends_only` | `friends_only`, `same_server`, `anyone` | user |
-| `dm.offline_delivery_mode` | `best_effort_online` | `best_effort_online` | user |
-| `dm.connectivity.mode` | `direct_only` | `direct_only` | user |
-| `dm.connectivity.bootstrap` | `oob_signed_envelope` | `oob_signed_envelope` | user |
-| `dm.connectivity.fallback_behavior` | `fail_with_guidance` | `fail_with_guidance` | user |
-| `dm.connectivity.lan_fast_path` | `enabled` | `enabled`, `disabled` | device |
-| `dm.connectivity.wan_wizard` | `enabled` | `enabled`, `disabled` | device |
-| `dm.connectivity.multi_endpoint_parallel_dial` | `enabled` | `enabled`, `disabled` | user |
+| `dm.delivery.mode` | `encrypted_envelope_node` | `encrypted_envelope_node` | user |
+| `dm.delivery.server_payload` | `ciphertext_envelopes_only` | `ciphertext_envelopes_only` | user |
+| `dm.delivery.metadata_scope` | `minimal_delivery_metadata` | `minimal_delivery_metadata` | user |
+| `dm.offline_delivery_mode` | `encrypted_envelope_catchup` | `encrypted_envelope_catchup` | user |
+| `dm.bootstrap.mode` | `signed_relationship_bootstrap` | `signed_relationship_bootstrap` | user |
 | `dm.device_sync.active_fanout` | `all_active_devices` | `all_active_devices` | user |
 | `dm.device_sync.catchup_mode` | `cursor_replay` | `cursor_replay` | user |
 | `dm.device_sync.replay_retention_hours` | `72` | integer >= 1 | user |

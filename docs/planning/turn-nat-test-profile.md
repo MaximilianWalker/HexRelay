@@ -6,20 +6,20 @@
 - Owner: Platform and Realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-04
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/turn-nat-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define a deterministic TURN/NAT validation profile for Iteration 3 voice and screen share gates.
 - Primary edit location: update this file when NAT scenarios, thresholds, or evidence requirements change.
-- Latest meaningful change: 2026-05-04 linked the local runtime testing plan and preserved the non-overlap between voice/media TURN validation and DM direct-only testing.
+- Latest meaningful change: 2026-05-11 preserved the non-overlap between voice/media TURN validation and server-node P2P DM encrypted-envelope delivery testing.
 
 ## Scope and Alignment
 
 - Applies to Iteration 3 tasks `T5.1.2`, `T5.2.1`, and `T5.3.1` in `docs/planning/iterations/03-sprint-board.md`.
 - Complements `docs/planning/kpi-slo-test-profile.md`; this profile is the constrained-network procedure for the voice/media KPI targets.
-- Scope clarification: this profile is for Iteration 3 voice/screen-share media paths only under `D-010`; DM transport remains infra-free direct-only under `D-007` in `docs/product/04-dependencies-risks.md`.
+- Scope clarification: this profile is for Iteration 3 voice/screen-share media paths only under `D-010`; DM delivery conformance is tracked separately under `D-007` in `docs/product/04-dependencies-risks.md` and must preserve ciphertext-only message-node handling with client-only plaintext/private keys.
 
 ## Test Environment Baseline
 

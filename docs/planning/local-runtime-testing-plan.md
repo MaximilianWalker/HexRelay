@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-07 completed PH-07 operations quickstart, runtime config safety notes, and evidence discoverability.
+- Latest meaningful change: 2026-05-11 aligned local runtime testing guardrails with server-node P2P E2EE encrypted-envelope DM delivery and retired node-bypassing client DM transport surfaces.
 
 ## Organization Decision
 
@@ -40,7 +40,7 @@
 
 - Production seed data.
 - Cloud-hosted test environments.
-- STUN/TURN/coturn or relay fallback for DM transport.
+- Server-readable plaintext, private-key custody, unencrypted DM mailboxing, or plaintext relay behavior for DM transport.
 - Dedicated-server scale testing beyond local multi-instance development ergonomics.
 - Full encrypted DM protocol redesign.
 - Voice/media TURN/NAT validation, which remains covered by `docs/planning/turn-nat-test-profile.md`.
@@ -51,11 +51,11 @@
 - Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
-- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets and Toxiproxy peer links.
-- API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_endpoint_cards`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
+- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets and Toxiproxy inter-node links.
+- API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
-- Backend DM history, policy, connectivity, fanout, endpoint-card, and device APIs exist; the browser private-chat route exists, while full end-to-end DM delivery remains incremental.
-- The direct-only DM transport guardrail is active and must not be weakened by testing features.
+- Backend DM history, policy, fanout, catch-up, and profile-device APIs exist; the browser DM route exists, while full end-to-end client encryption remains incremental.
+- The DM envelope delivery guardrail is active and must not be weakened by testing features: message nodes may carry/store ciphertext envelopes only, while plaintext and private keys remain client/device-only.
 
 ## Guiding Principles
 
@@ -65,7 +65,7 @@
 - Refuse destructive seed/reset commands against non-local databases.
 - Prefer deterministic profiles over ad hoc manual setup.
 - Make Windows the baseline for usability, not an afterthought.
-- Keep network simulation local and infrastructure-free for DM.
+- Keep network simulation local and deterministic for DM; tests must validate baseline encrypted-envelope delivery without router/cloud/recipient-device transport setup.
 - Make simulated failures explicit and observable in UI and logs.
 
 ## Testing Profile Catalog
@@ -83,7 +83,7 @@
 | Profile ID | Identity ID | Purpose | Expected State |
 |---|---|---|---|
 | `alice.primary` | `usr-test-alice` | Happy-path sender and primary manual-test persona | Active session, accepted contact with Bob, member of shared server, DM policy `friends_only` |
-| `bob.primary` | `usr-test-bob` | Happy-path peer and receiver | Active session, accepted contact with Alice, multiple devices, seeded endpoint cards |
+| `bob.primary` | `usr-test-bob` | Happy-path peer and receiver | Active session, accepted contact with Alice, multiple profile devices |
 | `carol.pending` | `usr-test-carol` | Pending contact/request edge case | Pending friend request with Alice, no accepted DM relationship |
 | `dave.restricted` | `usr-test-dave` | Negative DM policy and blocked/restricted behavior | Restrictive policy and relationship state that should block or require context |
 | `erin.offline` | `usr-test-erin` | Offline/connectivity test identity | Identity and device records exist, no active session |
@@ -92,10 +92,10 @@
 
 | Scenario ID | Purpose | Included Profiles | Data Shape |
 |---|---|---|---|
-| `dm-basic` | Fast manual testing for direct private chat surfaces | Alice, Bob | Accepted friendship, DM policy, endpoint cards, device records, one direct DM thread |
+| `dm-basic` | Fast manual testing for DM surfaces | Alice, Bob | Accepted friendship, DM policy, profile-device records, one encrypted DM thread |
 | `contacts-edge` | Contacts UI and request-state validation | Alice, Carol, Dave | Pending inbound/outbound requests, restricted policy, invite edge data |
 | `server-chat` | Server/channel workspace validation | Alice, Bob, Carol | Shared server, memberships, channels, server messages, unread/favorite/muted variation |
-| `multi-device` | Device convergence and endpoint-card checks | Alice, Bob, Erin | Multiple Bob devices, active/inactive devices, endpoint card priority variation |
+| `multi-device` | Device convergence checks | Alice, Bob, Erin | Multiple Bob devices plus active/inactive profile-device variation |
 | `all` | Complete local exploratory dataset | All profiles | Combined DM, contacts, server, device, and policy states |
 
 ## Fixture Data Model
@@ -123,14 +123,13 @@
 - Friend request rows must use stable IDs when possible, such as `fixture-fr-alice-bob`.
 - The seed command must remain idempotent when accepted or pending rows already exist.
 
-### DM Policy and Endpoint Data
+### DM Policy and Device Data
 
 - Alice default policy: `friends_only`.
 - Bob default policy: `friends_only`.
 - Carol may use `same_server` for context-sensitive behavior.
 - Dave should use a restrictive setup to validate blocked or not-authorized behavior.
-- Endpoint hints must use direct schemes only: `tcp://`, `udp://`, or `quic://`.
-- Endpoint hints must not introduce STUN, TURN, coturn, relay, ICE server, or fallback language into DM runtime/config surfaces.
+- Bootstrap fixtures must not include recipient-device endpoint hints, endpoint cards, pairing QR/manual-code payloads, or LAN/WAN discovery data.
 
 ### DM Thread and Message Data
 
@@ -147,12 +146,11 @@
 - Create at least two text channels, for example `general` and `ops-lab`.
 - Seed server channel messages with mentions and one reply where constraints allow it.
 
-### Device and Connectivity Data
+### Profile Device Data
 
 - Bob should have at least two active profile devices.
 - Erin should have an inactive or stale device record.
-- Endpoint cards should include priority and RTT variation.
-- Connectivity preflight fixtures should allow happy path, offline, and policy-blocked outcomes.
+- Device fixtures should cover active, inactive, and stale profile-device states for fanout and catch-up outcomes.
 
 ## Seed and Reset Tooling
 
@@ -446,12 +444,12 @@ npm run network -- --reset
 - `flaky-mobile` maps to realtime delay, deterministic drop rate, and disconnect-after settings through `npm run network -- --profile flaky-mobile --target <instance>`.
 - `network --reset` restores the previous realtime dev-fault config.
 
-### Direct-Only DM Guardrail
+### DM Envelope Delivery Guardrail
 
-- Network simulation must not add STUN, TURN, relay, coturn, ICE server, or relay fallback to DM runtime behavior.
-- DM connection failures under simulated networks should fail explicitly with user-visible guidance.
+- Network simulation must not add server-readable plaintext, private-key custody, unencrypted mailboxing, or plaintext relay behavior to DM runtime behavior.
+- Optional node-to-node failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-node delivery.
 - Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
-- The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new network config surfaces are introduced.
+- The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
 
 ## Validation Strategy
 
@@ -473,7 +471,7 @@ npm run network -- --reset
 - Activate Alice through the dev testing profile UI.
 - Activate Bob through the dev testing profile UI.
 - Confirm Alice sees Bob in contacts.
-- Confirm Alice can open the Bob private chat route.
+- Confirm Alice can open the Bob DM route.
 - Confirm seeded DM history appears once the web route is wired to backend history.
 - Confirm restricted/pending profiles show blocked or pending UI states.
 
@@ -624,7 +622,7 @@ Critical path:
 | DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
 | DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
 | DEC-04 | Network simulation | Docker controls plus Toxiproxy plus app-level dev faults | Keeps Windows/Linux behavior Docker-only and deterministic | Toxiproxy is TCP-level rather than packet-level shaping |
-| DEC-05 | DM transport | Keep DM direct-only and fail explicitly under simulated network failures | Preserves product guardrail | Testing must not use TURN/coturn/relay fallback for DM |
+| DEC-05 | DM transport | Validate encrypted-envelope message-node delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or node-bypassing client DM transport/bootstrap surfaces |
 | DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
 
 ## Risks and Mitigations
@@ -637,7 +635,7 @@ Critical path:
 | Toxiproxy is TCP-level rather than packet-level | Medium | Use Docker partition/disconnect plus app-level realtime faults for deterministic MVP coverage |
 | Runtime profiles create stale processes | Medium | Track PIDs in `.local-run/`, provide status and stop commands, refuse unsafe reuse |
 | Network reset leaves containers partitioned | Medium | Store network state and make reset idempotent |
-| DM delivery remains partially wired in UI | Medium | Validate backend history/fanout/connectivity now and document web delivery limitations until implemented |
+| DM delivery remains partially wired in UI | Medium | Validate backend history/fanout/catch-up now and document web delivery limitations until implemented |
 | Legacy coturn service confuses DM testing | Medium | Document coturn as voice/media-only legacy test infra, not DM runtime support |
 
 ## Minimum Viable Delivery Slice
@@ -655,13 +653,13 @@ Critical path:
 - `npm run seed -- --profile dm-basic` creates Alice and Bob with valid local sessions and DM-ready backend state.
 - Alice and Bob can be opened in separate browser contexts or local web instances.
 - Alice sees Bob in contacts.
-- Alice can open the Bob private-chat route.
+- Alice can open the Bob DM route.
 - Alice and Bob can read seeded DM history once the web route consumes backend history.
 - `dual` runtime starts without port collisions on Windows and Unix.
 - `status` reports every instance and health URL.
 - `stop` cleans every tracked local process.
 - `network --profile offline-alice` makes Alice unreachable or disconnected in a visible way.
-- `network --profile partition-alice-bob` prevents Alice/Bob connectivity without enabling relay fallback.
+- `network --profile partition-alice-bob` degrades node/realtime connectivity without introducing plaintext/key custody, unencrypted relay behavior, or node-bypassing DM transport.
 - `network --reset` restores normal connectivity.
 - Dev session bootstrap is unavailable or inert outside development mode.
 - Production builds do not expose test profile controls.

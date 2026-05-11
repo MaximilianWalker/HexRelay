@@ -207,7 +207,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Validate direct-only DM transport policy guardrails
+      - name: Validate DM E2EE envelope policy guardrails
         run: |
           chmod +x scripts/validate-dm-transport-policy.sh
           ./scripts/validate-dm-transport-policy.sh

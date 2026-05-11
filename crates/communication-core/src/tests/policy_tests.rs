@@ -5,13 +5,13 @@ use crate::domain::{
 };
 
 #[test]
-fn routes_dm_direct_to_direct_peer_profile() {
+fn routes_dm_envelope_to_node_client_profile() {
     let policy = PolicyContext::default();
 
-    let routed = PolicyEngine::route_mode(CommunicationMode::DmDirect, &policy)
-        .expect("dm direct mode should route");
+    let routed = PolicyEngine::route_mode(CommunicationMode::DmEnvelope, &policy)
+        .expect("dm envelope mode should route");
 
-    assert_eq!(routed, TransportProfile::DirectPeer);
+    assert_eq!(routed, TransportProfile::NodeClient);
 }
 
 #[test]
@@ -42,55 +42,33 @@ fn rejects_disabled_server_mode() {
 }
 
 #[test]
-fn validates_connect_target_for_routed_profile() {
+fn validates_node_connect_target_for_routed_profile() {
     let intent = ConnectIntent {
-        mode: CommunicationMode::DmDirect,
-        target: ConnectTarget::PeerIdentity {
-            identity_id: "user-123".to_string(),
-        },
-    };
-
-    let result = PolicyEngine::validate_connect_intent(TransportProfile::DirectPeer, &intent);
-
-    assert_eq!(result, Ok(()));
-}
-
-#[test]
-fn rejects_connect_target_mismatch_for_profile() {
-    let intent = ConnectIntent {
-        mode: CommunicationMode::DmDirect,
+        mode: CommunicationMode::DmEnvelope,
         target: ConnectTarget::NodeEndpoint {
             endpoint: "https://node.example".to_string(),
         },
     };
 
-    let result = PolicyEngine::validate_connect_intent(TransportProfile::DirectPeer, &intent);
+    let result = PolicyEngine::validate_connect_intent(TransportProfile::NodeClient, &intent);
 
-    assert_eq!(
-        result,
-        Err(PolicyError::TargetProfileMismatch {
-            profile: TransportProfile::DirectPeer,
-            target: ConnectTarget::NodeEndpoint {
-                endpoint: "https://node.example".to_string(),
-            },
-        })
-    );
+    assert_eq!(result, Ok(()));
 }
 
 #[test]
-fn builds_policy_compliant_provenance_for_dm() {
+fn builds_policy_compliant_provenance_for_dm_envelope() {
     let provenance =
-        PolicyEngine::build_provenance(CommunicationMode::DmDirect, TransportProfile::DirectPeer);
+        PolicyEngine::build_provenance(CommunicationMode::DmEnvelope, TransportProfile::NodeClient);
 
-    assert_eq!(provenance.mode, CommunicationMode::DmDirect);
-    assert_eq!(provenance.profile, TransportProfile::DirectPeer);
+    assert_eq!(provenance.mode, CommunicationMode::DmEnvelope);
+    assert_eq!(provenance.profile, TransportProfile::NodeClient);
     assert_eq!(
         provenance.reason_code,
-        CommunicationReasonCode::DmDirectRouteSelected
+        CommunicationReasonCode::DmEnvelopeNodeRouteSelected
     );
     assert_eq!(
         provenance.policy_assertions,
-        vec!["dm_direct_policy_compliant".to_string()]
+        vec!["dm_envelope_node_policy_compliant".to_string()]
     );
 }
 

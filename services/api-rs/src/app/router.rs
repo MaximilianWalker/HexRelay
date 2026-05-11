@@ -19,12 +19,9 @@ use crate::{
         directory::{get_server, list_contacts, list_servers},
         discovery::list_discovery_users,
         dm::{
-            announce_dm_lan_discovery, create_dm_pairing_envelope, dm_connectivity_preflight,
-            get_dm_policy, heartbeat_dm_profile_device, import_dm_pairing_envelope,
-            ingest_dm_lan_discovery_advertisement, list_dm_lan_peers, list_dm_thread_messages,
-            list_dm_threads, mark_dm_thread_read, register_dm_endpoint_cards,
-            revoke_dm_endpoint_cards, run_dm_active_fanout, run_dm_fanout_catch_up,
-            run_dm_parallel_dial, run_dm_wan_wizard, update_dm_policy,
+            ack_dm_envelope_internal, get_dm_policy, heartbeat_dm_profile_device,
+            list_dm_thread_messages, list_dm_threads, mark_dm_thread_read, run_dm_active_fanout,
+            run_dm_fanout_catch_up, update_dm_policy, verify_dm_profile_device_internal,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -86,44 +83,10 @@ pub fn build_app(state: AppState) -> Router {
             "/v1/internal/presence/watchers/:identity_id",
             get(list_presence_watchers),
         )
-        .route(
-            "/v1/internal/dm/connectivity/lan-discovery/ingest",
-            post(ingest_dm_lan_discovery_advertisement),
-        )
         .route("/v1/discovery/users", get(list_discovery_users))
         .route(
             "/v1/dm/privacy-policy",
             get(get_dm_policy).post(update_dm_policy),
-        )
-        .route("/v1/dm/pairing-envelope", post(create_dm_pairing_envelope))
-        .route(
-            "/v1/dm/pairing-envelope/import",
-            post(import_dm_pairing_envelope),
-        )
-        .route(
-            "/v1/dm/connectivity/preflight",
-            post(dm_connectivity_preflight),
-        )
-        .route(
-            "/v1/dm/connectivity/lan-discovery/announce",
-            post(announce_dm_lan_discovery),
-        )
-        .route(
-            "/v1/dm/connectivity/lan-discovery/peers",
-            get(list_dm_lan_peers),
-        )
-        .route("/v1/dm/connectivity/wan-wizard", post(run_dm_wan_wizard))
-        .route(
-            "/v1/dm/connectivity/endpoint-cards",
-            post(register_dm_endpoint_cards),
-        )
-        .route(
-            "/v1/dm/connectivity/endpoint-cards/revoke",
-            post(revoke_dm_endpoint_cards),
-        )
-        .route(
-            "/v1/dm/connectivity/parallel-dial",
-            post(run_dm_parallel_dial),
         )
         .route(
             "/v1/dm/profile-devices/heartbeat",
@@ -131,6 +94,14 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route("/v1/dm/fanout/dispatch", post(run_dm_active_fanout))
         .route("/v1/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
+        .route(
+            "/v1/internal/dm/envelopes/ack",
+            post(ack_dm_envelope_internal),
+        )
+        .route(
+            "/v1/internal/dm/profile-devices/verify",
+            post(verify_dm_profile_device_internal),
+        )
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
             "/v1/dm/threads/:thread_id/messages",

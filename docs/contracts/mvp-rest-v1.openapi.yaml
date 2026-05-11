@@ -638,7 +638,7 @@ components:
       required: [inbound_policy, offline_delivery_mode]
       properties:
         inbound_policy: { type: string, enum: [friends_only, same_server, anyone] }
-        offline_delivery_mode: { type: string, enum: [best_effort_online] }
+        offline_delivery_mode: { type: string, enum: [encrypted_envelope_catchup] }
     DmPolicyUpdate:
       type: object
       required: [inbound_policy]

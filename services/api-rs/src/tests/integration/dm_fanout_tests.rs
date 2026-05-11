@@ -1,5 +1,9 @@
 use super::*;
 
+fn device_secret(device_id: &str) -> String {
+    format!("secret-{device_id}")
+}
+
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
     let request = Request::builder()
         .method("POST")
@@ -18,7 +22,7 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
 }
 
 #[tokio::test]
-async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
+async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
     let Some((app, tokens, _pool)) =
@@ -42,7 +46,8 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
             )
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"device_id":"{device_id}","active":{active}}}"#
+                r#"{{"device_id":"{device_id}","device_secret":"{}","active":{active}}}"#,
+                device_secret(device_id)
             )))
             .expect("build profile device heartbeat request");
         let heartbeat_response = app
@@ -63,7 +68,11 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
             recipient
         )))
         .expect("build fanout request");
-    let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
+    let fanout_response = app
+        .clone()
+        .oneshot(fanout_request)
+        .await
+        .expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
 
     let body = to_bytes(fanout_response.into_body(), usize::MAX)
@@ -72,21 +81,23 @@ async fn fanout_dispatch_delivers_to_all_active_profile_devices() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
     assert_eq!(payload["status"], "accepted");
-    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
-    assert_eq!(payload["reachability_state"], "reachable");
-    assert_eq!(payload["reason_code"], "fanout_ok");
-    assert_eq!(payload["fanout_count"], 2);
+    assert_eq!(payload["delivery_state"], "pending_delivery");
+    assert_eq!(payload["reachability_state"], "unknown");
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+    assert_eq!(payload["fanout_count"], 0);
 
     let delivered = payload["delivered_device_ids"]
         .as_array()
         .expect("delivered array");
-    assert_eq!(delivered.len(), 2);
-    assert!(delivered.contains(&serde_json::Value::String("desktop-main".to_string())));
-    assert!(delivered.contains(&serde_json::Value::String("phone-main".to_string())));
+    assert!(delivered.is_empty());
+    assert_eq!(
+        payload["skipped_device_ids"],
+        serde_json::json!(["tablet-idle"])
+    );
 }
 
 #[tokio::test]
-async fn fanout_dispatch_skips_source_device_when_present() {
+async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_id() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
     let Some((app, tokens, _pool)) =
@@ -106,7 +117,8 @@ async fn fanout_dispatch_skips_source_device_when_present() {
             )
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"device_id":"{device_id}","active":true}}"#
+                r#"{{"device_id":"{device_id}","device_secret":"{}","active":true}}"#,
+                device_secret(device_id)
             )))
             .expect("build profile device heartbeat request");
         let heartbeat_response = app
@@ -127,7 +139,11 @@ async fn fanout_dispatch_skips_source_device_when_present() {
             recipient
         )))
         .expect("build fanout request");
-    let fanout_response = app.oneshot(fanout_request).await.expect("fanout response");
+    let fanout_response = app
+        .clone()
+        .oneshot(fanout_request)
+        .await
+        .expect("fanout response");
     assert_eq!(fanout_response.status(), StatusCode::OK);
 
     let body = to_bytes(fanout_response.into_body(), usize::MAX)
@@ -136,14 +152,41 @@ async fn fanout_dispatch_skips_source_device_when_present() {
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
 
     assert_eq!(payload["status"], "accepted");
-    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
-    assert_eq!(payload["reachability_state"], "reachable");
-    assert_eq!(payload["fanout_count"], 1);
-    assert_eq!(payload["delivered_device_ids"][0], "phone-main");
+    assert_eq!(payload["delivery_state"], "pending_delivery");
+    assert_eq!(payload["reachability_state"], "unknown");
+    assert_eq!(payload["fanout_count"], 0);
+    assert!(payload["delivered_device_ids"]
+        .as_array()
+        .expect("delivered array")
+        .is_empty());
     assert!(payload["skipped_device_ids"]
         .as_array()
         .expect("skipped array")
-        .contains(&serde_json::Value::String("desktop-main".to_string())));
+        .is_empty());
+
+    let catch_up = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/catch-up")
+        .header(
+            "authorization",
+            format!("Bearer {}", tokens[recipient.as_str()]),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}"}}"#,
+            device_secret("desktop-main")
+        )))
+        .expect("build fanout catch-up request");
+    let catch_up_response = app.oneshot(catch_up).await.expect("catch-up response");
+    assert_eq!(catch_up_response.status(), StatusCode::OK);
+
+    let catch_up_body = to_bytes(catch_up_response.into_body(), usize::MAX)
+        .await
+        .expect("read catch-up body");
+    let catch_up_payload: serde_json::Value =
+        serde_json::from_slice(&catch_up_body).expect("decode catch-up payload");
+    assert_eq!(catch_up_payload["replay_count"], 1);
+    assert_eq!(catch_up_payload["items"][0]["message_id"], "msg-1002");
 }
 
 #[tokio::test]
@@ -386,7 +429,10 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         )
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}","active":true}}"#,
+            device_secret("desktop-main")
+        )))
         .expect("build profile device heartbeat request");
     let heartbeat_response = app
         .clone()
@@ -420,10 +466,10 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         .expect("read fanout body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode fanout body");
     assert_eq!(payload["status"], "accepted");
-    assert_eq!(payload["reason_code"], "fanout_ok");
-    assert_eq!(payload["delivery_state"], "delivered_to_active_devices");
-    assert_eq!(payload["reachability_state"], "reachable");
-    assert_eq!(payload["fanout_count"], 1);
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+    assert_eq!(payload["delivery_state"], "pending_delivery");
+    assert_eq!(payload["reachability_state"], "unknown");
+    assert_eq!(payload["fanout_count"], 0);
 }
 
 #[tokio::test]
@@ -456,4 +502,40 @@ async fn fanout_dispatch_rejects_invalid_payload() {
     let payload: serde_json::Value =
         serde_json::from_slice(&body).expect("decode invalid fanout dispatch body");
     assert_eq!(payload["code"], "fanout_invalid");
+}
+
+#[tokio::test]
+async fn fanout_dispatch_rejects_unknown_recipient_identity() {
+    let sender = unique_identity("usr-nora-k");
+    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&[sender.as_str()]).await
+    else {
+        return;
+    };
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"recipient_identity_id":"usr-missing-recipient","message_id":"msg-unknown","ciphertext":"enc:test"}"#,
+        ))
+        .expect("build unknown-recipient fanout dispatch request");
+
+    let response = app
+        .oneshot(request)
+        .await
+        .expect("unknown-recipient fanout dispatch response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read unknown-recipient fanout dispatch body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode unknown-recipient fanout dispatch body");
+    assert_eq!(payload["code"], "fanout_invalid");
+    assert_eq!(
+        payload["message"],
+        "recipient_identity_id must reference a registered identity"
+    );
 }

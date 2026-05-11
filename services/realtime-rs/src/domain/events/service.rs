@@ -273,6 +273,103 @@ pub fn build_channel_message_deleted_event(
     })
 }
 
+pub fn build_dm_device_verified_event(device_id: &str, correlation_id: Option<String>) -> String {
+    let verified_at = Utc::now().to_rfc3339();
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "dm.device.verified".to_string(),
+        event_version: 1,
+        occurred_at: verified_at.clone(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-gateway".to_string(),
+        data: serde_json::json!({
+            "device_id": device_id,
+            "verified_at": verified_at,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_dm_envelope_dispatched_event(
+    envelope_id: &str,
+    message_id: &str,
+    thread_id: &str,
+    sender_identity_id: &str,
+    recipient_identity_id: &str,
+    target_device_id: &str,
+    ciphertext: &str,
+    accepted_at: &str,
+    dispatched_at: &str,
+    delivery_cursor: &str,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "dm.envelope.dispatched".to_string(),
+        event_version: 1,
+        occurred_at: dispatched_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "dm-message-node".to_string(),
+        data: serde_json::json!({
+            "envelope_id": envelope_id,
+            "message_id": message_id,
+            "thread_id": thread_id,
+            "sender_identity_id": sender_identity_id,
+            "recipient_identity_id": recipient_identity_id,
+            "target_device_id": target_device_id,
+            "ciphertext": ciphertext,
+            "accepted_at": accepted_at,
+            "dispatched_at": dispatched_at,
+            "delivery_cursor": delivery_cursor,
+            "transport_scope": "encrypted_envelope_node",
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_dm_envelope_ack_event(
+    envelope_id: &str,
+    message_id: &str,
+    thread_id: &str,
+    recipient_identity_id: &str,
+    device_id: &str,
+    delivery_cursor: &str,
+    ack_status: &str,
+    received_at: &str,
+    correlation_id: Option<String>,
+) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "dm.envelope.ack".to_string(),
+        event_version: 1,
+        occurred_at: received_at.to_string(),
+        correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+        producer: "realtime-gateway".to_string(),
+        data: serde_json::json!({
+            "envelope_id": envelope_id,
+            "message_id": message_id,
+            "thread_id": thread_id,
+            "recipient_identity_id": recipient_identity_id,
+            "device_id": device_id,
+            "delivery_cursor": delivery_cursor,
+            "ack_status": ack_status,
+            "received_at": received_at,
+        }),
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
 fn build_event<T: Serialize>(event_type: &str, correlation_id: Option<String>, data: T) -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),

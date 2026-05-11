@@ -1,144 +1,21 @@
 use crate::{
     models::{
-        DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest,
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmParallelDialRequest,
-        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
+        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmPolicyUpdate,
+        DmProfileDeviceHeartbeatRequest,
     },
     shared::errors::{bad_request, ApiResult},
 };
 
 use crate::domain::auth::validation::is_valid_identity_id;
-use communication_core::{
-    validate_lan_endpoint_hint as validate_core_lan_endpoint_hint, LanEndpointHintError,
-};
 
-pub const DM_OFFLINE_DELIVERY_MODE: &str = "best_effort_online";
-pub const DM_PAIRING_ENVELOPE_VERSION: u32 = 1;
-pub const DM_PAIRING_DEFAULT_EXPIRY_SECONDS: u32 = 600;
-pub const DM_PAIRING_MAX_EXPIRY_SECONDS: u32 = 3600;
-pub const DM_PAIRING_MAX_ENDPOINT_HINTS: usize = 8;
-pub const DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS: usize = 8;
-pub const DM_ENDPOINT_CARD_MAX_ITEMS: usize = 8;
-pub const DM_ENDPOINT_CARD_DEFAULT_EXPIRY_SECONDS: u32 = 900;
-pub const DM_ENDPOINT_CARD_MAX_EXPIRY_SECONDS: u32 = 3600;
-pub const DM_ENDPOINT_CARD_DEFAULT_RTT_MS: u32 = 150;
-pub const DM_ENDPOINT_CARD_MAX_RTT_MS: u32 = 5000;
-pub const DM_PARALLEL_DIAL_DEFAULT_ATTEMPTS: u8 = 3;
-pub const DM_PARALLEL_DIAL_MAX_ATTEMPTS: u8 = 8;
+pub const DM_OFFLINE_DELIVERY_MODE: &str = "encrypted_envelope_catchup";
 pub const DM_PROFILE_DEVICE_ID_MAX_LENGTH: usize = 64;
+pub const DM_PROFILE_DEVICE_SECRET_MIN_LENGTH: usize = 16;
+pub const DM_PROFILE_DEVICE_SECRET_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
 pub const DM_FANOUT_CATCH_UP_DEFAULT_LIMIT: u32 = 50;
 pub const DM_FANOUT_CATCH_UP_MAX_LIMIT: u32 = 100;
-const DM_ENDPOINT_HINT_ALLOWED_SCHEMES: [&str; 3] = ["tcp", "udp", "quic"];
-const DM_ENDPOINT_HINT_FORBIDDEN_SCHEMES: [&str; 3] = ["stun", "turn", "relay"];
-
-fn validate_direct_endpoint_hint(
-    hint: &str,
-    code: &'static str,
-    field: &'static str,
-) -> ApiResult<()> {
-    let value = hint.trim();
-    if value.is_empty() || value.len() > 200 {
-        return Err(bad_request(
-            code,
-            "endpoint hints must be non-empty and <= 200 chars",
-        ));
-    }
-    if value != hint {
-        return Err(bad_request(
-            code,
-            "endpoint hints must not include leading or trailing whitespace",
-        ));
-    }
-
-    let (scheme, address) = value.split_once("://").ok_or_else(|| {
-        bad_request(
-            code,
-            "endpoint hints must include a direct scheme prefix like tcp://, udp://, or quic://",
-        )
-    })?;
-    if address.trim().is_empty() {
-        return Err(bad_request(
-            code,
-            "endpoint hints must include a non-empty address",
-        ));
-    }
-
-    let normalized_scheme = scheme.to_ascii_lowercase();
-    if scheme != normalized_scheme {
-        return Err(bad_request(
-            code,
-            "endpoint hint scheme must be lowercase (tcp://, udp://, quic://)",
-        ));
-    }
-    if DM_ENDPOINT_HINT_FORBIDDEN_SCHEMES
-        .iter()
-        .any(|forbidden| &normalized_scheme == forbidden)
-    {
-        return Err(bad_request(
-            code,
-            "endpoint hints must not use relay-oriented schemes (stun://, turn://, relay://)",
-        ));
-    }
-
-    if !DM_ENDPOINT_HINT_ALLOWED_SCHEMES
-        .iter()
-        .any(|allowed| &normalized_scheme == allowed)
-    {
-        return Err(bad_request(
-            code,
-            match field {
-                "lan" => "LAN endpoint hints must use direct schemes: udp://, tcp://, quic://",
-                "card" => "endpoint_hint must use direct schemes: udp://, tcp://, quic://",
-                _ => "endpoint hints must use direct schemes: udp://, tcp://, quic://",
-            },
-        ));
-    }
-
-    Ok(())
-}
-
-fn validate_lan_endpoint_hint(hint: &str) -> ApiResult<()> {
-    validate_core_lan_endpoint_hint(hint).map_err(|error| {
-        bad_request(
-            "lan_discovery_invalid",
-            lan_endpoint_hint_error_message(error),
-        )
-    })
-}
-
-fn lan_endpoint_hint_error_message(error: LanEndpointHintError) -> &'static str {
-    match error {
-        LanEndpointHintError::EmptyOrTooLong => {
-            "LAN endpoint hints must be non-empty and <= 200 chars"
-        }
-        LanEndpointHintError::Whitespace => {
-            "LAN endpoint hints must not include leading or trailing whitespace"
-        }
-        LanEndpointHintError::MissingScheme => {
-            "LAN endpoint hints must include a direct scheme prefix like tcp://, udp://, or quic://"
-        }
-        LanEndpointHintError::EmptyAddress => "LAN endpoint hints must include a non-empty address",
-        LanEndpointHintError::UppercaseScheme => {
-            "LAN endpoint hint scheme must be lowercase (tcp://, udp://, quic://)"
-        }
-        LanEndpointHintError::UnsupportedScheme => {
-            "LAN endpoint hints must use direct schemes: udp://, tcp://, quic://"
-        }
-        LanEndpointHintError::InvalidSocketAddress => {
-            "LAN endpoint hints must use IP-literal host:port addresses"
-        }
-        LanEndpointHintError::ZeroPort => "LAN endpoint hints must use a non-zero port",
-        LanEndpointHintError::NonIpv4Address => {
-            "LAN endpoint hints must use IPv4 addresses until IPv6 LAN discovery is supported"
-        }
-        LanEndpointHintError::NonLocalAddress => {
-            "LAN endpoint hints must use private or link-local IPv4 addresses"
-        }
-    }
-}
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -159,238 +36,11 @@ pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     Ok(())
 }
 
-pub fn validate_pairing_envelope_create(
-    payload: &DmPairingEnvelopeCreateRequest,
-) -> ApiResult<u32> {
-    if payload.endpoint_hints.len() > DM_PAIRING_MAX_ENDPOINT_HINTS {
-        return Err(bad_request(
-            "pairing_invalid",
-            "too many endpoint hints in pairing request",
-        ));
-    }
-
-    for hint in &payload.endpoint_hints {
-        validate_direct_endpoint_hint(hint, "pairing_invalid", "pairing")?;
-    }
-
-    let expires_in_seconds = payload
-        .expires_in_seconds
-        .unwrap_or(DM_PAIRING_DEFAULT_EXPIRY_SECONDS);
-    if expires_in_seconds == 0 || expires_in_seconds > DM_PAIRING_MAX_EXPIRY_SECONDS {
-        return Err(bad_request(
-            "pairing_invalid",
-            "expires_in_seconds must be between 1 and 3600",
-        ));
-    }
-
-    Ok(expires_in_seconds)
-}
-
-pub fn validate_pairing_envelope_import(payload: &DmPairingEnvelopeImportRequest) -> ApiResult<()> {
-    let envelope = payload.envelope.trim();
-    if envelope.is_empty() || envelope.len() > 8192 {
-        return Err(bad_request(
-            "pairing_invalid",
-            "pairing envelope must be non-empty and <= 8192 chars",
-        ));
-    }
-
-    Ok(())
-}
-
-pub fn validate_connectivity_preflight(payload: &DmConnectivityPreflightRequest) -> ApiResult<()> {
-    if let Some(peer_identity_id) = &payload.peer_identity_id {
-        if !is_valid_identity_id(peer_identity_id) {
-            return Err(bad_request(
-                "preflight_invalid",
-                "peer_identity_id must be 3-64 chars using letters, numbers, _ or -",
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-pub fn validate_lan_discovery_announce(payload: &DmLanDiscoveryAnnounceRequest) -> ApiResult<()> {
-    if payload.endpoint_hints.is_empty() {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "endpoint_hints must include at least one LAN endpoint",
-        ));
-    }
-    if payload.endpoint_hints.len() > DM_LAN_DISCOVERY_MAX_ENDPOINT_HINTS {
-        return Err(bad_request(
-            "lan_discovery_invalid",
-            "too many LAN endpoint hints",
-        ));
-    }
-
-    for hint in &payload.endpoint_hints {
-        validate_lan_endpoint_hint(hint)?;
-    }
-
-    Ok(())
-}
-
-pub fn validate_wan_wizard_request(payload: &DmWanWizardRequest) -> ApiResult<()> {
-    if let Some(profile) = &payload.network_profile {
-        if !matches!(
-            profile.as_str(),
-            "home_nat" | "symmetric_nat" | "carrier_nat" | "enterprise_restricted"
-        ) {
-            return Err(bad_request(
-                "wan_wizard_invalid",
-                "network_profile must be one of: home_nat, symmetric_nat, carrier_nat, enterprise_restricted",
-            ));
-        }
-    }
-
-    if let Some(port) = payload.preferred_port {
-        if port == 0 {
-            return Err(bad_request(
-                "wan_wizard_invalid",
-                "preferred_port must be a valid non-zero port",
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-pub fn validate_endpoint_card_register(payload: &DmEndpointCardRegisterRequest) -> ApiResult<()> {
-    if payload.cards.is_empty() || payload.cards.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
-        return Err(bad_request(
-            "endpoint_cards_invalid",
-            "cards must include between 1 and 8 endpoint cards",
-        ));
-    }
-
-    for card in &payload.cards {
-        let endpoint_id = card.endpoint_id.trim();
-        if endpoint_id.is_empty() || endpoint_id.len() > 64 {
-            return Err(bad_request(
-                "endpoint_cards_invalid",
-                "endpoint_id must be non-empty and <= 64 chars",
-            ));
-        }
-        if endpoint_id != card.endpoint_id {
-            return Err(bad_request(
-                "endpoint_cards_invalid",
-                "endpoint_id must not include leading or trailing whitespace",
-            ));
-        }
-        validate_direct_endpoint_hint(&card.endpoint_hint, "endpoint_cards_invalid", "card")?;
-
-        if let Some(expires_in_seconds) = card.expires_in_seconds {
-            if expires_in_seconds == 0 || expires_in_seconds > DM_ENDPOINT_CARD_MAX_EXPIRY_SECONDS {
-                return Err(bad_request(
-                    "endpoint_cards_invalid",
-                    "expires_in_seconds must be between 1 and 3600",
-                ));
-            }
-        }
-
-        if let Some(estimated_rtt_ms) = card.estimated_rtt_ms {
-            if estimated_rtt_ms == 0 || estimated_rtt_ms > DM_ENDPOINT_CARD_MAX_RTT_MS {
-                return Err(bad_request(
-                    "endpoint_cards_invalid",
-                    "estimated_rtt_ms must be between 1 and 5000",
-                ));
-            }
-        }
-    }
-
-    Ok(())
-}
-
-pub fn validate_endpoint_card_revoke(payload: &DmEndpointCardRevokeRequest) -> ApiResult<()> {
-    if payload.endpoint_ids.is_empty() || payload.endpoint_ids.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
-        return Err(bad_request(
-            "endpoint_cards_invalid",
-            "endpoint_ids must include between 1 and 8 ids",
-        ));
-    }
-
-    for endpoint_id in &payload.endpoint_ids {
-        let normalized = endpoint_id.trim();
-        if normalized.is_empty() || normalized.len() > 64 {
-            return Err(bad_request(
-                "endpoint_cards_invalid",
-                "endpoint_id must be non-empty and <= 64 chars",
-            ));
-        }
-        if normalized != endpoint_id {
-            return Err(bad_request(
-                "endpoint_cards_invalid",
-                "endpoint_id must not include leading or trailing whitespace",
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-pub fn validate_parallel_dial_request(payload: &DmParallelDialRequest) -> ApiResult<()> {
-    if !is_valid_identity_id(&payload.peer_identity_id) {
-        return Err(bad_request(
-            "parallel_dial_invalid",
-            "peer_identity_id must be 3-64 chars using letters, numbers, _ or -",
-        ));
-    }
-
-    if let Some(max_parallel_attempts) = payload.max_parallel_attempts {
-        if max_parallel_attempts == 0 || max_parallel_attempts > DM_PARALLEL_DIAL_MAX_ATTEMPTS {
-            return Err(bad_request(
-                "parallel_dial_invalid",
-                "max_parallel_attempts must be between 1 and 8",
-            ));
-        }
-    }
-
-    if let Some(unreachable_endpoint_ids) = &payload.unreachable_endpoint_ids {
-        if unreachable_endpoint_ids.len() > DM_ENDPOINT_CARD_MAX_ITEMS {
-            return Err(bad_request(
-                "parallel_dial_invalid",
-                "unreachable_endpoint_ids must not exceed 8 ids",
-            ));
-        }
-
-        for endpoint_id in unreachable_endpoint_ids {
-            let normalized = endpoint_id.trim();
-            if normalized.is_empty() || normalized.len() > 64 {
-                return Err(bad_request(
-                    "parallel_dial_invalid",
-                    "unreachable_endpoint_ids must contain non-empty ids <= 64 chars",
-                ));
-            }
-            if normalized != endpoint_id {
-                return Err(bad_request(
-                    "parallel_dial_invalid",
-                    "unreachable_endpoint_ids must not include leading or trailing whitespace",
-                ));
-            }
-        }
-    }
-
-    Ok(())
-}
-
 pub fn validate_profile_device_heartbeat(
     payload: &DmProfileDeviceHeartbeatRequest,
 ) -> ApiResult<()> {
-    let device_id = payload.device_id.trim();
-    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
-        return Err(bad_request(
-            "profile_device_invalid",
-            "device_id must be non-empty and <= 64 chars",
-        ));
-    }
-    if device_id != payload.device_id {
-        return Err(bad_request(
-            "profile_device_invalid",
-            "device_id must not include leading or trailing whitespace",
-        ));
-    }
+    validate_device_id(&payload.device_id, "profile_device_invalid")?;
+    validate_device_secret(&payload.device_secret, "profile_device_invalid")?;
 
     Ok(())
 }
@@ -445,19 +95,8 @@ pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<
 }
 
 pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(u32, Option<u64>)> {
-    let device_id = payload.device_id.trim();
-    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
-        return Err(bad_request(
-            "fanout_invalid",
-            "device_id must be non-empty and <= 64 chars",
-        ));
-    }
-    if device_id != payload.device_id {
-        return Err(bad_request(
-            "fanout_invalid",
-            "device_id must not include leading or trailing whitespace",
-        ));
-    }
+    validate_device_id(&payload.device_id, "fanout_invalid")?;
+    validate_device_secret(&payload.device_secret, "fanout_invalid")?;
 
     let limit = payload.limit.unwrap_or(DM_FANOUT_CATCH_UP_DEFAULT_LIMIT);
     if limit == 0 || limit > DM_FANOUT_CATCH_UP_MAX_LIMIT {
@@ -494,22 +133,60 @@ pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(
     Ok((limit, cursor))
 }
 
+pub fn validate_device_id(value: &str, code: &'static str) -> ApiResult<()> {
+    let device_id = value.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            code,
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if device_id != value {
+        return Err(bad_request(
+            code,
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_device_secret(value: &str, code: &'static str) -> ApiResult<()> {
+    let secret = value.trim();
+    if secret.len() < DM_PROFILE_DEVICE_SECRET_MIN_LENGTH
+        || secret.len() > DM_PROFILE_DEVICE_SECRET_MAX_LENGTH
+    {
+        return Err(bad_request(code, "device_secret must be 16-128 chars"));
+    }
+    if secret != value {
+        return Err(bad_request(
+            code,
+            "device_secret must not include leading or trailing whitespace",
+        ));
+    }
+    if !secret
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err(bad_request(
+            code,
+            "device_secret must use only letters, numbers, _ or -",
+        ));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        DmConnectivityPreflightRequest, DmEndpointCardRegisterRequest, DmEndpointCardRevokeRequest,
-        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmLanDiscoveryAnnounceRequest,
-        DmPairingEnvelopeCreateRequest, DmPairingEnvelopeImportRequest, DmParallelDialRequest,
-        DmPolicyUpdate, DmProfileDeviceHeartbeatRequest, DmWanWizardRequest,
+        DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmPolicyUpdate,
+        DmProfileDeviceHeartbeatRequest,
     };
 
     use super::{
-        validate_connectivity_preflight, validate_dm_policy_update,
-        validate_endpoint_card_register, validate_endpoint_card_revoke, validate_fanout_catch_up,
-        validate_fanout_dispatch, validate_lan_discovery_announce,
-        validate_pairing_envelope_create, validate_pairing_envelope_import,
-        validate_parallel_dial_request, validate_profile_device_heartbeat,
-        validate_wan_wizard_request,
+        validate_dm_policy_update, validate_fanout_catch_up, validate_fanout_dispatch,
+        validate_profile_device_heartbeat,
     };
 
     #[test]
@@ -536,196 +213,17 @@ mod tests {
     }
 
     #[test]
-    fn validates_pairing_envelope_create_defaults_and_limits() {
-        let payload = DmPairingEnvelopeCreateRequest {
-            endpoint_hints: vec!["tcp://127.0.0.1:4040".to_string()],
-            expires_in_seconds: None,
-        };
-        let expiry = match validate_pairing_envelope_create(&payload) {
-            Ok(value) => value,
-            Err(_) => panic!("valid defaults"),
-        };
-        assert_eq!(expiry, 600);
-
-        let invalid = DmPairingEnvelopeCreateRequest {
-            endpoint_hints: vec![],
-            expires_in_seconds: Some(0),
-        };
-        assert!(validate_pairing_envelope_create(&invalid).is_err());
-
-        let relay_scheme = DmPairingEnvelopeCreateRequest {
-            endpoint_hints: vec!["turn://relay.example.com:3478".to_string()],
-            expires_in_seconds: Some(600),
-        };
-        assert!(validate_pairing_envelope_create(&relay_scheme).is_err());
-    }
-
-    #[test]
-    fn validates_pairing_envelope_import_payload() {
-        let payload = DmPairingEnvelopeImportRequest {
-            envelope: "abc123".to_string(),
-        };
-        assert!(validate_pairing_envelope_import(&payload).is_ok());
-
-        let invalid = DmPairingEnvelopeImportRequest {
-            envelope: "  ".to_string(),
-        };
-        assert!(validate_pairing_envelope_import(&invalid).is_err());
-    }
-
-    #[test]
-    fn validates_connectivity_preflight_payload() {
-        let payload = DmConnectivityPreflightRequest {
-            peer_identity_id: Some("usr-a".to_string()),
-            pairing_envelope_present: Some(true),
-            local_bind_allowed: Some(true),
-            peer_reachable_hint: Some(true),
-        };
-        assert!(validate_connectivity_preflight(&payload).is_ok());
-
-        let invalid = DmConnectivityPreflightRequest {
-            peer_identity_id: Some("   ".to_string()),
-            pairing_envelope_present: None,
-            local_bind_allowed: None,
-            peer_reachable_hint: None,
-        };
-        assert!(validate_connectivity_preflight(&invalid).is_err());
-    }
-
-    #[test]
-    fn validates_lan_discovery_announce_payload() {
-        let payload = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["udp://192.168.1.11:4040".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&payload).is_ok());
-
-        let invalid_ipv6 = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["quic://[fd00::1]:4040".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_ipv6).is_err());
-
-        let invalid_empty = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec![],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_empty).is_err());
-
-        let invalid_blank = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["   ".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_blank).is_err());
-
-        let invalid_scheme = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["stun://192.168.1.11:3478".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_scheme).is_err());
-
-        let invalid_public_ip = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["udp://8.8.8.8:4040".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_public_ip).is_err());
-
-        let invalid_hostname = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["udp://peer.local:4040".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_hostname).is_err());
-
-        let invalid_zero_port = DmLanDiscoveryAnnounceRequest {
-            endpoint_hints: vec!["udp://192.168.1.11:0".to_string()],
-        };
-        assert!(validate_lan_discovery_announce(&invalid_zero_port).is_err());
-    }
-
-    #[test]
-    fn validates_wan_wizard_payload() {
-        let payload = DmWanWizardRequest {
-            preferred_port: Some(4040),
-            upnp_available: Some(true),
-            nat_pmp_available: Some(false),
-            auto_mapping_succeeds: Some(true),
-            external_port_open: Some(true),
-            network_profile: Some("home_nat".to_string()),
-        };
-        assert!(validate_wan_wizard_request(&payload).is_ok());
-
-        let invalid = DmWanWizardRequest {
-            preferred_port: Some(4040),
-            upnp_available: None,
-            nat_pmp_available: None,
-            auto_mapping_succeeds: None,
-            external_port_open: None,
-            network_profile: Some("invalid".to_string()),
-        };
-        assert!(validate_wan_wizard_request(&invalid).is_err());
-    }
-
-    #[test]
-    fn validates_endpoint_card_register_payload() {
-        let payload = DmEndpointCardRegisterRequest {
-            cards: vec![crate::models::DmEndpointCardInput {
-                endpoint_id: "lan-1".to_string(),
-                endpoint_hint: "udp://192.168.1.10:4040".to_string(),
-                estimated_rtt_ms: Some(12),
-                priority: Some(5),
-                expires_in_seconds: Some(900),
-            }],
-        };
-        assert!(validate_endpoint_card_register(&payload).is_ok());
-
-        let invalid = DmEndpointCardRegisterRequest { cards: vec![] };
-        assert!(validate_endpoint_card_register(&invalid).is_err());
-
-        let invalid_scheme = DmEndpointCardRegisterRequest {
-            cards: vec![crate::models::DmEndpointCardInput {
-                endpoint_id: "relay-card".to_string(),
-                endpoint_hint: "relay://edge.example.net:3478".to_string(),
-                estimated_rtt_ms: Some(15),
-                priority: Some(3),
-                expires_in_seconds: Some(900),
-            }],
-        };
-        assert!(validate_endpoint_card_register(&invalid_scheme).is_err());
-    }
-
-    #[test]
-    fn validates_endpoint_card_revoke_payload() {
-        let payload = DmEndpointCardRevokeRequest {
-            endpoint_ids: vec!["lan-1".to_string()],
-        };
-        assert!(validate_endpoint_card_revoke(&payload).is_ok());
-
-        let invalid = DmEndpointCardRevokeRequest {
-            endpoint_ids: vec![],
-        };
-        assert!(validate_endpoint_card_revoke(&invalid).is_err());
-    }
-
-    #[test]
-    fn validates_parallel_dial_payload() {
-        let payload = DmParallelDialRequest {
-            peer_identity_id: "usr-jules-p".to_string(),
-            max_parallel_attempts: Some(3),
-            unreachable_endpoint_ids: Some(vec!["wan-1".to_string()]),
-        };
-        assert!(validate_parallel_dial_request(&payload).is_ok());
-
-        let invalid = DmParallelDialRequest {
-            peer_identity_id: " ".to_string(),
-            max_parallel_attempts: Some(0),
-            unreachable_endpoint_ids: None,
-        };
-        assert!(validate_parallel_dial_request(&invalid).is_err());
-    }
-
-    #[test]
     fn validates_profile_device_heartbeat_payload() {
         let payload = DmProfileDeviceHeartbeatRequest {
             device_id: "desktop-1".to_string(),
+            device_secret: "secret-desktop-1".to_string(),
             active: true,
         };
         assert!(validate_profile_device_heartbeat(&payload).is_ok());
 
         let invalid = DmProfileDeviceHeartbeatRequest {
             device_id: "  desktop-1".to_string(),
+            device_secret: "secret-desktop-1".to_string(),
             active: true,
         };
         assert!(validate_profile_device_heartbeat(&invalid).is_err());
@@ -754,6 +252,7 @@ mod tests {
     fn validates_fanout_catch_up_payload() {
         let payload = DmFanoutCatchUpRequest {
             device_id: "desktop-main".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: Some("2".to_string()),
             limit: Some(25),
         };
@@ -764,6 +263,7 @@ mod tests {
 
         let invalid_device = DmFanoutCatchUpRequest {
             device_id: "  ".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: None,
             limit: None,
         };
@@ -771,6 +271,7 @@ mod tests {
 
         let invalid_limit = DmFanoutCatchUpRequest {
             device_id: "desktop-main".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: None,
             limit: Some(0),
         };

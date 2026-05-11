@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-08 clarified LAN fast-path requirements for local-only, trusted-peer, TTL-scoped DM endpoint discovery.
+- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, and broadened UX approval to all UX decisions.
 
 ## Product Summary
 
@@ -40,7 +40,7 @@ Build a communication stack where users and communities control identity, data l
 
 - User-owned identity, not provider-owned identity.
 - No central lock-in for accounts, hosting, or data portability.
-- Secure-by-default direct communication (E2EE DMs).
+- Secure-by-default private messaging (E2EE DMs).
 - Practical decentralization: hybrid architecture first, deeper federation later.
 - Core stability before ecosystem expansion.
 
@@ -83,7 +83,7 @@ Build a communication stack where users and communities control identity, data l
 
 - Keep federation discovery as a supported path (default registry + optional custom registries).
 - Add trusted-registry scopes for friend/community-only discoverability.
-- Add optional full P2P discovery mode later, while preserving private/invite-only operation.
+- Add optional decentralized server/node discovery later, while preserving private/invite-only operation.
 
 ## Key User Flows
 
@@ -103,14 +103,14 @@ Build a communication stack where users and communities control identity, data l
 3. Server verifies signature and issues session token.
 4. Session can be listed/revoked from account settings.
 
-### 3) E2EE Direct Messaging
+### 3) E2EE Private Messaging
 
-1. Users establish contact bootstrap material through signed out-of-band pairing (invite link, QR payload, or full manual code with a short verification code).
-2. Client validates pairing signature, nonce/replay, and expiry, then exchanges DM encryption material.
-3. Client encrypts outbound DM payloads.
-4. Payload is transported over direct user-to-user channel (not via guild server relay and without infra-assisted NAT traversal dependency).
-5. Recipient client decrypts locally.
-6. If recipient is offline or currently unreachable, sender still keeps the accepted message in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
+1. Users establish contact eligibility through contact-invite redemption or accepted server-mediated friend request.
+2. API releases only the public identity and profile-device bootstrap material required for client-side E2EE setup after relationship acceptance.
+3. Client encrypts outbound DM payloads into per-recipient/device E2EE envelopes.
+4. Server nodes/message nodes in the server-node P2P network carry and store only ciphertext envelopes plus minimal delivery metadata.
+5. Recipient client decrypts locally; server-side plaintext access and private-key custody are forbidden.
+6. If recipient is offline or currently unreachable, accepted encrypted envelopes remain in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
 7. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
 
 ### 4) New Device Restore
@@ -123,7 +123,7 @@ Build a communication stack where users and communities control identity, data l
 ### 5) Full Migration
 
 1. Old device creates encrypted signed migration bundle (`.hxb`).
-2. Transfer occurs via LAN direct mode or encrypted file import.
+2. Transfer occurs via trusted device-local transfer or encrypted file import.
 3. New device verifies signature, decrypts, restores state, and reconciles with servers.
 4. Optional cutover revokes old-device sessions.
 
@@ -135,14 +135,14 @@ Build a communication stack where users and communities control identity, data l
 4. User can save/pin topbar tabs and organize frequent destinations in folders.
 5. User can toggle a burger control to collapse/hide server navigation while focused in a server.
 6. User opens global `Contacts` hub to browse DMs/friends in a searchable card/list view.
-7. User jumps from hub cards directly into the selected server or DM context.
+7. User opens the selected server or DM context from hub cards.
 
-### 7) Add a User Directly by Invite
+### 7) Add a Contact by Invite
 
-1. User generates a contact invite link or QR from contacts UI.
+1. User generates a contact invite link from contacts UI.
 2. Invite token includes inviter identity binding, expiration, and usage policy.
 3. Recipient redeems token and sees inviter preview.
-4. Recipient accepts and a friend request/edge is created.
+4. Recipient accepts and a server-mediated friend request or accepted friend edge is created.
 5. Invalid/expired/exhausted tokens fail with explicit error feedback.
 
 ### 8) Send Friend Request Through a Server (Mediated)
@@ -150,7 +150,7 @@ Build a communication stack where users and communities control identity, data l
 1. User A requests contact with User B using server-local reference.
 2. Server sends request notification to User B without exposing raw key/profile-identifying data to User A.
 3. User B accepts or declines.
-4. On accept, both users receive only the bootstrap data required for direct relationship setup.
+4. On accept, both users receive only the bootstrap data required for DM relationship and encryption setup.
 
 ## Functional Requirements
 
@@ -162,9 +162,9 @@ Build a communication stack where users and communities control identity, data l
   - Non-expiring multi-use links are allowed for intentionally open-access servers.
   - MVP invite scope is join eligibility only (no role/channel scoped grants).
 - User contact invites
-  - Users can generate expiring contact invite links or QR payloads.
+  - Users can generate expiring contact invite links.
   - One-time by default, optional bounded max-uses.
-  - Invite payloads are signed and include nonce/expiry for replay-safe pairing bootstrap.
+  - Invite tokens include issuer binding, expiration, and replay-safe validation metadata.
   - Redeem flow must return deterministic error states (`invite_invalid`, `invite_expired`, `invite_exhausted`).
 - Friend requests and identity exposure
   - Server-mediated friend request flow is required for in-server user discovery paths.
@@ -172,23 +172,22 @@ Build a communication stack where users and communities control identity, data l
   - Bootstrap identity material is shared only after request acceptance.
 - Messaging
   - DMs/group DMs and server channels with edits, mentions, and replies.
-  - Moderation-visible edit history applies to server channels, not direct DMs.
-  - Guild/community servers do not relay or store DM payloads.
-  - DM connectivity must not depend on STUN, TURN, relay, or other always-on third-party/project-operated connectivity services.
-  - DM runtime must expose deterministic connection failure reason codes with guided remediation actions.
-  - DM send success must mean durable sender-side acceptance into canonical DM history, not merely an attempted live fanout.
+  - Moderation-visible edit history applies to server channels, not private DMs.
+  - Server nodes/message nodes in the server-node P2P network may carry and store E2EE DM envelopes plus minimal delivery metadata only.
+  - DM plaintext, decrypted views, and private keys must remain client/device-only.
+  - DM send success must mean durable sender-side acceptance of encrypted envelopes into canonical DM history plus delivery metadata, not merely an attempted live fanout.
   - Default DM policy allows incoming DMs only from friends/accepted requests.
   - Per-user override options: allow same-server members or anyone.
-  - Incoming DM payloads must converge across all devices linked to a profile, including devices activated after first delivery.
-- DM connectivity execution model
-  - Direct-only transport enforcement is required.
-  - Out-of-band signed pairing (QR/link/manual code with short verification code) is required.
-  - Connectivity preflight and troubleshooter states are required for failed direct attempts, covering missing pairing, blocked users, recipient policy, local bind denial, peer reachability failure, and LAN-ready direct paths.
-  - LAN fast path (mDNS/multicast), WAN direct wizard (UPnP/NAT-PMP/manual), and multi-endpoint parallel dial are in-scope reliability enhancers.
-  - LAN fast-path discovery hints must be local-only, trusted-peer scoped, TTL-scoped, and non-durable; they may prioritize direct preflight but must not become a rendezvous or relay substitute.
-  - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe.
-  - Delivery failures must downgrade current reachability assumptions without discarding accepted messages.
-  - If direct connectivity cannot be established, product must fail explicitly with user guidance; infra fallback is out of scope.
+  - Incoming DM envelopes must converge across all devices linked to a profile, including devices activated after first delivery.
+- UX approval
+  - No UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
+- DM delivery execution model
+  - E2EE envelope delivery through server nodes/message nodes in the server-node P2P network is the only MVP DM transport path.
+  - Accepted contact-invite redemption or accepted mediated friend-request bootstrap is required before encryption material is trusted.
+  - Delivery-state diagnostics are required for blocked policy, missing bootstrap, offline recipient, message-node unavailable, and catch-up/replay failures; these diagnostics must not become a DM preflight/troubleshooter UX.
+  - Recipient-device pairing QR/manual code, LAN discovery, WAN wizard, endpoint cards, connectivity preflight, and parallel dial are out of scope for DM delivery.
+  - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe over ciphertext envelopes.
+  - Unencrypted DM mailboxing, server-side decryption, server-readable DM content, and private-key upload/custody are out of scope.
 - Server communication multi-device convergence
   - Channel and presence events must fan out to all active devices linked to the authenticated profile.
   - Devices activated later must hydrate missed channel/presence state by per-device cursor.
@@ -216,6 +215,7 @@ Build a communication stack where users and communities control identity, data l
   - Stable reconnect and event ordering behavior.
 - Security
   - TLS everywhere, encrypted at rest for node data, E2EE for 1:1 and group DMs.
+  - Server nodes/message nodes store and forward DM ciphertext envelopes only; plaintext and private keys stay client/device-only.
   - No key/invite secret leakage to logs.
   - Nonce challenge is single-use with strict TTL and replay rejection.
 - Onboarding
@@ -230,7 +230,7 @@ Build a communication stack where users and communities control identity, data l
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
-- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS.
+- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
 
 ## Success Metrics (MVP)
 
@@ -251,8 +251,8 @@ Build a communication stack where users and communities control identity, data l
 - Master plan: `docs/product/01-mvp-plan.md`
 - Iteration boards index: `docs/planning/iterations/README.md`
 - Release packaging: `docs/operations/03-release-packaging.md`
-- DM connectivity proposals: `docs/product/10-infra-free-dm-connectivity-proposals.md`
-- DM connectivity execution plan: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+- DM envelope delivery proposals: `docs/product/10-infra-free-dm-connectivity-proposals.md`
+- DM envelope delivery execution plan: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Related Documents
 

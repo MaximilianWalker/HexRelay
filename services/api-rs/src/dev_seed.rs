@@ -213,7 +213,6 @@ struct SeedScenario {
     sessions: Vec<SessionFixture>,
     friend_requests: Vec<FriendRequestFixture>,
     dm_policies: Vec<DmPolicyFixture>,
-    endpoint_cards: Vec<EndpointCardFixture>,
     devices: Vec<DeviceFixture>,
     #[serde(default)]
     invites: Vec<InviteFixture>,
@@ -257,17 +256,6 @@ struct DmPolicyFixture {
     identity_id: String,
     inbound_policy: String,
     offline_delivery_mode: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct EndpointCardFixture {
-    identity_id: String,
-    endpoint_id: String,
-    endpoint_hint: String,
-    estimated_rtt_ms: u32,
-    priority: u8,
-    expires_in_seconds: i64,
-    revoked: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -372,7 +360,6 @@ pub struct SeedCounts {
     pub sessions: usize,
     pub friend_requests: usize,
     pub dm_policies: usize,
-    pub endpoint_cards: usize,
     pub devices: usize,
     pub invites: usize,
     pub servers: usize,
@@ -575,10 +562,6 @@ async fn seed_scenario(
         seed_dm_policy(&mut tx, policy).await?;
     }
 
-    for card in &scenario.endpoint_cards {
-        seed_endpoint_card(&mut tx, card, now.timestamp()).await?;
-    }
-
     for device in &scenario.devices {
         seed_device(&mut tx, device, now.timestamp()).await?;
     }
@@ -614,7 +597,6 @@ async fn seed_scenario(
         sessions: scenario.sessions.len(),
         friend_requests: scenario.friend_requests.len(),
         dm_policies: scenario.dm_policies.len(),
-        endpoint_cards: scenario.endpoint_cards.len(),
         devices: scenario.devices.len(),
         invites: scenario.invites.len(),
         servers: scenario.servers.len(),
@@ -639,14 +621,13 @@ async fn seed_scenario(
 
 pub fn format_seed_summary(summary: &SeedSummary) -> String {
     let mut output = format!(
-        "[seed] Seeded profile '{}'\n[seed] {}\n[seed] identities={} sessions={} friend_requests={} dm_policies={} endpoint_cards={} devices={} invites={} servers={} server_memberships={} server_channels={} server_channel_messages={} dm_threads={} dm_messages={}",
+        "[seed] Seeded profile '{}'\n[seed] {}\n[seed] identities={} sessions={} friend_requests={} dm_policies={} devices={} invites={} servers={} server_memberships={} server_channels={} server_channel_messages={} dm_threads={} dm_messages={}",
         summary.profile,
         summary.description,
         summary.counts.identities,
         summary.counts.sessions,
         summary.counts.friend_requests,
         summary.counts.dm_policies,
-        summary.counts.endpoint_cards,
         summary.counts.devices,
         summary.counts.invites,
         summary.counts.servers,
@@ -772,7 +753,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
 
     for policy in &scenario.dm_policies {
         require_identity(&identity_ids, &policy.identity_id, "dm policy")?;
-        if policy.offline_delivery_mode != "best_effort_online" {
+        if policy.offline_delivery_mode != "encrypted_envelope_catchup" {
             return Err(DevSeedError::Config(format!(
                 "unsupported offline delivery mode '{}'",
                 policy.offline_delivery_mode
@@ -785,17 +766,6 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
             return Err(DevSeedError::Config(format!(
                 "unsupported inbound DM policy '{}'",
                 policy.inbound_policy
-            )));
-        }
-    }
-
-    for card in &scenario.endpoint_cards {
-        require_identity(&identity_ids, &card.identity_id, "endpoint card")?;
-        validate_direct_endpoint_hint(&card.endpoint_hint)?;
-        if card.expires_in_seconds <= 0 {
-            return Err(DevSeedError::Config(format!(
-                "endpoint card '{}' requires positive expires_in_seconds",
-                card.endpoint_id
             )));
         }
     }
@@ -1138,23 +1108,6 @@ fn require_identity(
     )))
 }
 
-fn validate_direct_endpoint_hint(endpoint_hint: &str) -> Result<(), DevSeedError> {
-    let lower = endpoint_hint.to_ascii_lowercase();
-    let Some((scheme, _)) = lower.split_once("://") else {
-        return Err(DevSeedError::Config(format!(
-            "endpoint hint '{endpoint_hint}' must include a direct scheme"
-        )));
-    };
-
-    if !matches!(scheme, "tcp" | "udp" | "quic") {
-        return Err(DevSeedError::Config(format!(
-            "endpoint hint '{endpoint_hint}' must use direct tcp, udp, or quic transport only"
-        )));
-    }
-
-    Ok(())
-}
-
 fn validate_timestamp(value: &str, label: &str) -> Result<(), DevSeedError> {
     chrono::DateTime::parse_from_rfc3339(value).map_err(|_| {
         DevSeedError::Config(format!(
@@ -1252,49 +1205,6 @@ async fn seed_dm_policy(
     .bind(&policy.identity_id)
     .bind(&policy.inbound_policy)
     .bind(&policy.offline_delivery_mode)
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(())
-}
-
-async fn seed_endpoint_card(
-    tx: &mut Transaction<'_, Postgres>,
-    card: &EndpointCardFixture,
-    now_epoch: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "
-        INSERT INTO dm_endpoint_cards (
-            identity_id,
-            endpoint_id,
-            endpoint_hint,
-            estimated_rtt_ms,
-            priority,
-            expires_at_epoch,
-            revoked,
-            updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        ON CONFLICT (identity_id, endpoint_id) DO UPDATE
-        SET endpoint_hint = EXCLUDED.endpoint_hint,
-            estimated_rtt_ms = EXCLUDED.estimated_rtt_ms,
-            priority = EXCLUDED.priority,
-            expires_at_epoch = EXCLUDED.expires_at_epoch,
-            revoked = EXCLUDED.revoked,
-            updated_at = NOW()
-        ",
-    )
-    .bind(&card.identity_id)
-    .bind(&card.endpoint_id)
-    .bind(&card.endpoint_hint)
-    .bind(
-        i32::try_from(card.estimated_rtt_ms)
-            .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms too large for storage".into()))?,
-    )
-    .bind(i16::from(card.priority))
-    .bind(now_epoch + card.expires_in_seconds)
-    .bind(card.revoked)
     .execute(&mut **tx)
     .await?;
 
@@ -1773,13 +1683,6 @@ mod tests {
                 "usr-test-alice" | "usr-test-bob"
             ));
         }
-        assert_eq!(scenario.endpoint_cards.len(), 3);
-        assert!(scenario.endpoint_cards.iter().all(|card| matches!(
-            card.endpoint_hint
-                .split_once("://")
-                .map(|(scheme, _)| scheme),
-            Some("tcp" | "udp" | "quic")
-        )));
         assert_eq!(
             scenario
                 .devices
@@ -1931,14 +1834,6 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_direct_endpoint_hints() {
-        let error = validate_direct_endpoint_hint("http://127.0.0.1:3478")
-            .expect_err("non-direct hints rejected");
-
-        assert!(error.to_string().contains("direct tcp, udp, or quic"));
-    }
-
-    #[test]
     fn rejects_non_fixture_thread_ids() {
         let mut scenario = dm_basic();
         scenario.dm_threads[0].thread_id = "private-thread-1".to_string();
@@ -2078,6 +1973,6 @@ mod tests {
             .find(|policy| policy.identity_id == identity_id)
             .expect("fixture DM policy exists");
         assert_eq!(policy.inbound_policy, inbound_policy);
-        assert_eq!(policy.offline_delivery_mode, "best_effort_online");
+        assert_eq!(policy.offline_delivery_mode, "encrypted_envelope_catchup");
     }
 }

@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-08 tightened the runtime REST/realtime LAN discovery contracts to require local-only IPv4-literal endpoint hints, exact Ed25519 signature shape, explicit TTL expiry metadata, and the `dm.lan_discovery.advertise` websocket surface for `T4.1.6`.
+- Latest meaningful change: 2026-05-11 aligned contract index wording with server-node P2P DM envelope delivery and node-bypassing DM route exclusions.
 
 ## Purpose
 
@@ -23,8 +23,9 @@
 
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
 - REST legacy alias path (non-authoritative): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
-- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; realtime signaling remains self-targeted loopback only until recipient fanout exists.
+- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling remains self-targeted loopback only, while DM ciphertext envelopes now support recipient-device dispatch and ack over realtime.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile-v1.md`
 
@@ -43,6 +44,7 @@
 
 - Future REST coverage model: `docs/contracts/mvp-rest-v1.openapi.yaml`
 - Future realtime event model: `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- Target-state realtime DM events distinguish durable envelope creation, per-device ciphertext dispatch, recipient-device acknowledgement, ack-derived delivery-state updates, and explicit `dm.message.read` receipts; current runtime support remains in `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`.
 
 ## Usage Rule
 

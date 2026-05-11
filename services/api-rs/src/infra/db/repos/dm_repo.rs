@@ -1,41 +1,6 @@
-use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
-use crate::models::{
-    DmEndpointCardRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
-};
-
-pub async fn consume_dm_pairing_nonce(
-    pool: &PgPool,
-    nonce: &str,
-    expires_at: DateTime<Utc>,
-) -> Result<bool, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
-    sqlx::query(
-        "
-        DELETE FROM dm_pairing_nonces
-        WHERE expires_at < NOW()
-        ",
-    )
-    .execute(&mut *tx)
-    .await?;
-
-    let inserted = sqlx::query(
-        "
-        INSERT INTO dm_pairing_nonces (nonce, expires_at)
-        VALUES ($1, $2)
-        ON CONFLICT (nonce) DO NOTHING
-        ",
-    )
-    .bind(nonce)
-    .bind(expires_at)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(inserted.rows_affected() > 0)
-}
+use crate::models::{DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord};
 
 pub async fn get_dm_policy(
     pool: &PgPool,
@@ -86,136 +51,33 @@ fn map_dm_policy_row(row: sqlx::postgres::PgRow) -> Result<DmPolicy, sqlx::Error
     })
 }
 
-pub async fn upsert_dm_endpoint_cards_batch(
-    pool: &PgPool,
-    identity_id: &str,
-    records: &[DmEndpointCardRecord],
-) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
-    for record in records {
-        sqlx::query(
-            "
-            INSERT INTO dm_endpoint_cards (
-                identity_id,
-                endpoint_id,
-                endpoint_hint,
-                estimated_rtt_ms,
-                priority,
-                expires_at_epoch,
-                revoked,
-                updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (identity_id, endpoint_id) DO UPDATE
-            SET endpoint_hint = EXCLUDED.endpoint_hint,
-                estimated_rtt_ms = EXCLUDED.estimated_rtt_ms,
-                priority = EXCLUDED.priority,
-                expires_at_epoch = EXCLUDED.expires_at_epoch,
-                revoked = EXCLUDED.revoked,
-                updated_at = NOW()
-            ",
-        )
-        .bind(identity_id)
-        .bind(&record.endpoint_id)
-        .bind(&record.endpoint_hint)
-        .bind(
-            i32::try_from(record.estimated_rtt_ms)
-                .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms too large".into()))?,
-        )
-        .bind(i16::from(record.priority))
-        .bind(record.expires_at_epoch)
-        .bind(record.revoked)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn list_dm_endpoint_cards(
-    pool: &PgPool,
-    identity_id: &str,
-    now_epoch: i64,
-) -> Result<Vec<DmEndpointCardRecord>, sqlx::Error> {
-    let rows = sqlx::query(
-        "
-        SELECT endpoint_id, endpoint_hint, estimated_rtt_ms, priority, expires_at_epoch, revoked
-        FROM dm_endpoint_cards
-        WHERE identity_id = $1
-          AND expires_at_epoch >= $2
-        ORDER BY endpoint_id ASC
-        ",
-    )
-    .bind(identity_id)
-    .bind(now_epoch)
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter().map(map_dm_endpoint_card_row).collect()
-}
-
-pub async fn mark_dm_endpoint_cards_revoked(
-    pool: &PgPool,
-    identity_id: &str,
-    endpoint_ids: &[String],
-) -> Result<Vec<String>, sqlx::Error> {
-    if endpoint_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let revoked_rows = sqlx::query(
-        "
-        UPDATE dm_endpoint_cards
-        SET revoked = TRUE,
-            updated_at = NOW()
-        WHERE identity_id = $1
-          AND endpoint_id = ANY($2)
-          AND revoked = FALSE
-        RETURNING endpoint_id
-        ",
-    )
-    .bind(identity_id)
-    .bind(endpoint_ids)
-    .fetch_all(pool)
-    .await?;
-
-    let mut revoked_lookup = revoked_rows
-        .into_iter()
-        .map(|row| row.try_get::<String, _>("endpoint_id"))
-        .collect::<Result<std::collections::HashSet<_>, _>>()?;
-
-    Ok(endpoint_ids
-        .iter()
-        .filter(|endpoint_id| revoked_lookup.remove(endpoint_id.as_str()))
-        .cloned()
-        .collect())
-}
-
 pub async fn upsert_dm_profile_device(
     pool: &PgPool,
     identity_id: &str,
     record: &DmProfileDeviceRecord,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         "
-        INSERT INTO dm_profile_devices (identity_id, device_id, active, last_seen_epoch, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO dm_profile_devices (identity_id, device_id, device_secret_hash, active, last_seen_epoch, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         ON CONFLICT (identity_id, device_id) DO UPDATE
-        SET active = EXCLUDED.active,
+        SET device_secret_hash = EXCLUDED.device_secret_hash,
+            active = EXCLUDED.active,
             last_seen_epoch = EXCLUDED.last_seen_epoch,
             updated_at = NOW()
+        WHERE dm_profile_devices.device_secret_hash = EXCLUDED.device_secret_hash
+           OR dm_profile_devices.device_secret_hash = ''
         ",
     )
     .bind(identity_id)
     .bind(&record.device_id)
+    .bind(&record.device_secret_hash)
     .bind(record.active)
     .bind(record.last_seen_epoch)
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn list_dm_profile_devices(
@@ -224,7 +86,7 @@ pub async fn list_dm_profile_devices(
 ) -> Result<Vec<DmProfileDeviceRecord>, sqlx::Error> {
     let rows = sqlx::query(
         "
-        SELECT device_id, active, last_seen_epoch
+        SELECT device_id, device_secret_hash, active, last_seen_epoch
         FROM dm_profile_devices
         WHERE identity_id = $1
         ORDER BY device_id ASC
@@ -237,22 +99,24 @@ pub async fn list_dm_profile_devices(
     rows.into_iter().map(map_dm_profile_device_row).collect()
 }
 
-fn map_dm_endpoint_card_row(
-    row: sqlx::postgres::PgRow,
-) -> Result<DmEndpointCardRecord, sqlx::Error> {
-    let estimated_rtt_ms = row.try_get::<i32, _>("estimated_rtt_ms")?;
-    let priority = row.try_get::<i16, _>("priority")?;
+pub async fn get_dm_profile_device(
+    pool: &PgPool,
+    identity_id: &str,
+    device_id: &str,
+) -> Result<Option<DmProfileDeviceRecord>, sqlx::Error> {
+    let row = sqlx::query(
+        "
+        SELECT device_id, device_secret_hash, active, last_seen_epoch
+        FROM dm_profile_devices
+        WHERE identity_id = $1 AND device_id = $2
+        ",
+    )
+    .bind(identity_id)
+    .bind(device_id)
+    .fetch_optional(pool)
+    .await?;
 
-    Ok(DmEndpointCardRecord {
-        endpoint_id: row.try_get::<String, _>("endpoint_id")?,
-        endpoint_hint: row.try_get::<String, _>("endpoint_hint")?,
-        estimated_rtt_ms: u32::try_from(estimated_rtt_ms)
-            .map_err(|_| sqlx::Error::Protocol("estimated_rtt_ms must be non-negative".into()))?,
-        priority: u8::try_from(priority)
-            .map_err(|_| sqlx::Error::Protocol("priority must be in u8 range".into()))?,
-        expires_at_epoch: row.try_get::<i64, _>("expires_at_epoch")?,
-        revoked: row.try_get::<bool, _>("revoked")?,
-    })
+    row.map(map_dm_profile_device_row).transpose()
 }
 
 fn map_dm_profile_device_row(
@@ -260,6 +124,7 @@ fn map_dm_profile_device_row(
 ) -> Result<DmProfileDeviceRecord, sqlx::Error> {
     Ok(DmProfileDeviceRecord {
         device_id: row.try_get::<String, _>("device_id")?,
+        device_secret_hash: row.try_get::<String, _>("device_secret_hash")?,
         active: row.try_get::<bool, _>("active")?,
         last_seen_epoch: row.try_get::<i64, _>("last_seen_epoch")?,
     })
@@ -480,7 +345,7 @@ pub async fn list_dm_fanout_delivery_records(
 ) -> Result<Vec<DmFanoutDeliveryRecord>, sqlx::Error> {
     let rows = sqlx::query(
         "
-        SELECT cursor, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
+        SELECT cursor, thread_id, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
         FROM dm_fanout_delivery_log
         WHERE identity_id = $1
         ORDER BY cursor ASC
@@ -502,6 +367,7 @@ pub async fn list_dm_fanout_delivery_records(
             Ok(DmFanoutDeliveryRecord {
                 cursor: u64::try_from(cursor)
                     .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
+                thread_id: row.try_get::<String, _>("thread_id")?,
                 message_id: row.try_get::<String, _>("message_id")?,
                 sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
                 ciphertext: row.try_get::<String, _>("ciphertext")?,
@@ -512,4 +378,164 @@ pub async fn list_dm_fanout_delivery_records(
             })
         })
         .collect()
+}
+
+pub async fn ack_dm_fanout_delivery_device(
+    pool: &PgPool,
+    recipient_identity_id: &str,
+    thread_id: &str,
+    message_id: &str,
+    device_id: &str,
+    cursor: u64,
+) -> Result<bool, sqlx::Error> {
+    let cursor_i64 = i64::try_from(cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;
+    let mut tx = pool.begin().await?;
+
+    let device_exists = sqlx::query_scalar::<_, i64>(
+        "
+        SELECT 1::BIGINT
+        FROM dm_profile_devices
+        WHERE identity_id = $1 AND device_id = $2
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(device_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .is_some();
+    if !device_exists {
+        tx.rollback().await?;
+        return Ok(false);
+    }
+
+    let row = sqlx::query(
+        "
+        SELECT delivered_device_ids
+        FROM dm_fanout_delivery_log
+        WHERE identity_id = $1
+          AND thread_id = $2
+          AND message_id = $3
+          AND cursor = $4
+        FOR UPDATE
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(thread_id)
+    .bind(message_id)
+    .bind(cursor_i64)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(row) = row else {
+        tx.rollback().await?;
+        return Ok(false);
+    };
+
+    let delivered_device_ids_json = row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
+    let mut delivered_device_ids = serde_json::from_value::<Vec<String>>(delivered_device_ids_json)
+        .map_err(|_| sqlx::Error::Protocol("invalid delivered_device_ids json".into()))?;
+    if !delivered_device_ids.iter().any(|value| value == device_id) {
+        delivered_device_ids.push(device_id.to_string());
+        delivered_device_ids.sort();
+        delivered_device_ids.dedup();
+    }
+
+    let delivered_device_ids_json = serde_json::to_string(&delivered_device_ids)
+        .map_err(|_| sqlx::Error::Protocol("failed to encode delivered_device_ids".into()))?;
+    sqlx::query(
+        "
+        UPDATE dm_fanout_delivery_log
+        SET delivered_device_ids = $5::jsonb,
+            delivery_state = 'acked',
+            reachability_state = 'reachable'
+        WHERE identity_id = $1
+          AND thread_id = $2
+          AND message_id = $3
+          AND cursor = $4
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(thread_id)
+    .bind(message_id)
+    .bind(cursor_i64)
+    .bind(delivered_device_ids_json)
+    .execute(&mut *tx)
+    .await?;
+
+    let current_cursor = sqlx::query(
+        "
+        SELECT cursor
+        FROM dm_fanout_device_cursors
+        WHERE identity_id = $1 AND device_id = $2
+        FOR UPDATE
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(device_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .map(|row| row.try_get::<i64, _>("cursor"))
+    .transpose()?
+    .map(u64::try_from)
+    .transpose()
+    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?
+    .unwrap_or(0);
+
+    let rows = sqlx::query(
+        "
+        SELECT cursor, delivered_device_ids
+        FROM dm_fanout_delivery_log
+        WHERE identity_id = $1 AND cursor > $2
+        ORDER BY cursor ASC
+        FOR UPDATE
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(
+        i64::try_from(current_cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut contiguous_cursor = current_cursor;
+    for row in rows {
+        let row_cursor = row.try_get::<i64, _>("cursor")?;
+        let row_cursor = u64::try_from(row_cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?;
+        if row_cursor != contiguous_cursor + 1 {
+            break;
+        }
+        let row_device_ids_json = row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
+        let row_device_ids = serde_json::from_value::<Vec<String>>(row_device_ids_json)
+            .map_err(|_| sqlx::Error::Protocol("invalid delivered_device_ids json".into()))?;
+        if !row_device_ids.iter().any(|value| value == device_id) {
+            break;
+        }
+        contiguous_cursor = row_cursor;
+    }
+
+    if contiguous_cursor > current_cursor {
+        sqlx::query(
+            "
+            INSERT INTO dm_fanout_device_cursors (identity_id, device_id, cursor, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (identity_id, device_id) DO UPDATE
+            SET cursor = EXCLUDED.cursor,
+                updated_at = NOW()
+            ",
+        )
+        .bind(recipient_identity_id)
+        .bind(device_id)
+        .bind(
+            i64::try_from(contiguous_cursor)
+                .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(true)
 }
