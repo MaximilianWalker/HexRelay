@@ -1,4 +1,5 @@
 use axum::{
+    body::Bytes,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     Json,
@@ -13,6 +14,9 @@ use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
+    domain::dm::forwarding::{
+        authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
+    },
     domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     domain::dm::validation::{
         validate_device_id, validate_device_secret, validate_dm_policy_update,
@@ -27,7 +31,7 @@ use crate::{
         DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
         DmThreadMessageListQuery, DmThreadPage,
     },
-    shared::errors::{bad_request, conflict, internal_error, unauthorized, ApiResult},
+    shared::errors::{bad_request, conflict, forbidden, internal_error, unauthorized, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -53,6 +57,14 @@ pub struct DmProfileDeviceVerifyInternalRequest {
     pub identity_id: String,
     pub device_id: String,
     pub device_secret: String,
+}
+
+struct DmFanoutAcceptanceInput<'a> {
+    sender_identity_id: &'a str,
+    recipient_identity_id: &'a str,
+    message_id: &'a str,
+    ciphertext: &'a str,
+    source_device_id: Option<&'a str>,
 }
 
 pub async fn get_dm_policy(
@@ -225,6 +237,30 @@ pub async fn verify_dm_profile_device_internal(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn forward_dm_envelope_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    let authenticated =
+        authenticate_node_forward_request(&state, &headers, &body).map_err(node_forward_error)?;
+    let request = authenticated.request;
+
+    let response = accept_dm_envelope_for_local_recipient(
+        &state,
+        DmFanoutAcceptanceInput {
+            sender_identity_id: &request.sender_identity_id,
+            recipient_identity_id: &request.recipient_identity_id,
+            message_id: &request.message_id,
+            ciphertext: &request.ciphertext,
+            source_device_id: request.source_device_id.as_deref(),
+        },
+    )
+    .await?;
+
+    Ok(Json(response))
+}
+
 pub async fn run_dm_active_fanout(
     axum::extract::State(state): axum::extract::State<AppState>,
     auth: AuthSession,
@@ -234,6 +270,25 @@ pub async fn run_dm_active_fanout(
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
 
+    let response = accept_dm_envelope_for_local_recipient(
+        &state,
+        DmFanoutAcceptanceInput {
+            sender_identity_id: &auth.identity_id,
+            recipient_identity_id: &payload.recipient_identity_id,
+            message_id: &payload.message_id,
+            ciphertext: &payload.ciphertext,
+            source_device_id: payload.source_device_id.as_deref(),
+        },
+    )
+    .await?;
+
+    Ok(Json(response))
+}
+
+async fn accept_dm_envelope_for_local_recipient(
+    state: &AppState,
+    input: DmFanoutAcceptanceInput<'_>,
+) -> ApiResult<DmFanoutDispatchResponse> {
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
             "storage_unavailable",
@@ -241,7 +296,18 @@ pub async fn run_dm_active_fanout(
         )
     })?;
 
-    let recipient_identity_id = payload.recipient_identity_id.trim();
+    let sender_identity_id = input.sender_identity_id.trim();
+    let recipient_identity_id = input.recipient_identity_id.trim();
+
+    let sender_exists = auth_repo::identity_exists(pool, sender_identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load sender identity"))?;
+    if !sender_exists {
+        return Err(bad_request(
+            "fanout_invalid",
+            "sender_identity_id must reference a registered identity",
+        ));
+    }
 
     let recipient_exists = auth_repo::identity_exists(pool, recipient_identity_id)
         .await
@@ -253,8 +319,8 @@ pub async fn run_dm_active_fanout(
         ));
     }
 
-    if is_blocked_bidirectional(&state, &auth.identity_id, recipient_identity_id)? {
-        return Ok(Json(DmFanoutDispatchResponse {
+    if is_blocked_bidirectional(state, sender_identity_id, recipient_identity_id)? {
+        return Ok(DmFanoutDispatchResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_blocked_user".to_string(),
             transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
@@ -263,14 +329,14 @@ pub async fn run_dm_active_fanout(
             fanout_count: 0,
             delivered_device_ids: vec![],
             skipped_device_ids: vec![],
-        }));
+        });
     }
 
-    match dm_interaction_policy_decision(&state, &auth.identity_id, recipient_identity_id).await? {
+    match dm_interaction_policy_decision(state, sender_identity_id, recipient_identity_id).await? {
         DmInteractionPolicyDecision::Allowed => {}
         DmInteractionPolicyDecision::BlockedFriendsOnly
         | DmInteractionPolicyDecision::BlockedUnknown => {
-            return Ok(Json(DmFanoutDispatchResponse {
+            return Ok(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_policy_blocked".to_string(),
                 transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
@@ -279,10 +345,10 @@ pub async fn run_dm_active_fanout(
                 fanout_count: 0,
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
-            }));
+            });
         }
         DmInteractionPolicyDecision::BlockedSameServer => {
-            return Ok(Json(DmFanoutDispatchResponse {
+            return Ok(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_same_server_context_required".to_string(),
                 transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
@@ -291,14 +357,11 @@ pub async fn run_dm_active_fanout(
                 fanout_count: 0,
                 delivered_device_ids: vec![],
                 skipped_device_ids: vec![],
-            }));
+            });
         }
     }
 
-    let source_device_id = payload
-        .source_device_id
-        .as_ref()
-        .map(|value| value.trim().to_string());
+    let source_device_id = input.source_device_id.map(|value| value.trim().to_string());
 
     let profile_devices = dm_repo::list_dm_profile_devices(pool, recipient_identity_id)
         .await
@@ -337,7 +400,8 @@ pub async fn run_dm_active_fanout(
     } else {
         "unknown"
     };
-    let message_id = payload.message_id.trim().to_string();
+    let message_id = input.message_id.trim().to_string();
+    let ciphertext = input.ciphertext.to_string();
     let delivery_state = "pending_delivery".to_string();
     let reachability_state = reachability_state.to_string();
     let reason_code = "fanout_pending_delivery".to_string();
@@ -350,7 +414,7 @@ pub async fn run_dm_active_fanout(
     })?;
     let thread_id = dm_history_repo::ensure_direct_dm_thread_in_tx(
         &mut tx,
-        &auth.identity_id,
+        sender_identity_id,
         recipient_identity_id,
     )
     .await
@@ -364,9 +428,9 @@ pub async fn run_dm_active_fanout(
         dm_history_repo::DmMessageInsertParams {
             message_id: &message_id,
             thread_id: &thread_id,
-            author_id: &auth.identity_id,
+            author_id: sender_identity_id,
             seq,
-            ciphertext: &payload.ciphertext,
+            ciphertext: &ciphertext,
             created_at: &created_at,
             edited_at: None,
         },
@@ -394,8 +458,8 @@ pub async fn run_dm_active_fanout(
         cursor,
         thread_id: thread_id.clone(),
         message_id: message_id.clone(),
-        sender_identity_id: auth.identity_id.clone(),
-        ciphertext: payload.ciphertext.clone(),
+        sender_identity_id: sender_identity_id.to_string(),
+        ciphertext: ciphertext.clone(),
         source_device_id: source_device_id.clone(),
         delivery_state: delivery_state.clone(),
         reachability_state: reachability_state.clone(),
@@ -423,14 +487,14 @@ pub async fn run_dm_active_fanout(
 
     if !active_device_ids.is_empty() {
         if let Err(error) = dispatch_dm_envelope(
-            &state,
+            state,
             DispatchDmEnvelopeInput {
                 destination_node_id: None,
                 message_id: &message_id,
                 thread_id: &thread_id,
-                sender_identity_id: &auth.identity_id,
+                sender_identity_id,
                 recipient_identity_id,
-                ciphertext: &payload.ciphertext,
+                ciphertext: &ciphertext,
                 source_device_id: source_device_id.as_deref(),
                 accepted_at: &created_at,
                 delivery_cursor: cursor,
@@ -449,7 +513,7 @@ pub async fn run_dm_active_fanout(
         }
     }
 
-    Ok(Json(DmFanoutDispatchResponse {
+    Ok(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
         reason_code,
         transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
@@ -458,7 +522,7 @@ pub async fn run_dm_active_fanout(
         fanout_count,
         delivered_device_ids,
         skipped_device_ids,
-    }))
+    })
 }
 
 pub async fn run_dm_fanout_catch_up(
@@ -844,6 +908,15 @@ fn parse_message_cursor(value: Option<String>) -> ApiResult<Option<u64>> {
         .parse::<u64>()
         .map(Some)
         .map_err(|_| bad_request("cursor_invalid", "message cursor must be numeric"))
+}
+
+fn node_forward_error(error: NodeForwardRequestError) -> (StatusCode, Json<ApiError>) {
+    match error.status {
+        NodeForwardRequestErrorStatus::BadRequest => bad_request(error.code, error.message),
+        NodeForwardRequestErrorStatus::Unauthorized => unauthorized(error.code, error.message),
+        NodeForwardRequestErrorStatus::Forbidden => forbidden(error.code, error.message),
+        NodeForwardRequestErrorStatus::Conflict => conflict(error.code, error.message),
+    }
 }
 
 fn default_dm_policy() -> DmPolicy {

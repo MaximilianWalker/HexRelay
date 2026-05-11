@@ -1,7 +1,109 @@
 use super::*;
+use communication_core::{
+    ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
+    NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy,
+    StaticPeerRegistry, StoragePolicy,
+};
+
+use crate::{
+    domain::{
+        dm::{
+            forwarding::{
+                forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
+            },
+            validation::DM_OFFLINE_DELIVERY_MODE,
+        },
+        node_identity::LocalNodeIdentity,
+    },
+    infra::db::repos::dm_repo,
+    models::{DmPolicy, DmProfileDeviceRecord},
+};
 
 fn device_secret(device_id: &str) -> String {
     format!("secret-{device_id}")
+}
+
+struct SignedNodeDescriptor {
+    descriptor: NodeDescriptor,
+    private_key_pkcs8: Vec<u8>,
+}
+
+fn signed_node_descriptor(
+    node_id: &str,
+    descriptor_id: &str,
+    address: &str,
+) -> SignedNodeDescriptor {
+    let pkcs8 =
+        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate node descriptor key");
+    let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive node public key");
+    let now = Utc::now().timestamp();
+    let mut descriptor = NodeDescriptor {
+        node_id: node_id.to_string(),
+        node_public_key: public_key,
+        descriptor_id: descriptor_id.to_string(),
+        issued_at_epoch_seconds: now - 1,
+        expires_at_epoch_seconds: now + 300,
+        network_mode: NetworkMode::PrivatePeers,
+        discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+        peering_policy: PeeringPolicy::StaticAllowlist,
+        relay_policy: RelayPolicy::None,
+        dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+        storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+        addresses: vec![address.to_string()],
+        supported_protocols: vec!["hexrelay-node-http".to_string()],
+        rate_limits: Vec::new(),
+        trust_labels: Vec::new(),
+        revocation_pointer: None,
+        signature: NodeSignature {
+            algorithm: NodeSignatureAlgorithm::Ed25519,
+            value: String::new(),
+        },
+    };
+    descriptor.signature.value =
+        sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
+
+    SignedNodeDescriptor {
+        descriptor,
+        private_key_pkcs8: pkcs8.as_ref().to_vec(),
+    }
+}
+
+fn signed_node_forward_body(
+    origin: &SignedNodeDescriptor,
+    destination_node_id: &str,
+    sender_identity_id: &str,
+    recipient_identity_id: &str,
+    message_id: &str,
+) -> (Vec<u8>, String, String, String) {
+    let request = NodeForwardDmEnvelopeRequest {
+        route_kind: "static_peer_direct".to_string(),
+        origin_node_descriptor: origin.descriptor.clone(),
+        destination_node_id: destination_node_id.to_string(),
+        relay_node_id: None,
+        message_id: message_id.to_string(),
+        thread_id: "thread-origin-forward".to_string(),
+        sender_identity_id: sender_identity_id.to_string(),
+        recipient_identity_id: recipient_identity_id.to_string(),
+        ciphertext: "enc:node-forwarded-ciphertext".to_string(),
+        source_device_id: Some("desktop-main".to_string()),
+        accepted_at: Utc::now().to_rfc3339(),
+        delivery_cursor: 1,
+        target_device_ids: vec!["phone-main".to_string()],
+    };
+    let body = serde_json::to_vec(&request).expect("encode node forward request");
+    let timestamp = Utc::now().timestamp().to_string();
+    let nonce = format!("nonce-{}", Uuid::new_v4().simple());
+    let key_pair =
+        Ed25519KeyPair::from_pkcs8(&origin.private_key_pkcs8).expect("decode origin node key");
+    let signature = hex::encode(key_pair.sign(&forward_signature_payload(
+        "POST",
+        NODE_FORWARD_PATH,
+        &timestamp,
+        &nonce,
+        &body,
+    )));
+
+    (body, timestamp, nonce, signature)
 }
 
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
@@ -19,6 +121,105 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
         .expect("dm policy update response");
     assert_eq!(response.status(), StatusCode::OK);
     app
+}
+
+#[tokio::test]
+async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let sender = unique_identity("usr-node-forward-sender");
+    let recipient = unique_identity("usr-node-forward-recipient");
+    ensure_db_identity_key(&pool, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+    dm_repo::upsert_dm_policy(
+        &pool,
+        &recipient,
+        &DmPolicy {
+            inbound_policy: "anyone".to_string(),
+            offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
+        },
+    )
+    .await
+    .expect("set recipient DM policy");
+    dm_repo::upsert_dm_profile_device(
+        &pool,
+        &recipient,
+        &DmProfileDeviceRecord {
+            device_id: "phone-main".to_string(),
+            device_secret_hash: "test-secret-hash".to_string(),
+            active: true,
+            last_seen_epoch: Utc::now().timestamp(),
+        },
+    )
+    .await
+    .expect("upsert recipient profile device");
+
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let origin =
+        signed_node_descriptor("node-origin", "descriptor-origin", "https://origin.example");
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![origin.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+    let message_id = format!("msg-node-forward-{}", Uuid::new_v4().simple());
+    let (body, timestamp, nonce, signature) = signed_node_forward_body(
+        &origin,
+        &local.descriptor.node_id,
+        &sender,
+        &recipient,
+        &message_id,
+    );
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(NODE_FORWARD_PATH)
+        .header("content-type", "application/json")
+        .header("x-hexrelay-node-id", origin.descriptor.node_id.as_str())
+        .header(
+            "x-hexrelay-node-descriptor-id",
+            origin.descriptor.descriptor_id.as_str(),
+        )
+        .header("x-hexrelay-node-signature-algorithm", "ed25519")
+        .header("x-hexrelay-node-signature-timestamp", timestamp)
+        .header("x-hexrelay-node-signature-nonce", nonce)
+        .header("x-hexrelay-node-signature", signature)
+        .body(Body::from(body))
+        .expect("build node forward request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("node forward response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read node forward body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+
+    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+        .await
+        .expect("load delivery records");
+    let record = records
+        .iter()
+        .find(|record| record.message_id == message_id)
+        .expect("forwarded delivery record");
+    assert_eq!(record.sender_identity_id, sender);
+    assert_eq!(record.ciphertext, "enc:node-forwarded-ciphertext");
+    assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
 }
 
 #[tokio::test]
