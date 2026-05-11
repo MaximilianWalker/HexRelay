@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: accepted
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-11
 - Source of truth: `docs/architecture/adr-0002-runtime-deployment-modes.md`
 
 ## Quick Context
 
 - Primary decision authority for runtime packaging and deployment mode expectations.
 - Update this ADR when runtime mode assumptions, packaging boundaries, or deployment topology changes.
-- Latest meaningful change: 2026-05-07 clarified Windows/Linux release parity, Tauri as the default desktop shell, and the dedicated-server package boundary.
+- Latest meaningful change: 2026-05-11 clarified Windows/Linux release parity, Tauri as the default desktop shell, the dedicated-server package boundary, and the app-mediated administration surface for dedicated servers.
 
 ## Status
 
@@ -34,6 +34,8 @@ Without an explicit runtime decision, product/docs/code discussions drift betwee
 - Local desktop installs may launch UI in either embedded desktop WebView or the user's local browser against localhost.
 - Dedicated server mode is also supported for operators who want headless service hosting.
 - Dedicated server mode is packaged as a separate service/package family, not as a separate desktop app and not as a default part of the desktop installer.
+- Dedicated server runtime remains headless. Authorized node owners/admins manage local or remote dedicated servers through the normal HexRelay app surface, not through a separate dedicated-server UI.
+- Dedicated servers may expose authenticated operator/admin APIs for the app to consume. Those APIs are internal management surfaces protected by server authz and operator ingress policy, not public unauthenticated pages.
 - Runtime remains multi-component (UI, API service, realtime service) even when desktop packaging installs and supervises local runtime components.
 - Browser-only usage remains a compatibility path, not the primary product runtime target.
 
@@ -43,6 +45,8 @@ Without an explicit runtime decision, product/docs/code discussions drift betwee
 - Desktop packaging must supervise local service lifecycle and local endpoint configuration.
 - Release planning must keep desktop and dedicated-server artifacts separate while allowing shared Rust service code where practical.
 - Desktop installer design must avoid silently enabling public/network-facing server behavior for normal users.
+- Admin/operator UI work should reuse the app shell and connect to local or remote node endpoints after permission checks instead of creating a second server-specific frontend by default.
+- Admin/operator APIs must be scoped and authenticated explicitly; access must not rely on LAN proximity, local network placement, or server discoverability.
 - Security boundaries continue to be enforced server-side in API/realtime regardless of where services are hosted.
 - CI and smoke tests must validate cross-service behavior, not only isolated unit behavior.
 

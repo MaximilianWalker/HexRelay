@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 refreshed the communication networking summary for the dynamic server-node policy graph and opt-in discovery/relay model.
+- Latest meaningful change: 2026-05-11 refreshed the communication networking summary for the dynamic server-node policy graph and clarified app-mediated dedicated-server administration.
 
 ## Purpose
 
@@ -28,7 +28,7 @@
 ## ADR Index
 
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
-- `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode, release target parity, and desktop/server package boundary baseline (accepted).
+- `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode, release target parity, desktop/server package boundary, and dedicated-server administration surface baseline (accepted).
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`: Rust service module architecture contract baseline (accepted).
 
 ## Architecture Specs

@@ -13,7 +13,7 @@
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-11 aligned whole-system topology with the dynamic server-node policy graph: no primary-server assumption, opt-in discovery, private/LAN/local-only nodes, user-consented node introductions, and ciphertext-only relay/delivery.
+- Latest meaningful change: 2026-05-11 aligned whole-system topology with the dynamic server-node policy graph and clarified that dedicated-server administration is app-mediated while the server runtime stays headless.
 
 ## Purpose
 
@@ -30,6 +30,7 @@
 - `dedicated server`
   - advanced optional mode
   - operator runs headless API/realtime services for remote clients
+  - authorized admins manage the node through the normal HexRelay app connected to the node endpoint
   - external ingress/TLS and deployment hardening become operator responsibilities
 
 Detailed mode authority:
@@ -40,6 +41,7 @@ Detailed mode authority:
 - `apps/web`
   - browser-facing UI layer
   - talks to API over HTTP and realtime over websocket
+  - renders permission-gated user and admin surfaces when the connected node authorizes them
 - `services/api-rs`
   - HTTP control plane
   - auth/session validation, invites, friends, DM encrypted-envelope metadata/storage, server/channel persistence, policy checks
@@ -73,6 +75,8 @@ Detailed mode authority:
 - API and realtime run as separate headless services.
 - Browser clients connect remotely through operator-managed ingress.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
+- The dedicated server artifact does not ship a separate standalone admin UI by default; node owners/admins use the normal HexRelay app to connect to local, LAN, private online, or public nodes.
+- Admin/operator capabilities are exposed only through authenticated API surfaces and node permissions; discoverability or LAN placement must not grant management access by itself.
 - Dedicated server runtimes may participate as peers in the server-node P2P network; clients still attach to nodes rather than forming DM transport paths between recipient devices.
 - A dedicated server may be hosted online and still remain private, non-discoverable, non-relaying, or invite-only.
 - P2P participation is policy-scoped. Discovery, peering, relay, delivery, and durable encrypted storage are separate permissions.
@@ -91,6 +95,7 @@ Detailed mode authority:
   - default trust boundary for desktop local-first mode
 - `operator ingress`
   - dedicated deployments must provide TLS termination and header sanitization
+  - remote admin access uses the same authenticated app-to-node boundary and must be explicitly permission-gated
 - `server-node P2P DM path`
   - server nodes may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
   - server must not decrypt DM content, receive private keys, or provide an unencrypted DM mailbox/relay
