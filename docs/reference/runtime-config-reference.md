@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-11 added API peer-invite issuance and revocation config for private server-node meshes.
+- Latest meaningful change: 2026-05-11 added API local node identity generation tooling for private server-node meshes.
 
 ## Purpose
 
@@ -128,6 +128,13 @@
 - The tool reads `API_LOCAL_NODE_DESCRIPTOR_JSON` and `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64`, validates that the private key matches the descriptor public key, and enforces `API_NODE_FINGERPRINT` when it is set.
 - Generated invites default to subject-bound, single-use, `private_allowlist` discovery, and one-hour TTL. Unbound bearer invites require explicit `--allow-unbound`.
 - `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` is reused as the issuance TTL ceiling so generated envelopes match startup validation defaults.
+
+## Local Node Identity Generation Tool
+
+- `cargo run -p api-rs --bin generate_node_identity -- --node-id NODE_ID --address URL` prints a signed local node descriptor plus base64 Ed25519 PKCS#8 private key for `API_LOCAL_NODE_DESCRIPTOR_JSON` and `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64`.
+- Defaults are private-mesh oriented: `private_peers`, `private_allowlist`, `invite_token`, `none` relay, `local_recipients_only` forwarding, `durable_encrypted_envelopes`, and `hexrelay-node-http`.
+- The generator validates the descriptor policy shape and signature before printing output. Incoherent policy combinations fail instead of producing unusable config.
+- `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` is reused as the descriptor TTL ceiling so generated local identity config matches API startup validation.
 
 ## Local Development Minimum
 

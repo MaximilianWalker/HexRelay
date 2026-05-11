@@ -728,7 +728,7 @@ mod tests {
     use std::sync::{Mutex, OnceLock};
 
     use crate::domain::{
-        node_identity::LocalNodeIdentity,
+        node_identity::{generate_node_identity, LocalNodeIdentity, NodeIdentityGenerateOptions},
         peer_invites::{issue_peer_invite, PeerInviteIssueOptions},
     };
 
@@ -1055,10 +1055,28 @@ mod tests {
 
     #[test]
     fn parses_and_validates_local_node_identity() {
-        let (descriptor, private_key_pkcs8) = signed_descriptor("node-local", "descriptor-local");
-        let descriptor_json =
-            serde_json::to_string(&descriptor).expect("serialize local node descriptor");
-        let private_key = BASE64.encode(&private_key_pkcs8);
+        let (generated, generated_identity) = generate_node_identity(
+            &NodeIdentityGenerateOptions {
+                node_id: "node-local".to_string(),
+                descriptor_id: Some("descriptor-local".to_string()),
+                ttl_seconds: 300,
+                max_ttl_seconds: 86_400,
+                network_mode: NetworkMode::PrivatePeers,
+                discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+                peering_policy: PeeringPolicy::InviteToken,
+                relay_policy: RelayPolicy::None,
+                dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+                storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+                addresses: vec!["https://node-local.example".to_string()],
+                supported_protocols: vec!["hexrelay-node-http".to_string()],
+                trust_labels: Vec::new(),
+                revocation_pointer: None,
+            },
+            current_epoch_seconds().expect("read current epoch") - 1,
+        )
+        .expect("generate local node identity");
+        let descriptor_json = serde_json::to_string(&generated.api_local_node_descriptor_json)
+            .expect("serialize local node descriptor");
 
         with_api_env(
             &[
@@ -1069,7 +1087,7 @@ mod tests {
                 ),
                 (
                     "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
-                    Some(private_key.as_str()),
+                    Some(generated.api_local_node_private_key_pkcs8_base64.as_str()),
                 ),
                 (
                     "API_SESSION_SIGNING_KEY",
@@ -1082,7 +1100,10 @@ mod tests {
                     .local_node_identity
                     .expect("local node identity should parse");
                 assert_eq!(identity.descriptor.node_id, "node-local");
-                assert_eq!(identity.private_key_pkcs8, private_key_pkcs8);
+                assert_eq!(
+                    identity.private_key_pkcs8,
+                    generated_identity.private_key_pkcs8
+                );
             },
         );
     }

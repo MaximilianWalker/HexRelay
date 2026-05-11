@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed peer-invite issuance and revocation config updates to the runtime config reference.
+- Latest meaningful change: 2026-05-11 routed local node identity generation tooling updates to the runtime config reference.
 
 ## Purpose
 
