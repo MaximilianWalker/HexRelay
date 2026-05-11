@@ -21,6 +21,7 @@ use crate::domain::replay_store;
 const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
 const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
 const PRESENCE_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
+const PRESENCE_REPLAY_KEY_TTL_SECONDS: u64 = PRESENCE_DEVICE_CURSOR_TTL_SECONDS;
 const PRESENCE_REPLAY_LOG_MAX_ENTRIES: usize = 128;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -477,9 +478,8 @@ async fn publish_presence_edge_direct(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode client presence event: {error}"))?;
-    let replay_watchers = active_replay_watchers(state, &watchers).await;
     let watcher_cursors =
-        persist_presence_replay_entries(&mut connection, &replay_watchers, &client_payload)
+        persist_presence_replay_entries(&mut connection, &watchers, &client_payload)
             .await
             .map_err(|error| format!("persist presence replay entries: {error}"))?;
     let event = PresenceUpdatedEnvelope {
@@ -531,11 +531,15 @@ async fn persist_presence_replay_entries(
     watchers: &[String],
     client_payload: &str,
 ) -> Result<Vec<PresenceWatcherCursor>, redis::RedisError> {
-    replay_store::persist_replay_entries(
+    let retention = replay_store::ReplayRetention::with_key_ttl(
+        PRESENCE_REPLAY_LOG_MAX_ENTRIES,
+        PRESENCE_REPLAY_KEY_TTL_SECONDS,
+    )?;
+    replay_store::persist_replay_entries_with_retention(
         connection,
         watchers,
         client_payload,
-        PRESENCE_REPLAY_LOG_MAX_ENTRIES,
+        retention,
         presence_stream_head_key,
         presence_replay_log_key,
         |watcher_identity_id, cursor| PresenceWatcherCursor {
@@ -546,22 +550,19 @@ async fn persist_presence_replay_entries(
     .await
 }
 
-async fn active_replay_watchers(state: &AppState, watchers: &[String]) -> Vec<String> {
-    let guard = state.connection_senders.lock().await;
+fn normalize_watchers<I>(identity_id: &str, watchers: I) -> Vec<String>
+where
+    I: IntoIterator<Item = String>,
+{
+    let mut normalized = BTreeSet::from([identity_id.to_string()]);
     watchers
-        .iter()
-        .filter(|watcher_identity_id| {
-            guard
-                .get(watcher_identity_id.as_str())
-                .map(|connections| {
-                    connections
-                        .values()
-                        .any(|entry| entry.device_id.as_ref().is_some())
-                })
-                .unwrap_or(false)
-        })
-        .cloned()
-        .collect()
+        .into_iter()
+        .map(|watcher| watcher.trim().to_string())
+        .filter(|watcher| !watcher.is_empty())
+        .for_each(|watcher| {
+            normalized.insert(watcher);
+        });
+    normalized.into_iter().collect()
 }
 
 fn presence_stream_head_key(identity_id: &str) -> String {
@@ -577,7 +578,6 @@ fn presence_device_cursor_key(identity_id: &str, device_id: &str) -> String {
 }
 
 async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {
-    let mut watchers = BTreeSet::from([identity_id.to_string()]);
     let url = format!(
         "{}/internal/presence/watchers/{}",
         state.api_base_url.trim_end_matches('/'),
@@ -597,23 +597,20 @@ async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {
         Ok(value) => value,
         Err(error) => {
             warn!(identity_id = %identity_id, error = %error, "presence watcher lookup failed");
-            return watchers.into_iter().collect();
+            return normalize_watchers(identity_id, std::iter::empty());
         }
     };
 
     if !response.status().is_success() {
         warn!(identity_id = %identity_id, status = %response.status(), "presence watcher lookup returned non-success status");
-        return watchers.into_iter().collect();
+        return normalize_watchers(identity_id, std::iter::empty());
     }
 
     match response.json::<PresenceWatcherListResponse>().await {
-        Ok(payload) => {
-            watchers.extend(payload.watchers);
-            watchers.into_iter().collect()
-        }
+        Ok(payload) => normalize_watchers(identity_id, payload.watchers),
         Err(error) => {
             warn!(identity_id = %identity_id, error = %error, "presence watcher payload decode failed");
-            watchers.into_iter().collect()
+            normalize_watchers(identity_id, std::iter::empty())
         }
     }
 }
@@ -790,7 +787,7 @@ mod tests {
     async fn resolve_watchers_merges_remote_watchers() {
         let api_base_url = start_watcher_server(
             axum::http::StatusCode::OK,
-            json!({"watchers": ["usr-friend", "usr-main", "usr-other"]}),
+            json!({"watchers": [" usr-friend ", "", "usr-main", "usr-other", "usr-friend"]}),
         )
         .await;
         let state = AppState::new(
