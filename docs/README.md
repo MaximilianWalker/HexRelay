@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 indexed the T4.1.9 recipient-targeted realtime DM dispatch-summary updates across architecture, product, planning, and verification docs.
+- Latest meaningful change: 2026-05-11 indexed the deferred DM contract-parity watch recorded in readiness corrections.
 
 ## Purpose
 
