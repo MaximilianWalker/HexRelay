@@ -2,8 +2,12 @@ use std::{
     collections::HashMap,
     env,
     net::{IpAddr, SocketAddr},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
+use communication_core::{
+    DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor, StaticPeerRegistry,
+};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -25,6 +29,7 @@ pub struct ApiConfig {
     pub database_url: String,
     pub node_fingerprint: String,
     pub discovery_denylist: Vec<String>,
+    pub static_peer_registry: StaticPeerRegistry,
     pub presence_watcher_internal_token: String,
     pub presence_redis_url: Option<String>,
     pub realtime_base_url: String,
@@ -75,6 +80,12 @@ impl ApiConfig {
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
+        let static_peer_descriptor_max_ttl_seconds =
+            parse_i64_env("API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS", 86_400)?;
+        let static_peer_registry = parse_static_peer_registry(
+            "API_STATIC_PEER_DESCRIPTORS_JSON",
+            static_peer_descriptor_max_ttl_seconds,
+        )?;
         let channel_dispatch_internal_token = env::var("API_CHANNEL_DISPATCH_INTERNAL_TOKEN")
             .unwrap_or_else(|_| DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN.to_string());
         let presence_watcher_internal_token = env::var("API_PRESENCE_WATCHER_INTERNAL_TOKEN")
@@ -297,6 +308,7 @@ impl ApiConfig {
             database_url,
             node_fingerprint,
             discovery_denylist,
+            static_peer_registry,
             presence_watcher_internal_token,
             presence_redis_url,
             realtime_base_url,
@@ -428,6 +440,26 @@ fn parse_u64_env(key: &str, default: u64) -> Result<u64, String> {
     }
 }
 
+fn parse_i64_env(key: &str, default: i64) -> Result<i64, String> {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<i64>()
+            .map_err(|_| format!("Invalid {}='{}'. Expected positive integer", key, value))
+            .and_then(|parsed| {
+                if parsed > 0 {
+                    Ok(parsed)
+                } else {
+                    Err(format!(
+                        "Invalid {}='{}'. Expected integer greater than zero",
+                        key, value
+                    ))
+                }
+            }),
+        Err(_) => Ok(default),
+    }
+}
+
 fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
     match env::var(key) {
         Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
@@ -439,9 +471,58 @@ fn parse_bool_env(key: &str, default: bool) -> Result<bool, String> {
     }
 }
 
+fn parse_static_peer_registry(
+    env_key: &str,
+    max_ttl_seconds: i64,
+) -> Result<StaticPeerRegistry, String> {
+    let raw = env::var(env_key).unwrap_or_default();
+    if raw.trim().is_empty() {
+        return Ok(StaticPeerRegistry::default());
+    }
+
+    let descriptors = serde_json::from_str::<Vec<NodeDescriptor>>(&raw)
+        .map_err(|error| format!("Invalid {env_key}. Expected JSON array: {error}"))?;
+    let context = DescriptorValidationContext {
+        now_epoch_seconds: current_epoch_seconds()?,
+        max_ttl_seconds,
+        revoked_descriptor_ids: Vec::new(),
+    };
+    let verifier = Ed25519DescriptorVerifier;
+
+    for descriptor in &descriptors {
+        descriptor
+            .validate_with_signature(&context, &verifier)
+            .map_err(|error| {
+                format!(
+                    "Invalid {env_key} descriptor '{}': {error:?}",
+                    descriptor.descriptor_id
+                )
+            })?;
+    }
+
+    StaticPeerRegistry::try_new(descriptors)
+        .map_err(|error| format!("Invalid {env_key}: {error:?}"))
+}
+
+fn current_epoch_seconds() -> Result<i64, String> {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "System clock is before UNIX epoch".to_string())?
+        .as_secs();
+
+    i64::try_from(seconds).map_err(|_| "System clock value is too large".to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::ApiConfig;
+    use super::{current_epoch_seconds, ApiConfig};
+    use communication_core::{
+        ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
+        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
+        RelayPolicy, StoragePolicy,
+    };
+    use ring::rand::SystemRandom;
+    use ring::signature::Ed25519KeyPair;
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
@@ -449,15 +530,51 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    const API_ENV_KEYS: &[&str] = &[
+        "API_BIND",
+        "API_ENVIRONMENT",
+        "API_ALLOW_PUBLIC_IDENTITY_REGISTRATION",
+        "API_ENABLE_DEV_TESTING",
+        "API_NODE_FINGERPRINT",
+        "API_DATABASE_URL",
+        "API_ALLOWED_ORIGINS",
+        "API_DISCOVERY_DENYLIST",
+        "API_STATIC_PEER_DESCRIPTORS_JSON",
+        "API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS",
+        "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+        "API_PRESENCE_WATCHER_INTERNAL_TOKEN",
+        "API_PRESENCE_REDIS_URL",
+        "API_REALTIME_BASE_URL",
+        "API_SESSION_SIGNING_KEYS",
+        "API_SESSION_SIGNING_KEY_ID",
+        "API_SESSION_SIGNING_KEY",
+        "API_SESSION_COOKIE_DOMAIN",
+        "API_SESSION_COOKIE_SECURE",
+        "API_TRUST_PROXY_HEADERS",
+        "API_SESSION_COOKIE_SAME_SITE",
+        "API_AUTH_CHALLENGE_RATE_LIMIT",
+        "API_AUTH_VERIFY_RATE_LIMIT",
+        "API_DISCOVERY_QUERY_RATE_LIMIT",
+        "API_INVITE_CREATE_RATE_LIMIT",
+        "API_INVITE_REDEEM_RATE_LIMIT",
+        "API_RATE_LIMIT_WINDOW_SECONDS",
+    ];
+
     fn with_api_env<F>(pairs: &[(&str, Option<&str>)], f: F)
     where
         F: FnOnce(),
     {
         let _guard = env_lock().lock().expect("acquire env test lock");
-        let previous = pairs
+        let previous = API_ENV_KEYS
             .iter()
-            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
             .collect::<Vec<_>>();
+
+        for key in API_ENV_KEYS {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
 
         for (key, value) in pairs {
             match value {
@@ -483,6 +600,39 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn signed_static_peer_json() -> String {
+        let pkcs8 =
+            Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
+        let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
+        let now = current_epoch_seconds().expect("read current epoch");
+        let mut descriptor = NodeDescriptor {
+            node_id: "node-a".to_string(),
+            node_public_key: public_key,
+            descriptor_id: "descriptor-a".to_string(),
+            issued_at_epoch_seconds: now - 1,
+            expires_at_epoch_seconds: now + 300,
+            network_mode: NetworkMode::PrivatePeers,
+            discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+            peering_policy: PeeringPolicy::StaticAllowlist,
+            relay_policy: RelayPolicy::None,
+            dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+            storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+            addresses: vec!["https://node-a.example".to_string()],
+            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            rate_limits: Vec::new(),
+            trust_labels: Vec::new(),
+            revocation_pointer: None,
+            signature: NodeSignature {
+                algorithm: NodeSignatureAlgorithm::Ed25519,
+                value: String::new(),
+            },
+        };
+        descriptor.signature.value =
+            sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
+
+        serde_json::to_string(&vec![descriptor]).expect("serialize static peer descriptor")
     }
 
     #[test]
@@ -518,6 +668,55 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert!(config.allow_public_identity_registration);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_and_validates_static_peer_descriptors() {
+        let peer_json = signed_static_peer_json();
+
+        with_api_env(
+            &[
+                ("API_STATIC_PEER_DESCRIPTORS_JSON", Some(peer_json.as_str())),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(config.static_peer_registry.descriptors().len(), 1);
+                assert_eq!(
+                    config.static_peer_registry.descriptors()[0].node_id,
+                    "node-a"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_static_peer_descriptor_signature() {
+        let mut descriptors =
+            serde_json::from_str::<Vec<NodeDescriptor>>(&signed_static_peer_json())
+                .expect("parse generated peer json");
+        descriptors[0].signature.value = "00".repeat(64);
+        let peer_json = serde_json::to_string(&descriptors).expect("serialize tampered peer json");
+
+        with_api_env(
+            &[
+                ("API_STATIC_PEER_DESCRIPTORS_JSON", Some(peer_json.as_str())),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("invalid static peer descriptor should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_STATIC_PEER_DESCRIPTORS_JSON"));
             },
         );
     }

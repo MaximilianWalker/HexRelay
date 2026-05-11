@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 refreshed glossary routing for server-node policy graph terminology.
+- Latest meaningful change: 2026-05-11 refreshed runtime config routing for static private-mesh peer descriptors.
 
 ## Contents
 

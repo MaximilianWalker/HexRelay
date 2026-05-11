@@ -7,7 +7,7 @@ use super::{
     NodeDescriptor, NodeDescriptorValidationError, PeeringPolicy,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticPeerRegistry {
     descriptors: Vec<NodeDescriptor>,
 }

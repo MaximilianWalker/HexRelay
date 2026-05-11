@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
+use communication_core::StaticPeerRegistry;
 use serde::Serialize;
 use tokio::sync::{mpsc::Sender, Mutex};
 
@@ -24,6 +25,7 @@ pub struct AppState {
     pub channel_dispatch_internal_token: String,
     pub presence_watcher_internal_token: String,
     pub presence_redis_client: Option<redis::Client>,
+    pub static_peer_registry: StaticPeerRegistry,
     pub rate_limiter: RateLimiter,
     pub ws_connect_rate_limit: usize,
     pub ws_rate_limit_window_seconds: u64,
@@ -92,6 +94,7 @@ impl AppState {
             channel_dispatch_internal_token,
             presence_watcher_internal_token,
             presence_redis_client,
+            static_peer_registry: StaticPeerRegistry::default(),
             rate_limiter: RateLimiter::default(),
             ws_connect_rate_limit,
             ws_rate_limit_window_seconds,
@@ -111,6 +114,11 @@ impl AppState {
 
     pub fn with_dev_faults_enabled(mut self, enable: bool) -> Self {
         self.enable_dev_faults = enable;
+        self
+    }
+
+    pub fn with_static_peer_registry(mut self, registry: StaticPeerRegistry) -> Self {
+        self.static_peer_registry = registry;
         self
     }
 }

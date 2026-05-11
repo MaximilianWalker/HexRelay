@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-11
 - Source of truth: `docs/reference/runtime-config-reference.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-07 tightened local-only safety notes for dev testing and realtime app-fault flags.
+- Latest meaningful change: 2026-05-11 added static private-mesh peer descriptor config for API and realtime startup validation.
 
 ## Purpose
 
@@ -58,6 +58,8 @@
 | `API_REALTIME_BASE_URL` | `http://127.0.0.1:8081` | required | absolute URL; non-loopback hosts must use `https` |
 | `API_PRESENCE_REDIS_URL` | unset | optional config knob | enables Redis-backed presence snapshot source; required for the reviewed dedicated single-node deployment baseline |
 | `API_DISCOVERY_DENYLIST` | unset | optional | CSV denylist for discovery filtering |
+| `API_STATIC_PEER_DESCRIPTORS_JSON` | unset | optional | JSON array of signed node descriptors for static private-mesh peers; each descriptor is signature/TTL/policy validated at startup |
+| `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` | `86400` | optional | positive integer TTL ceiling applied to configured static peer descriptors |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
 | `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
 | `API_SESSION_SIGNING_KEY` | legacy fallback | avoid in production | local compatibility fallback only |
@@ -83,6 +85,8 @@
 | `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN` | dev default token | must be non-default | authorizes protected internal channel publish ingress |
 | `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN` | dev default token | must be non-default | outbound watcher lookup credential toward API |
 | `REALTIME_PRESENCE_REDIS_URL` | unset | optional config knob | enables Redis-backed presence/replay authority; required for the reviewed dedicated single-node deployment baseline |
+| `REALTIME_STATIC_PEER_DESCRIPTORS_JSON` | unset | optional | JSON array of signed node descriptors for static private-mesh peers; each descriptor is signature/TTL/policy validated at startup |
+| `REALTIME_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` | `86400` | optional | positive integer TTL ceiling applied to configured static peer descriptors |
 | `REALTIME_TRUST_PROXY_HEADERS` | `false` | optional | enable only behind trusted proxy/header sanitization |
 | `REALTIME_ALLOWED_ORIGINS` | `http://localhost:3002,http://127.0.0.1:3002` | required | websocket/browser origin allowlist |
 | `REALTIME_WS_CONNECT_RATE_LIMIT` | `60` | optional | positive integer |
@@ -145,11 +149,13 @@
   - `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN`
   - `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN`
 - Redis URLs remain optional at pure config-validation time, but they are required for the reviewed dedicated single-node deployment baseline.
+- Static peer descriptor JSON is optional at pure config-validation time. When set, the service rejects startup on malformed JSON, invalid descriptor policy, expired descriptors, over-TTL descriptors, duplicate node/descriptor IDs, or invalid Ed25519 signatures.
 - Dedicated deployments should also review:
   - origin allowlists
   - proxy-header trust flags
   - cookie security/domain settings
   - auth grace/cache settings
+  - static private-mesh descriptor source and rotation process
 
 ## Change Rule
 

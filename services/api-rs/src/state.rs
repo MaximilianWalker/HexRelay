@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use communication_core::StaticPeerRegistry;
 use sqlx::PgPool;
 
 use crate::{
@@ -27,6 +28,7 @@ pub struct AppState {
     pub db_pool: Option<PgPool>,
     pub enable_dev_testing: bool,
     pub discovery_denylist: Arc<HashSet<String>>,
+    pub static_peer_registry: StaticPeerRegistry,
     pub http_client: reqwest::Client,
     pub presence_watcher_internal_token: String,
     pub presence_redis_client: Option<redis::Client>,
@@ -84,6 +86,7 @@ impl AppState {
             db_pool: None,
             enable_dev_testing: false,
             discovery_denylist: Arc::new(discovery_denylist.into_iter().collect()),
+            static_peer_registry: StaticPeerRegistry::default(),
             http_client,
             presence_watcher_internal_token,
             presence_redis_client,
@@ -120,6 +123,11 @@ impl AppState {
 
     pub fn with_dev_testing(mut self, enable: bool) -> Self {
         self.enable_dev_testing = enable;
+        self
+    }
+
+    pub fn with_static_peer_registry(mut self, registry: StaticPeerRegistry) -> Self {
+        self.static_peer_registry = registry;
         self
     }
 }

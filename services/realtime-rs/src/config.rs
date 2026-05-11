@@ -1,8 +1,12 @@
 use std::{
     env,
     net::{IpAddr, SocketAddr},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
+use communication_core::{
+    DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor, StaticPeerRegistry,
+};
 use reqwest::Url;
 
 pub struct RealtimeConfig {
@@ -11,6 +15,7 @@ pub struct RealtimeConfig {
     pub channel_dispatch_internal_token: String,
     pub presence_watcher_internal_token: String,
     pub presence_redis_url: Option<String>,
+    pub static_peer_registry: StaticPeerRegistry,
     pub trust_proxy_headers: bool,
     pub allowed_origins: Vec<String>,
     pub bind_addr: SocketAddr,
@@ -67,6 +72,12 @@ impl RealtimeConfig {
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        let static_peer_descriptor_max_ttl_seconds =
+            parse_i64_env("REALTIME_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS", 86_400)?;
+        let static_peer_registry = parse_static_peer_registry(
+            "REALTIME_STATIC_PEER_DESCRIPTORS_JSON",
+            static_peer_descriptor_max_ttl_seconds,
+        )?;
         let trust_proxy_headers = parse_bool_env("REALTIME_TRUST_PROXY_HEADERS", false)?;
         let enable_dev_faults = parse_bool_env("REALTIME_ENABLE_DEV_FAULTS", false)?;
         let ws_connect_rate_limit = parse_usize_env("REALTIME_WS_CONNECT_RATE_LIMIT", 60)?;
@@ -218,6 +229,7 @@ impl RealtimeConfig {
             channel_dispatch_internal_token,
             presence_watcher_internal_token,
             presence_redis_url,
+            static_peer_registry,
             trust_proxy_headers,
             allowed_origins,
             bind_addr,
@@ -265,6 +277,26 @@ fn parse_u64_env(key: &str, default: u64) -> Result<u64, String> {
     }
 }
 
+fn parse_i64_env(key: &str, default: i64) -> Result<i64, String> {
+    match env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse::<i64>()
+            .map_err(|_| format!("Invalid {}='{}'. Expected positive integer", key, value))
+            .and_then(|parsed| {
+                if parsed > 0 {
+                    Ok(parsed)
+                } else {
+                    Err(format!(
+                        "Invalid {}='{}'. Expected integer greater than zero",
+                        key, value
+                    ))
+                }
+            }),
+        Err(_) => Ok(default),
+    }
+}
+
 fn is_loopback_host(host: Option<&str>) -> bool {
     let Some(host) = host else {
         return false;
@@ -280,9 +312,58 @@ fn is_loopback_host(host: Option<&str>) -> bool {
     }
 }
 
+fn parse_static_peer_registry(
+    env_key: &str,
+    max_ttl_seconds: i64,
+) -> Result<StaticPeerRegistry, String> {
+    let raw = env::var(env_key).unwrap_or_default();
+    if raw.trim().is_empty() {
+        return Ok(StaticPeerRegistry::default());
+    }
+
+    let descriptors = serde_json::from_str::<Vec<NodeDescriptor>>(&raw)
+        .map_err(|error| format!("Invalid {env_key}. Expected JSON array: {error}"))?;
+    let context = DescriptorValidationContext {
+        now_epoch_seconds: current_epoch_seconds()?,
+        max_ttl_seconds,
+        revoked_descriptor_ids: Vec::new(),
+    };
+    let verifier = Ed25519DescriptorVerifier;
+
+    for descriptor in &descriptors {
+        descriptor
+            .validate_with_signature(&context, &verifier)
+            .map_err(|error| {
+                format!(
+                    "Invalid {env_key} descriptor '{}': {error:?}",
+                    descriptor.descriptor_id
+                )
+            })?;
+    }
+
+    StaticPeerRegistry::try_new(descriptors)
+        .map_err(|error| format!("Invalid {env_key}: {error:?}"))
+}
+
+fn current_epoch_seconds() -> Result<i64, String> {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "System clock is before UNIX epoch".to_string())?
+        .as_secs();
+
+    i64::try_from(seconds).map_err(|_| "System clock value is too large".to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_loopback_host, RealtimeConfig};
+    use super::{current_epoch_seconds, is_loopback_host, RealtimeConfig};
+    use communication_core::{
+        ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
+        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
+        RelayPolicy, StoragePolicy,
+    };
+    use ring::rand::SystemRandom;
+    use ring::signature::Ed25519KeyPair;
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
@@ -299,6 +380,8 @@ mod tests {
         "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
         "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
         "REALTIME_PRESENCE_REDIS_URL",
+        "REALTIME_STATIC_PEER_DESCRIPTORS_JSON",
+        "REALTIME_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS",
         "REALTIME_TRUST_PROXY_HEADERS",
         "REALTIME_ENABLE_DEV_FAULTS",
         "REALTIME_WS_CONNECT_RATE_LIMIT",
@@ -361,6 +444,39 @@ mod tests {
         }
     }
 
+    fn signed_static_peer_json() -> String {
+        let pkcs8 =
+            Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
+        let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
+        let now = current_epoch_seconds().expect("read current epoch");
+        let mut descriptor = NodeDescriptor {
+            node_id: "node-a".to_string(),
+            node_public_key: public_key,
+            descriptor_id: "descriptor-a".to_string(),
+            issued_at_epoch_seconds: now - 1,
+            expires_at_epoch_seconds: now + 300,
+            network_mode: NetworkMode::PrivatePeers,
+            discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+            peering_policy: PeeringPolicy::StaticAllowlist,
+            relay_policy: RelayPolicy::None,
+            dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+            storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+            addresses: vec!["https://node-a.example".to_string()],
+            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            rate_limits: Vec::new(),
+            trust_labels: Vec::new(),
+            revocation_pointer: None,
+            signature: NodeSignature {
+                algorithm: NodeSignatureAlgorithm::Ed25519,
+                value: String::new(),
+            },
+        };
+        descriptor.signature.value =
+            sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
+
+        serde_json::to_string(&vec![descriptor]).expect("serialize static peer descriptor")
+    }
+
     #[test]
     fn detects_loopback_hosts() {
         assert!(is_loopback_host(Some("127.0.0.1")));
@@ -388,6 +504,57 @@ mod tests {
                 let config = RealtimeConfig::from_env().expect("config should parse");
                 assert!(config.trust_proxy_headers);
                 assert!(!config.require_api_health_on_start);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_and_validates_static_peer_descriptors() {
+        let peer_json = signed_static_peer_json();
+
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                (
+                    "REALTIME_STATIC_PEER_DESCRIPTORS_JSON",
+                    Some(peer_json.as_str()),
+                ),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("config should parse");
+                assert_eq!(config.static_peer_registry.descriptors().len(), 1);
+                assert_eq!(
+                    config.static_peer_registry.descriptors()[0].node_id,
+                    "node-a"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_static_peer_descriptor_signature() {
+        let mut descriptors =
+            serde_json::from_str::<Vec<NodeDescriptor>>(&signed_static_peer_json())
+                .expect("parse generated peer json");
+        descriptors[0].signature.value = "00".repeat(64);
+        let peer_json = serde_json::to_string(&descriptors).expect("serialize tampered peer json");
+
+        with_realtime_env(
+            &[
+                ("REALTIME_API_BASE_URL", Some("http://127.0.0.1:8080")),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://127.0.0.1:3002")),
+                (
+                    "REALTIME_STATIC_PEER_DESCRIPTORS_JSON",
+                    Some(peer_json.as_str()),
+                ),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("invalid static peer descriptor should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_STATIC_PEER_DESCRIPTORS_JSON"));
             },
         );
     }

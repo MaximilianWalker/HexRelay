@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed the dynamic server-node policy graph, opt-in discovery/relay model, user-consented node introductions, planning log, and related product/risk references to their canonical docs.
+- Latest meaningful change: 2026-05-11 routed static private-mesh peer descriptor runtime config and the server-node policy graph references to their canonical docs.
 
 ## Purpose
 
