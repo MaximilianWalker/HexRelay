@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 clarified that P2P participation is between server nodes and removed the old direct-peer optimization term.
+- Latest meaningful change: 2026-05-11 added server-node policy graph roles, descriptors, discovery scopes, relay/delivery separation, and user-consented node introductions.
 
 ## Terms
 
@@ -23,6 +23,10 @@
 - `Dedicated server`: node running headless for remote clients.
 - `Desktop local-first`: user-installed app running local UI plus local node runtime.
 - `Guild/server`: user-facing community container in product UX, not equivalent to deployment node.
+- `Origin node`: server-node role that receives an outbound encrypted DM envelope from a sender device or local runtime.
+- `Delivery node`: server-node role eligible to accept encrypted envelopes for a recipient context it can serve.
+- `Relay node`: server-node role that forwards encrypted envelopes for other nodes when local policy allows it.
+- `Discoverable node`: server node whose signed descriptor may be returned or shared through an allowed discovery path.
 
 ### Definitions
 
@@ -34,8 +38,18 @@
 - Cutover: Optional migration action that revokes old device sessions after successful import.
 - `.hxb` bundle: Encrypted and signed migration package used in full device migration.
 - Shared-server discovery: User discovery mode limited to people who share at least one guild/server context.
-- Server-node P2P network: The network formed by HexRelay server runtimes that peer with one another for node-to-node delivery and discovery; clients attach to nodes.
+- Server-node P2P network: The dynamic policy graph formed by HexRelay server runtimes that peer with one another for node-to-node discovery, encrypted-envelope delivery, and optional relay; clients attach to nodes.
 - Message node: Server/runtime role in the server-node P2P network that stores and forwards E2EE DM envelopes plus minimal delivery metadata, without DM plaintext or private-key custody.
+- Node descriptor: Short-lived signed node metadata that advertises addresses, public keys, supported protocols, discovery policy, peering policy, relay policy, delivery policy, storage policy, rate limits, and revocation information.
+- Discovery policy: Node policy controlling where a signed descriptor may appear, such as nowhere, LAN announcement, private allowlist, member-visible scope, user-consented introduction, public registry, or future public DHT.
+- Peering policy: Node policy controlling which other nodes may attempt authenticated node-to-node sessions.
+- Relay policy: Node policy controlling whether a node forwards encrypted envelopes for other nodes; relay permission never implies plaintext access.
+- DM forwarding policy: Node policy controlling which encrypted DM envelope flows the node accepts for local recipients or allowlisted routes.
+- User-consented node introduction: Explicit user action that shares an allowed node descriptor from one server context to another; it creates a candidate peer only and does not bypass either node's policy.
+- Private online node: Server node hosted on a network-reachable machine while refusing public discovery, unrestricted peering, or relay.
+- Local-only node: Node runtime that refuses external discovery and peering while still serving local desktop or local server behavior.
+- LAN-only node: Node runtime that may announce or accept peers on a local network but refuses WAN/public discovery.
+- Policy graph: The effective server-node topology created by signed descriptors, authenticated peer edges, and local discovery/peering/relay/delivery/storage rules.
 - E2EE DM envelope: Ciphertext payload encrypted on the sender device for recipient devices; server nodes/message nodes may route and store it but cannot decrypt it.
 - Encrypted mailbox: Bounded message-node storage for E2EE DM envelopes and delivery metadata; it must never contain server-readable DM plaintext.
 - DM plaintext: Decrypted DM content and views that exist only on client/user devices.

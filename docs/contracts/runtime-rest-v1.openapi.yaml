@@ -1482,6 +1482,140 @@ paths:
                     message: DM envelope ack requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /internal/dm/envelopes/forward:
+    post:
+      summary: Receive authenticated server-node forwarded DM envelope
+      description: >-
+        Internal server-node endpoint for authenticated static-peer encrypted DM
+        envelope forwarding. The sender signs the exact JSON request body with
+        its node identity key; the receiver validates the origin descriptor,
+        static-peer allowlist membership, timestamp window, nonce replay guard,
+        destination node id, and local delivery policy before handing the
+        encrypted envelope to the same local-recipient fanout acceptance path
+        used by `/dm/fanout/dispatch`.
+      parameters:
+        - in: header
+          name: x-hexrelay-node-id
+          required: true
+          schema:
+            type: string
+          description: Origin server-node id matching `origin_node_descriptor.node_id`.
+        - in: header
+          name: x-hexrelay-node-descriptor-id
+          required: true
+          schema:
+            type: string
+          description: Origin descriptor id matching `origin_node_descriptor.descriptor_id`.
+        - in: header
+          name: x-hexrelay-node-signature-algorithm
+          required: true
+          schema:
+            type: string
+            enum: [ed25519]
+        - in: header
+          name: x-hexrelay-node-signature-timestamp
+          required: true
+          schema:
+            type: string
+          description: Unix epoch seconds used in the node-forward request signature.
+        - in: header
+          name: x-hexrelay-node-signature-nonce
+          required: true
+          schema:
+            type: string
+          description: Per-origin nonce rejected on replay within the accepted timestamp window.
+        - in: header
+          name: x-hexrelay-node-signature
+          required: true
+          schema:
+            type: string
+          description: Hex-encoded Ed25519 signature over the canonical node-forward request payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeForwardDmEnvelopeRequest'
+      responses:
+        '200':
+          description: Forwarded encrypted envelope accepted for local-recipient delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmFanoutDispatchResponse'
+              examples:
+                acceptedForDelivery:
+                  value:
+                    status: accepted
+                    reason_code: fanout_pending_delivery
+                    transport_profile: encrypted_envelope_node
+                    delivery_state: pending_delivery
+                    reachability_state: unknown
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: []
+        '400':
+          description: Node-forward request body or route shape is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                nodeForwardInvalid:
+                  value:
+                    code: node_forward_invalid
+                    message: node-forwarded DM envelope body must be valid JSON
+                routeUnsupported:
+                  value:
+                    code: node_forward_route_unsupported
+                    message: only direct static-peer node forwarding is supported
+        '401':
+          description: Node-forward signature, descriptor, or static-peer authorization failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                signatureMissing:
+                  value:
+                    code: node_forward_signature_missing
+                    message: node forwarding signature headers are required
+                signatureInvalid:
+                  value:
+                    code: node_forward_signature_invalid
+                    message: node forwarding signature could not be verified
+                peerNotAllowed:
+                  value:
+                    code: node_forward_peer_not_allowed
+                    message: origin node is not an allowed static peer
+        '403':
+          description: Receiver local node policy refuses this forward.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                destinationMismatch:
+                  value:
+                    code: node_forward_destination_mismatch
+                    message: node-forwarded DM envelope destination does not match this node
+        '409':
+          description: Forwarding nonce or accepted message id conflicts with existing state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                replay:
+                  value:
+                    code: node_forward_replay
+                    message: node forwarding signature nonce has already been used
+                messageIdConflict:
+                  value:
+                    code: fanout_message_id_conflict
+                    message: message_id already exists for an accepted DM
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /discovery/users:
     get:
       summary: List discoverable users for authenticated identity
@@ -1726,9 +1860,12 @@ paths:
       summary: Fanout incoming DM payload to active devices of recipient profile
       description: >-
         Profile-device convergence primitive for server-node P2P E2EE DM
-        envelopes. Success means the encrypted DM payload is durably accepted
+        envelopes. When `destination_node_id` is omitted or points at the
+        local node, success means the encrypted DM payload is durably accepted
         into canonical DM history plus delivery metadata before active-device
-        delivery is evaluated.
+        delivery is evaluated. When `destination_node_id` points at a configured
+        static peer, the envelope is authenticated and forwarded server-node to
+        server-node; the destination node performs local recipient acceptance.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1743,10 +1880,15 @@ paths:
       responses:
         '200':
           description: >-
-            DM envelope acceptance result. Success means the message has already
-            been durably accepted into canonical DM history and durable delivery
-            metadata; active-device realtime dispatch is attempted asynchronously,
-            and delivered devices are recorded only after recipient-device ack.
+            DM envelope acceptance or forwarding result. Local-recipient success
+            means the message has already been durably accepted into canonical DM
+            history and durable delivery metadata; active-device realtime
+            dispatch is attempted asynchronously, and delivered devices are
+            recorded only after recipient-device ack. Static-peer forwarding
+            success means the origin node durably recorded the outbound
+            forwarding attempt and handed the encrypted envelope to the
+            destination server node; it does not imply final recipient-device
+            delivery.
           content:
             application/json:
               schema:
@@ -1771,6 +1913,17 @@ paths:
                     transport_profile: encrypted_envelope_node
                     delivery_state: pending_delivery
                     reachability_state: unreachable
+                    fanout_count: 0
+                    delivered_device_ids: []
+                    skipped_device_ids: []
+                forwardedToStaticPeer:
+                  summary: Message envelope is durably recorded and handed to an explicit destination server node
+                  value:
+                    status: accepted
+                    reason_code: fanout_forwarded_to_static_peer
+                    transport_profile: encrypted_envelope_node
+                    delivery_state: forwarded
+                    reachability_state: unknown
                     fanout_count: 0
                     delivered_device_ids: []
                     skipped_device_ids: []
@@ -2955,6 +3108,12 @@ components:
           minLength: 1
           maxLength: 64
           nullable: true
+        destination_node_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          nullable: true
+          description: Optional destination server-node id. Omit for local-recipient delivery; provide a configured static peer node id to forward the encrypted envelope server-node to server-node.
     DmFanoutDispatchResponse:
       type: object
       required:
@@ -2972,13 +3131,14 @@ components:
           enum: [accepted, blocked]
         reason_code:
           type: string
-          enum: [fanout_pending_delivery, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
+          enum: [fanout_pending_delivery, fanout_forwarded_to_static_peer, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
         transport_profile:
           type: string
           enum: [encrypted_envelope_node]
         delivery_state:
           type: string
-          enum: [pending_delivery, rejected]
+          enum: [pending_delivery, forwarded, rejected]
+          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; recipient-device delivery remains ack-backed and destination-owned.
         reachability_state:
           type: string
           enum: [unreachable, blocked, unknown]
@@ -3037,6 +3197,145 @@ components:
         source_device_id:
           type: string
           nullable: true
+    NodeDescriptor:
+      type: object
+      required:
+        - node_id
+        - node_public_key
+        - descriptor_id
+        - issued_at_epoch_seconds
+        - expires_at_epoch_seconds
+        - network_mode
+        - discovery_policy
+        - peering_policy
+        - relay_policy
+        - dm_forwarding_policy
+        - storage_policy
+        - addresses
+        - supported_protocols
+        - rate_limits
+        - trust_labels
+        - signature
+      properties:
+        node_id:
+          type: string
+        node_public_key:
+          type: string
+          description: Hex-encoded Ed25519 node public key.
+        descriptor_id:
+          type: string
+        issued_at_epoch_seconds:
+          type: integer
+        expires_at_epoch_seconds:
+          type: integer
+        network_mode:
+          type: string
+          enum: [offline, local_only, lan_only, private_peers, public_discovery]
+        discovery_policy:
+          type: string
+          enum: [none, lan_announce, private_allowlist, member_visible, user_consented_introduction, public_registry, public_dht]
+        peering_policy:
+          type: string
+          enum: [none, static_allowlist, invite_token, member_introduced, public_authenticated]
+        relay_policy:
+          type: string
+          enum: [none, own_users_only, allowlisted_peers, open_limited]
+        dm_forwarding_policy:
+          type: string
+          enum: [disabled, local_recipients_only, allowlisted_route, relay_allowed]
+        storage_policy:
+          type: string
+          enum: [transient_only, durable_encrypted_envelopes]
+        addresses:
+          type: array
+          items:
+            type: string
+        supported_protocols:
+          type: array
+          items:
+            type: string
+        rate_limits:
+          type: array
+          items:
+            type: object
+        trust_labels:
+          type: array
+          items:
+            type: string
+        revocation_pointer:
+          type: string
+          nullable: true
+        signature:
+          type: object
+          required: [algorithm, value]
+          properties:
+            algorithm:
+              type: string
+              enum: [ed25519]
+            value:
+              type: string
+    NodeForwardDmEnvelopeRequest:
+      type: object
+      required:
+        - route_kind
+        - origin_node_descriptor
+        - destination_node_id
+        - message_id
+        - thread_id
+        - sender_identity_id
+        - recipient_identity_id
+        - ciphertext
+        - accepted_at
+        - delivery_cursor
+        - target_device_ids
+      properties:
+        route_kind:
+          type: string
+          enum: [static_peer_direct]
+        origin_node_descriptor:
+          $ref: '#/components/schemas/NodeDescriptor'
+        destination_node_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        relay_node_id:
+          type: string
+          nullable: true
+          description: Reserved for future relay routes; direct forwarding requires this to be omitted or null.
+        message_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        thread_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        sender_identity_id:
+          type: string
+        recipient_identity_id:
+          type: string
+        ciphertext:
+          type: string
+          minLength: 1
+          maxLength: 8192
+        source_device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+        accepted_at:
+          type: string
+          format: date-time
+        delivery_cursor:
+          type: integer
+          minimum: 1
+        target_device_ids:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
     DmEnvelopeAckInternalRequest:
       type: object
       required:
@@ -3562,7 +3861,21 @@ components:
             - dm_ack_invalid
             - dm_ack_unknown
             - fanout_invalid
+            - fanout_forwarding_failed
             - fanout_message_id_conflict
+            - node_forward_delivery_disabled
+            - node_forward_descriptor_mismatch
+            - node_forward_destination_mismatch
+            - node_forward_invalid
+            - node_forward_local_identity_required
+            - node_forward_node_mismatch
+            - node_forward_nonce_invalid
+            - node_forward_peer_not_allowed
+            - node_forward_replay
+            - node_forward_route_unsupported
+            - node_forward_signature_invalid
+            - node_forward_signature_missing
+            - node_forward_timestamp_invalid
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied

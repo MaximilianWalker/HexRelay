@@ -267,6 +267,7 @@ pub struct DmFanoutDispatchRequest {
     pub message_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
+    pub destination_node_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -330,6 +331,22 @@ pub struct DmFanoutDeliveryRecord {
     pub delivery_state: String,
     pub reachability_state: String,
     pub delivered_device_ids: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct DmOutboundForwardRecord {
+    pub sender_identity_id: String,
+    pub destination_node_id: String,
+    pub message_id: String,
+    pub thread_id: String,
+    pub recipient_identity_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+    pub delivery_cursor: u64,
+    pub forwarding_state: String,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+    pub next_attempt_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Serialize)]

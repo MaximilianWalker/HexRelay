@@ -1,7 +1,164 @@
 use super::*;
+use axum::{extract::State as AxumState, http::HeaderMap, routing::post, Router};
+use communication_core::{
+    ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
+    NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy,
+    StaticPeerRegistry, StoragePolicy,
+};
+
+use crate::{
+    domain::{
+        dm::{
+            forwarding::{
+                forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
+            },
+            outbound_forwarding::{retry_due_dm_outbound_forwards, DmOutboundForwardRetryConfig},
+            validation::DM_OFFLINE_DELIVERY_MODE,
+        },
+        node_identity::LocalNodeIdentity,
+    },
+    infra::db::repos::dm_repo,
+    models::{DmPolicy, DmProfileDeviceRecord},
+};
 
 fn device_secret(device_id: &str) -> String {
     format!("secret-{device_id}")
+}
+
+struct SignedNodeDescriptor {
+    descriptor: NodeDescriptor,
+    private_key_pkcs8: Vec<u8>,
+}
+
+struct CapturedNodeForward {
+    headers: HeaderMap,
+    body: Vec<u8>,
+}
+
+struct NodeForwardCaptureState {
+    sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedNodeForward>>>,
+    status: StatusCode,
+}
+
+fn signed_node_descriptor(
+    node_id: &str,
+    descriptor_id: &str,
+    address: &str,
+) -> SignedNodeDescriptor {
+    let pkcs8 =
+        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate node descriptor key");
+    let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive node public key");
+    let now = Utc::now().timestamp();
+    let mut descriptor = NodeDescriptor {
+        node_id: node_id.to_string(),
+        node_public_key: public_key,
+        descriptor_id: descriptor_id.to_string(),
+        issued_at_epoch_seconds: now - 1,
+        expires_at_epoch_seconds: now + 300,
+        network_mode: NetworkMode::PrivatePeers,
+        discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+        peering_policy: PeeringPolicy::StaticAllowlist,
+        relay_policy: RelayPolicy::None,
+        dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+        storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+        addresses: vec![address.to_string()],
+        supported_protocols: vec!["hexrelay-node-http".to_string()],
+        rate_limits: Vec::new(),
+        trust_labels: Vec::new(),
+        revocation_pointer: None,
+        signature: NodeSignature {
+            algorithm: NodeSignatureAlgorithm::Ed25519,
+            value: String::new(),
+        },
+    };
+    descriptor.signature.value =
+        sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
+
+    SignedNodeDescriptor {
+        descriptor,
+        private_key_pkcs8: pkcs8.as_ref().to_vec(),
+    }
+}
+
+fn signed_node_forward_body(
+    origin: &SignedNodeDescriptor,
+    destination_node_id: &str,
+    sender_identity_id: &str,
+    recipient_identity_id: &str,
+    message_id: &str,
+) -> (Vec<u8>, String, String, String) {
+    let request = NodeForwardDmEnvelopeRequest {
+        route_kind: "static_peer_direct".to_string(),
+        origin_node_descriptor: origin.descriptor.clone(),
+        destination_node_id: destination_node_id.to_string(),
+        relay_node_id: None,
+        message_id: message_id.to_string(),
+        thread_id: "thread-origin-forward".to_string(),
+        sender_identity_id: sender_identity_id.to_string(),
+        recipient_identity_id: recipient_identity_id.to_string(),
+        ciphertext: "enc:node-forwarded-ciphertext".to_string(),
+        source_device_id: Some("desktop-main".to_string()),
+        accepted_at: Utc::now().to_rfc3339(),
+        delivery_cursor: 1,
+        target_device_ids: vec!["phone-main".to_string()],
+    };
+    let body = serde_json::to_vec(&request).expect("encode node forward request");
+    let timestamp = Utc::now().timestamp().to_string();
+    let nonce = format!("nonce-{}", Uuid::new_v4().simple());
+    let key_pair =
+        Ed25519KeyPair::from_pkcs8(&origin.private_key_pkcs8).expect("decode origin node key");
+    let signature = hex::encode(key_pair.sign(&forward_signature_payload(
+        "POST",
+        NODE_FORWARD_PATH,
+        &timestamp,
+        &nonce,
+        &body,
+    )));
+
+    (body, timestamp, nonce, signature)
+}
+
+async fn start_node_forward_capture(
+) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
+    start_node_forward_capture_with_status(StatusCode::ACCEPTED).await
+}
+
+async fn start_node_forward_capture_with_status(
+    status: StatusCode,
+) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind node forward capture server");
+    let addr = listener.local_addr().expect("node forward capture address");
+    let (tx, rx) = tokio::sync::oneshot::channel::<CapturedNodeForward>();
+    let state = std::sync::Arc::new(NodeForwardCaptureState {
+        sender: tokio::sync::Mutex::new(Some(tx)),
+        status,
+    });
+    let app = Router::new()
+        .route(NODE_FORWARD_PATH, post(capture_node_forward))
+        .with_state(state);
+
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+
+    (format!("http://{}", addr), rx)
+}
+
+async fn capture_node_forward(
+    AxumState(state): AxumState<std::sync::Arc<NodeForwardCaptureState>>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::http::StatusCode {
+    if let Some(sender) = state.sender.lock().await.take() {
+        let _ = sender.send(CapturedNodeForward {
+            headers,
+            body: body.to_vec(),
+        });
+    }
+
+    state.status
 }
 
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
@@ -19,6 +176,527 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
         .expect("dm policy update response");
     assert_eq!(response.status(), StatusCode::OK);
     app
+}
+
+async fn seed_due_failed_outbound_forward(
+    pool: &sqlx::PgPool,
+    sender: &str,
+    recipient: &str,
+    destination_node_id: &str,
+    message_id: &str,
+) {
+    ensure_db_identity_key(pool, sender).await;
+    dm_repo::record_dm_outbound_forward_queued(
+        pool,
+        &dm_repo::DmOutboundForwardWrite {
+            sender_identity_id: sender,
+            destination_node_id,
+            message_id,
+            thread_id: "thread-seeded-outbound-forward",
+            recipient_identity_id: recipient,
+            ciphertext: "enc:seeded-outbound-forward",
+            source_device_id: Some("desktop-main"),
+            delivery_cursor: 1,
+        },
+    )
+    .await
+    .expect("seed queued outbound forward");
+    dm_repo::mark_dm_outbound_forward_failed(
+        pool,
+        sender,
+        destination_node_id,
+        message_id,
+        "seeded retryable failure",
+        Some(Utc::now() - Duration::seconds(1)),
+    )
+    .await
+    .expect("seed failed outbound forward");
+}
+
+#[tokio::test]
+async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let sender = unique_identity("usr-node-forward-sender");
+    let recipient = unique_identity("usr-node-forward-recipient");
+    ensure_db_identity_key(&pool, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+    dm_repo::upsert_dm_policy(
+        &pool,
+        &recipient,
+        &DmPolicy {
+            inbound_policy: "anyone".to_string(),
+            offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
+        },
+    )
+    .await
+    .expect("set recipient DM policy");
+    dm_repo::upsert_dm_profile_device(
+        &pool,
+        &recipient,
+        &DmProfileDeviceRecord {
+            device_id: "phone-main".to_string(),
+            device_secret_hash: "test-secret-hash".to_string(),
+            active: true,
+            last_seen_epoch: Utc::now().timestamp(),
+        },
+    )
+    .await
+    .expect("upsert recipient profile device");
+
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let origin =
+        signed_node_descriptor("node-origin", "descriptor-origin", "https://origin.example");
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![origin.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+    let message_id = format!("msg-node-forward-{}", Uuid::new_v4().simple());
+    let (body, timestamp, nonce, signature) = signed_node_forward_body(
+        &origin,
+        &local.descriptor.node_id,
+        &sender,
+        &recipient,
+        &message_id,
+    );
+
+    let request = Request::builder()
+        .method("POST")
+        .uri(NODE_FORWARD_PATH)
+        .header("content-type", "application/json")
+        .header("x-hexrelay-node-id", origin.descriptor.node_id.as_str())
+        .header(
+            "x-hexrelay-node-descriptor-id",
+            origin.descriptor.descriptor_id.as_str(),
+        )
+        .header("x-hexrelay-node-signature-algorithm", "ed25519")
+        .header("x-hexrelay-node-signature-timestamp", timestamp)
+        .header("x-hexrelay-node-signature-nonce", nonce)
+        .header("x-hexrelay-node-signature", signature)
+        .body(Body::from(body))
+        .expect("build node forward request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("node forward response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read node forward body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["reason_code"], "fanout_pending_delivery");
+
+    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+        .await
+        .expect("load delivery records");
+    let record = records
+        .iter()
+        .find(|record| record.message_id == message_id)
+        .expect("forwarded delivery record");
+    assert_eq!(record.sender_identity_id, sender);
+    assert_eq!(record.ciphertext, "enc:node-forwarded-ciphertext");
+    assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
+}
+
+#[tokio::test]
+async fn fanout_dispatch_forwards_to_explicit_destination_node() {
+    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let sender = unique_identity("usr-origin-sender");
+    let recipient = unique_identity("usr-remote-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+    let token = issue_db_session_cookie(&pool, &state, &sender).await;
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let state = state
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+    let message_id = format!("msg-static-peer-forward-{}", Uuid::new_v4().simple());
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
+            destination.descriptor.node_id
+        )))
+        .expect("build destination-node fanout request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("destination-node fanout response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let response_body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read destination-node fanout body");
+    let response_payload: serde_json::Value =
+        serde_json::from_slice(&response_body).expect("decode fanout response");
+    assert_eq!(response_payload["status"], "accepted");
+    assert_eq!(
+        response_payload["reason_code"],
+        "fanout_forwarded_to_static_peer"
+    );
+    assert_eq!(response_payload["delivery_state"], "forwarded");
+
+    let captured = capture_rx.await.expect("capture node-forwarded request");
+    assert_eq!(
+        captured
+            .headers
+            .get("x-hexrelay-node-id")
+            .and_then(|value| value.to_str().ok()),
+        Some(local.descriptor.node_id.as_str())
+    );
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode node forward body");
+    assert_eq!(
+        forwarded.destination_node_id,
+        destination.descriptor.node_id
+    );
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:static-peer");
+    assert_eq!(forwarded.source_device_id.as_deref(), Some("desktop-main"));
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load outbound forward record")
+    .expect("outbound forward record");
+    assert_eq!(record.sender_identity_id, sender);
+    assert_eq!(record.destination_node_id, destination.descriptor.node_id);
+    assert_eq!(record.message_id, message_id);
+    assert_eq!(record.recipient_identity_id, recipient);
+    assert_eq!(record.ciphertext, "enc:static-peer");
+    assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
+    assert!(record.delivery_cursor > 0);
+    assert_eq!(record.forwarding_state, "forwarded");
+    assert_eq!(record.attempt_count, 1);
+    assert!(record.last_error.is_none());
+}
+
+#[tokio::test]
+async fn fanout_dispatch_records_failed_outbound_destination_forward() {
+    let (destination_base_url, capture_rx) =
+        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+    let sender = unique_identity("usr-origin-sender");
+    let recipient = unique_identity("usr-remote-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+    let token = issue_db_session_cookie(&pool, &state, &sender).await;
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let state = state
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+    let message_id = format!("msg-static-peer-failed-{}", Uuid::new_v4().simple());
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer-failed","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
+            destination.descriptor.node_id
+        )))
+        .expect("build destination-node fanout request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("destination-node fanout response");
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let response_body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read failed destination-node fanout body");
+    let response_payload: serde_json::Value =
+        serde_json::from_slice(&response_body).expect("decode failed fanout response");
+    assert_eq!(response_payload["code"], "fanout_forwarding_failed");
+
+    let captured = capture_rx
+        .await
+        .expect("capture failed node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode node forward body");
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:static-peer-failed");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load failed outbound forward record")
+    .expect("failed outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 1);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("500 Internal Server Error")));
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
+    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let message_id = format!("msg-static-peer-retry-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await;
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 1);
+    assert_eq!(summary.retryable_failed, 0);
+    assert_eq!(summary.terminal_failed, 0);
+    let captured = capture_rx
+        .await
+        .expect("capture retried node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load retried outbound forward record")
+    .expect("retried outbound forward record");
+    assert_eq!(record.forwarding_state, "forwarded");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record.next_attempt_at.is_none());
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
+    let (destination_base_url, capture_rx) =
+        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let message_id = format!("msg-static-peer-retry-failed-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await;
+    let before_retry = Utc::now();
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 0);
+    assert_eq!(summary.retryable_failed, 1);
+    assert_eq!(summary.terminal_failed, 0);
+    let captured = capture_rx
+        .await
+        .expect("capture failed retried node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+    assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load failed retried outbound forward record")
+    .expect("failed retried outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("500 Internal Server Error")));
+    assert!(record
+        .next_attempt_at
+        .is_some_and(|value| value > before_retry));
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured() {
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let destination_node_id = "node-missing";
+    let message_id = format!("msg-static-peer-retry-terminal-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
+        .await;
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 0);
+    assert_eq!(summary.retryable_failed, 0);
+    assert_eq!(summary.terminal_failed, 1);
+
+    let record =
+        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_node_id, &message_id)
+            .await
+            .expect("load terminal outbound forward record")
+            .expect("terminal outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("static peer route unavailable")));
+    assert!(record.next_attempt_at.is_none());
+
+    let due = dm_repo::list_due_dm_outbound_forward_records(&pool, 10, 5, 0)
+        .await
+        .expect("list due outbound forwards after terminal failure");
+    assert!(due.iter().all(|record| record.message_id != message_id));
 }
 
 #[tokio::test]

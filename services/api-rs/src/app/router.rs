@@ -19,9 +19,10 @@ use crate::{
         directory::{get_server, list_contacts, list_servers},
         discovery::list_discovery_users,
         dm::{
-            ack_dm_envelope_internal, get_dm_policy, heartbeat_dm_profile_device,
-            list_dm_thread_messages, list_dm_threads, mark_dm_thread_read, run_dm_active_fanout,
-            run_dm_fanout_catch_up, update_dm_policy, verify_dm_profile_device_internal,
+            ack_dm_envelope_internal, forward_dm_envelope_internal, get_dm_policy,
+            heartbeat_dm_profile_device, list_dm_thread_messages, list_dm_threads,
+            mark_dm_thread_read, run_dm_active_fanout, run_dm_fanout_catch_up, update_dm_policy,
+            verify_dm_profile_device_internal,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -95,6 +96,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/dm/fanout/dispatch", post(run_dm_active_fanout))
         .route("/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
         .route("/internal/dm/envelopes/ack", post(ack_dm_envelope_internal))
+        .route(
+            "/internal/dm/envelopes/forward",
+            post(forward_dm_envelope_internal),
+        )
         .route(
             "/internal/dm/profile-devices/verify",
             post(verify_dm_profile_device_internal),

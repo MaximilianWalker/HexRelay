@@ -88,6 +88,14 @@ const MIGRATIONS: &[Migration] = &[
         "0021_dm_encrypted_envelope_catchup_policy",
         include_str!("../migrations/0021_dm_encrypted_envelope_catchup_policy.sql"),
     ),
+    (
+        "0022_dm_outbound_forwarding_log",
+        include_str!("../migrations/0022_dm_outbound_forwarding_log.sql"),
+    ),
+    (
+        "0023_dm_outbound_forwarding_retry_schedule",
+        include_str!("../migrations/0023_dm_outbound_forwarding_retry_schedule.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

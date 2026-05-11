@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+base64 = "0.22"
+hex = "0.4"
+ring = "0.17"
 serde = { version = "1", features = ["derive"] }

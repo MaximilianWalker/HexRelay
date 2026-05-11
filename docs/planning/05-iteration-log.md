@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-11 locked DM delivery planning to server-node P2P E2EE encrypted envelopes and retired node-bypassing client DM transport/bootstrap work.
+- Latest meaningful change: 2026-05-11 recorded the dynamic server-node policy graph decision, including opt-in discovery/relay, user-consented node introductions, and descriptor-scoped private/LAN/local/public operation.
 
 ## Purpose
 
@@ -29,6 +29,31 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-11 (server-node policy graph architecture lock)
+
+- Area affected: Communication networking architecture, product discovery roadmap, PRD discovery requirements, product clarifications, glossary terms, and risk register.
+- Change summary:
+  - Locked the server-node P2P architecture as a dynamic policy graph rather than a mandatory global network.
+  - Clarified that user identity is portable and not assigned to a single primary server.
+  - Defined node roles for origin, delivery, relay, discoverable, private, local-only, and LAN-only behavior.
+  - Separated discovery, peering, relay, delivery, and encrypted storage permissions.
+  - Added user-consented node introductions as descriptor-scoped candidate-peer creation, not automatic trust or public exposure.
+  - Selected algorithm direction: static peers and signed invites first, mDNS/DNS-SD for LAN-only discovery, signed rendezvous registries next, Kademlia descriptor lookup later, HyParView peer sampling later, Plumtree gossip only for low-sensitivity node metadata, policy-constrained route selection, weighted relay selection, and store-and-forward encrypted-envelope reliability.
+- Rationale:
+  - HexRelay needs private online servers, local-only/LAN-only operation, and small self-created P2P networks to be first-class without reintroducing recipient-device DM transport or server-readable DM content.
+- Linked docs updated:
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/architecture/01-system-overview.md`
+  - `docs/architecture/README.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd-v1.md`
+  - `docs/product/03-clarifications.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/product/README.md`
+  - `docs/reference/glossary.md`
+  - `docs/README.md`
+  - `docs/planning/05-iteration-log.md`
 
 ### 2026-05-08 (DM node-bypassing surface retirement)
 

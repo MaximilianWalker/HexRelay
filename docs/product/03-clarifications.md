@@ -13,7 +13,7 @@
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-05-11 clarified that server runtimes are the P2P peers for E2EE envelope delivery and retired node-bypassing client DM transport/bootstrap surfaces.
+- Latest meaningful change: 2026-05-11 clarified post-MVP discovery around the dynamic server-node policy graph, opt-in descriptors, and user-consented node introductions.
 
 ## Purpose
 
@@ -50,7 +50,7 @@
 - C-012 (resolved 2026-03-04): Realtime event/signaling contracts are formalized in a versioned AsyncAPI artifact for Iterations 2-3.
 - C-013 (resolved 2026-03-04): KPI/SLO validation uses a fixed test profile (`200 users`, `70/30 WiFi/Fast4G`, latest stable Chrome/Firefox, single-region staging).
 - C-014 (resolved 2026-03-04): Migration conflict precedence uses user-signed profile data as canonical; server-owned security/membership fields remain server-authoritative.
-- C-015 (resolved 2026-03-04; updated 2026-05-08): Post-MVP discovery follows a hybrid roadmap: federation remains supported, trusted registries are added, and decentralized server/node discovery becomes an optional mode.
+- C-015 (resolved 2026-03-04; updated 2026-05-08; clarified 2026-05-11): Post-MVP discovery follows a hybrid server-node policy graph roadmap: private/trusted discovery comes first, federation registries remain supported, user-consented node introductions are allowed only by descriptor policy, and decentralized server/node discovery remains optional for signed descriptor lookup only.
 - C-016 (resolved 2026-03-04; superseded 2026-05-08): MVP contact add uses expiring server-mediated contact invite links only; QR codes are reserved for server invitations and trusted device-link/restore flows.
 - C-017 (resolved 2026-03-04): Server invites support optional expiration/max-uses, including non-expiring multi-use links for open-access behavior.
 - C-018 (resolved 2026-03-04): Server-mediated friend requests are intent-based, raw key/profile-identifying data is not exposed by default, and DM inbound policy defaults to friends-only with user opt-in overrides.
@@ -66,5 +66,6 @@
 - `docs/product/02-prd-v1.md`
 - `docs/product/04-dependencies-risks.md`
 - `docs/product/07-ui-navigation-spec.md`
+- `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/contracts/realtime-events-v1.asyncapi.yaml`
 - `docs/planning/kpi-slo-test-profile.md`

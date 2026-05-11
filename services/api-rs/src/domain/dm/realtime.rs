@@ -6,7 +6,13 @@ use communication_core::{
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::state::AppState;
+use crate::{
+    domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
+    domain::dm::routing::{
+        plan_dm_envelope_route, DmEnvelopeForwardingRoute, DmEnvelopeRouteRequest,
+    },
+    state::AppState,
+};
 
 const INTERNAL_DM_ENVELOPE_DISPATCH_PATH: &str = "/internal/dm/envelopes/dispatch";
 
@@ -37,6 +43,7 @@ struct OwnedDmEnvelopeDispatchRequest {
 }
 
 pub struct DispatchDmEnvelopeInput<'a> {
+    pub destination_node_id: Option<&'a str>,
     pub message_id: &'a str,
     pub thread_id: &'a str,
     pub sender_identity_id: &'a str,
@@ -153,6 +160,35 @@ pub async fn dispatch_dm_envelope(
     state: &AppState,
     input: DispatchDmEnvelopeInput<'_>,
 ) -> Result<(), String> {
+    let route = plan_dm_envelope_route(
+        &state.node_fingerprint,
+        &state.static_peer_registry,
+        DmEnvelopeRouteRequest {
+            destination_node_id: input.destination_node_id,
+            ..DmEnvelopeRouteRequest::local_realtime()
+        },
+    )
+    .map_err(|error| format!("plan DM envelope route: {error}"))?;
+
+    if let DmEnvelopeForwardingRoute::StaticPeer { route } = route {
+        return forward_dm_envelope_to_static_peer(
+            state,
+            &route,
+            ForwardDmEnvelopeInput {
+                message_id: input.message_id,
+                thread_id: input.thread_id,
+                sender_identity_id: input.sender_identity_id,
+                recipient_identity_id: input.recipient_identity_id,
+                ciphertext: input.ciphertext,
+                source_device_id: input.source_device_id,
+                accepted_at: input.accepted_at,
+                delivery_cursor: input.delivery_cursor,
+                target_device_ids: input.target_device_ids,
+            },
+        )
+        .await;
+    }
+
     let request = DmEnvelopeDispatchRequest {
         message_id: input.message_id,
         thread_id: input.thread_id,
@@ -188,6 +224,45 @@ pub async fn dispatch_dm_envelope(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use communication_core::{
+        ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
+        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
+        RelayPolicy, StaticPeerRegistry, StoragePolicy,
+    };
+    use ring::rand::SystemRandom;
+    use ring::signature::Ed25519KeyPair;
+
+    fn signed_descriptor(node_id: &str, descriptor_id: &str) -> NodeDescriptor {
+        let pkcs8 =
+            Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
+        let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
+        let now = chrono::Utc::now().timestamp();
+        let mut descriptor = NodeDescriptor {
+            node_id: node_id.to_string(),
+            node_public_key: public_key,
+            descriptor_id: descriptor_id.to_string(),
+            issued_at_epoch_seconds: now - 1,
+            expires_at_epoch_seconds: now + 300,
+            network_mode: NetworkMode::PrivatePeers,
+            discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+            peering_policy: PeeringPolicy::StaticAllowlist,
+            relay_policy: RelayPolicy::None,
+            dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+            storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+            addresses: vec![format!("https://{node_id}.example")],
+            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            rate_limits: Vec::new(),
+            trust_labels: Vec::new(),
+            revocation_pointer: None,
+            signature: NodeSignature {
+                algorithm: NodeSignatureAlgorithm::Ed25519,
+                value: String::new(),
+            },
+        };
+        descriptor.signature.value =
+            sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
+        descriptor
+    }
 
     #[test]
     fn dispatch_payload_maps_to_internal_dm_envelope_path() {
@@ -218,5 +293,33 @@ mod tests {
             body_value["target_device_ids"],
             serde_json::json!(target_device_ids)
         );
+    }
+
+    #[tokio::test]
+    async fn dispatch_fails_closed_for_static_peer_destination_without_local_identity() {
+        let registry =
+            StaticPeerRegistry::try_new(vec![signed_descriptor("node-peer", "descriptor-peer")])
+                .expect("registry should build");
+        let state = AppState::default().with_static_peer_registry(registry);
+
+        let error = dispatch_dm_envelope(
+            &state,
+            DispatchDmEnvelopeInput {
+                destination_node_id: Some("node-peer"),
+                message_id: "msg-1",
+                thread_id: "thread-1",
+                sender_identity_id: "usr-1",
+                recipient_identity_id: "usr-2",
+                ciphertext: "enc:abcdefghijklmnopqrstuvwxyz",
+                source_device_id: Some("sender-desktop"),
+                accepted_at: "2026-03-26T00:00:00Z",
+                delivery_cursor: 7,
+                target_device_ids: &["desktop-main".to_string()],
+            },
+        )
+        .await
+        .expect_err("static peer dispatch should fail closed without local node identity");
+
+        assert!(error.contains("local node identity"));
     }
 }
