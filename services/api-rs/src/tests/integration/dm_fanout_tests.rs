@@ -515,6 +515,8 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
     .await
     .expect("count retained queued outbound metadata");
     assert_eq!(queued_rows, 1);
+
+    delete_outbound_forward_record(&pool, &sender, "node-retention-peer", &queued_message_id).await;
 }
 
 #[tokio::test]
