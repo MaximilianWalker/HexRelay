@@ -77,7 +77,7 @@ async function run() {
   const keypair = nacl.sign.keyPair();
   const publicKeyHex = toHex(keypair.publicKey);
 
-  const registerResponse = await fetch(`${apiBase}/v1/identity/keys/register`, {
+  const registerResponse = await fetch(`${apiBase}/identity/keys/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -91,7 +91,7 @@ async function run() {
     throw new Error(`register failed (${registerResponse.status})`);
   }
 
-  const challengeResponse = await fetch(`${apiBase}/v1/auth/challenge`, {
+  const challengeResponse = await fetch(`${apiBase}/auth/challenge`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ identity_id: identityId }),
@@ -103,7 +103,7 @@ async function run() {
   const challenge = await challengeResponse.json();
   const signatureHex = toHex(nacl.sign.detached(new TextEncoder().encode(challenge.nonce), keypair.secretKey));
 
-  const verifyResponse = await fetch(`${apiBase}/v1/auth/verify`, {
+  const verifyResponse = await fetch(`${apiBase}/auth/verify`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

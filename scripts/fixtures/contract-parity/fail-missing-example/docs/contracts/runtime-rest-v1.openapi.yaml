@@ -1,6 +1,6 @@
 openapi: 3.1.0
 paths:
-  /v1/dm/threads/{thread_id}/messages:
+  /dm/threads/{thread_id}/messages:
     get:
       security:
         - CookieAuth: []

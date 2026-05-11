@@ -13,7 +13,7 @@
 
 - Purpose: record deterministic validation evidence for migration `0012_servers_and_memberships.sql`.
 - Primary edit location: update when validation evidence for persisted server memberships changes.
-- Latest meaningful change: 2026-03-18 added delivery-pass evidence for persisted `/v1/servers` membership authority and trusted `same_server` DM checks.
+- Latest meaningful change: 2026-03-18 added delivery-pass evidence for persisted `/servers` membership authority and trusted `same_server` DM checks.
 
 ## Migration Metadata
 
@@ -28,7 +28,7 @@
 ## Forward Validation
 
 - Command(s) executed: `cargo test --all-features`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo fmt --all -- --check`
-- Expected outcome: startup migration creates persisted `servers` and `server_memberships`, `/v1/servers` reads authenticated memberships from DB, and `same_server` DM authorization uses trusted shared membership state.
+- Expected outcome: startup migration creates persisted `servers` and `server_memberships`, `/servers` reads authenticated memberships from DB, and `same_server` DM authorization uses trusted shared membership state.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation for `services/api-rs` in the PR #42 delivery session.
 
@@ -56,4 +56,4 @@
 
 - Reviewer: OpenCode agent (delivery validation pass)
 - Decision: pass
-- Notes: This migration closes the trusted shared-membership authority gap for `/v1/servers` and `same_server` DM policy evaluation.
+- Notes: This migration closes the trusted shared-membership authority gap for `/servers` and `same_server` DM policy evaluation.

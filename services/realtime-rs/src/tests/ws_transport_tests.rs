@@ -112,7 +112,7 @@ async fn start_validate_server(mode: ValidateMode) -> String {
     }
 
     let app = Router::new()
-        .route("/v1/auth/sessions/validate", get(validate_endpoint))
+        .route("/auth/sessions/validate", get(validate_endpoint))
         .with_state(mode);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -205,9 +205,9 @@ async fn start_presence_api_stub(
         watcher_token: watcher_token.to_string(),
     };
     let app = Router::new()
-        .route("/v1/auth/sessions/validate", get(validate_endpoint))
+        .route("/auth/sessions/validate", get(validate_endpoint))
         .route(
-            "/v1/internal/presence/watchers/:identity_id",
+            "/internal/presence/watchers/:identity_id",
             get(watchers_endpoint),
         )
         .with_state(state);

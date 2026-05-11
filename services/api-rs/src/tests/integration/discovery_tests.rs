@@ -98,7 +98,7 @@ async fn discovery_lists_global_known_users_and_relationship_states() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build discovery request");
@@ -196,7 +196,7 @@ async fn discovery_excludes_blocked_users_bidirectionally() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build discovery request");
@@ -267,13 +267,13 @@ async fn discovery_rate_limits_queries() {
     let app = build_app(state);
     let first = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build first request");
     let second = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build second request");
@@ -310,7 +310,7 @@ async fn discovery_rejects_invalid_scope() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=planetary")
+        .uri("/discovery/users?scope=planetary")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build invalid discovery request");
@@ -378,7 +378,7 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global&query=%20%20%20&limit=999")
+        .uri("/discovery/users?scope=global&query=%20%20%20&limit=999")
         .header("cookie", format!("hexrelay_session={token}"))
         .body(Body::empty())
         .expect("build blank-query discovery request");
@@ -435,7 +435,7 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=shared_server")
+        .uri("/discovery/users?scope=shared_server")
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build discovery request");
@@ -469,7 +469,7 @@ async fn discovery_trims_scope_before_enum_validation() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=%20shared_server%20")
+        .uri("/discovery/users?scope=%20shared_server%20")
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build trimmed-scope discovery request");
@@ -570,7 +570,7 @@ async fn discovery_excludes_configured_denylist() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build discovery request");
@@ -646,7 +646,7 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global&query=usr-discovery-&limit=1")
+        .uri("/discovery/users?scope=global&query=usr-discovery-&limit=1")
         .header("cookie", format!("hexrelay_session={token}"))
         .body(Body::empty())
         .expect("build discovery request");
@@ -738,7 +738,7 @@ async fn discovery_prefers_accepted_relationship_over_newer_terminal_state() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/discovery/users?scope=global")
+        .uri("/discovery/users?scope=global")
         .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build discovery request");

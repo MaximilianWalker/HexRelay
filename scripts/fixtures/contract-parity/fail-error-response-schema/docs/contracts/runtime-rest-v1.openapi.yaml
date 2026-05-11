@@ -1,6 +1,6 @@
 openapi: 3.1.0
 paths:
-  /v1/friends/requests/{request_id}/accept:
+  /friends/requests/{request_id}/accept:
     post:
       security:
         - CookieAuth: []

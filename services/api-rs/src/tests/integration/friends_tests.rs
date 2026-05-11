@@ -16,7 +16,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     // Create a friend request: usr-p → usr-q
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-p"]))
         .body(Body::from(
@@ -33,10 +33,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     // Accept the friend request (target accepts).
     let accept_req = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-q"]))
         .body(Body::empty())
         .expect("build accept request");
@@ -47,7 +44,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-p"]))
@@ -75,7 +72,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let bootstrap_req2 = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-q"]))
@@ -112,7 +109,7 @@ async fn bootstrap_returns_403_on_pending_request() {
 
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-r"]))
         .body(Body::from(
@@ -130,7 +127,7 @@ async fn bootstrap_returns_403_on_pending_request() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-r"]))
@@ -149,7 +146,7 @@ async fn bootstrap_returns_403_on_declined_request() {
 
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-t"]))
         .body(Body::from(
@@ -166,10 +163,7 @@ async fn bootstrap_returns_403_on_declined_request() {
     // Decline it
     let decline_req = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/decline",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/decline", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-u"]))
         .body(Body::empty())
         .expect("build decline request");
@@ -184,7 +178,7 @@ async fn bootstrap_returns_403_on_declined_request() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-t"]))
@@ -203,7 +197,7 @@ async fn bootstrap_returns_401_for_third_party() {
 
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-v"]))
         .body(Body::from(
@@ -220,10 +214,7 @@ async fn bootstrap_returns_401_for_third_party() {
     // Accept so status is accepted
     let accept_req = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-w"]))
         .body(Body::empty())
         .expect("build accept request");
@@ -234,7 +225,7 @@ async fn bootstrap_returns_401_for_third_party() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-x"]))
@@ -253,7 +244,7 @@ async fn bootstrap_returns_400_for_nonexistent_request() {
 
     let bootstrap_req = Request::builder()
         .method("GET")
-        .uri("/v1/friends/requests/nonexistent-id/bootstrap")
+        .uri("/friends/requests/nonexistent-id/bootstrap")
         .header("authorization", format!("Bearer {}", tokens["usr-y"]))
         .body(Body::empty())
         .expect("build bootstrap request");
@@ -270,7 +261,7 @@ async fn bootstrap_returns_403_when_peer_is_blocked_after_acceptance() {
 
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-p"]))
         .body(Body::from(
@@ -286,10 +277,7 @@ async fn bootstrap_returns_403_when_peer_is_blocked_after_acceptance() {
 
     let accept_req = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-q"]))
         .body(Body::empty())
         .expect("build accept request");
@@ -298,7 +286,7 @@ async fn bootstrap_returns_403_when_peer_is_blocked_after_acceptance() {
 
     let block_req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-q"]))
         .body(Body::from(r#"{"target_identity_id":"usr-p"}"#))
@@ -309,7 +297,7 @@ async fn bootstrap_returns_403_when_peer_is_blocked_after_acceptance() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-p"]))
@@ -327,7 +315,7 @@ async fn creates_and_lists_friend_requests() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .body(Body::from(
@@ -344,7 +332,7 @@ async fn creates_and_lists_friend_requests() {
 
     let list_request = Request::builder()
         .method("GET")
-        .uri("/v1/friends/requests?identity_id=usr-jules-p&direction=inbound")
+        .uri("/friends/requests?identity_id=usr-jules-p&direction=inbound")
         .header("authorization", format!("Bearer {}", tokens["usr-jules-p"]))
         .body(Body::empty())
         .expect("build friend request list request");
@@ -369,7 +357,7 @@ async fn accepts_and_declines_friend_requests() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-mina-s"]))
         .body(Body::from(
@@ -392,10 +380,7 @@ async fn accepts_and_declines_friend_requests() {
 
     let accept_request = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-alex-r"]))
         .body(Body::empty())
         .expect("build accept request");
@@ -408,7 +393,7 @@ async fn accepts_and_declines_friend_requests() {
 
     let create_decline_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .body(Body::from(
@@ -432,7 +417,7 @@ async fn accepts_and_declines_friend_requests() {
     let decline_request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/friends/requests/{}/decline",
+            "/friends/requests/{}/decline",
             decline_created.request_id
         ))
         .header("authorization", format!("Bearer {}", tokens["usr-alex-r"]))
@@ -451,7 +436,7 @@ async fn rejects_conflicting_transition_when_not_pending() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(
@@ -474,10 +459,7 @@ async fn rejects_conflicting_transition_when_not_pending() {
 
     let first_accept = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-b"]))
         .body(Body::empty())
         .expect("build first accept");
@@ -490,10 +472,7 @@ async fn rejects_conflicting_transition_when_not_pending() {
 
     let idempotent_accept = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-b"]))
         .body(Body::empty())
         .expect("build idempotent accept");
@@ -506,10 +485,7 @@ async fn rejects_conflicting_transition_when_not_pending() {
 
     let conflicting_decline = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/decline",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/decline", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-b"]))
         .body(Body::empty())
         .expect("build conflicting decline");
@@ -526,7 +502,7 @@ async fn requester_can_cancel_pending_friend_request() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-c"]))
         .body(Body::from(
@@ -549,10 +525,7 @@ async fn requester_can_cancel_pending_friend_request() {
 
     let cancel_request = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/cancel",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/cancel", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-c"]))
         .body(Body::empty())
         .expect("build cancel request");
@@ -567,7 +540,7 @@ async fn rejects_transition_by_wrong_actor() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-e"]))
         .body(Body::from(
@@ -590,10 +563,7 @@ async fn rejects_transition_by_wrong_actor() {
 
     let wrong_actor_accept = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header("authorization", format!("Bearer {}", tokens["usr-g"]))
         .body(Body::empty())
         .expect("build wrong actor accept request");
@@ -611,7 +581,7 @@ async fn returns_bad_request_for_non_actionable_friend_request_transitions() {
 
     let missing_accept = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests/missing-request/accept")
+        .uri("/friends/requests/missing-request/accept")
         .header("authorization", format!("Bearer {}", tokens["usr-i"]))
         .body(Body::empty())
         .expect("build missing accept request");
@@ -624,7 +594,7 @@ async fn returns_bad_request_for_non_actionable_friend_request_transitions() {
 
     let missing_decline = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests/missing-request/decline")
+        .uri("/friends/requests/missing-request/decline")
         .header("authorization", format!("Bearer {}", tokens["usr-i"]))
         .body(Body::empty())
         .expect("build missing decline request");
@@ -637,7 +607,7 @@ async fn returns_bad_request_for_non_actionable_friend_request_transitions() {
 
     let missing_cancel = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests/missing-request/cancel")
+        .uri("/friends/requests/missing-request/cancel")
         .header("authorization", format!("Bearer {}", tokens["usr-h"]))
         .body(Body::empty())
         .expect("build missing cancel request");
@@ -654,7 +624,7 @@ async fn rejects_friend_request_without_authorization_header() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/friends/requests?identity_id=usr-a")
+        .uri("/friends/requests?identity_id=usr-a")
         .body(Body::empty())
         .expect("build friend request list request");
 

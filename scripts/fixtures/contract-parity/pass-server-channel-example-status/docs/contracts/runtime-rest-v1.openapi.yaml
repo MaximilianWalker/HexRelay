@@ -1,6 +1,6 @@
 openapi: 3.1.0
 paths:
-  /v1/servers/{server_id}/channels/{channel_id}/messages:
+  /servers/{server_id}/channels/{channel_id}/messages:
     post:
       security:
         - CookieAuth: []

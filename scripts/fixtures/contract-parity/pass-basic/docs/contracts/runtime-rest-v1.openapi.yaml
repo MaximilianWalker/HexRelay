@@ -1,6 +1,6 @@
 openapi: 3.1.0
 paths:
-  /v1/friends/requests/{request_id}/accept:
+  /friends/requests/{request_id}/accept:
     post:
       security:
         - CookieAuth: []
@@ -51,7 +51,7 @@ paths:
                     message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/threads:
+  /dm/threads:
     get:
       security:
         - CookieAuth: []

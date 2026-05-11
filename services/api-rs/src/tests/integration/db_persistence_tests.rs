@@ -125,7 +125,7 @@ async fn validates_and_revokes_db_backed_session() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{}"}}"#,
@@ -151,7 +151,7 @@ async fn validates_and_revokes_db_backed_session() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{}","challenge_id":"{}","signature":"{}"}}"#,
@@ -178,7 +178,7 @@ async fn validates_and_revokes_db_backed_session() {
 
     let validate_request = Request::builder()
         .method("GET")
-        .uri("/v1/auth/sessions/validate")
+        .uri("/auth/sessions/validate")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build validate request");
@@ -192,7 +192,7 @@ async fn validates_and_revokes_db_backed_session() {
 
     let revoke_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/sessions/revoke")
+        .uri("/auth/sessions/revoke")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -214,7 +214,7 @@ async fn validates_and_revokes_db_backed_session() {
 
     let validate_after_revoke = Request::builder()
         .method("GET")
-        .uri("/v1/auth/sessions/validate")
+        .uri("/auth/sessions/validate")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build post-revoke validate request");
@@ -240,7 +240,7 @@ async fn redeems_db_invite_after_app_restart() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -268,7 +268,7 @@ async fn redeems_db_invite_after_app_restart() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -299,7 +299,7 @@ async fn verifies_db_challenge_after_app_restart() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{}"}}"#,
@@ -328,7 +328,7 @@ async fn verifies_db_challenge_after_app_restart() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{}","challenge_id":"{}","signature":"{}"}}"#,
@@ -356,7 +356,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -384,10 +384,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 
     let accept_request = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header(
             "cookie",
             format!("hexrelay_session={target_cookie}; hexrelay_csrf=test-csrf"),
@@ -405,7 +402,7 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 
     let contacts_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/contacts?search={}", target_identity))
+        .uri(format!("/contacts?search={}", target_identity))
         .header("cookie", format!("hexrelay_session={requester_cookie}"))
         .body(Body::empty())
         .expect("build contacts request");
@@ -441,7 +438,7 @@ async fn fanout_friends_only_uses_db_friendship_state() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -468,10 +465,7 @@ async fn fanout_friends_only_uses_db_friendship_state() {
 
     let accept_request = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header(
             "cookie",
             format!("hexrelay_session={target_cookie}; hexrelay_csrf=test-csrf"),
@@ -488,7 +482,7 @@ async fn fanout_friends_only_uses_db_friendship_state() {
 
     let fanout_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -531,7 +525,7 @@ async fn redeems_contact_invite_in_db_and_is_idempotent() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -556,7 +550,7 @@ async fn redeems_contact_invite_in_db_and_is_idempotent() {
 
     let first_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -587,7 +581,7 @@ async fn redeems_contact_invite_in_db_and_is_idempotent() {
 
     let second_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -626,7 +620,7 @@ async fn rejects_redeeming_own_contact_invite_in_db() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -651,7 +645,7 @@ async fn rejects_redeeming_own_contact_invite_in_db() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -682,7 +676,7 @@ async fn rejects_redeeming_blocked_contact_invite_in_db() {
 
     let block_request = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -703,7 +697,7 @@ async fn rejects_redeeming_blocked_contact_invite_in_db() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -728,7 +722,7 @@ async fn rejects_redeeming_blocked_contact_invite_in_db() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -757,7 +751,7 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
 
     let create_req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -780,10 +774,7 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
 
     let accept_req = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/friends/requests/{}/accept",
-            created.request_id
-        ))
+        .uri(format!("/friends/requests/{}/accept", created.request_id))
         .header(
             "cookie",
             format!(
@@ -799,7 +790,7 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
 
     let block_req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -817,7 +808,7 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/friends/requests/{}/bootstrap",
+            "/friends/requests/{}/bootstrap",
             created.request_id
         ))
         .header("cookie", format!("hexrelay_session={}", tokens["usr-a"]))

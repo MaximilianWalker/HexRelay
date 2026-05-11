@@ -10,7 +10,7 @@ async fn returns_default_dm_policy_for_new_identity() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .body(Body::empty())
         .expect("build dm policy get request");
@@ -38,7 +38,7 @@ async fn updates_dm_policy_and_persists_for_identity() {
 
     let update_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -57,7 +57,7 @@ async fn updates_dm_policy_and_persists_for_identity() {
 
     let read_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build dm policy read request");
@@ -83,7 +83,7 @@ async fn updates_dm_policy_to_same_server_and_reads_back_unchanged() {
 
     let update_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -102,7 +102,7 @@ async fn updates_dm_policy_to_same_server_and_reads_back_unchanged() {
 
     let read_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build same-server dm policy read request");
@@ -132,7 +132,7 @@ async fn rejects_invalid_dm_policy_update() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -168,7 +168,7 @@ async fn persists_dm_policy_across_db_restart() {
 
     let update_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -190,7 +190,7 @@ async fn persists_dm_policy_across_db_restart() {
     };
     let read_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build dm policy read request");
@@ -224,7 +224,7 @@ async fn profile_devices_persist_across_db_restart() {
 
     let heartbeat_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -249,7 +249,7 @@ async fn profile_devices_persist_across_db_restart() {
 
     let catch_up_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "cookie",
             format!("hexrelay_session={session_cookie}; hexrelay_csrf=test-csrf"),
@@ -289,7 +289,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let policy_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -308,7 +308,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat_request = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header("content-type", "application/json")
             .header(
                 "cookie",
@@ -330,7 +330,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let dispatch_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -355,7 +355,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let activate_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -381,7 +381,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let messages_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
+        .uri(format!("/dm/threads/{thread_id}/messages?limit=10"))
         .header("cookie", format!("hexrelay_session={recipient_cookie}"))
         .body(Body::empty())
         .expect("build thread messages request after restart");
@@ -401,7 +401,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let catch_up_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -431,7 +431,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
     let first_item = &first_payload["items"][0];
     let ack_request = Request::builder()
         .method("POST")
-        .uri("/v1/internal/dm/envelopes/ack")
+        .uri("/internal/dm/envelopes/ack")
         .header(
             "x-hexrelay-internal-token",
             "hexrelay-dev-channel-dispatch-token-change-me",
@@ -455,7 +455,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let second_catch_up_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -496,7 +496,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 
     let policy_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -514,7 +514,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 
     let dispatch_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -569,7 +569,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 
     let activate_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -590,7 +590,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 
     let catch_up_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -630,7 +630,7 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
 
     let policy_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -650,7 +650,7 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
 
     let first_dispatch = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -671,7 +671,7 @@ async fn duplicate_dm_message_id_returns_conflict_and_preserves_original_ciphert
 
     let duplicate_dispatch = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -724,7 +724,7 @@ async fn rejects_invalid_profile_device_heartbeat() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header(
             "authorization",
             format!("Bearer {}", tokens["usr-device-invalid"]),

@@ -61,7 +61,7 @@
      - If smoke needs fresh public identity bootstrap, set `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` only for that local smoke session.
 - Triage baseline:
   - If API health fails, inspect local API service output first.
-  - If realtime health fails, inspect local realtime output and API `/v1/auth/sessions/validate` path.
+  - If realtime health fails, inspect local realtime output and API `/auth/sessions/validate` path.
   - If smoke fails, capture command output and compare with CI artifacts under `evidence/ci/<run_id>/`.
 
 ### Dedicated Server Bring-Up (Command Baseline)

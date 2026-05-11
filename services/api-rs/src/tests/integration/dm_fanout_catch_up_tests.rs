@@ -18,7 +18,7 @@ fn device_secret(device_id: &str) -> String {
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
@@ -35,7 +35,7 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
 async fn heartbeat_device(app: &axum::Router, token: &str, device_id: &str, active: bool) {
     let heartbeat = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -60,7 +60,7 @@ async fn dispatch_dm(
 ) {
     let dispatch = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -78,7 +78,7 @@ async fn dispatch_dm(
 async fn catch_up(app: &axum::Router, token: &str, device_id: &str) -> serde_json::Value {
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -109,7 +109,7 @@ async fn ack_dm_envelope(
 ) -> (StatusCode, serde_json::Value) {
     let ack = Request::builder()
         .method("POST")
-        .uri("/v1/internal/dm/envelopes/ack")
+        .uri("/internal/dm/envelopes/ack")
         .header(
             "x-hexrelay-internal-token",
             "hexrelay-dev-channel-dispatch-token-change-me",
@@ -328,7 +328,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
 
     let client = reqwest::Client::new();
     let policy_response = client
-        .post(format!("{api_base_url}/v1/dm/privacy-policy"))
+        .post(format!("{api_base_url}/dm/privacy-policy"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({ "inbound_policy": "anyone" }))
         .send()
@@ -337,7 +337,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
     assert_eq!(policy_response.status(), reqwest::StatusCode::OK);
 
     let heartbeat_response = client
-        .post(format!("{api_base_url}/v1/dm/profile-devices/heartbeat"))
+        .post(format!("{api_base_url}/dm/profile-devices/heartbeat"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({
             "device_id": device_id,
@@ -358,7 +358,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
     assert_eq!(verified["data"]["device_id"], device_id);
 
     let fanout_response = client
-        .post(format!("{api_base_url}/v1/dm/fanout/dispatch"))
+        .post(format!("{api_base_url}/dm/fanout/dispatch"))
         .bearer_auth(&sender_token)
         .json(&serde_json::json!({
             "recipient_identity_id": &recipient,
@@ -406,7 +406,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
     assert_eq!(ack_echo["data"]["ack_status"], "received");
 
     let catch_up_response = client
-        .post(format!("{api_base_url}/v1/dm/fanout/catch-up"))
+        .post(format!("{api_base_url}/dm/fanout/catch-up"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({ "device_id": device_id, "device_secret": device_secret(device_id) }))
         .send()
@@ -474,7 +474,7 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
 
     let client = reqwest::Client::new();
     let policy_response = client
-        .post(format!("{api_base_url}/v1/dm/privacy-policy"))
+        .post(format!("{api_base_url}/dm/privacy-policy"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({ "inbound_policy": "anyone" }))
         .send()
@@ -483,7 +483,7 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
     assert_eq!(policy_response.status(), reqwest::StatusCode::OK);
 
     let heartbeat_response = client
-        .post(format!("{api_base_url}/v1/dm/profile-devices/heartbeat"))
+        .post(format!("{api_base_url}/dm/profile-devices/heartbeat"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({
             "device_id": device_id,
@@ -509,7 +509,7 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
     assert_eq!(proof_error["data"]["code"], "event_device_mismatch");
 
     let fanout_response = client
-        .post(format!("{api_base_url}/v1/dm/fanout/dispatch"))
+        .post(format!("{api_base_url}/dm/fanout/dispatch"))
         .bearer_auth(&sender_token)
         .json(&serde_json::json!({
             "recipient_identity_id": &recipient,
@@ -530,7 +530,7 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
     assert!(unexpected_dispatch.is_none());
 
     let catch_up_response = client
-        .post(format!("{api_base_url}/v1/dm/fanout/catch-up"))
+        .post(format!("{api_base_url}/dm/fanout/catch-up"))
         .bearer_auth(&recipient_token)
         .json(&serde_json::json!({ "device_id": device_id, "device_secret": device_secret(device_id) }))
         .send()
@@ -556,7 +556,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header(
                 "authorization",
                 format!("Bearer {}", tokens[recipient.as_str()]),
@@ -577,7 +577,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 
     let dispatch = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -594,7 +594,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 
     let activate_phone = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -614,7 +614,7 @@ async fn fanout_catch_up_replays_messages_for_late_activated_device() {
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -657,7 +657,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header(
                 "authorization",
                 format!("Bearer {}", tokens[recipient.as_str()]),
@@ -679,7 +679,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
     for message_id in ["msg-dup-a", "msg-dup-b"] {
         let dispatch = Request::builder()
             .method("POST")
-            .uri("/v1/dm/fanout/dispatch")
+            .uri("/dm/fanout/dispatch")
             .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
             .header("content-type", "application/json")
             .body(Body::from(format!(
@@ -697,7 +697,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
 
     let activate_phone = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -717,7 +717,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -763,7 +763,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
 
     let second_catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -796,7 +796,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
         for _ in 0..attempts {
             let ack = Request::builder()
                 .method("POST")
-                .uri("/v1/internal/dm/envelopes/ack")
+                .uri("/internal/dm/envelopes/ack")
                 .header(
                     "x-hexrelay-internal-token",
                     "hexrelay-dev-channel-dispatch-token-change-me",
@@ -818,7 +818,7 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
 
     let post_ack_catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -997,7 +997,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
     for (device_id, active) in [("desktop-main", true), ("phone-main", false)] {
         let heartbeat = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header(
                 "authorization",
                 format!("Bearer {}", tokens[recipient.as_str()]),
@@ -1022,7 +1022,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
     ] {
         let dispatch = Request::builder()
             .method("POST")
-            .uri("/v1/dm/fanout/dispatch")
+            .uri("/dm/fanout/dispatch")
             .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
             .header("content-type", "application/json")
             .body(Body::from(format!(
@@ -1039,7 +1039,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
 
     let activate_phone = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -1059,7 +1059,7 @@ async fn fanout_catch_up_keeps_distinct_payload_variants_with_same_message_id() 
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -1099,7 +1099,7 @@ async fn fanout_catch_up_blocks_for_inactive_device() {
 
     let heartbeat = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -1116,7 +1116,7 @@ async fn fanout_catch_up_blocks_for_inactive_device() {
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -1145,7 +1145,7 @@ async fn fanout_catch_up_rejects_cursor_beyond_delivery_tail() {
 
     let heartbeat = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -1162,7 +1162,7 @@ async fn fanout_catch_up_rejects_cursor_beyond_delivery_tail() {
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -1189,7 +1189,7 @@ async fn fanout_catch_up_rejects_invalid_payload() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(

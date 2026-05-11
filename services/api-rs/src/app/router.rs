@@ -56,84 +56,81 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
-        .route("/v1/identity/keys/register", post(register_identity_key))
-        .route("/v1/auth/challenge", post(issue_auth_challenge))
-        .route("/v1/auth/verify", post(verify_auth_challenge))
-        .route("/v1/auth/sessions/revoke", post(revoke_session))
-        .route("/v1/auth/sessions/validate", get(validate_session))
-        .route("/v1/dev/testing/profiles", get(list_testing_profiles))
-        .route("/v1/dev/testing/sessions", post(activate_testing_session))
-        .route("/v1/invites", post(create_invite))
-        .route("/v1/invites/redeem", post(redeem_invite))
-        .route("/v1/contact-invites", post(create_contact_invite))
-        .route("/v1/contact-invites/redeem", post(redeem_contact_invite))
-        .route("/v1/servers", get(list_servers))
-        .route("/v1/servers/:server_id", get(get_server))
-        .route("/v1/servers/:server_id/channels", get(list_server_channels))
+        .route("/identity/keys/register", post(register_identity_key))
+        .route("/auth/challenge", post(issue_auth_challenge))
+        .route("/auth/verify", post(verify_auth_challenge))
+        .route("/auth/sessions/revoke", post(revoke_session))
+        .route("/auth/sessions/validate", get(validate_session))
+        .route("/dev/testing/profiles", get(list_testing_profiles))
+        .route("/dev/testing/sessions", post(activate_testing_session))
+        .route("/invites", post(create_invite))
+        .route("/invites/redeem", post(redeem_invite))
+        .route("/contact-invites", post(create_contact_invite))
+        .route("/contact-invites/redeem", post(redeem_contact_invite))
+        .route("/servers", get(list_servers))
+        .route("/servers/:server_id", get(get_server))
+        .route("/servers/:server_id/channels", get(list_server_channels))
         .route(
-            "/v1/servers/:server_id/channels/:channel_id/messages",
+            "/servers/:server_id/channels/:channel_id/messages",
             get(list_server_channel_messages).post(create_server_channel_message),
         )
         .route(
-            "/v1/servers/:server_id/channels/:channel_id/messages/:message_id",
+            "/servers/:server_id/channels/:channel_id/messages/:message_id",
             patch(edit_server_channel_message).delete(soft_delete_server_channel_message),
         )
-        .route("/v1/contacts", get(list_contacts))
+        .route("/contacts", get(list_contacts))
         .route(
-            "/v1/internal/presence/watchers/:identity_id",
+            "/internal/presence/watchers/:identity_id",
             get(list_presence_watchers),
         )
-        .route("/v1/discovery/users", get(list_discovery_users))
+        .route("/discovery/users", get(list_discovery_users))
         .route(
-            "/v1/dm/privacy-policy",
+            "/dm/privacy-policy",
             get(get_dm_policy).post(update_dm_policy),
         )
         .route(
-            "/v1/dm/profile-devices/heartbeat",
+            "/dm/profile-devices/heartbeat",
             post(heartbeat_dm_profile_device),
         )
-        .route("/v1/dm/fanout/dispatch", post(run_dm_active_fanout))
-        .route("/v1/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
+        .route("/dm/fanout/dispatch", post(run_dm_active_fanout))
+        .route("/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
+        .route("/internal/dm/envelopes/ack", post(ack_dm_envelope_internal))
         .route(
-            "/v1/internal/dm/envelopes/ack",
-            post(ack_dm_envelope_internal),
-        )
-        .route(
-            "/v1/internal/dm/profile-devices/verify",
+            "/internal/dm/profile-devices/verify",
             post(verify_dm_profile_device_internal),
         )
-        .route("/v1/dm/threads", get(list_dm_threads))
+        .route("/dm/threads", get(list_dm_threads))
         .route(
-            "/v1/dm/threads/:thread_id/messages",
+            "/dm/threads/:thread_id/messages",
             get(list_dm_thread_messages),
         )
-        .route("/v1/dm/threads/:thread_id/read", post(mark_dm_thread_read))
+        .route("/dm/threads/:thread_id/read", post(mark_dm_thread_read))
         .route(
-            "/v1/friends/requests",
+            "/friends/requests",
             post(create_friend_request).get(list_friend_requests),
         )
         .route(
-            "/v1/friends/requests/:request_id/accept",
+            "/friends/requests/:request_id/accept",
             post(accept_friend_request),
         )
         .route(
-            "/v1/friends/requests/:request_id/decline",
+            "/friends/requests/:request_id/decline",
             post(decline_friend_request),
         )
         .route(
-            "/v1/friends/requests/:request_id/cancel",
+            "/friends/requests/:request_id/cancel",
             post(cancel_friend_request),
         )
         .route(
-            "/v1/friends/requests/:request_id/bootstrap",
+            "/friends/requests/:request_id/bootstrap",
             get(get_friend_request_bootstrap),
         )
-        .route("/v1/users/block", post(block_user))
-        .route("/v1/users/unblock", post(unblock_user))
-        .route("/v1/users/blocked", get(list_blocked_users))
-        .route("/v1/users/mute", post(mute_user))
-        .route("/v1/users/unmute", post(unmute_user))
-        .route("/v1/users/muted", get(list_muted_users))
+        .route("/users/block", post(block_user))
+        .route("/users/unblock", post(unblock_user))
+        .route("/users/blocked", get(list_blocked_users))
+        .route("/users/mute", post(mute_user))
+        .route("/users/unmute", post(unmute_user))
+        .route("/users/muted", get(list_muted_users))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

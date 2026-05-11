@@ -7,7 +7,7 @@ fn device_secret(device_id: &str) -> String {
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(r#"{"inbound_policy":"anyone"}"#))
@@ -39,7 +39,7 @@ async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery()
     ] {
         let heartbeat = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header(
                 "authorization",
                 format!("Bearer {}", tokens[recipient.as_str()]),
@@ -60,7 +60,7 @@ async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery()
 
     let fanout_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -110,7 +110,7 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
     for device_id in ["desktop-main", "phone-main"] {
         let heartbeat = Request::builder()
             .method("POST")
-            .uri("/v1/dm/profile-devices/heartbeat")
+            .uri("/dm/profile-devices/heartbeat")
             .header(
                 "authorization",
                 format!("Bearer {}", tokens[recipient.as_str()]),
@@ -131,7 +131,7 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
 
     let fanout_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(
@@ -166,7 +166,7 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
 
     let catch_up = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/catch-up")
+        .uri("/dm/fanout/catch-up")
         .header(
             "authorization",
             format!("Bearer {}", tokens[recipient.as_str()]),
@@ -202,7 +202,7 @@ async fn fanout_dispatch_blocks_when_no_active_devices_registered() {
 
     let fanout_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-1003","ciphertext":"enc:abcd5555"}}"#, recipient)))
@@ -318,7 +318,7 @@ async fn fanout_dispatch_requires_durable_storage() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .header("content-type", "application/json")
         .body(Body::from(
@@ -347,7 +347,7 @@ async fn fanout_dispatch_blocks_when_recipient_policy_disallows_sender() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(format!(r#"{{"recipient_identity_id":"{}","message_id":"msg-policy-blocked","ciphertext":"enc:block"}}"#, recipient)))
@@ -398,7 +398,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
 
     let policy_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/privacy-policy")
+        .uri("/dm/privacy-policy")
         .header(
             "cookie",
             format!(
@@ -419,7 +419,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
 
     let heartbeat = Request::builder()
         .method("POST")
-        .uri("/v1/dm/profile-devices/heartbeat")
+        .uri("/dm/profile-devices/heartbeat")
         .header(
             "cookie",
             format!(
@@ -443,7 +443,7 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header(
             "cookie",
             format!(
@@ -482,7 +482,7 @@ async fn fanout_dispatch_rejects_invalid_payload() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(
@@ -514,7 +514,7 @@ async fn fanout_dispatch_rejects_unknown_recipient_identity() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
         .header("content-type", "application/json")
         .body(Body::from(

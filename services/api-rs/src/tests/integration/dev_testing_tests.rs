@@ -5,7 +5,7 @@ async fn dev_testing_profiles_are_disabled_by_default() {
     let app = build_app(AppState::default());
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dev/testing/profiles")
+        .uri("/dev/testing/profiles")
         .body(Body::empty())
         .expect("build dev testing profiles request");
 
@@ -31,7 +31,7 @@ async fn creates_real_db_session_for_seeded_testing_profile() {
     let app = build_app(state);
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dev/testing/sessions")
+        .uri("/dev/testing/sessions")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"profile_id":"alice.primary"}"#))
         .expect("build dev testing session request");
@@ -56,7 +56,7 @@ async fn creates_real_db_session_for_seeded_testing_profile() {
 
     let validate_request = Request::builder()
         .method("GET")
-        .uri("/v1/auth/sessions/validate")
+        .uri("/auth/sessions/validate")
         .header("cookie", format!("hexrelay_session={session_cookie}"))
         .body(Body::empty())
         .expect("build validate request");
@@ -80,7 +80,7 @@ async fn rejects_testing_profile_with_mismatched_fixture_key() {
     let app = build_app(state);
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dev/testing/sessions")
+        .uri("/dev/testing/sessions")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"profile_id":"bob.primary"}"#))
         .expect("build dev testing session request");

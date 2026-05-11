@@ -111,7 +111,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T1.2.1 | CI matrix (Rust + web) | 2026-03-04 | `.github/workflows/ci.yml` enforces active Rust/Web lint/test/build gates on `master` and PRs |
 | T1.2.2 | Runtime REST OpenAPI contract artifact | 2026-03-04 | Runtime REST authority is published at `docs/contracts/runtime-rest-v1.openapi.yaml` and referenced by later iteration work |
 | T1.3.1 | Env schema validation + config templates | 2026-03-04 | Runtime env validation added in services and web; `.env.example` templates added for web/api/realtime/infra |
-| T2.1.1 | Key identity schema + key registration endpoints | 2026-03-16 | `/v1/identity/keys/register` is implemented with validation, DB-backed identity persistence, and API coverage |
+| T2.1.1 | Key identity schema + key registration endpoints | 2026-03-16 | `/identity/keys/register` is implemented with validation, DB-backed identity persistence, and API coverage |
 | T2.1.2 | Client key generation/import + secure local key storage | 2026-03-16 | Onboarding generates/imports ed25519 identity keys, completes live auth flow, and stores persona-scoped encrypted private keys locally |
 | T2.1.3 | Multi-persona profile switching and session isolation | 2026-03-16 | Persona switching/removal keeps session isolation, revokes active sessions on change, and routes users through shared workspace surfaces |
 | T2.1.4 | Mandatory recovery phrase onboarding step | 2026-03-16 | Onboarding enforces recovery confirmation before completion and then hands off into the main app surfaces |

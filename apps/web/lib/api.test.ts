@@ -216,10 +216,10 @@ describe("api auth transport", () => {
     expect(profiles.ok).toBe(true);
     expect(session.ok).toBe(true);
     const [listUrl, listInit] = fetchMock.mock.calls[0] ?? [];
-    expect(String(listUrl)).toContain("/v1/dev/testing/profiles");
+    expect(String(listUrl)).toContain("/dev/testing/profiles");
     expect(listInit?.method).toBe("GET");
     const [activateUrl, activateInit] = fetchMock.mock.calls[1] ?? [];
-    expect(String(activateUrl)).toContain("/v1/dev/testing/sessions");
+    expect(String(activateUrl)).toContain("/dev/testing/sessions");
     expect(activateInit?.method).toBe("POST");
     const headers = new Headers(activateInit?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
@@ -343,7 +343,7 @@ describe("api auth transport", () => {
       expect(result.data.invite_id).toBe("ci-1");
     }
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/v1/contact-invites");
+    expect(String(url)).toContain("/contact-invites");
     expect(String(url)).not.toContain("/redeem");
     const headers = new Headers(init?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
@@ -376,7 +376,7 @@ describe("api auth transport", () => {
       expect(result.data.requester_identity_id).toBe("usr-inviter");
     }
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/v1/contact-invites/redeem");
+    expect(String(url)).toContain("/contact-invites/redeem");
     const headers = new Headers(init?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
     expect(init?.body).toBe('{"token":"contact-token-abc"}');
@@ -427,10 +427,10 @@ describe("api auth transport", () => {
     expect(loaded.ok).toBe(true);
     expect(updated.ok).toBe(true);
     const [getUrl, getInit] = fetchMock.mock.calls[0] ?? [];
-    expect(String(getUrl)).toContain("/v1/dm/privacy-policy");
+    expect(String(getUrl)).toContain("/dm/privacy-policy");
     expect(getInit?.method).toBe("GET");
     const [postUrl, postInit] = fetchMock.mock.calls[1] ?? [];
-    expect(String(postUrl)).toContain("/v1/dm/privacy-policy");
+    expect(String(postUrl)).toContain("/dm/privacy-policy");
     expect(postInit?.method).toBe("POST");
     const headers = new Headers(postInit?.headers ?? {});
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
@@ -496,13 +496,13 @@ describe("api auth transport", () => {
     expect(heartbeat.ok).toBe(true);
     expect(catchUp.ok).toBe(true);
     const [heartbeatUrl, heartbeatInit] = fetchMock.mock.calls[0] ?? [];
-    expect(String(heartbeatUrl)).toContain("/v1/dm/profile-devices/heartbeat");
+    expect(String(heartbeatUrl)).toContain("/dm/profile-devices/heartbeat");
     expect(heartbeatInit?.body).toBe('{"device_id":"web-main","device_secret":"secret-web-main","active":true}');
     const heartbeatHeaders = new Headers(heartbeatInit?.headers ?? {});
     expect(heartbeatHeaders.get("x-csrf-token")).toBe("csrf-123");
 
     const [catchUpUrl, catchUpInit] = fetchMock.mock.calls[1] ?? [];
-    expect(String(catchUpUrl)).toContain("/v1/dm/fanout/catch-up");
+    expect(String(catchUpUrl)).toContain("/dm/fanout/catch-up");
     expect(catchUpInit?.body).toBe(
       '{"device_id":"web-main","device_secret":"secret-web-main","cursor":"6","limit":10}',
     );

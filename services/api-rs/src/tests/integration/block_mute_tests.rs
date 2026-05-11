@@ -42,7 +42,7 @@ async fn block_user_and_list_returns_blocked_entry() {
     // Block usr-b
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -53,7 +53,7 @@ async fn block_user_and_list_returns_blocked_entry() {
     // List blocked users
     let req = Request::builder()
         .method("GET")
-        .uri("/v1/users/blocked")
+        .uri("/users/blocked")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::empty())
         .expect("build list blocked request");
@@ -83,7 +83,7 @@ async fn unblock_user_removes_from_list() {
     // Block then unblock
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -93,7 +93,7 @@ async fn unblock_user_removes_from_list() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/unblock")
+        .uri("/users/unblock")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -104,7 +104,7 @@ async fn unblock_user_removes_from_list() {
     // List should be empty
     let req = Request::builder()
         .method("GET")
-        .uri("/v1/users/blocked")
+        .uri("/users/blocked")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::empty())
         .expect("build list blocked request");
@@ -129,7 +129,7 @@ async fn double_block_returns_409_conflict() {
     let build_block = || {
         Request::builder()
             .method("POST")
-            .uri("/v1/users/block")
+            .uri("/users/block")
             .header("content-type", "application/json")
             .header("authorization", format!("Bearer {}", tokens["usr-a"]))
             .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -157,7 +157,7 @@ async fn self_block_returns_400() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
@@ -174,7 +174,7 @@ async fn mute_user_and_list_returns_muted_entry() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/mute")
+        .uri("/users/mute")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -184,7 +184,7 @@ async fn mute_user_and_list_returns_muted_entry() {
 
     let req = Request::builder()
         .method("GET")
-        .uri("/v1/users/muted")
+        .uri("/users/muted")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::empty())
         .expect("build list muted request");
@@ -206,7 +206,7 @@ async fn unmute_user_removes_from_list() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/mute")
+        .uri("/users/mute")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -216,7 +216,7 @@ async fn unmute_user_removes_from_list() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/unmute")
+        .uri("/users/unmute")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -226,7 +226,7 @@ async fn unmute_user_removes_from_list() {
 
     let req = Request::builder()
         .method("GET")
-        .uri("/v1/users/muted")
+        .uri("/users/muted")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::empty())
         .expect("build list muted request");
@@ -246,7 +246,7 @@ async fn self_mute_returns_400() {
 
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/mute")
+        .uri("/users/mute")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
@@ -270,7 +270,7 @@ async fn block_prevents_dm_fanout_dispatch() {
     // Block usr-b
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header(
             "authorization",
@@ -287,7 +287,7 @@ async fn block_prevents_dm_fanout_dispatch() {
     // Attempt DM fanout to blocked user
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "authorization",
@@ -322,7 +322,7 @@ async fn reverse_block_prevents_dm_fanout_dispatch() {
     // usr-b blocks usr-a (reverse direction)
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header(
             "authorization",
@@ -339,7 +339,7 @@ async fn reverse_block_prevents_dm_fanout_dispatch() {
     // usr-a tries DM fanout to usr-b (who blocked them)
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/dm/fanout/dispatch")
+        .uri("/dm/fanout/dispatch")
         .header("content-type", "application/json")
         .header(
             "authorization",
@@ -370,7 +370,7 @@ async fn block_prevents_friend_request_creation() {
     // Block usr-b
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
@@ -381,7 +381,7 @@ async fn block_prevents_friend_request_creation() {
     // Attempt friend request to blocked user
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(
@@ -403,7 +403,7 @@ async fn reverse_block_prevents_friend_request_creation() {
     // usr-b blocks usr-a
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-b"]))
         .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
@@ -414,7 +414,7 @@ async fn reverse_block_prevents_friend_request_creation() {
     // usr-a tries to send friend request to usr-b (who blocked them)
     let req = Request::builder()
         .method("POST")
-        .uri("/v1/friends/requests")
+        .uri("/friends/requests")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-a"]))
         .body(Body::from(

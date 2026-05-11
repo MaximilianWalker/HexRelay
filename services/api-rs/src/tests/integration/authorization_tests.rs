@@ -15,13 +15,13 @@ async fn gets_server_detail_for_authenticated_member_only() {
 
     let member_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build member request");
     let outsider_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .header("authorization", format!("Bearer {}", tokens[&outsider_id]))
         .body(Body::empty())
         .expect("build outsider request");
@@ -104,13 +104,13 @@ async fn lists_server_channels_for_authenticated_member_only() {
 
     let member_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}/channels"))
+        .uri(format!("/servers/{server_id}/channels"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build member request");
     let outsider_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}/channels"))
+        .uri(format!("/servers/{server_id}/channels"))
         .header("authorization", format!("Bearer {}", tokens[&outsider_id]))
         .body(Body::empty())
         .expect("build outsider request");
@@ -172,7 +172,7 @@ async fn lists_empty_server_channel_collection_for_member() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}/channels"))
+        .uri(format!("/servers/{server_id}/channels"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build request");
@@ -213,9 +213,7 @@ async fn rejects_server_channel_message_list_when_channel_belongs_to_different_s
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!(
-            "/v1/servers/{server_a}/channels/{channel_b}/messages"
-        ))
+        .uri(format!("/servers/{server_a}/channels/{channel_b}/messages"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build mismatched request");
@@ -254,13 +252,13 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
 
     let member_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .header("cookie", format!("hexrelay_session={}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build member cookie request");
     let outsider_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens[&outsider_id]),
@@ -318,7 +316,7 @@ async fn forbids_server_detail_bypass_via_path_switch() {
 
     let bypass_request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{member_server_id}"))
+        .uri(format!("/servers/{member_server_id}"))
         .header("authorization", format!("Bearer {}", tokens[&outsider_id]))
         .body(Body::empty())
         .expect("build bypass request");
@@ -345,7 +343,7 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build request");
@@ -375,13 +373,13 @@ async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
 
     let bearer_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers")
+        .uri("/servers")
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build bearer request");
     let cookie_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers")
+        .uri("/servers")
         .header("cookie", format!("hexrelay_session={}", tokens[&member_id]))
         .body(Body::empty())
         .expect("build cookie request");
@@ -435,7 +433,7 @@ async fn rejects_server_list_without_authentication() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/servers")
+        .uri("/servers")
         .body(Body::empty())
         .expect("build unauthenticated list request");
 
@@ -455,7 +453,7 @@ async fn rejects_server_detail_without_authentication() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/servers/{server_id}"))
+        .uri(format!("/servers/{server_id}"))
         .body(Body::empty())
         .expect("build unauthenticated request");
 

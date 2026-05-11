@@ -41,7 +41,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/servers?favorites_only=true&unread_only=true")
+        .uri("/servers?favorites_only=true&unread_only=true")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -117,7 +117,7 @@ async fn lists_servers_for_authenticated_identity_only() {
 
     let nora_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers")
+        .uri("/servers")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -126,7 +126,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         .expect("build nora servers list request");
     let alex_request = Request::builder()
         .method("GET")
-        .uri("/v1/servers")
+        .uri("/servers")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-alex-r"]),
@@ -190,7 +190,7 @@ async fn lists_contacts_with_search_filter() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/contacts?search=nora")
+        .uri("/contacts?search=nora")
         .header("authorization", format!("Bearer {}", tokens["usr-nora-k"]))
         .body(Body::empty())
         .expect("build contacts list request");
@@ -292,7 +292,7 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/contacts")
+        .uri("/contacts")
         .header("cookie", format!("hexrelay_session={token}"))
         .body(Body::empty())
         .expect("build contacts request");
@@ -405,7 +405,7 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
 
         let request = Request::builder()
             .method("GET")
-            .uri("/v1/contacts")
+            .uri("/contacts")
             .header("cookie", format!("hexrelay_session={token}"))
             .body(Body::empty())
             .expect("build contacts request");
@@ -592,7 +592,7 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
         .build()
         .expect("build api test client");
     let response = client
-        .get(format!("{api_base_url}/v1/contacts"))
+        .get(format!("{api_base_url}/contacts"))
         .header(reqwest::header::COOKIE, format!("hexrelay_session={token}"))
         .send()
         .await
