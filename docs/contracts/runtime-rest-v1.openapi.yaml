@@ -1569,6 +1569,8 @@ paths:
                   value:
                     code: internal_token_invalid
                     message: DM envelope ack requires a valid internal token
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /internal/dm/envelopes/forward:
@@ -1703,6 +1705,8 @@ paths:
                   value:
                     code: fanout_message_id_conflict
                     message: message_id already exists for an accepted DM
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /discovery/users:
@@ -2042,6 +2046,8 @@ paths:
                     message: message_id already exists for an accepted DM
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/fanout/catch-up:
@@ -2128,6 +2134,8 @@ paths:
                     message: cursor is beyond the current delivery tail
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/threads:
