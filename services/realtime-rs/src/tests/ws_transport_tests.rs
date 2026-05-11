@@ -384,6 +384,50 @@ async fn recv_presence_event(
     }
 }
 
+async fn wait_for_presence_replay_event(
+    client: &redis::Client,
+    watcher_identity_id: &str,
+    expected_identity_id: &str,
+    expected_status: &str,
+) -> Value {
+    let replay_log_key = format!("presence:v1:watcher_stream_log:{watcher_identity_id}");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+
+    loop {
+        let mut connection = client
+            .get_multiplexed_tokio_connection()
+            .await
+            .expect("open redis connection for presence replay wait");
+        let values: Vec<String> = redis::cmd("LRANGE")
+            .arg(&replay_log_key)
+            .arg(0)
+            .arg(-1)
+            .query_async(&mut connection)
+            .await
+            .expect("read presence replay log");
+
+        for raw_entry in values {
+            let replay_entry: Value =
+                serde_json::from_str(&raw_entry).expect("decode presence replay entry");
+            let payload_raw = replay_entry["payload"].as_str().expect("payload string");
+            let payload: Value =
+                serde_json::from_str(payload_raw).expect("decode presence replay payload");
+            if payload["event_type"] == "presence.updated"
+                && payload["data"]["identity_id"] == expected_identity_id
+                && payload["data"]["status"] == expected_status
+            {
+                return payload;
+            }
+        }
+
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for presence replay event {expected_identity_id}:{expected_status}"
+        );
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
 async fn close_socket_and_wait_for_disconnect(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -1478,6 +1522,104 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     late_device.close(None).await.expect("close late device");
     clear_presence_keys(&redis_client, "usr-presence-subject").await;
     clear_presence_keys(&redis_client, "usr-presence-viewer").await;
+}
+
+#[tokio::test]
+async fn websocket_presence_hydrates_late_profile_device_without_existing_viewer_connection() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    clear_presence_keys(&redis_client, "usr-late-only-subject").await;
+    clear_presence_keys(&redis_client, "usr-late-only-viewer").await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([
+            (
+                "Bearer subject-token".to_string(),
+                "usr-late-only-subject".to_string(),
+            ),
+            (
+                "Bearer viewer-token".to_string(),
+                "usr-late-only-viewer".to_string(),
+            ),
+        ]),
+        HashMap::from([(
+            "usr-late-only-subject".to_string(),
+            vec!["usr-late-only-viewer".to_string()],
+        )]),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
+    let _ = subject_socket.next().await;
+
+    let replayed_online = wait_for_presence_replay_event(
+        &redis_client,
+        "usr-late-only-viewer",
+        "usr-late-only-subject",
+        "online",
+    )
+    .await;
+    let online_seq = replayed_online["data"]["presence_seq"]
+        .as_u64()
+        .expect("online seq");
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+
+    let hydrated_online =
+        recv_presence_event(&mut late_device, "usr-late-only-subject", "online").await;
+    assert_eq!(hydrated_online["data"]["presence_seq"], online_seq);
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+
+    let mut reconnected_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = reconnected_late_device.next().await;
+    assert_no_presence_event(
+        &mut reconnected_late_device,
+        "usr-late-only-subject",
+        "online",
+        Duration::from_secs(2),
+    )
+    .await;
+
+    reconnected_late_device
+        .close(None)
+        .await
+        .expect("close reconnected late device");
+    subject_socket
+        .close(None)
+        .await
+        .expect("close subject socket");
+    clear_presence_keys(&redis_client, "usr-late-only-subject").await;
+    clear_presence_keys(&redis_client, "usr-late-only-viewer").await;
 }
 
 #[tokio::test]
