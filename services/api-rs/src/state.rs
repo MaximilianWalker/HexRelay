@@ -42,8 +42,10 @@ pub struct AppState {
     pub identity_keys: Arc<RwLock<HashMap<String, RegisteredIdentityKey>>>,
     pub invites: Arc<RwLock<HashMap<String, InviteRecord>>>,
     pub muted_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
+    pub node_admin_identity_ids: Arc<HashSet<String>>,
     pub node_fingerprint: String,
     pub node_forwarding_nonces: Arc<RwLock<HashMap<String, i64>>>,
+    pub node_owner_identity_ids: Arc<HashSet<String>>,
     pub local_node_identity: Option<LocalNodeIdentity>,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
@@ -102,8 +104,10 @@ impl AppState {
             identity_keys: Arc::default(),
             invites: Arc::default(),
             muted_users: Arc::default(),
+            node_admin_identity_ids: Arc::default(),
             node_fingerprint,
             node_forwarding_nonces: Arc::default(),
+            node_owner_identity_ids: Arc::default(),
             local_node_identity: None,
             rate_limiter: RateLimiter::default(),
             rate_limits,
@@ -138,6 +142,16 @@ impl AppState {
 
     pub fn with_local_node_identity(mut self, identity: Option<LocalNodeIdentity>) -> Self {
         self.local_node_identity = identity;
+        self
+    }
+
+    pub fn with_node_owner_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.node_owner_identity_ids = Arc::new(identity_ids.into_iter().collect());
+        self
+    }
+
+    pub fn with_node_admin_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.node_admin_identity_ids = Arc::new(identity_ids.into_iter().collect());
         self
     }
 }

@@ -443,6 +443,39 @@ pub struct HealthResponse {
     pub status: &'static str,
 }
 
+#[derive(Serialize)]
+pub struct NodeConnectionResponse {
+    pub service: &'static str,
+    pub node_id: String,
+    pub node_fingerprint: String,
+    pub runtime_api: &'static str,
+    pub auth_endpoints: NodeAuthEndpoints,
+    pub capabilities_endpoint: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct NodeAuthEndpoints {
+    pub challenge: &'static str,
+    pub verify: &'static str,
+    pub session_validate: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct NodeCapabilitiesResponse {
+    pub node_id: String,
+    pub node_fingerprint: String,
+    pub identity_id: String,
+    pub capabilities: Vec<&'static str>,
+    pub administration: NodeAdministrationStatus,
+}
+
+#[derive(Serialize)]
+pub struct NodeAdministrationStatus {
+    pub is_node_owner: bool,
+    pub is_node_admin: bool,
+    pub scopes: Vec<&'static str>,
+}
+
 #[derive(Clone)]
 pub struct RegisteredIdentityKey {
     pub public_key: String,

@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, administration surface, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-05-11 clarified that dedicated server delivery is a separate headless service/package path and that administration is performed through the normal HexRelay app for authorized admins.
+- Latest meaningful change: 2026-05-11 clarified that dedicated server delivery is a separate headless service/package path and that administration is performed through the normal HexRelay app for authorized admins using the app-to-node capability contract.
 
 ## Purpose
 
@@ -72,6 +72,8 @@
 - The normal HexRelay app is the intended administration surface for local nodes, LAN nodes, private online nodes, and public dedicated nodes when the signed-in identity has node-owner/admin permissions.
 - The app connects to the configured node endpoint and uses authenticated operator/admin APIs exposed by `api-rs`; `realtime-rs` remains the live event plane and must not become an authorization shortcut.
 - Admin/operator access must be permission-gated by node-local roles/scopes and protected by the same ingress, TLS, origin, session, and CSRF expectations as other authenticated app traffic.
+- The initial app-to-node contract is `GET /node/connection` for endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity capabilities.
+- Until durable node-local role management exists, bootstrap owner/admin authority comes from `API_NODE_OWNER_IDENTITY_IDS` and `API_NODE_ADMIN_IDENTITY_IDS`.
 - Node discoverability, LAN proximity, invite-only status, or private online hosting must not grant administration access by itself.
 - A separate self-hosted admin web console is out of scope unless a later explicit architecture/product decision approves it.
 - This section defines the runtime/operations boundary only. Specific admin pages, copy, controls, and flows still require explicit UX approval before implementation.

@@ -60,6 +60,8 @@ async fn main() {
     .with_dev_testing(config.enable_dev_testing)
     .with_static_peer_registry(config.static_peer_registry.clone())
     .with_local_node_identity(config.local_node_identity.clone())
+    .with_node_owner_identity_ids(config.node_owner_identity_ids.clone())
+    .with_node_admin_identity_ids(config.node_admin_identity_ids.clone())
     .with_db_pool(db_pool);
 
     let app = build_app(state);

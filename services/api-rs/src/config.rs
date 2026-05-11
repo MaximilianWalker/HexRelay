@@ -13,6 +13,7 @@ use communication_core::{
 };
 use reqwest::Url;
 
+use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::node_identity::LocalNodeIdentity;
 
 #[derive(Clone)]
@@ -33,6 +34,8 @@ pub struct ApiConfig {
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
+    pub node_admin_identity_ids: Vec<String>,
+    pub node_owner_identity_ids: Vec<String>,
     pub local_node_identity: Option<LocalNodeIdentity>,
     pub discovery_denylist: Vec<String>,
     pub static_peer_registry: StaticPeerRegistry,
@@ -86,6 +89,8 @@ impl ApiConfig {
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
+        let node_owner_identity_ids = parse_identity_id_csv_env("API_NODE_OWNER_IDENTITY_IDS")?;
+        let node_admin_identity_ids = parse_identity_id_csv_env("API_NODE_ADMIN_IDENTITY_IDS")?;
         if node_fingerprint.trim().is_empty() {
             return Err("Invalid API_NODE_FINGERPRINT. Value must not be empty".to_string());
         }
@@ -323,6 +328,8 @@ impl ApiConfig {
             allowed_origins,
             database_url,
             node_fingerprint,
+            node_admin_identity_ids,
+            node_owner_identity_ids,
             local_node_identity,
             discovery_denylist,
             static_peer_registry,
@@ -362,6 +369,25 @@ fn parse_csv_env(key: &str) -> Vec<String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect()
+}
+
+fn parse_identity_id_csv_env(key: &str) -> Result<Vec<String>, String> {
+    let values = parse_csv_env(key);
+    let mut seen = std::collections::HashSet::new();
+
+    for value in &values {
+        if !is_valid_identity_id(value) {
+            return Err(format!(
+                "Invalid {key}. Identity ids must be 3-64 chars using letters, numbers, _ or -"
+            ));
+        }
+
+        if !seen.insert(value.clone()) {
+            return Err(format!("Invalid {key}. Identity ids must not repeat"));
+        }
+    }
+
+    Ok(values)
 }
 
 fn parse_session_signing_keys() -> Result<(String, HashMap<String, String>), String> {
@@ -746,6 +772,8 @@ mod tests {
         "API_ALLOW_PUBLIC_IDENTITY_REGISTRATION",
         "API_ENABLE_DEV_TESTING",
         "API_NODE_FINGERPRINT",
+        "API_NODE_OWNER_IDENTITY_IDS",
+        "API_NODE_ADMIN_IDENTITY_IDS",
         "API_DATABASE_URL",
         "API_ALLOWED_ORIGINS",
         "API_DISCOVERY_DENYLIST",
@@ -949,6 +977,74 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert!(config.allow_public_identity_registration);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_node_owner_and_admin_identity_ids() {
+        with_api_env(
+            &[
+                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner_2")),
+                ("API_NODE_ADMIN_IDENTITY_IDS", Some("usr-admin")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(
+                    config.node_owner_identity_ids,
+                    vec!["usr-owner".to_string(), "usr-owner_2".to_string()]
+                );
+                assert_eq!(
+                    config.node_admin_identity_ids,
+                    vec!["usr-admin".to_string()]
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_node_admin_identity_ids() {
+        with_api_env(
+            &[
+                (
+                    "API_NODE_ADMIN_IDENTITY_IDS",
+                    Some("valid-admin, bad admin "),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("invalid admin identity should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_NODE_ADMIN_IDENTITY_IDS"));
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_node_owner_identity_ids() {
+        with_api_env(
+            &[
+                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("duplicate owner identity should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_NODE_OWNER_IDENTITY_IDS"));
             },
         );
     }

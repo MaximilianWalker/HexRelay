@@ -30,6 +30,7 @@ use crate::{
         },
         health::health,
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
+        node::{get_node_capabilities, get_node_connection},
         presence::list_presence_watchers,
         server_channels::{
             create_server_channel_message, edit_server_channel_message,
@@ -57,6 +58,8 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/node/connection", get(get_node_connection))
+        .route("/node/capabilities", get(get_node_capabilities))
         .route("/identity/keys/register", post(register_identity_key))
         .route("/auth/challenge", post(issue_auth_challenge))
         .route("/auth/verify", post(verify_auth_challenge))
