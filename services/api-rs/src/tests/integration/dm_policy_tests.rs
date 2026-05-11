@@ -428,6 +428,31 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
     assert_eq!(first_payload["replay_count"], 1);
     assert_eq!(first_payload["next_cursor"], "1");
 
+    let first_item = &first_payload["items"][0];
+    let ack_request = Request::builder()
+        .method("POST")
+        .uri("/v1/internal/dm/envelopes/ack")
+        .header(
+            "x-hexrelay-internal-token",
+            "hexrelay-dev-channel-dispatch-token-change-me",
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"envelope_id":"{}","message_id":"{}","thread_id":"{}","recipient_identity_id":"{}","device_id":"phone-main","delivery_cursor":"{}","ack_status":"received","received_at":"2026-03-26T00:00:01Z"}}"#,
+            first_item["envelope_id"].as_str().expect("envelope id"),
+            first_item["message_id"].as_str().expect("message id"),
+            first_item["thread_id"].as_str().expect("thread id"),
+            recipient_identity,
+            first_item["cursor"].as_str().expect("cursor"),
+        )))
+        .expect("build ack request");
+    let ack_response = restarted_app
+        .clone()
+        .oneshot(ack_request)
+        .await
+        .expect("ack response");
+    assert_eq!(ack_response.status(), StatusCode::ACCEPTED);
+
     let second_catch_up_request = Request::builder()
         .method("POST")
         .uri("/v1/dm/fanout/catch-up")
