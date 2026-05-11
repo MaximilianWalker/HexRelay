@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-11 added API signed peer-invite config for private server-node meshes.
+- Latest meaningful change: 2026-05-11 added API peer-invite issuance and revocation config for private server-node meshes.
 
 ## Purpose
 
@@ -62,6 +62,7 @@
 | `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64` | unset | optional secret | base64-encoded Ed25519 PKCS#8 server-node signing key; required with `API_LOCAL_NODE_DESCRIPTOR_JSON`, must match the descriptor public key, and must stay server-local |
 | `API_STATIC_PEER_DESCRIPTORS_JSON` | unset | optional | JSON array of signed node descriptors for static private-mesh peers; each descriptor is signature/TTL/policy validated at startup |
 | `API_STATIC_PEER_INVITES_JSON` | unset | optional | JSON array of signed peer-invite envelopes; each envelope contains an issuer descriptor plus signed invite, must validate against `API_NODE_FINGERPRINT` when subject-bound, and joins the same static peer registry as configured descriptors |
+| `API_REVOKED_STATIC_PEER_INVITE_IDS` | unset | optional | CSV of signed peer-invite IDs refused during `API_STATIC_PEER_INVITES_JSON` validation; use to invalidate compromised or superseded invite envelopes without changing descriptor trust |
 | `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` | `86400` | optional | positive integer TTL ceiling applied to configured static peer descriptors |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
 | `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
@@ -121,6 +122,13 @@
 - Non-loopback realtime binds require a non-default `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN` when this flag is enabled.
 - Run `npm run network -- --reset` after manual app-fault testing so the realtime process returns to baseline behavior.
 
+## Peer Invite Issuance Tool
+
+- `cargo run -p api-rs --bin issue_peer_invite -- --subject-node-id NODE_ID` prints a signed `PeerInviteEnvelope` JSON object; add it as an element of the recipient's `API_STATIC_PEER_INVITES_JSON` array.
+- The tool reads `API_LOCAL_NODE_DESCRIPTOR_JSON` and `API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64`, validates that the private key matches the descriptor public key, and enforces `API_NODE_FINGERPRINT` when it is set.
+- Generated invites default to subject-bound, single-use, `private_allowlist` discovery, and one-hour TTL. Unbound bearer invites require explicit `--allow-unbound`.
+- `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` is reused as the issuance TTL ceiling so generated envelopes match startup validation defaults.
+
 ## Local Development Minimum
 
 - Required local bootstrap values:
@@ -152,7 +160,7 @@
   - `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN`
   - `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN`
 - Redis URLs remain optional at pure config-validation time, but they are required for the reviewed dedicated single-node deployment baseline.
-- Static peer descriptor JSON is optional at pure config-validation time. When set, the service rejects startup on malformed JSON, invalid descriptor policy, expired descriptors, over-TTL descriptors, duplicate node/descriptor IDs, or invalid Ed25519 signatures.
+- Static peer descriptor and invite JSON are optional at pure config-validation time. When set, the service rejects startup on malformed JSON, invalid descriptor or invite policy, expired descriptors/invites, over-TTL descriptors/invites, duplicate node/descriptor IDs, revoked invite IDs, or invalid Ed25519 signatures.
 - API local node identity JSON/key config is optional for local-only operation. When set, both values are required, the descriptor is signature/TTL/policy validated, descriptor `node_id` must match `API_NODE_FINGERPRINT`, and the private key must derive the descriptor public key.
 - Dedicated deployments should also review:
   - origin allowlists
@@ -160,7 +168,7 @@
   - cookie security/domain settings
   - auth grace/cache settings
   - local server-node signing descriptor/key source and rotation process
-  - static private-mesh descriptor source and rotation process
+  - static private-mesh descriptor/invite source and revocation process
 
 ## Change Rule
 
