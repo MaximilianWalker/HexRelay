@@ -91,6 +91,22 @@ pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<
         }
     }
 
+    if let Some(destination_node_id) = &payload.destination_node_id {
+        let normalized = destination_node_id.trim();
+        if normalized.is_empty() || normalized.len() > 128 {
+            return Err(bad_request(
+                "fanout_invalid",
+                "destination_node_id must be non-empty and <= 128 chars when provided",
+            ));
+        }
+        if normalized != destination_node_id {
+            return Err(bad_request(
+                "fanout_invalid",
+                "destination_node_id must not include leading or trailing whitespace",
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -236,6 +252,7 @@ mod tests {
             message_id: "msg-9001".to_string(),
             ciphertext: "enc:abc123".to_string(),
             source_device_id: Some("desktop-1".to_string()),
+            destination_node_id: Some("node-destination".to_string()),
         };
         assert!(validate_fanout_dispatch(&payload).is_ok());
 
@@ -244,6 +261,16 @@ mod tests {
             message_id: "msg-9001".to_string(),
             ciphertext: "enc:abc123".to_string(),
             source_device_id: None,
+            destination_node_id: None,
+        };
+        assert!(validate_fanout_dispatch(&invalid).is_err());
+
+        let invalid = DmFanoutDispatchRequest {
+            recipient_identity_id: "usr-jules-p".to_string(),
+            message_id: "msg-9001".to_string(),
+            ciphertext: "enc:abc123".to_string(),
+            source_device_id: None,
+            destination_node_id: Some(" node-destination".to_string()),
         };
         assert!(validate_fanout_dispatch(&invalid).is_err());
     }

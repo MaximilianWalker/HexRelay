@@ -1,4 +1,5 @@
 use super::*;
+use axum::{extract::State as AxumState, http::HeaderMap, routing::post, Router};
 use communication_core::{
     ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
     NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy,
@@ -26,6 +27,11 @@ fn device_secret(device_id: &str) -> String {
 struct SignedNodeDescriptor {
     descriptor: NodeDescriptor,
     private_key_pkcs8: Vec<u8>,
+}
+
+struct CapturedNodeForward {
+    headers: HeaderMap,
+    body: Vec<u8>,
 }
 
 fn signed_node_descriptor(
@@ -104,6 +110,44 @@ fn signed_node_forward_body(
     )));
 
     (body, timestamp, nonce, signature)
+}
+
+async fn start_node_forward_capture(
+) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind node forward capture server");
+    let addr = listener.local_addr().expect("node forward capture address");
+    let (tx, rx) = tokio::sync::oneshot::channel::<CapturedNodeForward>();
+    let state = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tx)));
+    let app = Router::new()
+        .route(NODE_FORWARD_PATH, post(capture_node_forward))
+        .with_state(state);
+
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+
+    (format!("http://{}", addr), rx)
+}
+
+async fn capture_node_forward(
+    AxumState(sender): AxumState<
+        std::sync::Arc<
+            tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedNodeForward>>>,
+        >,
+    >,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::http::StatusCode {
+    if let Some(sender) = sender.lock().await.take() {
+        let _ = sender.send(CapturedNodeForward {
+            headers,
+            body: body.to_vec(),
+        });
+    }
+
+    axum::http::StatusCode::ACCEPTED
 }
 
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
@@ -220,6 +264,80 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
     assert_eq!(record.sender_identity_id, sender);
     assert_eq!(record.ciphertext, "enc:node-forwarded-ciphertext");
     assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
+}
+
+#[tokio::test]
+async fn fanout_dispatch_forwards_to_explicit_destination_node() {
+    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let sender = unique_identity("usr-origin-sender");
+    let recipient = unique_identity("usr-remote-recipient");
+    let (_app, tokens, state) = app_with_sessions_and_state(&[sender.as_str()]);
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let state = state
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"msg-static-peer-forward","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
+            destination.descriptor.node_id
+        )))
+        .expect("build destination-node fanout request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("destination-node fanout response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let response_body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read destination-node fanout body");
+    let response_payload: serde_json::Value =
+        serde_json::from_slice(&response_body).expect("decode fanout response");
+    assert_eq!(response_payload["status"], "accepted");
+    assert_eq!(
+        response_payload["reason_code"],
+        "fanout_forwarded_to_static_peer"
+    );
+    assert_eq!(response_payload["delivery_state"], "forwarded");
+
+    let captured = capture_rx.await.expect("capture node-forwarded request");
+    assert_eq!(
+        captured
+            .headers
+            .get("x-hexrelay-node-id")
+            .and_then(|value| value.to_str().ok()),
+        Some(local.descriptor.node_id.as_str())
+    );
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode node forward body");
+    assert_eq!(
+        forwarded.destination_node_id,
+        destination.descriptor.node_id
+    );
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:static-peer");
+    assert_eq!(forwarded.source_device_id.as_deref(), Some("desktop-main"));
 }
 
 #[tokio::test]

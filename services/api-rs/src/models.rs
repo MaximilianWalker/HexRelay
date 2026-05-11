@@ -267,6 +267,7 @@ pub struct DmFanoutDispatchRequest {
     pub message_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
+    pub destination_node_id: Option<String>,
 }
 
 #[derive(Serialize)]

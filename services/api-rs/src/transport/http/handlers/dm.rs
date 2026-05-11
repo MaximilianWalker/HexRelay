@@ -270,6 +270,20 @@ pub async fn run_dm_active_fanout(
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
 
+    if let Some(destination_node_id) = payload
+        .destination_node_id
+        .as_deref()
+        .filter(|node_id| *node_id != state.node_fingerprint)
+    {
+        return forward_dm_envelope_to_destination_node(
+            &state,
+            &auth,
+            &payload,
+            destination_node_id,
+        )
+        .await;
+    }
+
     let response = accept_dm_envelope_for_local_recipient(
         &state,
         DmFanoutAcceptanceInput {
@@ -283,6 +297,59 @@ pub async fn run_dm_active_fanout(
     .await?;
 
     Ok(Json(response))
+}
+
+async fn forward_dm_envelope_to_destination_node(
+    state: &AppState,
+    auth: &AuthSession,
+    payload: &DmFanoutDispatchRequest,
+    destination_node_id: &str,
+) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    let thread_id =
+        dm_history_repo::direct_dm_thread_id(&auth.identity_id, &payload.recipient_identity_id);
+    let accepted_at = Utc::now().to_rfc3339();
+    let delivery_cursor = outbound_forward_delivery_cursor();
+    let target_device_ids = Vec::new();
+
+    dispatch_dm_envelope(
+        state,
+        DispatchDmEnvelopeInput {
+            destination_node_id: Some(destination_node_id),
+            message_id: &payload.message_id,
+            thread_id: &thread_id,
+            sender_identity_id: &auth.identity_id,
+            recipient_identity_id: &payload.recipient_identity_id,
+            ciphertext: &payload.ciphertext,
+            source_device_id: payload.source_device_id.as_deref(),
+            accepted_at: &accepted_at,
+            delivery_cursor,
+            target_device_ids: &target_device_ids,
+        },
+    )
+    .await
+    .map_err(|_| {
+        internal_error(
+            "fanout_forwarding_failed",
+            "failed to forward encrypted DM envelope to destination node",
+        )
+    })?;
+
+    Ok(Json(DmFanoutDispatchResponse {
+        status: "accepted".to_string(),
+        reason_code: "fanout_forwarded_to_static_peer".to_string(),
+        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+        delivery_state: "forwarded".to_string(),
+        reachability_state: "unknown".to_string(),
+        fanout_count: 0,
+        delivered_device_ids: vec![],
+        skipped_device_ids: vec![],
+    }))
+}
+
+fn outbound_forward_delivery_cursor() -> u64 {
+    u64::try_from(Utc::now().timestamp_millis())
+        .unwrap_or(1)
+        .max(1)
 }
 
 async fn accept_dm_envelope_for_local_recipient(

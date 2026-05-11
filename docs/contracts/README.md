@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-11 aligned contract index wording with server-node P2P DM envelope delivery and node-bypassing DM route exclusions.
+- Latest meaningful change: 2026-05-11 aligned runtime DM fanout contract with explicit static-peer destination node forwarding.
 
 ## Purpose
 
@@ -23,7 +23,7 @@
 
 - REST runtime baseline: `docs/contracts/runtime-rest-v1.openapi.yaml`
 - REST legacy alias path (non-authoritative): `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
-- Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
+- Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, explicit static-peer destination node forwarding, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling remains self-targeted loopback only, while DM ciphertext envelopes now support recipient-device dispatch and ack over realtime.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`

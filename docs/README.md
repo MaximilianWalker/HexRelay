@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed local server-node signing identity and static private-mesh peer descriptor runtime config to the reference authority.
+- Latest meaningful change: 2026-05-11 routed explicit static-peer DM destination forwarding contract updates to the runtime REST authority.
 
 ## Purpose
 
