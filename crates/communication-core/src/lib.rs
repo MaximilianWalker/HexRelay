@@ -6,8 +6,10 @@ pub mod transport;
 pub use app::PolicyEngine;
 pub use config::CommunicationConfig;
 pub use domain::{
-    canonical_descriptor_signing_payload, ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8,
-    verify_descriptor_ed25519, Ed25519DescriptorVerifier, NodeDescriptorSignatureError,
+    canonical_descriptor_signing_payload, canonical_peer_invite_signing_payload,
+    ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, sign_peer_invite_ed25519_pkcs8,
+    verify_descriptor_ed25519, verify_peer_invite_ed25519, Ed25519DescriptorVerifier,
+    NodeDescriptorSignatureError, PeerInviteSignatureError,
 };
 pub use domain::{
     CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, PeerRouteKind,
@@ -21,8 +23,9 @@ pub use domain::{
 pub use domain::{
     DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
     DmForwardingPolicy, NetworkMode, NodeDescriptor, NodeDescriptorValidationError, NodeRateLimit,
-    NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RateLimitScope, RelayPolicy,
-    StoragePolicy,
+    NodeSignature, NodeSignatureAlgorithm, PeerInvite, PeerInviteEnvelope,
+    PeerInviteValidationContext, PeerInviteValidationError, PeeringPolicy, RateLimitScope,
+    RelayPolicy, StoragePolicy,
 };
 pub use transport::{
     send_via_node_dispatch, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,

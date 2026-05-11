@@ -1,6 +1,7 @@
 mod communication;
 mod mesh;
 mod node;
+mod peer_invite;
 mod signature;
 
 pub use communication::{
@@ -18,7 +19,12 @@ pub use node::{
     NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RateLimitScope, RelayPolicy,
     StoragePolicy,
 };
+pub use peer_invite::{
+    PeerInvite, PeerInviteEnvelope, PeerInviteValidationContext, PeerInviteValidationError,
+};
 pub use signature::{
-    canonical_descriptor_signing_payload, ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8,
-    verify_descriptor_ed25519, Ed25519DescriptorVerifier, NodeDescriptorSignatureError,
+    canonical_descriptor_signing_payload, canonical_peer_invite_signing_payload,
+    ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, sign_peer_invite_ed25519_pkcs8,
+    verify_descriptor_ed25519, verify_peer_invite_ed25519, Ed25519DescriptorVerifier,
+    NodeDescriptorSignatureError, PeerInviteSignatureError,
 };

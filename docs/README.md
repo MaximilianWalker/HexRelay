@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed durable outbound static-peer DM retry scheduling updates to the data-lifecycle authority.
+- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide.
 
 ## Purpose
 
@@ -55,6 +55,7 @@
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, remote smoke, or deployment-scope assumptions change |
 | Release packaging and artifact model | `docs/operations/03-release-packaging.md` | Platform maintainers | Supported release targets, desktop/server artifact boundaries, installer formats, or signing expectations change |
+| Private server-node mesh bootstrap | `docs/operations/private-mesh-bootstrap.md` | Platform maintainers | Private mesh node identity, peer invite, static peer, or revocation operations change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |
@@ -117,6 +118,7 @@
 - `docs/operations/01-mvp-runbook.md`
 - `docs/operations/02-dedicated-server-deployment.md`
 - `docs/operations/03-release-packaging.md`
+- `docs/operations/private-mesh-bootstrap.md`
 - `docs/operations/local-runtime-testing-quickstart.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`

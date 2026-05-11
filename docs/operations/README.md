@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-11
 - Source of truth: `docs/operations/README.md`
 
 ## Quick Context
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-05-07 added the local runtime testing quickstart and troubleshooting guide.
+- Latest meaningful change: 2026-05-11 added the private mesh bootstrap operator guide.
 
 ## Purpose
 
@@ -31,6 +31,7 @@
 - Release packaging: `docs/operations/03-release-packaging.md`
 - Development prerequisites: `docs/operations/dev-prerequisites.md`
 - Local runtime testing quickstart: `docs/operations/local-runtime-testing-quickstart.md`
+- Private mesh bootstrap guide: `docs/operations/private-mesh-bootstrap.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Local runtime testing plan: `docs/planning/local-runtime-testing-plan.md`
 - Readiness corrections log: `docs/operations/readiness-corrections-log.md`
