@@ -425,6 +425,7 @@ pub async fn run_dm_active_fanout(
         if let Err(error) = dispatch_dm_envelope(
             &state,
             DispatchDmEnvelopeInput {
+                destination_node_id: None,
                 message_id: &message_id,
                 thread_id: &thread_id,
                 sender_identity_id: &auth.identity_id,
