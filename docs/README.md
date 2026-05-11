@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed explicit static-peer DM destination forwarding contract updates to the runtime REST authority.
+- Latest meaningful change: 2026-05-11 routed durable outbound static-peer DM forwarding state updates to the runtime REST and data-lifecycle authorities.
 
 ## Purpose
 

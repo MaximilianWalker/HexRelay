@@ -333,6 +333,21 @@ pub struct DmFanoutDeliveryRecord {
     pub delivered_device_ids: Vec<String>,
 }
 
+#[derive(Clone)]
+pub struct DmOutboundForwardRecord {
+    pub sender_identity_id: String,
+    pub destination_node_id: String,
+    pub message_id: String,
+    pub thread_id: String,
+    pub recipient_identity_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+    pub delivery_cursor: u64,
+    pub forwarding_state: String,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct DmThreadSummary {
     pub thread_id: String,

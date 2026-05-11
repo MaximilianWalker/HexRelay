@@ -1885,8 +1885,10 @@ paths:
             history and durable delivery metadata; active-device realtime
             dispatch is attempted asynchronously, and delivered devices are
             recorded only after recipient-device ack. Static-peer forwarding
-            success means the origin node authenticated and forwarded the
-            encrypted envelope to the destination server node.
+            success means the origin node durably recorded the outbound
+            forwarding attempt and handed the encrypted envelope to the
+            destination server node; it does not imply final recipient-device
+            delivery.
           content:
             application/json:
               schema:
@@ -1915,7 +1917,7 @@ paths:
                     delivered_device_ids: []
                     skipped_device_ids: []
                 forwardedToStaticPeer:
-                  summary: Message envelope is forwarded to an explicit destination server node
+                  summary: Message envelope is durably recorded and handed to an explicit destination server node
                   value:
                     status: accepted
                     reason_code: fanout_forwarded_to_static_peer
@@ -3136,6 +3138,7 @@ components:
         delivery_state:
           type: string
           enum: [pending_delivery, forwarded, rejected]
+          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; recipient-device delivery remains ack-backed and destination-owned.
         reachability_state:
           type: string
           enum: [unreachable, blocked, unknown]

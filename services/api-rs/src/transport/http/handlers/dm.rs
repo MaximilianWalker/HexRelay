@@ -305,13 +305,39 @@ async fn forward_dm_envelope_to_destination_node(
     payload: &DmFanoutDispatchRequest,
     destination_node_id: &str,
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "durable dm outbound forwarding requires configured database storage",
+        )
+    })?;
     let thread_id =
         dm_history_repo::direct_dm_thread_id(&auth.identity_id, &payload.recipient_identity_id);
     let accepted_at = Utc::now().to_rfc3339();
     let delivery_cursor = outbound_forward_delivery_cursor();
     let target_device_ids = Vec::new();
+    dm_repo::record_dm_outbound_forward_queued(
+        pool,
+        &dm_repo::DmOutboundForwardWrite {
+            sender_identity_id: &auth.identity_id,
+            destination_node_id,
+            message_id: &payload.message_id,
+            thread_id: &thread_id,
+            recipient_identity_id: &payload.recipient_identity_id,
+            ciphertext: &payload.ciphertext,
+            source_device_id: payload.source_device_id.as_deref(),
+            delivery_cursor,
+        },
+    )
+    .await
+    .map_err(|_| {
+        internal_error(
+            "storage_unavailable",
+            "failed to persist dm outbound forwarding attempt",
+        )
+    })?;
 
-    dispatch_dm_envelope(
+    let dispatch_result = dispatch_dm_envelope(
         state,
         DispatchDmEnvelopeInput {
             destination_node_id: Some(destination_node_id),
@@ -326,13 +352,55 @@ async fn forward_dm_envelope_to_destination_node(
             target_device_ids: &target_device_ids,
         },
     )
-    .await
-    .map_err(|_| {
-        internal_error(
-            "fanout_forwarding_failed",
-            "failed to forward encrypted DM envelope to destination node",
-        )
-    })?;
+    .await;
+
+    match dispatch_result {
+        Ok(()) => {
+            let updated = dm_repo::mark_dm_outbound_forward_succeeded(
+                pool,
+                &auth.identity_id,
+                destination_node_id,
+                &payload.message_id,
+            )
+            .await
+            .map_err(|_| {
+                internal_error(
+                    "storage_unavailable",
+                    "failed to persist dm outbound forwarding success",
+                )
+            })?;
+            if !updated {
+                return Err(internal_error(
+                    "storage_unavailable",
+                    "dm outbound forwarding attempt was not found after transport success",
+                ));
+            }
+        }
+        Err(error) => {
+            let stored_error = forwarding_error_summary(&error);
+            if let Err(update_error) = dm_repo::mark_dm_outbound_forward_failed(
+                pool,
+                &auth.identity_id,
+                destination_node_id,
+                &payload.message_id,
+                &stored_error,
+            )
+            .await
+            {
+                warn!(
+                    message_id = %payload.message_id,
+                    destination_node_id,
+                    error = %update_error,
+                    "failed to persist DM outbound forwarding failure"
+                );
+            }
+
+            return Err(internal_error(
+                "fanout_forwarding_failed",
+                "failed to forward encrypted DM envelope to destination node",
+            ));
+        }
+    }
 
     Ok(Json(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
@@ -350,6 +418,17 @@ fn outbound_forward_delivery_cursor() -> u64 {
     u64::try_from(Utc::now().timestamp_millis())
         .unwrap_or(1)
         .max(1)
+}
+
+fn forwarding_error_summary(error: &str) -> String {
+    const MAX_FORWARDING_ERROR_LENGTH: usize = 512;
+
+    let trimmed = error.trim();
+    if trimmed.len() <= MAX_FORWARDING_ERROR_LENGTH {
+        return trimmed.to_string();
+    }
+
+    trimmed.chars().take(MAX_FORWARDING_ERROR_LENGTH).collect()
 }
 
 async fn accept_dm_envelope_for_local_recipient(

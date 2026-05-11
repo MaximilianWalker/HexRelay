@@ -34,6 +34,11 @@ struct CapturedNodeForward {
     body: Vec<u8>,
 }
 
+struct NodeForwardCaptureState {
+    sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedNodeForward>>>,
+    status: StatusCode,
+}
+
 fn signed_node_descriptor(
     node_id: &str,
     descriptor_id: &str,
@@ -114,12 +119,21 @@ fn signed_node_forward_body(
 
 async fn start_node_forward_capture(
 ) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
+    start_node_forward_capture_with_status(StatusCode::ACCEPTED).await
+}
+
+async fn start_node_forward_capture_with_status(
+    status: StatusCode,
+) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind node forward capture server");
     let addr = listener.local_addr().expect("node forward capture address");
     let (tx, rx) = tokio::sync::oneshot::channel::<CapturedNodeForward>();
-    let state = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tx)));
+    let state = std::sync::Arc::new(NodeForwardCaptureState {
+        sender: tokio::sync::Mutex::new(Some(tx)),
+        status,
+    });
     let app = Router::new()
         .route(NODE_FORWARD_PATH, post(capture_node_forward))
         .with_state(state);
@@ -132,22 +146,18 @@ async fn start_node_forward_capture(
 }
 
 async fn capture_node_forward(
-    AxumState(sender): AxumState<
-        std::sync::Arc<
-            tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedNodeForward>>>,
-        >,
-    >,
+    AxumState(state): AxumState<std::sync::Arc<NodeForwardCaptureState>>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> axum::http::StatusCode {
-    if let Some(sender) = sender.lock().await.take() {
+    if let Some(sender) = state.sender.lock().await.take() {
         let _ = sender.send(CapturedNodeForward {
             headers,
             body: body.to_vec(),
         });
     }
 
-    axum::http::StatusCode::ACCEPTED
+    state.status
 }
 
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
@@ -271,7 +281,11 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     let (destination_base_url, capture_rx) = start_node_forward_capture().await;
     let sender = unique_identity("usr-origin-sender");
     let recipient = unique_identity("usr-remote-recipient");
-    let (_app, tokens, state) = app_with_sessions_and_state(&[sender.as_str()]);
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+    let token = issue_db_session_cookie(&pool, &state, &sender).await;
     let local = signed_node_descriptor(
         TEST_NODE_FINGERPRINT,
         "descriptor-local",
@@ -291,14 +305,15 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
             StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
         );
     let app = build_app(state);
+    let message_id = format!("msg-static-peer-forward-{}", Uuid::new_v4().simple());
 
     let request = Request::builder()
         .method("POST")
         .uri("/dm/fanout/dispatch")
-        .header("authorization", format!("Bearer {}", tokens[sender.as_str()]))
+        .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{recipient}","message_id":"msg-static-peer-forward","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
             destination.descriptor.node_id
         )))
         .expect("build destination-node fanout request");
@@ -338,6 +353,107 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     assert_eq!(forwarded.recipient_identity_id, recipient);
     assert_eq!(forwarded.ciphertext, "enc:static-peer");
     assert_eq!(forwarded.source_device_id.as_deref(), Some("desktop-main"));
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load outbound forward record")
+    .expect("outbound forward record");
+    assert_eq!(record.sender_identity_id, sender);
+    assert_eq!(record.destination_node_id, destination.descriptor.node_id);
+    assert_eq!(record.message_id, message_id);
+    assert_eq!(record.recipient_identity_id, recipient);
+    assert_eq!(record.ciphertext, "enc:static-peer");
+    assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
+    assert!(record.delivery_cursor > 0);
+    assert_eq!(record.forwarding_state, "forwarded");
+    assert_eq!(record.attempt_count, 1);
+    assert!(record.last_error.is_none());
+}
+
+#[tokio::test]
+async fn fanout_dispatch_records_failed_outbound_destination_forward() {
+    let (destination_base_url, capture_rx) =
+        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+    let sender = unique_identity("usr-origin-sender");
+    let recipient = unique_identity("usr-remote-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+    let token = issue_db_session_cookie(&pool, &state, &sender).await;
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let state = state
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+    let app = build_app(state);
+    let message_id = format!("msg-static-peer-failed-{}", Uuid::new_v4().simple());
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/dispatch")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer-failed","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
+            destination.descriptor.node_id
+        )))
+        .expect("build destination-node fanout request");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("destination-node fanout response");
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let response_body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read failed destination-node fanout body");
+    let response_payload: serde_json::Value =
+        serde_json::from_slice(&response_body).expect("decode failed fanout response");
+    assert_eq!(response_payload["code"], "fanout_forwarding_failed");
+
+    let captured = capture_rx
+        .await
+        .expect("capture failed node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode node forward body");
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:static-peer-failed");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load failed outbound forward record")
+    .expect("failed outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 1);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("500 Internal Server Error")));
 }
 
 #[tokio::test]
