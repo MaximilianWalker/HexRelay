@@ -21,6 +21,7 @@ use crate::domain::replay_store;
 const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
 const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
 const PRESENCE_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
+const PRESENCE_REPLAY_KEY_TTL_SECONDS: u64 = PRESENCE_DEVICE_CURSOR_TTL_SECONDS;
 const PRESENCE_REPLAY_LOG_MAX_ENTRIES: usize = 128;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -530,11 +531,15 @@ async fn persist_presence_replay_entries(
     watchers: &[String],
     client_payload: &str,
 ) -> Result<Vec<PresenceWatcherCursor>, redis::RedisError> {
-    replay_store::persist_replay_entries(
+    let retention = replay_store::ReplayRetention::with_key_ttl(
+        PRESENCE_REPLAY_LOG_MAX_ENTRIES,
+        PRESENCE_REPLAY_KEY_TTL_SECONDS,
+    )?;
+    replay_store::persist_replay_entries_with_retention(
         connection,
         watchers,
         client_payload,
-        PRESENCE_REPLAY_LOG_MAX_ENTRIES,
+        retention,
         presence_stream_head_key,
         presence_replay_log_key,
         |watcher_identity_id, cursor| PresenceWatcherCursor {

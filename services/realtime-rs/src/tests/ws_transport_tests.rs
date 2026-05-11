@@ -392,12 +392,12 @@ async fn wait_for_presence_replay_event(
 ) -> Value {
     let replay_log_key = format!("presence:v1:watcher_stream_log:{watcher_identity_id}");
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for presence replay wait");
 
     loop {
-        let mut connection = client
-            .get_multiplexed_tokio_connection()
-            .await
-            .expect("open redis connection for presence replay wait");
         let values: Vec<String> = redis::cmd("LRANGE")
             .arg(&replay_log_key)
             .arg(0)
@@ -425,6 +425,24 @@ async fn wait_for_presence_replay_event(
             "timed out waiting for presence replay event {expected_identity_id}:{expected_status}"
         );
         tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+async fn assert_presence_replay_keys_have_ttl(client: &redis::Client, watcher_identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for presence replay ttl check");
+    for key in [
+        format!("presence:v1:watcher_stream_head:{watcher_identity_id}"),
+        format!("presence:v1:watcher_stream_log:{watcher_identity_id}"),
+    ] {
+        let ttl_seconds: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .expect("read presence replay key ttl");
+        assert!(ttl_seconds > 0, "{key} should have an expiry");
     }
 }
 
@@ -1584,6 +1602,7 @@ async fn websocket_presence_hydrates_late_profile_device_without_existing_viewer
     let online_seq = replayed_online["data"]["presence_seq"]
         .as_u64()
         .expect("online seq");
+    assert_presence_replay_keys_have_ttl(&redis_client, "usr-late-only-viewer").await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;

@@ -45,7 +45,8 @@ info:
     persisted for each resolved watcher identity, so a later-active profile
     device can hydrate missed presence transitions by per-device cursor even
     when no other local profile device for that watcher was connected at
-    publish time.
+    publish time. Presence replay stream keys expire on the same window as
+    presence device cursors.
 defaultContentType: application/json
 channels:
   callSignalOffer:
