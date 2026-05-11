@@ -41,6 +41,13 @@ info:
     internal dispatch route. Connected recipient profile devices receive
     `dm.envelope.dispatched`; clients ack receipt with `dm.envelope.ack`, which the
     gateway persists through the API internal ack route before echoing a successful ack.
+    The protected internal dispatch route returns a non-public target-device summary
+    to the API bridge with target counts plus queued, pending, no-connection,
+    unverified, saturated, and stale-connection buckets; websocket clients still
+    receive only their own verified-device `dm.envelope.dispatched` payloads.
+    For non-presence replay streams, when present, late-joining profile devices receive
+    missed supported events before new live transitions only for recipients that had an
+    active profiled connection when the original event was published.
     Per-device replay semantics are domain-specific. Presence replay is
     persisted for each resolved watcher identity, so a later-active profile
     device can hydrate missed presence transitions by per-device cursor even

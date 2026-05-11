@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-11 aligned local runtime testing guardrails with server-node P2P E2EE encrypted-envelope DM delivery and retired node-bypassing client DM transport surfaces.
+- Latest meaningful change: 2026-05-11 aligned local runtime testing guardrails with server-node P2P encrypted-envelope delivery and added the local two-API-node HTTP forwarding smoke.
 
 ## Organization Decision
 
@@ -56,6 +56,7 @@
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, fanout, catch-up, and profile-device APIs exist; the browser DM route exists, while full end-to-end client encryption remains incremental.
 - The DM envelope delivery guardrail is active and must not be weakened by testing features: message nodes may carry/store ciphertext envelopes only, while plaintext and private keys remain client/device-only.
+- API integration coverage includes a local two-node HTTP smoke that runs two API routers, signs node-forwarded DM envelopes, forwards over actual HTTP, and verifies DB-backed encrypted-envelope acceptance plus sender-side outbound forwarding state.
 
 ## Guiding Principles
 

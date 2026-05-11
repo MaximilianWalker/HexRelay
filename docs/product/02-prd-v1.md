@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, broadened UX approval to all UX decisions, and aligned discovery requirements with the dynamic server-node policy graph.
+- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, broadened UX approval to all UX decisions, aligned discovery requirements with the dynamic server-node policy graph, and clarified app-mediated dedicated-server administration.
 
 ## Product Summary
 
@@ -28,6 +28,7 @@ HexRelay is an open-source, self-hostable communication platform with a modern D
 - Desktop distribution uses Tauri by default and bundles UI with local API and realtime runtime components.
 - Local runtime allows UI launch either inside desktop shell or in a local browser session on localhost.
 - Dedicated server deployments are supported as a separate optional operator service/package mode.
+- Dedicated server administration is performed through the normal HexRelay app connected to the node endpoint for identities with node-owner/admin permissions; dedicated server packages remain headless and do not ship a separate server-specific UI by default.
 - Browser-only hosted usage is a compatibility mode, not the core product assumption.
 - Runtime term mapping is canonical in `docs/reference/glossary.md`.
 - Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
@@ -233,6 +234,7 @@ Build a communication stack where users and communities control identity, data l
   - Realtime and voice SLOs tracked in dashboard.
 - Operability
   - Docker Compose-first deployment; simple dashboard first.
+  - Dedicated server administration uses authenticated app-to-node management surfaces rather than a separate dedicated-server UI artifact by default.
 
 ## Architecture Summary
 
@@ -240,6 +242,7 @@ Build a communication stack where users and communities control identity, data l
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
 - Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts, LANs, or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
+- Dedicated-server administration: app-mediated for authorized node owners/admins, with authenticated operator/admin APIs and no standalone server-specific UI artifact by default.
 - Server-node topology: dynamic opt-in policy graph with portable user identity, no primary-server assumption, and separate discovery/peering/relay/delivery/storage permissions.
 
 ## Success Metrics (MVP)

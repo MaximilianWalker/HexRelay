@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 aligned product docs with the dynamic server-node policy graph, opt-in discovery/relay model, user-consented node introductions, and the global UX approval gate.
+- Latest meaningful change: 2026-05-11 aligned product docs with the dynamic server-node policy graph, opt-in discovery/relay model, user-consented node introductions, app-mediated dedicated-server administration, and the global UX approval gate.
 
 ## Contents
 

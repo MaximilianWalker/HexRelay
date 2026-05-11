@@ -23,7 +23,9 @@ info:
     preserving the existing REST success payloads. DM delivery uses server-node
     P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
     contracts must not expose node-bypassing DM bootstrap or plaintext relay
-    behavior.
+    behavior. App-to-node dedicated-server administration starts with a public
+    node connection descriptor plus an authenticated capabilities endpoint;
+    admin/owner status is returned only after normal session auth.
 servers:
   - url: https://api.hexrelay.local
 paths:
@@ -43,6 +45,93 @@ paths:
                   value:
                     service: api-rs
                     status: ok
+  /node/connection:
+    get:
+      summary: Resolve node connection metadata for the app
+      description: |
+        Public app-to-node connection contract. The response lets the app verify
+        that a manually entered or invite-provided endpoint is a HexRelay API
+        node and locate the auth/capability endpoints without exposing
+        admin-only state. This endpoint is not a discovery listing and does not
+        imply peering, relay, delivery, or management permission.
+      responses:
+        '200':
+          description: Node connection metadata for a known endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeConnectionResponse'
+              examples:
+                localNodeConnection:
+                  summary: App can verify node identity and auth endpoint paths
+                  value:
+                    service: api-rs
+                    node_id: hexrelay-local-fingerprint
+                    node_fingerprint: hexrelay-local-fingerprint
+                    runtime_api: hexrelay_runtime_rest
+                    auth_endpoints:
+                      challenge: /auth/challenge
+                      verify: /auth/verify
+                      session_validate: /auth/sessions/validate
+                    capabilities_endpoint: /node/capabilities
+  /node/capabilities:
+    get:
+      summary: Resolve authenticated app capabilities on the connected node
+      description: |
+        Authenticated app-to-node capability contract used after normal
+        challenge/verify or existing session validation. The response tells the
+        app which node capabilities are available to the signed-in identity and
+        whether that identity currently has node-owner or node-admin authority.
+        LAN proximity, discoverability, invite-only status, or private hosting
+        do not affect this decision.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Capability and administration status for the authenticated identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeCapabilitiesResponse'
+              examples:
+                nodeOwner:
+                  summary: Configured owner receives owner and admin capabilities
+                  value:
+                    node_id: node-private-a
+                    node_fingerprint: node-private-a
+                    identity_id: usr-owner
+                    capabilities:
+                      - node_connect
+                      - auth_session
+                      - realtime_connect
+                      - dm_encrypted_envelope
+                      - node_admin
+                      - node_operator
+                      - node_owner
+                    administration:
+                      is_node_owner: true
+                      is_node_admin: true
+                      scopes: [node_admin, node_operator, node_owner]
+                regularMember:
+                  summary: Authenticated non-admin can connect without management authority
+                  value:
+                    node_id: node-private-a
+                    node_fingerprint: node-private-a
+                    identity_id: usr-member
+                    capabilities:
+                      - node_connect
+                      - auth_session
+                      - realtime_connect
+                      - dm_encrypted_envelope
+                    administration:
+                      is_node_owner: false
+                      is_node_admin: false
+                      scopes: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /identity/keys/register:
     post:
       summary: Register a public identity key
@@ -1483,6 +1572,8 @@ paths:
                   value:
                     code: internal_token_invalid
                     message: DM envelope ack requires a valid internal token
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /internal/dm/envelopes/forward:
@@ -1617,6 +1708,8 @@ paths:
                   value:
                     code: fanout_message_id_conflict
                     message: message_id already exists for an accepted DM
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /discovery/users:
@@ -1956,6 +2049,8 @@ paths:
                     message: message_id already exists for an accepted DM
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/fanout/catch-up:
@@ -1965,6 +2060,9 @@ paths:
         Profile-device convergence replay for server-node P2P E2EE DM
         envelopes. Canonical accepted DM history and delivery metadata persist
         when configured storage is available without exposing plaintext content.
+        Catch-up throttling is identity-scoped across profile devices, while
+        retention cleanup runs only after the requested active profile-device
+        secret is validated.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -2042,6 +2140,8 @@ paths:
                     message: cursor is beyond the current delivery tail
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/threads:
@@ -2838,6 +2938,90 @@ components:
           type: string
         status:
           type: string
+    NodeConnectionResponse:
+      type: object
+      required:
+        - service
+        - node_id
+        - node_fingerprint
+        - runtime_api
+        - auth_endpoints
+        - capabilities_endpoint
+      properties:
+        service:
+          type: string
+          enum: [api-rs]
+        node_id:
+          type: string
+          description: Local node descriptor id when configured, otherwise the configured node fingerprint.
+        node_fingerprint:
+          type: string
+          description: Deployment identity marker used by invite and endpoint verification flows.
+        runtime_api:
+          type: string
+          enum: [hexrelay_runtime_rest]
+        auth_endpoints:
+          $ref: '#/components/schemas/NodeAuthEndpoints'
+        capabilities_endpoint:
+          type: string
+          enum: [/node/capabilities]
+    NodeAuthEndpoints:
+      type: object
+      required: [challenge, verify, session_validate]
+      properties:
+        challenge:
+          type: string
+          enum: [/auth/challenge]
+        verify:
+          type: string
+          enum: [/auth/verify]
+        session_validate:
+          type: string
+          enum: [/auth/sessions/validate]
+    NodeCapabilitiesResponse:
+      type: object
+      required:
+        - node_id
+        - node_fingerprint
+        - identity_id
+        - capabilities
+        - administration
+      properties:
+        node_id:
+          type: string
+        node_fingerprint:
+          type: string
+        identity_id:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeCapability'
+        administration:
+          $ref: '#/components/schemas/NodeAdministrationStatus'
+    NodeAdministrationStatus:
+      type: object
+      required: [is_node_owner, is_node_admin, scopes]
+      properties:
+        is_node_owner:
+          type: boolean
+        is_node_admin:
+          type: boolean
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeCapability'
+          description: Administrative capability subset for the authenticated identity.
+    NodeCapability:
+      type: string
+      enum:
+        - node_connect
+        - auth_session
+        - realtime_connect
+        - dm_encrypted_envelope
+        - node_admin
+        - node_operator
+        - node_owner
     ServerSummary:
       type: object
       required: [id, name, unread, favorite, muted]

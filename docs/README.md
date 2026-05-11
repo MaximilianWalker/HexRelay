@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 clarified realtime presence replay hydration and replay key retention for later-active profile devices.
+- Latest meaningful change: 2026-05-11 indexed the DM catch-up limiter/retention-ordering PR review correction.
 
 ## Purpose
 
@@ -27,9 +27,9 @@
 | Product intent, scope, and non-architectural constraints | `docs/product/01-mvp-plan.md` | Product/architecture maintainers | Scope, product constraints, privacy, or security decision changes |
 | Architecture baseline and whole-system runtime design authority | `docs/architecture/01-system-overview.md`, `docs/architecture/02-data-lifecycle-retention-replication.md`, `docs/architecture/04-communication-networking-layer-plan.md`, and relevant `docs/architecture/adr-*.md` | Architecture maintainers | Runtime boundaries, architecture baseline, trust zones, persistence ownership, or accepted design decisions change |
 | Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
-| Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, or trust boundary behavior changes |
+| Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, administration surface, or trust boundary behavior changes |
 | Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
-| Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented identity/auth/invite/friends REST schema or error change |
+| Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented REST endpoint, schema, auth behavior, or error change |
 | Runtime REST compatibility alias (legacy filename) | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Keep for backward compatibility references until deprecation removal |
 | MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
 | Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
@@ -37,7 +37,7 @@
 | Target-state realtime event/signaling model | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
-| Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs` or `services/*/.env.example` changes |
+| Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs`, `services/*/.env.example`, or runtime env semantics change |
 | Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
@@ -53,8 +53,8 @@
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
 | Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, server-node policy graph, discovery/peering/relay/delivery rules, DM/server transport divergence, or networking rollout phases change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
-| Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, remote smoke, or deployment-scope assumptions change |
-| Release packaging and artifact model | `docs/operations/03-release-packaging.md` | Platform maintainers | Supported release targets, desktop/server artifact boundaries, installer formats, or signing expectations change |
+| Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, administration surface, remote smoke, or deployment-scope assumptions change |
+| Release packaging and artifact model | `docs/operations/03-release-packaging.md` | Platform maintainers | Supported release targets, desktop/server artifact boundaries, administration-surface packaging, installer formats, or signing expectations change |
 | Private server-node mesh bootstrap | `docs/operations/private-mesh-bootstrap.md` | Platform maintainers | Private mesh node identity, peer invite, static peer, or revocation operations change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |

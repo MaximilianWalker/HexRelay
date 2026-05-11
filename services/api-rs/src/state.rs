@@ -9,7 +9,7 @@ use communication_core::StaticPeerRegistry;
 use sqlx::PgPool;
 
 use crate::{
-    config::ApiRateLimitConfig,
+    config::{ApiDmRetentionConfig, ApiRateLimitConfig},
     domain::node_identity::LocalNodeIdentity,
     models::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
@@ -42,11 +42,14 @@ pub struct AppState {
     pub identity_keys: Arc<RwLock<HashMap<String, RegisteredIdentityKey>>>,
     pub invites: Arc<RwLock<HashMap<String, InviteRecord>>>,
     pub muted_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
+    pub node_admin_identity_ids: Arc<HashSet<String>>,
     pub node_fingerprint: String,
     pub node_forwarding_nonces: Arc<RwLock<HashMap<String, i64>>>,
+    pub node_owner_identity_ids: Arc<HashSet<String>>,
     pub local_node_identity: Option<LocalNodeIdentity>,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
+    pub dm_retention: ApiDmRetentionConfig,
     pub session_cookie_domain: Option<String>,
     pub session_cookie_same_site: String,
     pub session_cookie_secure: bool,
@@ -102,11 +105,14 @@ impl AppState {
             identity_keys: Arc::default(),
             invites: Arc::default(),
             muted_users: Arc::default(),
+            node_admin_identity_ids: Arc::default(),
             node_fingerprint,
             node_forwarding_nonces: Arc::default(),
+            node_owner_identity_ids: Arc::default(),
             local_node_identity: None,
             rate_limiter: RateLimiter::default(),
             rate_limits,
+            dm_retention: ApiDmRetentionConfig::default(),
             session_cookie_domain,
             session_cookie_same_site,
             session_cookie_secure,
@@ -140,6 +146,21 @@ impl AppState {
         self.local_node_identity = identity;
         self
     }
+
+    pub fn with_node_owner_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.node_owner_identity_ids = Arc::new(identity_ids.into_iter().collect());
+        self
+    }
+
+    pub fn with_node_admin_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.node_admin_identity_ids = Arc::new(identity_ids.into_iter().collect());
+        self
+    }
+
+    pub fn with_dm_retention(mut self, retention: ApiDmRetentionConfig) -> Self {
+        self.dm_retention = retention;
+        self
+    }
 }
 
 impl Default for AppState {
@@ -166,6 +187,10 @@ impl Default for AppState {
                 discovery_query_per_window: 30,
                 invite_create_per_window: 20,
                 invite_redeem_per_window: 40,
+                dm_dispatch_per_window: 120,
+                dm_catch_up_per_window: 120,
+                dm_ack_per_window: 600,
+                dm_internal_forward_per_window: 240,
                 window_seconds: 60,
             },
             false,

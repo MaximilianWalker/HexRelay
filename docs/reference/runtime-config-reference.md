@@ -13,7 +13,7 @@
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-11 added API local node identity generation tooling for private server-node meshes.
+- Latest meaningful change: 2026-05-11 added app-mediated node administration bootstrap allowlists and the API local node identity generation tooling for private server-node meshes.
 
 ## Purpose
 
@@ -50,6 +50,8 @@
 | `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION` | `false` | optional | keep disabled until trusted claim flow exists |
 | `API_ENABLE_DEV_TESTING` | `false` | must be `false` | enables local-only fixture/session testing endpoints in development |
 | `API_NODE_FINGERPRINT` | `hexrelay-local-fingerprint` | must be non-default | deployment identity marker |
+| `API_NODE_OWNER_IDENTITY_IDS` | unset | optional bootstrap config | CSV of identity ids that receive node-owner scope through `/node/capabilities`; owner implies admin |
+| `API_NODE_ADMIN_IDENTITY_IDS` | unset | optional bootstrap config | CSV of identity ids that receive node-admin/operator scope through `/node/capabilities` |
 | `API_DATABASE_URL` | local dev Postgres URL | must be non-default | durable API state store |
 | `API_ALLOWED_ORIGINS` | `http://localhost:3002,http://127.0.0.1:3002` | required | must contain at least one origin |
 | `API_TRUST_PROXY_HEADERS` | `false` | optional | enable only behind trusted proxy/header sanitization |
@@ -169,11 +171,13 @@
 - Redis URLs remain optional at pure config-validation time, but they are required for the reviewed dedicated single-node deployment baseline.
 - Static peer descriptor and invite JSON are optional at pure config-validation time. When set, the service rejects startup on malformed JSON, invalid descriptor or invite policy, expired descriptors/invites, over-TTL descriptors/invites, duplicate node/descriptor IDs, revoked invite IDs, or invalid Ed25519 signatures.
 - API local node identity JSON/key config is optional for local-only operation. When set, both values are required, the descriptor is signature/TTL/policy validated, descriptor `node_id` must match `API_NODE_FINGERPRINT`, and the private key must derive the descriptor public key.
+- `API_NODE_OWNER_IDENTITY_IDS` and `API_NODE_ADMIN_IDENTITY_IDS` are bootstrap allowlists for the app-mediated dedicated-server administration contract. They must contain valid identity ids only, do not grant access without normal session authentication, and should be replaced or backed by durable node-local roles once role-management flows are implemented.
 - Dedicated deployments should also review:
   - origin allowlists
   - proxy-header trust flags
   - cookie security/domain settings
   - auth grace/cache settings
+  - node owner/admin bootstrap allowlists
   - local server-node signing descriptor/key source and rotation process
   - static private-mesh descriptor/invite source and revocation process
 

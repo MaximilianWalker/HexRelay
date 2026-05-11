@@ -13,7 +13,7 @@
 
 - Purpose: provide the operator flow for bringing two private server nodes into the same signed peer mesh.
 - Primary edit location: update this file when local node identity, peer invite, static peer, or private mesh bootstrap commands change.
-- Latest meaningful change: 2026-05-11 added the two-node private mesh bootstrap procedure using generated node identities and signed peer invites.
+- Latest meaningful change: 2026-05-11 added the two-node private mesh bootstrap procedure and API-to-API encrypted-envelope forwarding smoke.
 
 ## Purpose
 
@@ -100,11 +100,19 @@ Startup fails when:
 - the descriptor or invite is expired or exceeds `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS`
 - the invite ID appears in `API_REVOKED_STATIC_PEER_INVITE_IDS`
 
-The focused regression covering this flow is:
+The focused regression covering identity/invite bootstrap is:
 
 ```bash
 cargo test -p api-rs bootstraps_two_node_private_mesh_from_generated_identity_and_signed_invite
 ```
+
+The focused smoke covering actual HTTP forwarding between two local API nodes is:
+
+```bash
+cargo test -p api-rs fanout_dispatch_forwards_between_two_local_api_nodes_over_http
+```
+
+When running that smoke outside CI, set `API_DATABASE_URL` to the local dev Postgres URL because the path verifies durable encrypted-envelope acceptance and outbound forwarding state.
 
 ## Rotation And Revocation
 

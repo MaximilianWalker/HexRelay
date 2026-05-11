@@ -4,6 +4,10 @@ fn device_secret(device_id: &str) -> String {
     format!("secret-{device_id}")
 }
 
+fn unique_message_id(prefix: &str) -> String {
+    format!("{}-{}", prefix, Uuid::new_v4().simple())
+}
+
 #[tokio::test]
 async fn returns_default_dm_policy_for_new_identity() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
@@ -284,6 +288,7 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
 
     let sender_identity = unique_identity("db-fanout-sender");
     let recipient_identity = unique_identity("db-fanout-recipient");
+    let message_id = unique_message_id("msg-restart");
     let (sender_cookie, app) = authenticate_identity(app, &sender_identity).await;
     let (recipient_cookie, app) = authenticate_identity(app, &recipient_identity).await;
 
@@ -338,8 +343,8 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-restart","ciphertext":"enc:restart"}}"#,
-            recipient_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:restart"}}"#,
+            recipient_identity, message_id
         )))
         .expect("build fanout dispatch request");
     let dispatch_response = app
@@ -397,7 +402,10 @@ async fn fanout_cursor_metadata_persists_across_db_restart() {
         .expect("read thread messages body after restart");
     let messages_payload: serde_json::Value = serde_json::from_slice(&messages_body)
         .expect("decode thread messages payload after restart");
-    assert_eq!(messages_payload["items"][0]["message_id"], "msg-restart");
+    assert_eq!(
+        messages_payload["items"][0]["message_id"],
+        message_id.as_str()
+    );
 
     let catch_up_request = Request::builder()
         .method("POST")
@@ -491,6 +499,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
 
     let sender_identity = unique_identity("db-pending-sender");
     let recipient_identity = unique_identity("db-pending-recipient");
+    let message_id = unique_message_id("msg-pending");
     let (sender_cookie, app) = authenticate_identity(app, &sender_identity).await;
     let (recipient_cookie, app) = authenticate_identity(app, &recipient_identity).await;
 
@@ -522,8 +531,8 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
         )
         .header("x-csrf-token", "test-csrf")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{}","message_id":"msg-pending","ciphertext":"enc:pending"}}"#,
-            recipient_identity
+            r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:pending"}}"#,
+            recipient_identity, message_id
         )))
         .expect("build pending fanout dispatch request");
     let dispatch_response = app
@@ -565,7 +574,7 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
         .await
         .expect("load persisted dm messages after restart")
         .expect("recipient thread still exists after restart");
-    assert_eq!(persisted_messages[0].message_id, "msg-pending");
+    assert_eq!(persisted_messages[0].message_id, message_id.as_str());
 
     let activate_request = Request::builder()
         .method("POST")
@@ -614,7 +623,10 @@ async fn accepted_dm_without_active_devices_survives_restart_and_catches_up_late
     let catch_up_payload: serde_json::Value =
         serde_json::from_slice(&catch_up_body).expect("decode catch-up payload");
     assert_eq!(catch_up_payload["replay_count"], 1);
-    assert_eq!(catch_up_payload["items"][0]["message_id"], "msg-pending");
+    assert_eq!(
+        catch_up_payload["items"][0]["message_id"],
+        message_id.as_str()
+    );
 }
 
 #[tokio::test]

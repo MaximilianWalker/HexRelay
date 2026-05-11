@@ -13,7 +13,9 @@ use crate::{
         PublishChannelMessageCreatedInput, PublishChannelMessageDeletedInput,
         PublishChannelMessageUpdatedInput,
     },
-    domain::dms::{publish_dm_envelope_dispatched, PublishDmEnvelopeInput},
+    domain::dms::{
+        publish_dm_envelope_dispatched, DmEnvelopeDispatchSummary, PublishDmEnvelopeInput,
+    },
     state::DevFaultConfig,
 };
 
@@ -67,6 +69,12 @@ pub struct DmEnvelopeDispatchRequest {
     pub accepted_at: String,
     pub delivery_cursor: u64,
     pub target_device_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct DmEnvelopeDispatchResponse {
+    pub status: &'static str,
+    pub summary: DmEnvelopeDispatchSummary,
 }
 
 #[derive(Serialize)]
@@ -214,9 +222,13 @@ pub async fn publish_dm_envelope_dispatched_internal(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<DmEnvelopeDispatchRequest>,
-) -> StatusCode {
+) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
-        return StatusCode::UNAUTHORIZED;
+        return internal_error_response(
+            StatusCode::UNAUTHORIZED,
+            "internal_auth_required",
+            "internal dispatch token is required",
+        );
     }
 
     match publish_dm_envelope_dispatched(
@@ -235,8 +247,16 @@ pub async fn publish_dm_envelope_dispatched_internal(
     )
     .await
     {
-        Ok(()) => StatusCode::ACCEPTED,
-        Err(_) => StatusCode::BAD_REQUEST,
+        Ok(summary) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!(DmEnvelopeDispatchResponse {
+                status: "accepted",
+                summary,
+            })),
+        ),
+        Err(error) => {
+            internal_error_response(StatusCode::BAD_REQUEST, "dm_dispatch_invalid", &error)
+        }
     }
 }
 
@@ -387,6 +407,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dm_envelope_dispatch_internal_returns_target_summary() {
+        let app = crate::app::build_app(test_state(false));
+        let request = Request::builder()
+            .method("POST")
+            .uri("/internal/dm/envelopes/dispatch")
+            .header("x-hexrelay-internal-token", TOKEN)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"message_id":"msg-1","thread_id":"thread-1","sender_identity_id":"usr-sender","recipient_identity_id":"usr-recipient","ciphertext":"enc:abcdefghijklmnopqrstuvwxyz","source_device_id":null,"accepted_at":"2026-03-26T00:00:00Z","delivery_cursor":3,"target_device_ids":["desktop-main","desktop-main","phone-main"]}"#,
+            ))
+            .expect("build DM dispatch request");
+        let response = app.oneshot(request).await.expect("DM dispatch response");
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read DM dispatch response");
+        let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+        assert_eq!(payload["status"], "accepted");
+        assert_eq!(payload["summary"]["message_id"], "msg-1");
+        assert_eq!(payload["summary"]["recipient_identity_id"], "usr-recipient");
+        assert_eq!(payload["summary"]["target_device_count"], 2);
+        assert_eq!(
+            payload["summary"]["pending_device_ids"],
+            serde_json::json!(["desktop-main", "phone-main"])
+        );
+        assert_eq!(
+            payload["summary"]["no_connection_device_ids"],
+            serde_json::json!(["desktop-main", "phone-main"])
+        );
+    }
+
+    #[tokio::test]
     async fn channel_dispatch_internal_returns_target_summary() {
         let app = crate::app::build_app(test_state(false));
         let request = Request::builder()
@@ -417,7 +469,6 @@ mod tests {
             serde_json::json!([])
         );
     }
-
     #[tokio::test]
     async fn dev_faults_require_enable_flag_and_internal_token() {
         let disabled = get_dev_faults_internal(

@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 locked MVP DM delivery to server-node P2P E2EE envelopes, removed node-bypassing client DM transport/bootstrap scope, broadened the UX approval gate to all UX decisions, and aligned future server-node networking with a dynamic opt-in policy graph.
+- Latest meaningful change: 2026-05-11 added backend recipient-targeted realtime dispatch summaries for E2EE DM active-device fanout while preserving ack-backed final delivery.
 
 ## 1) Product Intent and Constraints
 
@@ -43,6 +43,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Server discovery is opt-in. Online servers can still be private, non-discoverable, invite-only, or non-relaying.
 - Users may introduce servers to other servers only when the introduced server descriptor allows user-consented introduction and the user explicitly consents.
 - Servers may refuse discovery, peering, relay, or DM forwarding independently.
+- Dedicated server administration uses the normal HexRelay app connected to a local or remote node. Dedicated server runtime remains headless and does not get a separate server-specific UI by default.
 - UX approval gate: no UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
 - Voice target: competitive quality; screen share included in MVP.
 - UI direction: heavily Discord-inspired interaction model, except server navigation uses scalable list/card paradigms (no small circular server rail).
@@ -77,6 +78,9 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-08: Locked server-node/message-node E2EE envelope delivery as the MVP DM baseline. Servers may store and forward ciphertext envelopes and minimal delivery metadata only; node-bypassing client DM transport/bootstrap surfaces are out of scope.
 - 2026-05-11: Clarified that server runtimes act as peers in the server-node P2P network for DM envelope delivery, and broadened the explicit user-approval gate from DM delivery UX to all UX decisions.
 - 2026-05-11: Locked the server-node P2P architecture direction as a dynamic opt-in policy graph with no primary-server assumption, private/LAN/local-only node support, user-consented node introductions, and separate discovery/peering/relay/delivery/storage permissions.
+- 2026-05-11: Locked dedicated-server administration to the normal HexRelay app for authorized node owners/admins; dedicated server packages stay headless and no separate server-specific UI ships by default.
+- 2026-05-11: Added T4.1.8 backend retention and abuse controls for encrypted-envelope delivery metadata: 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, and per-sender/device/node rate limits without plaintext inspection.
+- 2026-05-11: Added T4.1.9 backend realtime dispatch summaries for encrypted DM active-device fanout; summaries classify target-device routing outcomes but final delivery remains recipient-device ack-backed and no UX changes were introduced.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -85,6 +89,8 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Desktop packaging uses Tauri by default and bundles UI plus local API/realtime runtime components for user-local operation.
 - Dedicated server mode is supported for operators who want headless hosting.
 - Dedicated server delivery is a separate service/package family from the desktop installer.
+- Dedicated-server administration is app-mediated: authorized node owners/admins connect through the normal HexRelay app to local, LAN, private online, or public node endpoints.
+- Dedicated server packages may expose authenticated admin/operator APIs, but no separate server-specific UI artifact is assumed for MVP.
 - Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when desktop packaging installs and supervises local runtime components.
 - Browser-only usage is a compatibility path, not the primary runtime target.
 - Terminology mapping for runtime words (`node`, `server`, `dedicated server`, `guild`) is canonical in `docs/reference/glossary.md`.
@@ -195,6 +201,10 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Bootstrap material includes only the identity key and profile-device data required for client-side E2EE setup; recipient-device network endpoint hints, DM pairing QR payloads, and manual-code bootstrap are out of scope.
 - Normal DM send success uses the server-node P2P encrypted-envelope path and must not require recipient-device network reachability.
 - Server nodes/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata needed for authorization, routing, dedupe, delivery state, retention, and abuse controls.
+- Delivery metadata retention is separate from canonical encrypted DM history: expired replay/forwarding metadata can be purged without deleting accepted ciphertext history.
+- Abuse controls are metadata-only and policy-only: dispatch is sender scoped, catch-up is identity scoped across profile devices, ack is identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
+- Active-device realtime fanout exposes backend-only target summaries for queued-to-verified-websocket, pending/no-connection, unverified device binding, saturated queue, and stale-connection cleanup outcomes.
+- Live dispatch summaries are not user-visible read or final-delivery state; final delivery remains `dm.envelope.ack` backed and late-device catch-up remains the deterministic fallback.
 - Origin, delivery, relay, and discoverable node roles are selected by current node policy and route availability; no node role implies ownership of a user's identity.
 - Relay is optional and policy-controlled. A server may be discoverable or peered while still refusing relay or DM forwarding.
 - DM plaintext, decrypted message views, and private keys remain client/device-only and must never be uploaded for server-side processing.

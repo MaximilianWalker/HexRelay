@@ -13,6 +13,7 @@ use communication_core::{
 };
 use reqwest::Url;
 
+use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::node_identity::LocalNodeIdentity;
 
 #[derive(Clone)]
@@ -22,7 +23,26 @@ pub struct ApiRateLimitConfig {
     pub discovery_query_per_window: usize,
     pub invite_create_per_window: usize,
     pub invite_redeem_per_window: usize,
+    pub dm_dispatch_per_window: usize,
+    pub dm_catch_up_per_window: usize,
+    pub dm_ack_per_window: usize,
+    pub dm_internal_forward_per_window: usize,
     pub window_seconds: u64,
+}
+
+#[derive(Clone)]
+pub struct ApiDmRetentionConfig {
+    pub delivery_log_retention_seconds: i64,
+    pub outbound_forwarding_log_retention_seconds: i64,
+}
+
+impl Default for ApiDmRetentionConfig {
+    fn default() -> Self {
+        Self {
+            delivery_log_retention_seconds: 30 * 24 * 60 * 60,
+            outbound_forwarding_log_retention_seconds: 7 * 24 * 60 * 60,
+        }
+    }
 }
 
 pub struct ApiConfig {
@@ -33,6 +53,8 @@ pub struct ApiConfig {
     pub allowed_origins: Vec<String>,
     pub database_url: String,
     pub node_fingerprint: String,
+    pub node_admin_identity_ids: Vec<String>,
+    pub node_owner_identity_ids: Vec<String>,
     pub local_node_identity: Option<LocalNodeIdentity>,
     pub discovery_denylist: Vec<String>,
     pub static_peer_registry: StaticPeerRegistry,
@@ -46,6 +68,7 @@ pub struct ApiConfig {
     pub session_cookie_same_site: String,
     pub trust_proxy_headers: bool,
     pub rate_limits: ApiRateLimitConfig,
+    pub dm_retention: ApiDmRetentionConfig,
 }
 
 impl ApiConfig {
@@ -86,6 +109,8 @@ impl ApiConfig {
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
+        let node_owner_identity_ids = parse_identity_id_csv_env("API_NODE_OWNER_IDENTITY_IDS")?;
+        let node_admin_identity_ids = parse_identity_id_csv_env("API_NODE_ADMIN_IDENTITY_IDS")?;
         if node_fingerprint.trim().is_empty() {
             return Err("Invalid API_NODE_FINGERPRINT. Value must not be empty".to_string());
         }
@@ -137,7 +162,24 @@ impl ApiConfig {
             )?,
             invite_create_per_window: parse_positive_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
             invite_redeem_per_window: parse_positive_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
+            dm_dispatch_per_window: parse_positive_usize_env("API_DM_DISPATCH_RATE_LIMIT", 120)?,
+            dm_catch_up_per_window: parse_positive_usize_env("API_DM_CATCH_UP_RATE_LIMIT", 120)?,
+            dm_ack_per_window: parse_positive_usize_env("API_DM_ACK_RATE_LIMIT", 600)?,
+            dm_internal_forward_per_window: parse_positive_usize_env(
+                "API_DM_INTERNAL_FORWARD_RATE_LIMIT",
+                240,
+            )?,
             window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60)?,
+        };
+        let dm_retention = ApiDmRetentionConfig {
+            delivery_log_retention_seconds: parse_i64_env(
+                "API_DM_DELIVERY_LOG_RETENTION_SECONDS",
+                ApiDmRetentionConfig::default().delivery_log_retention_seconds,
+            )?,
+            outbound_forwarding_log_retention_seconds: parse_i64_env(
+                "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
+                ApiDmRetentionConfig::default().outbound_forwarding_log_retention_seconds,
+            )?,
         };
 
         let allowed_origins = allowed_origins_raw
@@ -323,6 +365,8 @@ impl ApiConfig {
             allowed_origins,
             database_url,
             node_fingerprint,
+            node_admin_identity_ids,
+            node_owner_identity_ids,
             local_node_identity,
             discovery_denylist,
             static_peer_registry,
@@ -336,6 +380,7 @@ impl ApiConfig {
             session_cookie_same_site,
             trust_proxy_headers,
             rate_limits,
+            dm_retention,
         })
     }
 }
@@ -362,6 +407,25 @@ fn parse_csv_env(key: &str) -> Vec<String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect()
+}
+
+fn parse_identity_id_csv_env(key: &str) -> Result<Vec<String>, String> {
+    let values = parse_csv_env(key);
+    let mut seen = std::collections::HashSet::new();
+
+    for value in &values {
+        if !is_valid_identity_id(value) {
+            return Err(format!(
+                "Invalid {key}. Identity ids must be 3-64 chars using letters, numbers, _ or -"
+            ));
+        }
+
+        if !seen.insert(value.clone()) {
+            return Err(format!("Invalid {key}. Identity ids must not repeat"));
+        }
+    }
+
+    Ok(values)
 }
 
 fn parse_session_signing_keys() -> Result<(String, HashMap<String, String>), String> {
@@ -746,6 +810,8 @@ mod tests {
         "API_ALLOW_PUBLIC_IDENTITY_REGISTRATION",
         "API_ENABLE_DEV_TESTING",
         "API_NODE_FINGERPRINT",
+        "API_NODE_OWNER_IDENTITY_IDS",
+        "API_NODE_ADMIN_IDENTITY_IDS",
         "API_DATABASE_URL",
         "API_ALLOWED_ORIGINS",
         "API_DISCOVERY_DENYLIST",
@@ -771,7 +837,13 @@ mod tests {
         "API_DISCOVERY_QUERY_RATE_LIMIT",
         "API_INVITE_CREATE_RATE_LIMIT",
         "API_INVITE_REDEEM_RATE_LIMIT",
+        "API_DM_DISPATCH_RATE_LIMIT",
+        "API_DM_CATCH_UP_RATE_LIMIT",
+        "API_DM_ACK_RATE_LIMIT",
+        "API_DM_INTERNAL_FORWARD_RATE_LIMIT",
         "API_RATE_LIMIT_WINDOW_SECONDS",
+        "API_DM_DELIVERY_LOG_RETENTION_SECONDS",
+        "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
     ];
 
     fn with_api_env<F>(pairs: &[(&str, Option<&str>)], f: F)
@@ -949,6 +1021,74 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert!(config.allow_public_identity_registration);
+            },
+        );
+    }
+
+    #[test]
+    fn parses_node_owner_and_admin_identity_ids() {
+        with_api_env(
+            &[
+                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner_2")),
+                ("API_NODE_ADMIN_IDENTITY_IDS", Some("usr-admin")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(
+                    config.node_owner_identity_ids,
+                    vec!["usr-owner".to_string(), "usr-owner_2".to_string()]
+                );
+                assert_eq!(
+                    config.node_admin_identity_ids,
+                    vec!["usr-admin".to_string()]
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_node_admin_identity_ids() {
+        with_api_env(
+            &[
+                (
+                    "API_NODE_ADMIN_IDENTITY_IDS",
+                    Some("valid-admin, bad admin "),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("invalid admin identity should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_NODE_ADMIN_IDENTITY_IDS"));
+            },
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_node_owner_identity_ids() {
+        with_api_env(
+            &[
+                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner")),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("duplicate owner identity should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_NODE_OWNER_IDENTITY_IDS"));
             },
         );
     }
@@ -1430,6 +1570,41 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("API_AUTH_CHALLENGE_RATE_LIMIT"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_dm_retention_and_rate_limit_config() {
+        with_api_env(
+            &[
+                ("API_DM_DISPATCH_RATE_LIMIT", Some("2")),
+                ("API_DM_CATCH_UP_RATE_LIMIT", Some("3")),
+                ("API_DM_ACK_RATE_LIMIT", Some("4")),
+                ("API_DM_INTERNAL_FORWARD_RATE_LIMIT", Some("5")),
+                ("API_DM_DELIVERY_LOG_RETENTION_SECONDS", Some("600")),
+                (
+                    "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
+                    Some("300"),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(config.rate_limits.dm_dispatch_per_window, 2);
+                assert_eq!(config.rate_limits.dm_catch_up_per_window, 3);
+                assert_eq!(config.rate_limits.dm_ack_per_window, 4);
+                assert_eq!(config.rate_limits.dm_internal_forward_per_window, 5);
+                assert_eq!(config.dm_retention.delivery_log_retention_seconds, 600);
+                assert_eq!(
+                    config
+                        .dm_retention
+                        .outbound_forwarding_log_retention_seconds,
+                    300
+                );
             },
         );
     }

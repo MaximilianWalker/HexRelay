@@ -658,7 +658,11 @@ mod tests {
     use tokio::sync::oneshot;
 
     use crate::{
-        domain::dm::routing::{plan_dm_envelope_route, DmEnvelopeRouteRequest},
+        domain::{
+            dm::routing::{plan_dm_envelope_route, DmEnvelopeRouteRequest},
+            node_identity::{generate_node_identity, NodeIdentityGenerateOptions},
+            peer_invites::{issue_peer_invite, PeerInviteIssueOptions},
+        },
         state::AppState,
     };
 
@@ -721,6 +725,67 @@ mod tests {
             .with_static_peer_registry(
                 StaticPeerRegistry::try_new(vec![origin.descriptor.clone()]).expect("registry"),
             )
+    }
+
+    fn state_for_generated_identity(
+        local: &LocalNodeIdentity,
+        registry: StaticPeerRegistry,
+    ) -> AppState {
+        let mut state = AppState::default()
+            .with_local_node_identity(Some(local.clone()))
+            .with_static_peer_registry(registry);
+        state.node_fingerprint = local.descriptor.node_id.clone();
+        state
+    }
+
+    fn generated_identity(node_id: &str, descriptor_id: &str, address: &str) -> LocalNodeIdentity {
+        let (_, identity) = generate_node_identity(
+            &NodeIdentityGenerateOptions {
+                node_id: node_id.to_string(),
+                descriptor_id: Some(descriptor_id.to_string()),
+                ttl_seconds: 300,
+                max_ttl_seconds: 86_400,
+                network_mode: NetworkMode::PrivatePeers,
+                discovery_policy: DiscoveryPolicy::PrivateAllowlist,
+                peering_policy: PeeringPolicy::InviteToken,
+                relay_policy: RelayPolicy::None,
+                dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+                storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
+                addresses: vec![address.to_string()],
+                supported_protocols: vec!["hexrelay-node-http".to_string()],
+                trust_labels: Vec::new(),
+                revocation_pointer: None,
+            },
+            Utc::now().timestamp() - 1,
+        )
+        .expect("generate node identity");
+
+        identity
+    }
+
+    fn registry_from_signed_invite(
+        issuer: &LocalNodeIdentity,
+        subject_node_id: &str,
+    ) -> StaticPeerRegistry {
+        let envelope = issue_peer_invite(
+            issuer,
+            &PeerInviteIssueOptions {
+                invite_id: Some(format!(
+                    "peer-invite-{}-to-{subject_node_id}",
+                    issuer.descriptor.node_id
+                )),
+                subject_node_id: Some(subject_node_id.to_string()),
+                allow_unbound: false,
+                ttl_seconds: 300,
+                max_ttl_seconds: 86_400,
+                discovery_path: DiscoveryPath::PrivateAllowlist,
+                max_uses: Some(1),
+            },
+            Utc::now().timestamp() - 1,
+        )
+        .expect("issue peer invite");
+
+        StaticPeerRegistry::try_new(vec![envelope.issuer_descriptor]).expect("invite registry")
     }
 
     fn signed_forward_request(
@@ -880,6 +945,83 @@ mod tests {
                 &signature,
             )
             .expect("signature should verify");
+    }
+
+    #[tokio::test]
+    async fn forwards_invite_backed_private_mesh_envelope_with_authenticated_node_request() {
+        let (node_a_forward_url, capture_rx) = start_capture_server().await;
+        let node_a = generated_identity("node-a", "descriptor-node-a", &node_a_forward_url);
+        let node_b = generated_identity("node-b", "descriptor-node-b", "https://node-b.example");
+        let node_b_registry = registry_from_signed_invite(&node_a, "node-b");
+        let route = match plan_dm_envelope_route(
+            "node-b",
+            &node_b_registry,
+            DmEnvelopeRouteRequest::static_destination("node-a"),
+        )
+        .expect("invite-backed route should plan")
+        {
+            crate::domain::dm::routing::DmEnvelopeForwardingRoute::StaticPeer { route } => route,
+            _ => panic!("expected static peer route"),
+        };
+        assert_eq!(route.destination.descriptor.node_id, "node-a");
+        assert_eq!(
+            route.destination.descriptor.peering_policy,
+            PeeringPolicy::InviteToken
+        );
+
+        let node_b_state = state_for_generated_identity(&node_b, node_b_registry);
+        forward_dm_envelope_to_static_peer(
+            &node_b_state,
+            &route,
+            ForwardDmEnvelopeInput {
+                message_id: "msg-private-mesh-1",
+                thread_id: "thread-private-mesh-1",
+                sender_identity_id: "usr-sender",
+                recipient_identity_id: "usr-recipient",
+                ciphertext: "sealed:private-mesh-envelope-ciphertext",
+                source_device_id: Some("desktop-main"),
+                accepted_at: "2026-05-11T00:00:00Z",
+                delivery_cursor: 42,
+                target_device_ids: &["phone-main".to_string()],
+            },
+        )
+        .await
+        .expect("forward should succeed");
+
+        let captured = capture_rx.await.expect("capture forwarded request");
+        assert_eq!(
+            captured
+                .headers
+                .get(HEADER_NODE_ID)
+                .and_then(|value| value.to_str().ok()),
+            Some("node-b")
+        );
+        assert!(captured.headers.contains_key(HEADER_SIGNATURE));
+
+        let node_a_registry = registry_from_signed_invite(&node_b, "node-a");
+        let node_a_state = state_for_generated_identity(&node_a, node_a_registry);
+        let authenticated =
+            authenticate_node_forward_request(&node_a_state, &captured.headers, &captured.body)
+                .expect("captured request should authenticate at destination node");
+        assert_eq!(authenticated.origin_node_id, "node-b");
+        assert_eq!(authenticated.request.destination_node_id, "node-a");
+        assert_eq!(
+            authenticated.request.ciphertext,
+            "sealed:private-mesh-envelope-ciphertext"
+        );
+
+        let body: Value = serde_json::from_slice(&captured.body).expect("decode body");
+        assert_eq!(body["route_kind"], NODE_FORWARD_ROUTE_KIND_DIRECT);
+        assert_eq!(body["origin_node_descriptor"]["node_id"], "node-b");
+        assert_eq!(body["destination_node_id"], "node-a");
+        assert_eq!(body["relay_node_id"], Value::Null);
+        assert_eq!(
+            body["ciphertext"],
+            "sealed:private-mesh-envelope-ciphertext"
+        );
+        assert_eq!(body["target_device_ids"], serde_json::json!(["phone-main"]));
+        assert!(body.get("plaintext").is_none());
+        assert!(body.get("content").is_none());
     }
 
     #[tokio::test]

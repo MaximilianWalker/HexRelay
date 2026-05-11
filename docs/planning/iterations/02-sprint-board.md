@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 pivoted Iteration 2 DM delivery sequencing to server-node P2P E2EE encrypted-envelope delivery and retired node-bypassing client DM transport/bootstrap work.
+- Latest meaningful change: 2026-05-11 added T4.1.9 backend realtime dispatch-summary observability for recipient-targeted DM active-device fanout.
 
 ## Iteration Scope
 
@@ -155,12 +155,17 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.4 | Implement relationship-scoped DM bootstrap | T4.1.4 pairing closeout branch, superseded by envelope-baseline pivot | Bootstrap authority is now accepted contact/friend relationship state plus identity/profile-device material only; QR/manual-code pairing and endpoint hints are retired |
 | T4.1.5 | Retire node-bypassing DM preflight and deterministic troubleshooter surfaces | T4.1.5 connectivity preflight branch, superseded by envelope-baseline pivot | DM preflight and troubleshooter surfaces are retired because normal DM delivery uses server-node P2P encrypted envelopes |
 | T4.1.6 | Retire DM LAN discovery fast path | T4.1.6 LAN discovery fast-path branch, superseded by envelope-baseline pivot | DM LAN discovery surfaces are retired; server/node discovery work must remain separately scoped |
+| T4.1.7 | Implement encrypted-envelope message-node DM delivery baseline | private mesh delivery smoke branch | API accepts durable ciphertext envelopes, forwards explicit static-peer destinations over signed server-node HTTP, and covers local two-node forwarding smoke without recipient-device reachability |
+| T4.1.8 | Add DM delivery metadata minimization, retention, and abuse controls | current backend retention branch | Configurable DM dispatch/catch-up/ack/node-forward rate limits are in place; expired fanout and outbound forwarding metadata purge without deleting canonical ciphertext history |
+| T4.1.9 | Implement DM active-device profile fanout semantics | DM fanout/catch-up branches plus current realtime dispatch-summary branch | Accepted ciphertext envelopes fan out to active profile devices through verified-device realtime dispatch; internal summaries now classify target-device outcomes without plaintext/private-key access |
+| T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | DM fanout/catch-up branches | Later-active devices replay missed ciphertext envelopes with per-device cursor metadata and dedupe coverage |
+| T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | envelope-baseline pivot plus DM transport policy guardrail | Runtime, web, contracts, tests, fixtures, and guardrails reject retired WAN wizard, endpoint-card, and parallel-dial DM surfaces |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is completing the node-bypassing DM surface retirement plus `T4.1.7` encrypted-envelope message-node DM delivery baseline |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended work is server-channel/presence convergence cleanup or live-call recipient-targeted signaling; no UX changes without explicit approval |
 
 ## Suggested Sprint Sequencing
 
@@ -182,9 +187,9 @@ Week 5:
 
 Week 6:
 
-- T4.1.7 -> T4.1.8 to establish encrypted-envelope message-node delivery and metadata/retention controls
-- T4.1.7 -> T4.1.9 -> T4.1.10 for DM multi-device convergence over ciphertext envelopes
-- T4.1.11 node-bypassing DM surface retirement before any UX-facing delivery work; all UX changes require explicit user approval
+- T4.1.8 to harden metadata minimization, retention, and abuse controls over the encrypted-envelope delivery path
+- Maintain T4.1.9/T4.1.10 profile-device convergence evidence while retention/abuse controls are added
+- Keep T4.1.11 node-bypassing DM surface retirement evidence green before any UX-facing delivery work; all UX changes require explicit user approval
 - T4.3.1 -> T4.3.2
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
@@ -204,6 +209,7 @@ Week 6:
 - DM bootstrap works through accepted contact/friend relationship state and releases only identity/profile-device material needed for client-side E2EE.
 - Recipient-device pairing QR/manual-code, preflight, LAN discovery, endpoint-card, WAN wizard, and parallel-dial surfaces are absent from DM runtime, web, contracts, tests, and docs.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
+- DM active-device realtime fanout has backend target summaries for queued-to-verified-websocket, pending/no-connection, unverified-device-binding, saturated-queue, and stale-connection cleanup outcomes; final delivery remains ack-backed.
 - Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
 - Broad multi-device DM convergence must operate over accepted ciphertext envelopes plus minimal replay metadata under the message-node delivery design.

@@ -13,7 +13,7 @@
 
 - Primary edit location for networking-layer architecture across E2EE DM envelope delivery and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-05-11 defined the dynamic server-node policy graph, opt-in discovery and relay rules, user-consented node introductions, and the networking algorithms HexRelay should use as the server-node P2P architecture matures.
+- Latest meaningful change: 2026-05-11 added recipient-targeted realtime dispatch summaries for DM encrypted envelopes while keeping final delivery ack-backed.
 
 ## Purpose
 
@@ -413,6 +413,15 @@ Use:
 
 Reliability must not require plaintext access. Queue inspection, retry, and dedupe operate on envelope metadata only.
 
+Current MVP-adjacent backend baseline:
+
+- Fanout delivery-log metadata retention defaults to 30 days.
+- Outbound forwarding metadata retention defaults to 7 days.
+- Fanout delivery metadata may be deleted after expiry only when every currently registered profile device has advanced beyond the row cursor, or when the recipient identity has no registered profile device.
+- Canonical encrypted DM history is separate from delivery metadata and is not deleted by this metadata purge.
+- Outbound forwarding metadata purge deletes expired `forwarded` rows and terminal `failed` rows with no future retry schedule; queued or retry-scheduled rows remain.
+- Retention metadata must not include DM plaintext, decrypted previews, private keys, recipient-device endpoint hints, LAN/WAN addresses, pairing material, or direct user-to-user transport state.
+
 ### Abuse Controls
 
 Use:
@@ -427,6 +436,13 @@ Use:
 - per-policy audit logs that avoid plaintext content.
 
 Open relay behavior must never be the default. Any `open_limited` relay mode requires explicit operator opt-in and conservative limits.
+
+Current MVP-adjacent backend baseline:
+
+- DM dispatch is rate-limited by sender identity.
+- DM catch-up is rate-limited by identity across profile devices; delivery ack is rate-limited by identity/device.
+- Authenticated server-node forwarding ingress is rate-limited by origin node id.
+- Abuse controls operate on request counts, delivery state, policy, and node provenance; they must not inspect plaintext or require server-side decryption.
 
 ## Shared Responsibilities
 
@@ -450,7 +466,8 @@ Open relay behavior must never be the default. Any `open_limited` relay mode req
 - Read state is a separate target-state concern: explicit read receipts may advance profile-level read state, but envelope delivery acks must never imply user-visible read state.
 - Dedup identity is stable by `(message_id, profile_device_id)` for DM and `(event_id, profile_device_id)` for server-channel/presence.
 - DM convergence must preserve ciphertext-only server behavior: server nodes/message nodes may store/replay E2EE envelopes and minimal metadata, never plaintext or private keys.
-- Live fanout failure must not discard an accepted DM; it only changes current reachability assumptions and pending delivery state.
+- Live fanout emits backend-only target summaries that classify each intended active device as queued-to-verified-websocket, pending/no-connection, pending/unverified-device-binding, pending/saturated-queue, or affected by stale connection cleanup.
+- Live fanout failure must not discard an accepted DM; it only changes current reachability assumptions and pending delivery state. Final delivery remains ack-backed through `dm.envelope.ack`.
 
 ## Scenario A: E2EE DM Delivery
 
@@ -467,6 +484,7 @@ Open relay behavior must never be the default. Any `open_limited` relay mode req
 - Sender-side success must happen only after durable acceptance of encrypted envelopes into canonical DM history plus minimal delivery metadata.
 - Sender prepares per-recipient-device envelopes using recipient profile device manifest.
 - Recipient devices receive ciphertext envelopes through server-node/message-node dispatch, ack receipt, and decrypt locally.
+- Realtime dispatch observability is backend-only: message nodes return and log target counts, queued-to-verified-websocket device ids, pending device ids, no-connection ids, unverified-binding ids, saturated-queue ids, and stale connection count. These summaries contain ids and state only, not plaintext.
 - Offline sibling devices pull missed ciphertext envelopes on activation using idempotent per-device replay; durable cursor advancement remains ack-backed rather than fetch-backed.
 - Read-state reconciliation uses explicit `dm.message.read` receipts plus profile-level merge rules; participant fanout occurs only when the reader's privacy policy allows it.
 - Forbidden behavior: server-readable DM content, private-key upload/custody, server-side decryption, unencrypted DM mailboxing, plaintext relay, or node-bypassing DM transport/bootstrap.
@@ -531,6 +549,9 @@ Open relay behavior must never be the default. Any `open_limited` relay mode req
 ### DM Path Validation
 
 - Conformance suite ensures ciphertext-only server-node/message-node handling, no server-side plaintext/private-key custody, and metadata minimization.
+- Retention tests ensure expired replay/forwarding metadata can be deleted without deleting canonical ciphertext history.
+- Abuse-control tests ensure dispatch, catch-up, ack, and authenticated node-forward ingress can be rate-limited without plaintext inspection.
+- Realtime dispatch tests ensure target-device summaries are deterministic for queued, no-connection, unverified, saturated, and stale-connection outcomes.
 - Relationship bootstrap tests ensure bootstrap material is released only after accepted contact/friend state and contains no recipient-device network endpoint material.
 - Active-device fanout tests ensure online profile devices receive DM ciphertext envelopes and only acked devices count as delivered.
 - Late-device activation tests ensure missed DM payloads converge by cursor replay.

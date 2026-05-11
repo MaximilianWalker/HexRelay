@@ -4,7 +4,7 @@ use communication_core::{
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
     domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
@@ -40,6 +40,24 @@ struct OwnedDmEnvelopeDispatchRequest {
     accepted_at: String,
     delivery_cursor: u64,
     target_device_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct DmEnvelopeDispatchInternalResponse {
+    summary: DmEnvelopeDispatchSummary,
+}
+
+#[derive(Deserialize)]
+struct DmEnvelopeDispatchSummary {
+    message_id: String,
+    recipient_identity_id: String,
+    target_device_count: u32,
+    queued_device_ids: Vec<String>,
+    pending_device_ids: Vec<String>,
+    no_connection_device_ids: Vec<String>,
+    unverified_device_ids: Vec<String>,
+    saturated_device_ids: Vec<String>,
+    stale_connection_count: u32,
 }
 
 pub struct DispatchDmEnvelopeInput<'a> {
@@ -88,7 +106,36 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                 .send()
                 .await
             {
-                Ok(response) if response.status().is_success() => {}
+                Ok(response) if response.status().is_success() => {
+                    match response.json::<DmEnvelopeDispatchInternalResponse>().await {
+                        Ok(report) => {
+                            info!(
+                                %path,
+                                message_id = %report.summary.message_id,
+                                thread_id = %thread_id,
+                                recipient_identity_id = %report.summary.recipient_identity_id,
+                                target_device_count = report.summary.target_device_count,
+                                queued_device_count = report.summary.queued_device_ids.len(),
+                                pending_device_count = report.summary.pending_device_ids.len(),
+                                no_connection_device_count = report.summary.no_connection_device_ids.len(),
+                                unverified_device_count = report.summary.unverified_device_ids.len(),
+                                saturated_device_count = report.summary.saturated_device_ids.len(),
+                                stale_connection_count = report.summary.stale_connection_count,
+                                "NodeClientTransport DM envelope dispatch accepted by realtime"
+                            );
+                        }
+                        Err(error) => {
+                            warn!(
+                                %path,
+                                %message_id,
+                                %thread_id,
+                                %recipient_identity_id,
+                                error = %error,
+                                "NodeClientTransport DM envelope dispatch summary decode failed"
+                            );
+                        }
+                    }
+                }
                 Ok(response) => {
                     warn!(
                         %path,

@@ -16,6 +16,12 @@ pub struct DmOutboundForwardWrite<'a> {
     pub delivery_cursor: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DmDeliveryMetadataRetentionSummary {
+    pub fanout_delivery_records_deleted: u64,
+    pub outbound_forward_records_deleted: u64,
+}
+
 pub async fn get_dm_policy(
     pool: &PgPool,
     identity_id: &str,
@@ -392,6 +398,59 @@ pub async fn list_dm_fanout_delivery_records(
             })
         })
         .collect()
+}
+
+pub async fn purge_expired_dm_delivery_metadata(
+    pool: &PgPool,
+    delivery_log_cutoff: DateTime<Utc>,
+    outbound_forwarding_cutoff: DateTime<Utc>,
+) -> Result<DmDeliveryMetadataRetentionSummary, sqlx::Error> {
+    let fanout_deleted = sqlx::query(
+        "
+        DELETE FROM dm_fanout_delivery_log log
+        WHERE log.created_at < $1
+          AND (
+              NOT EXISTS (
+                  SELECT 1
+                  FROM dm_profile_devices device
+                  WHERE device.identity_id = log.identity_id
+              )
+              OR NOT EXISTS (
+                  SELECT 1
+                  FROM dm_profile_devices device
+                  LEFT JOIN dm_fanout_device_cursors cursor
+                    ON cursor.identity_id = device.identity_id
+                   AND cursor.device_id = device.device_id
+                  WHERE device.identity_id = log.identity_id
+                    AND COALESCE(cursor.cursor, 0) < log.cursor
+              )
+          )
+        ",
+    )
+    .bind(delivery_log_cutoff)
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    let outbound_deleted = sqlx::query(
+        "
+        DELETE FROM dm_outbound_forwarding_log
+        WHERE created_at < $1
+          AND (
+              forwarding_state = 'forwarded'
+              OR (forwarding_state = 'failed' AND next_attempt_at IS NULL)
+          )
+        ",
+    )
+    .bind(outbound_forwarding_cutoff)
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    Ok(DmDeliveryMetadataRetentionSummary {
+        fanout_delivery_records_deleted: fanout_deleted,
+        outbound_forward_records_deleted: outbound_deleted,
+    })
 }
 
 pub async fn record_dm_outbound_forward_queued(
