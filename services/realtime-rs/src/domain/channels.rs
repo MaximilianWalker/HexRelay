@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::state::AppState;
 use chrono::Utc;
@@ -9,13 +9,14 @@ use tokio::{
     sync::mpsc::Sender,
     time::{sleep, Duration},
 };
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::domain::replay_store;
 
 const CHANNEL_EVENTS_CHANNEL: &str = "channels:v1:events";
 const CHANNEL_REPLAY_LOG_MAX_ENTRIES: usize = 256;
 const CHANNEL_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
+const LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX: usize = 4096;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ChannelMessageCreatedData {
@@ -51,6 +52,19 @@ pub struct ChannelMessageDeletedData {
 pub struct ChannelRecipientCursor {
     pub recipient_identity_id: String,
     pub cursor: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChannelMessageDispatchSummary {
+    pub message_id: String,
+    pub server_id: String,
+    pub channel_id: String,
+    pub target_recipient_count: u32,
+    pub queued_recipient_ids: Vec<String>,
+    pub pending_recipient_ids: Vec<String>,
+    pub no_connection_recipient_ids: Vec<String>,
+    pub saturated_recipient_ids: Vec<String>,
+    pub stale_connection_count: u32,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -97,6 +111,8 @@ pub struct ChannelMessageDeletedEnvelope {
 
 #[derive(Deserialize)]
 struct ChannelPubsubEnvelope {
+    #[serde(default)]
+    event_id: String,
     event_type: String,
     correlation_id: String,
     recipients: Vec<String>,
@@ -181,6 +197,9 @@ pub fn spawn_channel_subscriber(state: AppState) {
                         continue;
                     }
                 };
+                if consume_locally_dispatched_channel_event(&state, &event.event_id).await {
+                    continue;
+                }
 
                 match event.event_type.as_str() {
                     "channel.message.created" => {
@@ -205,13 +224,20 @@ pub fn spawn_channel_subscriber(state: AppState) {
                                 Some(event.correlation_id.clone()),
                             );
 
-                        dispatch_channel_event_locally(
+                        let summary = dispatch_channel_event_locally(
                             &state,
+                            ChannelDispatchContext {
+                                event_type: "channel.message.created",
+                                message_id: &data.message_id,
+                                server_id: &data.server_id,
+                                channel_id: &data.channel_id,
+                            },
                             &client_payload,
                             &event.recipients,
                             &event.recipient_cursors,
                         )
                         .await;
+                        log_channel_dispatch_summary("channel.message.created", &summary);
                     }
                     "channel.message.updated" => {
                         let data = match serde_json::from_value::<ChannelMessageUpdatedData>(
@@ -235,13 +261,20 @@ pub fn spawn_channel_subscriber(state: AppState) {
                                 Some(event.correlation_id.clone()),
                             );
 
-                        dispatch_channel_event_locally(
+                        let summary = dispatch_channel_event_locally(
                             &state,
+                            ChannelDispatchContext {
+                                event_type: "channel.message.updated",
+                                message_id: &data.message_id,
+                                server_id: &data.server_id,
+                                channel_id: &data.channel_id,
+                            },
                             &client_payload,
                             &event.recipients,
                             &event.recipient_cursors,
                         )
                         .await;
+                        log_channel_dispatch_summary("channel.message.updated", &summary);
                     }
                     "channel.message.deleted" => {
                         let data = match serde_json::from_value::<ChannelMessageDeletedData>(
@@ -265,13 +298,20 @@ pub fn spawn_channel_subscriber(state: AppState) {
                                 Some(event.correlation_id.clone()),
                             );
 
-                        dispatch_channel_event_locally(
+                        let summary = dispatch_channel_event_locally(
                             &state,
+                            ChannelDispatchContext {
+                                event_type: "channel.message.deleted",
+                                message_id: &data.message_id,
+                                server_id: &data.server_id,
+                                channel_id: &data.channel_id,
+                            },
                             &client_payload,
                             &event.recipients,
                             &event.recipient_cursors,
                         )
                         .await;
+                        log_channel_dispatch_summary("channel.message.deleted", &summary);
                     }
                     other => {
                         warn!(event_type = %other, "unsupported channel pubsub event type");
@@ -366,14 +406,22 @@ pub async fn hydrate_channel_backlog_if_needed(
 pub async fn publish_channel_message_created(
     state: &AppState,
     input: PublishChannelMessageCreatedInput,
-) -> Result<(), String> {
+) -> Result<ChannelMessageDispatchSummary, String> {
     let Some(client) = state.presence_redis_client.as_ref() else {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     };
 
     let recipients = normalize_recipients(&input.recipients);
     if recipients.is_empty() {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     }
     if input.channel_seq == 0 {
         return Err("channel_seq must be greater than zero".to_string());
@@ -402,11 +450,12 @@ pub async fn publish_channel_message_created(
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
+    let event_id = client_event["event_id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let event = ChannelMessageCreatedEnvelope {
-        event_id: client_event["event_id"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string(),
+        event_id: event_id.clone(),
         event_type: client_event["event_type"]
             .as_str()
             .unwrap_or_default()
@@ -438,27 +487,53 @@ pub async fn publish_channel_message_created(
     let event_json = serde_json::to_string(&event)
         .map_err(|error| format!("serialize channel event: {error}"))?;
 
-    let _: () = redis::cmd("PUBLISH")
+    remember_locally_dispatched_channel_event(state, &event_id).await;
+    let publish_result: Result<(), redis::RedisError> = redis::cmd("PUBLISH")
         .arg(CHANNEL_EVENTS_CHANNEL)
         .arg(event_json)
         .query_async(&mut connection)
-        .await
-        .map_err(|error| format!("publish channel event: {error}"))?;
+        .await;
+    if let Err(error) = publish_result {
+        forget_locally_dispatched_channel_event(state, &event_id).await;
+        return Err(format!("publish channel event: {error}"));
+    }
 
-    Ok(())
+    let summary = dispatch_channel_event_locally(
+        state,
+        ChannelDispatchContext {
+            event_type: "channel.message.created",
+            message_id: &event.data.message_id,
+            server_id: &event.data.server_id,
+            channel_id: &event.data.channel_id,
+        },
+        &client_payload,
+        &event.recipients,
+        &event.recipient_cursors,
+    )
+    .await;
+    log_channel_dispatch_summary("channel.message.created", &summary);
+    Ok(summary)
 }
 
 pub async fn publish_channel_message_updated(
     state: &AppState,
     input: PublishChannelMessageUpdatedInput,
-) -> Result<(), String> {
+) -> Result<ChannelMessageDispatchSummary, String> {
     let Some(client) = state.presence_redis_client.as_ref() else {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     };
 
     let recipients = normalize_recipients(&input.recipients);
     if recipients.is_empty() {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     }
     if input.channel_seq == 0 {
         return Err("channel_seq must be greater than zero".to_string());
@@ -487,11 +562,12 @@ pub async fn publish_channel_message_updated(
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
+    let event_id = client_event["event_id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let event = ChannelMessageUpdatedEnvelope {
-        event_id: client_event["event_id"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string(),
+        event_id: event_id.clone(),
         event_type: client_event["event_type"]
             .as_str()
             .unwrap_or_default()
@@ -523,27 +599,53 @@ pub async fn publish_channel_message_updated(
     let event_json = serde_json::to_string(&event)
         .map_err(|error| format!("serialize channel update event: {error}"))?;
 
-    let _: () = redis::cmd("PUBLISH")
+    remember_locally_dispatched_channel_event(state, &event_id).await;
+    let publish_result: Result<(), redis::RedisError> = redis::cmd("PUBLISH")
         .arg(CHANNEL_EVENTS_CHANNEL)
         .arg(event_json)
         .query_async(&mut connection)
-        .await
-        .map_err(|error| format!("publish channel update event: {error}"))?;
+        .await;
+    if let Err(error) = publish_result {
+        forget_locally_dispatched_channel_event(state, &event_id).await;
+        return Err(format!("publish channel update event: {error}"));
+    }
 
-    Ok(())
+    let summary = dispatch_channel_event_locally(
+        state,
+        ChannelDispatchContext {
+            event_type: "channel.message.updated",
+            message_id: &event.data.message_id,
+            server_id: &event.data.server_id,
+            channel_id: &event.data.channel_id,
+        },
+        &client_payload,
+        &event.recipients,
+        &event.recipient_cursors,
+    )
+    .await;
+    log_channel_dispatch_summary("channel.message.updated", &summary);
+    Ok(summary)
 }
 
 pub async fn publish_channel_message_deleted(
     state: &AppState,
     input: PublishChannelMessageDeletedInput,
-) -> Result<(), String> {
+) -> Result<ChannelMessageDispatchSummary, String> {
     let Some(client) = state.presence_redis_client.as_ref() else {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     };
 
     let recipients = normalize_recipients(&input.recipients);
     if recipients.is_empty() {
-        return Ok(());
+        return Ok(empty_channel_dispatch_summary(
+            &input.message_id,
+            &input.guild_id,
+            &input.channel_id,
+        ));
     }
     if input.channel_seq == 0 {
         return Err("channel_seq must be greater than zero".to_string());
@@ -572,11 +674,12 @@ pub async fn publish_channel_message_deleted(
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
+    let event_id = client_event["event_id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let event = ChannelMessageDeletedEnvelope {
-        event_id: client_event["event_id"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string(),
+        event_id: event_id.clone(),
         event_type: client_event["event_type"]
             .as_str()
             .unwrap_or_default()
@@ -608,14 +711,32 @@ pub async fn publish_channel_message_deleted(
     let event_json = serde_json::to_string(&event)
         .map_err(|error| format!("serialize channel delete event: {error}"))?;
 
-    let _: () = redis::cmd("PUBLISH")
+    remember_locally_dispatched_channel_event(state, &event_id).await;
+    let publish_result: Result<(), redis::RedisError> = redis::cmd("PUBLISH")
         .arg(CHANNEL_EVENTS_CHANNEL)
         .arg(event_json)
         .query_async(&mut connection)
-        .await
-        .map_err(|error| format!("publish channel delete event: {error}"))?;
+        .await;
+    if let Err(error) = publish_result {
+        forget_locally_dispatched_channel_event(state, &event_id).await;
+        return Err(format!("publish channel delete event: {error}"));
+    }
 
-    Ok(())
+    let summary = dispatch_channel_event_locally(
+        state,
+        ChannelDispatchContext {
+            event_type: "channel.message.deleted",
+            message_id: &event.data.message_id,
+            server_id: &event.data.server_id,
+            channel_id: &event.data.channel_id,
+        },
+        &client_payload,
+        &event.recipients,
+        &event.recipient_cursors,
+    )
+    .await;
+    log_channel_dispatch_summary("channel.message.deleted", &summary);
+    Ok(summary)
 }
 
 fn normalize_recipients(recipients: &[String]) -> Vec<String> {
@@ -681,10 +802,20 @@ fn channel_device_cursor_key(identity_id: &str, device_id: &str) -> String {
 
 async fn dispatch_channel_event_locally(
     state: &AppState,
+    context: ChannelDispatchContext<'_>,
     payload: &str,
     recipients: &[String],
     recipient_cursors: &[ChannelRecipientCursor],
-) {
+) -> ChannelMessageDispatchSummary {
+    let mut recipient_states = recipients
+        .iter()
+        .map(|recipient_identity_id| {
+            (
+                recipient_identity_id.clone(),
+                ChannelRecipientDispatchState::NoConnection,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut stale_connections = Vec::new();
     let mut guard = state.connection_senders.lock().await;
     let mut delivered_device_cursors = BTreeSet::new();
@@ -697,6 +828,9 @@ async fn dispatch_channel_event_locally(
         let Some(connections) = guard.get_mut(recipient_identity_id) else {
             continue;
         };
+        let Some(recipient_state) = recipient_states.get_mut(recipient_identity_id) else {
+            continue;
+        };
         let recipient_cursor = recipient_cursor_map
             .get(recipient_identity_id.as_str())
             .copied();
@@ -704,6 +838,7 @@ async fn dispatch_channel_event_locally(
         for (connection_id, entry) in connections.iter() {
             match entry.sender.try_send(payload.to_string()) {
                 Ok(()) => {
+                    *recipient_state = ChannelRecipientDispatchState::Queued;
                     if let (Some(device_id), Some(cursor)) =
                         (entry.device_id.as_ref(), recipient_cursor)
                     {
@@ -718,7 +853,11 @@ async fn dispatch_channel_event_locally(
                     stale_connections.push((recipient_identity_id.clone(), connection_id.clone()));
                 }
                 Err(TrySendError::Full(_)) => {
+                    if *recipient_state != ChannelRecipientDispatchState::Queued {
+                        *recipient_state = ChannelRecipientDispatchState::Saturated;
+                    }
                     warn!(
+                        event_type = %context.event_type,
                         recipient_identity_id = %recipient_identity_id,
                         connection_id = %connection_id,
                         "channel outbound queue saturated; keeping websocket registered"
@@ -728,11 +867,12 @@ async fn dispatch_channel_event_locally(
         }
     }
 
-    for (identity_id, connection_id) in stale_connections {
-        if let Some(connections) = guard.get_mut(&identity_id) {
-            connections.remove(&connection_id);
+    let stale_connection_count = stale_connections.len();
+    for (identity_id, connection_id) in &stale_connections {
+        if let Some(connections) = guard.get_mut(identity_id) {
+            connections.remove(connection_id);
             if connections.is_empty() {
-                guard.remove(&identity_id);
+                guard.remove(identity_id);
             }
         }
     }
@@ -740,33 +880,177 @@ async fn dispatch_channel_event_locally(
     drop(guard);
 
     if delivered_device_cursors.is_empty() {
-        return;
+        return build_channel_dispatch_summary(
+            context.message_id,
+            context.server_id,
+            context.channel_id,
+            recipient_states,
+            stale_connection_count,
+        );
     }
-    let Some(client) = state.presence_redis_client.as_ref() else {
-        return;
-    };
-    let mut connection = match client.get_multiplexed_tokio_connection().await {
-        Ok(value) => value,
-        Err(error) => {
-            warn!(error = %error, "failed to open Redis connection for channel cursor updates");
-            return;
-        }
-    };
+    if let Some(client) = state.presence_redis_client.as_ref() {
+        let mut connection = match client.get_multiplexed_tokio_connection().await {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(error = %error, "failed to open Redis connection for channel cursor updates");
+                return build_channel_dispatch_summary(
+                    context.message_id,
+                    context.server_id,
+                    context.channel_id,
+                    recipient_states,
+                    stale_connection_count,
+                );
+            }
+        };
 
-    for (identity_id, device_id, cursor) in delivered_device_cursors {
-        if let Err(error) = replay_store::set_device_cursor(
-            &mut connection,
-            channel_device_cursor_key,
-            CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
-            &identity_id,
-            &device_id,
-            cursor,
-        )
-        .await
-        {
-            warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live channel device cursor");
+        for (identity_id, device_id, cursor) in delivered_device_cursors {
+            if let Err(error) = replay_store::set_device_cursor(
+                &mut connection,
+                channel_device_cursor_key,
+                CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
+                &identity_id,
+                &device_id,
+                cursor,
+            )
+            .await
+            {
+                warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live channel device cursor");
+            }
         }
     }
+
+    build_channel_dispatch_summary(
+        context.message_id,
+        context.server_id,
+        context.channel_id,
+        recipient_states,
+        stale_connection_count,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct ChannelDispatchContext<'a> {
+    event_type: &'a str,
+    message_id: &'a str,
+    server_id: &'a str,
+    channel_id: &'a str,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChannelRecipientDispatchState {
+    NoConnection,
+    Saturated,
+    Queued,
+}
+
+fn empty_channel_dispatch_summary(
+    message_id: &str,
+    server_id: &str,
+    channel_id: &str,
+) -> ChannelMessageDispatchSummary {
+    ChannelMessageDispatchSummary {
+        message_id: message_id.to_string(),
+        server_id: server_id.to_string(),
+        channel_id: channel_id.to_string(),
+        target_recipient_count: 0,
+        queued_recipient_ids: Vec::new(),
+        pending_recipient_ids: Vec::new(),
+        no_connection_recipient_ids: Vec::new(),
+        saturated_recipient_ids: Vec::new(),
+        stale_connection_count: 0,
+    }
+}
+
+fn build_channel_dispatch_summary(
+    message_id: &str,
+    server_id: &str,
+    channel_id: &str,
+    recipient_states: BTreeMap<String, ChannelRecipientDispatchState>,
+    stale_connection_count: usize,
+) -> ChannelMessageDispatchSummary {
+    let mut queued_recipient_ids = Vec::new();
+    let mut pending_recipient_ids = Vec::new();
+    let mut no_connection_recipient_ids = Vec::new();
+    let mut saturated_recipient_ids = Vec::new();
+
+    for (recipient_identity_id, state) in &recipient_states {
+        match state {
+            ChannelRecipientDispatchState::Queued => {
+                queued_recipient_ids.push(recipient_identity_id.clone());
+            }
+            ChannelRecipientDispatchState::NoConnection => {
+                pending_recipient_ids.push(recipient_identity_id.clone());
+                no_connection_recipient_ids.push(recipient_identity_id.clone());
+            }
+            ChannelRecipientDispatchState::Saturated => {
+                pending_recipient_ids.push(recipient_identity_id.clone());
+                saturated_recipient_ids.push(recipient_identity_id.clone());
+            }
+        }
+    }
+
+    ChannelMessageDispatchSummary {
+        message_id: message_id.to_string(),
+        server_id: server_id.to_string(),
+        channel_id: channel_id.to_string(),
+        target_recipient_count: u32::try_from(recipient_states.len()).unwrap_or(u32::MAX),
+        queued_recipient_ids,
+        pending_recipient_ids,
+        no_connection_recipient_ids,
+        saturated_recipient_ids,
+        stale_connection_count: u32::try_from(stale_connection_count).unwrap_or(u32::MAX),
+    }
+}
+
+fn log_channel_dispatch_summary(event_type: &str, summary: &ChannelMessageDispatchSummary) {
+    info!(
+        %event_type,
+        message_id = %summary.message_id,
+        server_id = %summary.server_id,
+        channel_id = %summary.channel_id,
+        target_recipient_count = summary.target_recipient_count,
+        queued_recipient_count = summary.queued_recipient_ids.len(),
+        pending_recipient_count = summary.pending_recipient_ids.len(),
+        no_connection_recipient_count = summary.no_connection_recipient_ids.len(),
+        saturated_recipient_count = summary.saturated_recipient_ids.len(),
+        stale_connection_count = summary.stale_connection_count,
+        "server-channel realtime dispatch summarized"
+    );
+}
+
+async fn remember_locally_dispatched_channel_event(state: &AppState, event_id: &str) {
+    if event_id.is_empty() {
+        return;
+    }
+    let mut guard = state.locally_dispatched_channel_event_ids.lock().await;
+    if guard.len() >= LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX {
+        if let Some(event_id) = guard.iter().next().cloned() {
+            guard.remove(&event_id);
+        }
+    }
+    guard.insert(event_id.to_string());
+}
+
+async fn forget_locally_dispatched_channel_event(state: &AppState, event_id: &str) {
+    if event_id.is_empty() {
+        return;
+    }
+    state
+        .locally_dispatched_channel_event_ids
+        .lock()
+        .await
+        .remove(event_id);
+}
+
+async fn consume_locally_dispatched_channel_event(state: &AppState, event_id: &str) -> bool {
+    if event_id.is_empty() {
+        return false;
+    }
+    state
+        .locally_dispatched_channel_event_ids
+        .lock()
+        .await
+        .remove(event_id)
 }
 
 #[cfg(test)]
@@ -775,9 +1059,8 @@ mod tests {
     use crate::app::AppState;
     use tokio::sync::mpsc;
 
-    #[tokio::test]
-    async fn dispatch_channel_event_locally_keeps_full_connections_registered() {
-        let state = AppState::new(
+    fn test_state() -> AppState {
+        AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
             "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
@@ -793,7 +1076,12 @@ mod tests {
             5,
             2048,
         )
-        .expect("build app state");
+        .expect("build app state")
+    }
+
+    #[tokio::test]
+    async fn dispatch_channel_event_locally_keeps_full_connections_registered() {
+        let state = test_state();
         let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
         full_tx
             .try_send("seed".to_string())
@@ -811,8 +1099,14 @@ mod tests {
             )]),
         );
 
-        dispatch_channel_event_locally(
+        let summary = dispatch_channel_event_locally(
             &state,
+            ChannelDispatchContext {
+                event_type: "channel.message.created",
+                message_id: "msg-1",
+                server_id: "guild-1",
+                channel_id: "channel-1",
+            },
             "payload-1",
             &["usr-main".to_string()],
             &[ChannelRecipientCursor {
@@ -822,9 +1116,111 @@ mod tests {
         )
         .await;
 
+        assert_eq!(summary.target_recipient_count, 1);
+        assert!(summary.queued_recipient_ids.is_empty());
+        assert_eq!(summary.pending_recipient_ids, vec!["usr-main".to_string()]);
+        assert_eq!(
+            summary.saturated_recipient_ids,
+            vec!["usr-main".to_string()]
+        );
         assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
         let guard = state.connection_senders.lock().await;
         let connections = guard.get("usr-main").expect("remaining connections");
         assert!(connections.contains_key("conn-full"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_channel_event_locally_summarizes_recipient_outcomes() {
+        let state = test_state();
+        let (queued_tx, mut queued_rx) = mpsc::channel::<String>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        full_tx
+            .try_send("seed".to_string())
+            .expect("fill outbound queue");
+        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
+        drop(stale_rx);
+
+        state.connection_senders.lock().await.extend([
+            (
+                "usr-queued".to_string(),
+                std::collections::HashMap::from([(
+                    "conn-queued".to_string(),
+                    crate::state::ConnectionSenderEntry {
+                        sender: queued_tx,
+                        device_id: Some("device-queued".to_string()),
+                        dm_device_verified: false,
+                    },
+                )]),
+            ),
+            (
+                "usr-full".to_string(),
+                std::collections::HashMap::from([(
+                    "conn-full".to_string(),
+                    crate::state::ConnectionSenderEntry {
+                        sender: full_tx,
+                        device_id: Some("device-full".to_string()),
+                        dm_device_verified: false,
+                    },
+                )]),
+            ),
+            (
+                "usr-stale".to_string(),
+                std::collections::HashMap::from([(
+                    "conn-stale".to_string(),
+                    crate::state::ConnectionSenderEntry {
+                        sender: stale_tx,
+                        device_id: Some("device-stale".to_string()),
+                        dm_device_verified: false,
+                    },
+                )]),
+            ),
+        ]);
+
+        let recipients = vec![
+            "usr-queued".to_string(),
+            "usr-full".to_string(),
+            "usr-stale".to_string(),
+            "usr-missing".to_string(),
+        ];
+        let summary = dispatch_channel_event_locally(
+            &state,
+            ChannelDispatchContext {
+                event_type: "channel.message.created",
+                message_id: "msg-1",
+                server_id: "guild-1",
+                channel_id: "channel-1",
+            },
+            "payload-1",
+            &recipients,
+            &[ChannelRecipientCursor {
+                recipient_identity_id: "usr-queued".to_string(),
+                cursor: 4,
+            }],
+        )
+        .await;
+
+        assert_eq!(summary.target_recipient_count, 4);
+        assert_eq!(summary.queued_recipient_ids, vec!["usr-queued".to_string()]);
+        assert_eq!(
+            summary.pending_recipient_ids,
+            vec![
+                "usr-full".to_string(),
+                "usr-missing".to_string(),
+                "usr-stale".to_string()
+            ]
+        );
+        assert_eq!(
+            summary.no_connection_recipient_ids,
+            vec!["usr-missing".to_string(), "usr-stale".to_string()]
+        );
+        assert_eq!(
+            summary.saturated_recipient_ids,
+            vec!["usr-full".to_string()]
+        );
+        assert_eq!(summary.stale_connection_count, 1);
+        assert_eq!(queued_rx.recv().await.as_deref(), Some("payload-1"));
+        assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
+        let guard = state.connection_senders.lock().await;
+        assert!(!guard.contains_key("usr-stale"));
     }
 }

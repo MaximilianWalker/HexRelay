@@ -9,8 +9,9 @@ use crate::{
     app::AppState,
     domain::channels::{
         publish_channel_message_created, publish_channel_message_deleted,
-        publish_channel_message_updated, PublishChannelMessageCreatedInput,
-        PublishChannelMessageDeletedInput, PublishChannelMessageUpdatedInput,
+        publish_channel_message_updated, ChannelMessageDispatchSummary,
+        PublishChannelMessageCreatedInput, PublishChannelMessageDeletedInput,
+        PublishChannelMessageUpdatedInput,
     },
     domain::dms::{publish_dm_envelope_dispatched, PublishDmEnvelopeInput},
     state::DevFaultConfig,
@@ -68,6 +69,12 @@ pub struct DmEnvelopeDispatchRequest {
     pub target_device_ids: Vec<String>,
 }
 
+#[derive(Serialize)]
+pub struct ChannelMessageDispatchResponse {
+    pub status: &'static str,
+    pub summary: ChannelMessageDispatchSummary,
+}
+
 #[derive(Deserialize)]
 pub struct DevFaultUpdateRequest {
     pub delay_ms: Option<u64>,
@@ -87,9 +94,13 @@ pub async fn publish_channel_message_created_internal(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<ChannelMessageCreatedDispatchRequest>,
-) -> StatusCode {
+) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
-        return StatusCode::UNAUTHORIZED;
+        return internal_error_response(
+            StatusCode::UNAUTHORIZED,
+            "internal_auth_required",
+            "internal dispatch token is required",
+        );
     }
 
     match publish_channel_message_created(
@@ -106,8 +117,16 @@ pub async fn publish_channel_message_created_internal(
     )
     .await
     {
-        Ok(()) => StatusCode::ACCEPTED,
-        Err(_) => StatusCode::BAD_GATEWAY,
+        Ok(summary) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!(ChannelMessageDispatchResponse {
+                status: "accepted",
+                summary,
+            })),
+        ),
+        Err(error) => {
+            internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
+        }
     }
 }
 
@@ -115,9 +134,13 @@ pub async fn publish_channel_message_updated_internal(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<ChannelMessageUpdatedDispatchRequest>,
-) -> StatusCode {
+) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
-        return StatusCode::UNAUTHORIZED;
+        return internal_error_response(
+            StatusCode::UNAUTHORIZED,
+            "internal_auth_required",
+            "internal dispatch token is required",
+        );
     }
 
     match publish_channel_message_updated(
@@ -134,8 +157,16 @@ pub async fn publish_channel_message_updated_internal(
     )
     .await
     {
-        Ok(()) => StatusCode::ACCEPTED,
-        Err(_) => StatusCode::BAD_GATEWAY,
+        Ok(summary) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!(ChannelMessageDispatchResponse {
+                status: "accepted",
+                summary,
+            })),
+        ),
+        Err(error) => {
+            internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
+        }
     }
 }
 
@@ -143,9 +174,13 @@ pub async fn publish_channel_message_deleted_internal(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<ChannelMessageDeletedDispatchRequest>,
-) -> StatusCode {
+) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
-        return StatusCode::UNAUTHORIZED;
+        return internal_error_response(
+            StatusCode::UNAUTHORIZED,
+            "internal_auth_required",
+            "internal dispatch token is required",
+        );
     }
 
     match publish_channel_message_deleted(
@@ -162,8 +197,16 @@ pub async fn publish_channel_message_deleted_internal(
     )
     .await
     {
-        Ok(()) => StatusCode::ACCEPTED,
-        Err(_) => StatusCode::BAD_GATEWAY,
+        Ok(summary) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!(ChannelMessageDispatchResponse {
+                status: "accepted",
+                summary,
+            })),
+        ),
+        Err(error) => {
+            internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
+        }
     }
 }
 
@@ -291,6 +334,20 @@ fn dev_fault_response(
     )
 }
 
+fn internal_error_response(
+    status: StatusCode,
+    code: &'static str,
+    message: &str,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        status,
+        Json(serde_json::json!({
+            "code": code,
+            "message": message,
+        })),
+    )
+}
+
 fn internal_token_valid(state: &AppState, headers: &HeaderMap) -> bool {
     headers
         .get("x-hexrelay-internal-token")
@@ -327,6 +384,38 @@ mod tests {
         )
         .expect("build state")
         .with_dev_faults_enabled(enable_dev_faults)
+    }
+
+    #[tokio::test]
+    async fn channel_dispatch_internal_returns_target_summary() {
+        let app = crate::app::build_app(test_state(false));
+        let request = Request::builder()
+            .method("POST")
+            .uri("/internal/channels/messages/created")
+            .header("x-hexrelay-internal-token", TOKEN)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"message_id":"msg-1","server_id":"server-1","channel_id":"channel-1","sender_id":"usr-sender","created_at":"2026-03-26T00:00:00Z","channel_seq":3,"recipients":["usr-one","usr-two"]}"#,
+            ))
+            .expect("build channel dispatch request");
+        let response = app
+            .oneshot(request)
+            .await
+            .expect("channel dispatch response");
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read channel dispatch response");
+        let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+        assert_eq!(payload["status"], "accepted");
+        assert_eq!(payload["summary"]["message_id"], "msg-1");
+        assert_eq!(payload["summary"]["server_id"], "server-1");
+        assert_eq!(payload["summary"]["channel_id"], "channel-1");
+        assert_eq!(payload["summary"]["target_recipient_count"], 0);
+        assert_eq!(
+            payload["summary"]["queued_recipient_ids"],
+            serde_json::json!([])
+        );
     }
 
     #[tokio::test]
