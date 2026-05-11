@@ -4,7 +4,7 @@ use communication_core::{
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use crate::state::AppState;
 
@@ -165,7 +165,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                         .await
                     {
                         Ok(report) => {
-                            info!(
+                            debug!(
                                 %path,
                                 message_id = %report.summary.message_id,
                                 server_id = %report.summary.server_id,
