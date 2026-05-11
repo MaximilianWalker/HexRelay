@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide.
+- Latest meaningful change: 2026-05-11 clarified realtime presence replay hydration for later-active profile devices.
 
 ## Purpose
 
