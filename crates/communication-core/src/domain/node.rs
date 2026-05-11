@@ -273,6 +273,16 @@ impl NodeDescriptor {
             )
     }
 
+    pub fn allows_intermediate_relay(&self) -> bool {
+        matches!(
+            self.relay_policy,
+            RelayPolicy::AllowlistedPeers | RelayPolicy::OpenLimited
+        ) && matches!(
+            self.dm_forwarding_policy,
+            DmForwardingPolicy::AllowlistedRoute | DmForwardingPolicy::RelayAllowed
+        )
+    }
+
     pub fn accepts_local_recipient_delivery(&self) -> bool {
         matches!(
             self.dm_forwarding_policy,

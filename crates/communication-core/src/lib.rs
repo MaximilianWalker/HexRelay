@@ -10,7 +10,8 @@ pub use domain::{
     verify_descriptor_ed25519, Ed25519DescriptorVerifier, NodeDescriptorSignatureError,
 };
 pub use domain::{
-    CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, StaticPeerRegistry,
+    CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, PeerRouteKind,
+    PeerRouteSelectionError, RouteSelectionPolicy, SelectedPeerRoute, StaticPeerRegistry,
     StaticPeerRegistryError,
 };
 pub use domain::{

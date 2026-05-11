@@ -2,8 +2,8 @@ use crate::domain::{
     CandidatePeerPolicy, DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath,
     DiscoveryPolicy, DmForwardingPolicy, NetworkMode, NodeDescriptor,
     NodeDescriptorValidationError, NodeSignature, NodeSignatureAlgorithm,
-    PeerCandidateValidationError, PeeringPolicy, RelayPolicy, StaticPeerRegistry,
-    StaticPeerRegistryError, StoragePolicy,
+    PeerCandidateValidationError, PeerRouteKind, PeerRouteSelectionError, PeeringPolicy,
+    RelayPolicy, RouteSelectionPolicy, StaticPeerRegistry, StaticPeerRegistryError, StoragePolicy,
 };
 
 struct StaticVerifier {
@@ -50,7 +50,11 @@ fn descriptor(node_id: &str, descriptor_id: &str) -> NodeDescriptor {
 }
 
 fn registry_with(peer: NodeDescriptor) -> StaticPeerRegistry {
-    StaticPeerRegistry::try_new(vec![peer]).expect("registry should be valid")
+    registry_with_many(vec![peer])
+}
+
+fn registry_with_many(peers: Vec<NodeDescriptor>) -> StaticPeerRegistry {
+    StaticPeerRegistry::try_new(peers).expect("registry should be valid")
 }
 
 #[test]
@@ -264,4 +268,170 @@ fn validates_allowlisted_relay_candidate() {
 
     assert!(candidate.delivery_allowed);
     assert!(candidate.relay_allowed);
+}
+
+#[test]
+fn selects_direct_route_before_relay_for_known_destination() {
+    let destination = descriptor("node-destination", "descriptor-destination");
+    let mut relay = descriptor("node-relay", "descriptor-relay");
+    relay.relay_policy = RelayPolicy::AllowlistedPeers;
+    relay.dm_forwarding_policy = DmForwardingPolicy::AllowlistedRoute;
+    let registry = registry_with_many(vec![destination, relay]);
+
+    let route = registry
+        .select_route(
+            "node-destination",
+            &validation_context(),
+            &StaticVerifier { valid: true },
+            &RouteSelectionPolicy::private_mesh_with_one_hop_relay(),
+        )
+        .expect("direct route should be selected");
+
+    assert_eq!(route.kind, PeerRouteKind::Direct);
+    assert_eq!(route.hop_count, 1);
+    assert_eq!(route.destination.descriptor.node_id, "node-destination");
+    assert!(route.relay.is_none());
+    assert!(route
+        .policy_assertions
+        .iter()
+        .any(|value| value == "direct_static_peer_route_selected"));
+}
+
+#[test]
+fn selects_one_hop_relay_when_direct_destination_is_unavailable() {
+    let destination = descriptor("node-destination", "descriptor-destination");
+    let mut relay = descriptor("node-relay", "descriptor-relay");
+    relay.relay_policy = RelayPolicy::AllowlistedPeers;
+    relay.dm_forwarding_policy = DmForwardingPolicy::AllowlistedRoute;
+    let registry = registry_with_many(vec![destination, relay]);
+
+    let route = registry
+        .select_route(
+            "node-destination",
+            &validation_context(),
+            &StaticVerifier { valid: true },
+            &RouteSelectionPolicy::private_mesh_with_one_hop_relay()
+                .with_unavailable_direct_node("node-destination"),
+        )
+        .expect("relay route should be selected");
+
+    assert_eq!(route.kind, PeerRouteKind::OneHopRelay);
+    assert_eq!(route.hop_count, 2);
+    assert_eq!(route.destination.descriptor.node_id, "node-destination");
+    assert_eq!(
+        route
+            .relay
+            .as_ref()
+            .expect("relay should be present")
+            .descriptor
+            .node_id,
+        "node-relay"
+    );
+}
+
+#[test]
+fn relay_route_requires_relay_enabled_policy_and_hop_limit() {
+    let destination = descriptor("node-destination", "descriptor-destination");
+    let mut relay = descriptor("node-relay", "descriptor-relay");
+    relay.relay_policy = RelayPolicy::AllowlistedPeers;
+    relay.dm_forwarding_policy = DmForwardingPolicy::AllowlistedRoute;
+    let registry = registry_with_many(vec![destination, relay]);
+
+    let result = registry.select_route(
+        "node-destination",
+        &validation_context(),
+        &StaticVerifier { valid: true },
+        &RouteSelectionPolicy::private_mesh_direct()
+            .with_unavailable_direct_node("node-destination"),
+    );
+
+    assert_eq!(
+        result,
+        Err(PeerRouteSelectionError::DirectRouteUnavailable {
+            destination_node_id: "node-destination".to_string()
+        })
+    );
+}
+
+#[test]
+fn prefers_allowlisted_relay_over_open_limited_relay() {
+    let destination = descriptor("node-destination", "descriptor-destination");
+    let mut open_relay = descriptor("node-a-open-relay", "descriptor-open-relay");
+    open_relay.relay_policy = RelayPolicy::OpenLimited;
+    open_relay.dm_forwarding_policy = DmForwardingPolicy::RelayAllowed;
+    let mut allowlisted_relay = descriptor("node-z-allowlisted-relay", "descriptor-allowlisted");
+    allowlisted_relay.relay_policy = RelayPolicy::AllowlistedPeers;
+    allowlisted_relay.dm_forwarding_policy = DmForwardingPolicy::AllowlistedRoute;
+    let registry = registry_with_many(vec![destination, open_relay, allowlisted_relay]);
+
+    let route = registry
+        .select_route(
+            "node-destination",
+            &validation_context(),
+            &StaticVerifier { valid: true },
+            &RouteSelectionPolicy::private_mesh_with_one_hop_relay()
+                .with_unavailable_direct_node("node-destination"),
+        )
+        .expect("relay route should be selected");
+
+    assert_eq!(
+        route
+            .relay
+            .as_ref()
+            .expect("relay should be present")
+            .descriptor
+            .node_id,
+        "node-z-allowlisted-relay"
+    );
+}
+
+#[test]
+fn does_not_route_around_destination_delivery_refusal() {
+    let mut destination = descriptor("node-destination", "descriptor-destination");
+    destination.dm_forwarding_policy = DmForwardingPolicy::Disabled;
+    let mut relay = descriptor("node-relay", "descriptor-relay");
+    relay.relay_policy = RelayPolicy::AllowlistedPeers;
+    relay.dm_forwarding_policy = DmForwardingPolicy::AllowlistedRoute;
+    let registry = registry_with_many(vec![destination, relay]);
+
+    let result = registry.select_route(
+        "node-destination",
+        &validation_context(),
+        &StaticVerifier { valid: true },
+        &RouteSelectionPolicy::private_mesh_with_one_hop_relay()
+            .with_unavailable_direct_node("node-destination"),
+    );
+
+    assert_eq!(
+        result,
+        Err(PeerRouteSelectionError::DestinationRefused(
+            PeerCandidateValidationError::DmDeliveryRefused {
+                dm_forwarding_policy: DmForwardingPolicy::Disabled,
+            }
+        ))
+    );
+}
+
+#[test]
+fn does_not_select_own_users_only_node_as_intermediate_relay() {
+    let destination = descriptor("node-destination", "descriptor-destination");
+    let mut relay = descriptor("node-relay", "descriptor-relay");
+    relay.relay_policy = RelayPolicy::OwnUsersOnly;
+    relay.dm_forwarding_policy = DmForwardingPolicy::RelayAllowed;
+    let registry = registry_with_many(vec![destination, relay]);
+
+    let result = registry.select_route(
+        "node-destination",
+        &validation_context(),
+        &StaticVerifier { valid: true },
+        &RouteSelectionPolicy::private_mesh_with_one_hop_relay()
+            .with_unavailable_direct_node("node-destination"),
+    );
+
+    assert_eq!(
+        result,
+        Err(PeerRouteSelectionError::RelayRouteUnavailable {
+            destination_node_id: "node-destination".to_string()
+        })
+    );
 }

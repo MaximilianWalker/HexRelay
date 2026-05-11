@@ -8,7 +8,8 @@ pub use communication::{
     PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
 pub use mesh::{
-    CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, StaticPeerRegistry,
+    CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, PeerRouteKind,
+    PeerRouteSelectionError, RouteSelectionPolicy, SelectedPeerRoute, StaticPeerRegistry,
     StaticPeerRegistryError,
 };
 pub use node::{
