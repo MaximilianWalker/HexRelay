@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 locked MVP DM delivery to server-node P2P E2EE envelopes, removed node-bypassing client DM transport/bootstrap scope, broadened the UX approval gate to all UX decisions, aligned future server-node networking with a dynamic opt-in policy graph, and clarified app-mediated dedicated-server administration.
+- Latest meaningful change: 2026-05-11 added server-node P2P E2EE DM delivery metadata retention and abuse-control defaults while preserving the no-UX-change approval gate.
 
 ## 1) Product Intent and Constraints
 
@@ -79,6 +79,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-11: Clarified that server runtimes act as peers in the server-node P2P network for DM envelope delivery, and broadened the explicit user-approval gate from DM delivery UX to all UX decisions.
 - 2026-05-11: Locked the server-node P2P architecture direction as a dynamic opt-in policy graph with no primary-server assumption, private/LAN/local-only node support, user-consented node introductions, and separate discovery/peering/relay/delivery/storage permissions.
 - 2026-05-11: Locked dedicated-server administration to the normal HexRelay app for authorized node owners/admins; dedicated server packages stay headless and no separate server-specific UI ships by default.
+- 2026-05-11: Added T4.1.8 backend retention and abuse controls for encrypted-envelope delivery metadata: 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, and per-sender/device/node rate limits without plaintext inspection.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -199,6 +200,8 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Bootstrap material includes only the identity key and profile-device data required for client-side E2EE setup; recipient-device network endpoint hints, DM pairing QR payloads, and manual-code bootstrap are out of scope.
 - Normal DM send success uses the server-node P2P encrypted-envelope path and must not require recipient-device network reachability.
 - Server nodes/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata needed for authorization, routing, dedupe, delivery state, retention, and abuse controls.
+- Delivery metadata retention is separate from canonical encrypted DM history: expired replay/forwarding metadata can be purged without deleting accepted ciphertext history.
+- Abuse controls are metadata-only and policy-only: dispatch is sender scoped, catch-up and ack are identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
 - Origin, delivery, relay, and discoverable node roles are selected by current node policy and route availability; no node role implies ownership of a user's identity.
 - Relay is optional and policy-controlled. A server may be discoverable or peered while still refusing relay or DM forwarding.
 - DM plaintext, decrypted message views, and private keys remain client/device-only and must never be uploaded for server-side processing.

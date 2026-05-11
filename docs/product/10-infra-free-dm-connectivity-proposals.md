@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM delivery solution candidates and trade-offs.
 - The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free node-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 locked proposals to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap proposals, and broadened UX approval to all UX decisions.
+- Latest meaningful change: 2026-05-11 added concrete metadata-retention and abuse-control defaults for server-node P2P E2EE envelope delivery.
 
 ## Purpose
 
@@ -126,8 +126,19 @@
 ### Acceptance Criteria
 
 - Metadata schema is documented and covered by tests for omission of plaintext/private-key/direct-endpoint material.
-- Retention/deletion tests cover ciphertext envelope tombstones and per-device cursor behavior.
+- Retention/deletion tests cover delivery-metadata deletion without deleting canonical ciphertext history, plus per-device cursor behavior.
 - Abuse/rate-limit tests work without plaintext inspection.
+
+### Current Implementation Baseline
+
+- Message nodes persist canonical DM history as ciphertext in `dm_messages` and delivery replay metadata in `dm_fanout_delivery_log`.
+- Delivery replay metadata contains recipient identity, cursor, thread id, message id, sender identity, ciphertext, optional source device id, delivery/reachability state, delivered-device ids, and timestamps.
+- Outbound server-node forwarding metadata contains sender identity, destination node id, message/thread/recipient ids, ciphertext, optional source device id, delivery cursor, forwarding state, attempt count, last error summary, retry timestamp, and timestamps.
+- Explicitly excluded metadata: DM plaintext, decrypted previews, private keys, recipient-device endpoint hints/cards, LAN/WAN addresses, QR/manual-code pairing payloads, and direct user-to-user transport state.
+- Default retention windows are 30 days for fanout delivery-log metadata and 7 days for outbound forwarding metadata.
+- Fanout metadata is deleted after expiry when every registered profile device has cursor-converged, or after expiry when no profile device is registered. Ciphertext history is not deleted by this metadata purge.
+- Outbound metadata purge deletes expired `forwarded` and terminal `failed` rows, while preserving queued or retry-scheduled rows.
+- Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up and ack are identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
 
 ## Proposition 5 (Rank 5): Delivery State and Diagnostic Semantics
 

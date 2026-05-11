@@ -151,6 +151,10 @@ fn api_node_state(
             discovery_query_per_window: 30,
             invite_create_per_window: 20,
             invite_redeem_per_window: 40,
+            dm_dispatch_per_window: 120,
+            dm_catch_up_per_window: 120,
+            dm_ack_per_window: 600,
+            dm_internal_forward_per_window: 240,
             window_seconds: 60,
         },
         false,
@@ -299,6 +303,259 @@ async fn delete_outbound_forward_record(
     .execute(pool)
     .await
     .expect("delete test outbound forward record");
+}
+
+#[tokio::test]
+async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let sender = unique_identity("usr-retention-sender");
+    let recipient = unique_identity("usr-retention-recipient");
+    let thread_id = dm_history_repo::direct_dm_thread_id(&sender, &recipient);
+    let message_id = unique_message_id("msg-retention");
+    let forwarded_message_id = unique_message_id("msg-retention-forwarded");
+    let failed_message_id = unique_message_id("msg-retention-failed");
+    let queued_message_id = unique_message_id("msg-retention-queued");
+
+    ensure_db_identity_key(&pool, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+    dm_history_repo::insert_dm_thread(
+        &pool,
+        dm_history_repo::DmThreadInsertParams {
+            thread_id: &thread_id,
+            kind: "dm",
+            title: "Retention Test",
+        },
+    )
+    .await
+    .expect("insert retention dm thread");
+    for identity_id in [&sender, &recipient] {
+        dm_history_repo::insert_dm_thread_participant(
+            &pool,
+            dm_history_repo::DmThreadParticipantInsertParams {
+                thread_id: &thread_id,
+                identity_id,
+                last_read_seq: 0,
+            },
+        )
+        .await
+        .expect("insert retention dm participant");
+    }
+    dm_history_repo::insert_dm_message(
+        &pool,
+        dm_history_repo::DmMessageInsertParams {
+            message_id: &message_id,
+            thread_id: &thread_id,
+            author_id: &sender,
+            seq: 1,
+            ciphertext: "enc:retention-message",
+            created_at: &Utc::now().to_rfc3339(),
+            edited_at: None,
+        },
+    )
+    .await
+    .expect("insert retention dm message");
+    dm_repo::upsert_dm_profile_device(
+        &pool,
+        &recipient,
+        &DmProfileDeviceRecord {
+            device_id: "phone-main".to_string(),
+            device_secret_hash: "hash".to_string(),
+            active: true,
+            last_seen_epoch: Utc::now().timestamp(),
+        },
+    )
+    .await
+    .expect("insert retention profile device");
+
+    let old_delivery_at = Utc::now() - Duration::days(31);
+    let old_outbound_at = Utc::now() - Duration::days(8);
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_stream_heads (identity_id, latest_cursor, updated_at)
+        VALUES ($1, 1, NOW())
+        ON CONFLICT (identity_id) DO UPDATE SET latest_cursor = 1, updated_at = NOW()
+        ",
+    )
+    .bind(&recipient)
+    .execute(&pool)
+    .await
+    .expect("insert retention stream head");
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_device_cursors (identity_id, device_id, cursor, updated_at)
+        VALUES ($1, 'phone-main', 1, NOW())
+        ON CONFLICT (identity_id, device_id) DO UPDATE SET cursor = 1, updated_at = NOW()
+        ",
+    )
+    .bind(&recipient)
+    .execute(&pool)
+    .await
+    .expect("insert retention device cursor");
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_delivery_log (
+            identity_id,
+            cursor,
+            thread_id,
+            message_id,
+            sender_identity_id,
+            ciphertext,
+            source_device_id,
+            delivery_state,
+            reachability_state,
+            delivered_device_ids,
+            created_at
+        )
+        VALUES ($1, 1, $2, $3, $4, 'enc:retention-message', 'desktop-main', 'acked', 'reachable', '[\"phone-main\"]'::jsonb, $5)
+        ",
+    )
+    .bind(&recipient)
+    .bind(&thread_id)
+    .bind(&message_id)
+    .bind(&sender)
+    .bind(old_delivery_at)
+    .execute(&pool)
+    .await
+    .expect("insert retention delivery metadata");
+
+    for (message_id, state, next_attempt_at) in [
+        (forwarded_message_id.as_str(), "forwarded", None),
+        (failed_message_id.as_str(), "failed", None),
+        (
+            queued_message_id.as_str(),
+            "queued",
+            Some(Utc::now() + Duration::minutes(5)),
+        ),
+    ] {
+        sqlx::query(
+            "
+            INSERT INTO dm_outbound_forwarding_log (
+                sender_identity_id,
+                destination_node_id,
+                message_id,
+                thread_id,
+                recipient_identity_id,
+                ciphertext,
+                source_device_id,
+                delivery_cursor,
+                forwarding_state,
+                attempt_count,
+                last_error,
+                last_attempt_at,
+                next_attempt_at,
+                forwarded_at,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, 'node-retention-peer', $2, $3, $4, 'enc:retention-outbound', 'desktop-main', 1, $5, 1, NULL, $6, $7, NULL, $6, $6)
+            ",
+        )
+        .bind(&sender)
+        .bind(message_id)
+        .bind(&thread_id)
+        .bind(&recipient)
+        .bind(state)
+        .bind(old_outbound_at)
+        .bind(next_attempt_at)
+        .execute(&pool)
+        .await
+        .expect("insert retention outbound metadata");
+    }
+
+    let summary = dm_repo::purge_expired_dm_delivery_metadata(
+        &pool,
+        Utc::now() - Duration::days(30),
+        Utc::now() - Duration::days(7),
+    )
+    .await
+    .expect("purge expired dm delivery metadata");
+    assert!(summary.fanout_delivery_records_deleted >= 1);
+    assert!(summary.outbound_forward_records_deleted >= 2);
+
+    let delivery_rows = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM dm_fanout_delivery_log WHERE identity_id = $1 AND message_id = $2",
+    )
+    .bind(&recipient)
+    .bind(&message_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count purged delivery metadata");
+    assert_eq!(delivery_rows, 0);
+
+    let message_rows = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM dm_messages WHERE message_id = $1 AND ciphertext = 'enc:retention-message'",
+    )
+    .bind(&message_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count retained ciphertext history");
+    assert_eq!(message_rows, 1);
+
+    for removed_message_id in [&forwarded_message_id, &failed_message_id] {
+        let rows = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM dm_outbound_forwarding_log WHERE sender_identity_id = $1 AND message_id = $2",
+        )
+        .bind(&sender)
+        .bind(removed_message_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count removed outbound metadata");
+        assert_eq!(rows, 0);
+    }
+
+    let queued_rows = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM dm_outbound_forwarding_log WHERE sender_identity_id = $1 AND message_id = $2",
+    )
+    .bind(&sender)
+    .bind(&queued_message_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count retained queued outbound metadata");
+    assert_eq!(queued_rows, 1);
+}
+
+#[tokio::test]
+async fn fanout_dispatch_rate_limits_per_sender_identity() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let sender = unique_identity("usr-rate-sender");
+    let recipient = unique_identity("usr-rate-recipient");
+    let mut state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+    state.rate_limits.dm_dispatch_per_window = 1;
+
+    let sender_cookie = issue_db_session_cookie(&pool, &state, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+    let app = build_app(state);
+
+    for (index, expected_status) in [(0, StatusCode::OK), (1, StatusCode::TOO_MANY_REQUESTS)] {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/dm/fanout/dispatch")
+            .header("content-type", "application/json")
+            .header(
+                "cookie",
+                format!("hexrelay_session={sender_cookie}; hexrelay_csrf=test-csrf"),
+            )
+            .header("x-csrf-token", "test-csrf")
+            .body(Body::from(format!(
+                r#"{{"recipient_identity_id":"{}","message_id":"{}","ciphertext":"enc:rate-limited"}}"#,
+                recipient,
+                unique_message_id(&format!("msg-rate-{index}"))
+            )))
+            .expect("build rate-limited fanout request");
+
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("rate-limited fanout response");
+        assert_eq!(response.status(), expected_status);
+    }
 }
 
 #[tokio::test]

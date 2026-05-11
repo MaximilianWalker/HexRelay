@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide, added the app-to-node connection/capability contract, and cleaned active Iteration 2 DM sequencing after server-node forwarding evidence landed.
+- Latest meaningful change: 2026-05-11 indexed the T4.1.8 DM delivery metadata retention and abuse-control updates across architecture, product, planning, and migration evidence docs.
 
 ## Purpose
 

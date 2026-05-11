@@ -23,7 +23,26 @@ pub struct ApiRateLimitConfig {
     pub discovery_query_per_window: usize,
     pub invite_create_per_window: usize,
     pub invite_redeem_per_window: usize,
+    pub dm_dispatch_per_window: usize,
+    pub dm_catch_up_per_window: usize,
+    pub dm_ack_per_window: usize,
+    pub dm_internal_forward_per_window: usize,
     pub window_seconds: u64,
+}
+
+#[derive(Clone)]
+pub struct ApiDmRetentionConfig {
+    pub delivery_log_retention_seconds: i64,
+    pub outbound_forwarding_log_retention_seconds: i64,
+}
+
+impl Default for ApiDmRetentionConfig {
+    fn default() -> Self {
+        Self {
+            delivery_log_retention_seconds: 30 * 24 * 60 * 60,
+            outbound_forwarding_log_retention_seconds: 7 * 24 * 60 * 60,
+        }
+    }
 }
 
 pub struct ApiConfig {
@@ -49,6 +68,7 @@ pub struct ApiConfig {
     pub session_cookie_same_site: String,
     pub trust_proxy_headers: bool,
     pub rate_limits: ApiRateLimitConfig,
+    pub dm_retention: ApiDmRetentionConfig,
 }
 
 impl ApiConfig {
@@ -142,7 +162,24 @@ impl ApiConfig {
             )?,
             invite_create_per_window: parse_positive_usize_env("API_INVITE_CREATE_RATE_LIMIT", 20)?,
             invite_redeem_per_window: parse_positive_usize_env("API_INVITE_REDEEM_RATE_LIMIT", 40)?,
+            dm_dispatch_per_window: parse_positive_usize_env("API_DM_DISPATCH_RATE_LIMIT", 120)?,
+            dm_catch_up_per_window: parse_positive_usize_env("API_DM_CATCH_UP_RATE_LIMIT", 120)?,
+            dm_ack_per_window: parse_positive_usize_env("API_DM_ACK_RATE_LIMIT", 600)?,
+            dm_internal_forward_per_window: parse_positive_usize_env(
+                "API_DM_INTERNAL_FORWARD_RATE_LIMIT",
+                240,
+            )?,
             window_seconds: parse_u64_env("API_RATE_LIMIT_WINDOW_SECONDS", 60)?,
+        };
+        let dm_retention = ApiDmRetentionConfig {
+            delivery_log_retention_seconds: parse_i64_env(
+                "API_DM_DELIVERY_LOG_RETENTION_SECONDS",
+                ApiDmRetentionConfig::default().delivery_log_retention_seconds,
+            )?,
+            outbound_forwarding_log_retention_seconds: parse_i64_env(
+                "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
+                ApiDmRetentionConfig::default().outbound_forwarding_log_retention_seconds,
+            )?,
         };
 
         let allowed_origins = allowed_origins_raw
@@ -343,6 +380,7 @@ impl ApiConfig {
             session_cookie_same_site,
             trust_proxy_headers,
             rate_limits,
+            dm_retention,
         })
     }
 }
@@ -799,7 +837,13 @@ mod tests {
         "API_DISCOVERY_QUERY_RATE_LIMIT",
         "API_INVITE_CREATE_RATE_LIMIT",
         "API_INVITE_REDEEM_RATE_LIMIT",
+        "API_DM_DISPATCH_RATE_LIMIT",
+        "API_DM_CATCH_UP_RATE_LIMIT",
+        "API_DM_ACK_RATE_LIMIT",
+        "API_DM_INTERNAL_FORWARD_RATE_LIMIT",
         "API_RATE_LIMIT_WINDOW_SECONDS",
+        "API_DM_DELIVERY_LOG_RETENTION_SECONDS",
+        "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
     ];
 
     fn with_api_env<F>(pairs: &[(&str, Option<&str>)], f: F)
@@ -1526,6 +1570,41 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("API_AUTH_CHALLENGE_RATE_LIMIT"));
+            },
+        );
+    }
+
+    #[test]
+    fn parses_dm_retention_and_rate_limit_config() {
+        with_api_env(
+            &[
+                ("API_DM_DISPATCH_RATE_LIMIT", Some("2")),
+                ("API_DM_CATCH_UP_RATE_LIMIT", Some("3")),
+                ("API_DM_ACK_RATE_LIMIT", Some("4")),
+                ("API_DM_INTERNAL_FORWARD_RATE_LIMIT", Some("5")),
+                ("API_DM_DELIVERY_LOG_RETENTION_SECONDS", Some("600")),
+                (
+                    "API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS",
+                    Some("300"),
+                ),
+                (
+                    "API_SESSION_SIGNING_KEY",
+                    Some("hexrelay-dev-signing-key-change-me"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("config should load");
+                assert_eq!(config.rate_limits.dm_dispatch_per_window, 2);
+                assert_eq!(config.rate_limits.dm_catch_up_per_window, 3);
+                assert_eq!(config.rate_limits.dm_ack_per_window, 4);
+                assert_eq!(config.rate_limits.dm_internal_forward_per_window, 5);
+                assert_eq!(config.dm_retention.delivery_log_retention_seconds, 600);
+                assert_eq!(
+                    config
+                        .dm_retention
+                        .outbound_forwarding_log_retention_seconds,
+                    300
+                );
             },
         );
     }

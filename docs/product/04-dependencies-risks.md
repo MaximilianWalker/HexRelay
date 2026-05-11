@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-05-11 aligned discovery and relay risks with the dynamic server-node policy graph, opt-in descriptors, and user-consented node introductions.
+- Latest meaningful change: 2026-05-11 recorded T4.1.8 DM delivery-metadata retention and abuse-control mitigation evidence.
 
 ## Purpose
 
@@ -30,7 +30,7 @@
 | D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
 | D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
-| D-007 | E2EE DM envelope delivery conformance profile | Internal | ready | DM baseline could drift into server-readable payloads, excess metadata, private-key custody, or retired node-bypassing client DM surfaces without repeatable evidence | Core/API/QA | Conformance must prove ciphertext-only server-node/message-node handling, client-only plaintext/private keys, and absence of node-bypassing client DM transport/bootstrap surfaces |
+| D-007 | E2EE DM envelope delivery conformance profile | Internal | ready | DM baseline could drift into server-readable payloads, excess metadata, private-key custody, or retired node-bypassing client DM surfaces without repeatable evidence | Core/API/QA | Conformance must prove ciphertext-only server-node/message-node handling, client-only plaintext/private keys, deterministic delivery-metadata retention, metadata-only abuse controls, and absence of node-bypassing client DM transport/bootstrap surfaces |
 | D-010 | TURN/NAT constrained-network validation profile for Iteration 3 voice/screen-share flows | Internal | ready | Voice/screen-share constrained-network behavior cannot be signed off with repeatable evidence | Platform/Realtime | Canonical profile: `docs/planning/turn-nat-test-profile.md`; scoped to voice/screen-share only |
 | D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
@@ -46,7 +46,7 @@
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
 | R-007 | User identity or private-node scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, signed opt-in node descriptors, descriptor-scope validation, rate limits, denylists, and bootstrap release only on accepted requests | API |
-| R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, retention policy, abuse controls, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
+| R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, metadata-only rate limits, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
 | R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, and active+late-device convergence tests for DM and server paths | Core/Realtime |
 
 ## Review Cadence
@@ -54,7 +54,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-05-11 (aligned DM delivery and discovery/relay risk ownership with server-node P2P ciphertext-envelope delivery, opt-in descriptors, user-consented introductions, and node-bypassing client transport guardrails).
+- Last reviewed: 2026-05-11 (added T4.1.8 backend mitigation evidence for DM delivery-metadata retention, outbound forwarding metadata retention, and metadata-only abuse controls).
 
 ## Risk to Task Mitigation Matrix
 
@@ -84,6 +84,7 @@
 | DEC-009 | Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope | accepted | `docs/product/03-clarifications.md` |
 | DEC-010 | Incoming communication must converge across all profile-linked devices (active fanout + late-device catch-up) for DM and server communication domains | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-011 | Server-node P2P topology is a dynamic policy graph with no primary-server assumption; discovery, peering, relay, delivery, and storage permissions are separate | accepted | `docs/architecture/04-communication-networking-layer-plan.md` |
+| DEC-012 | DM delivery metadata retention is separate from canonical encrypted DM history; abuse controls are sender/device/node scoped and do not inspect plaintext | accepted | `docs/product/01-mvp-plan.md` |
 
 ## Related Documents
 

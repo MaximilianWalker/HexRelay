@@ -13,6 +13,7 @@ use tracing::warn;
 use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
+use crate::transport::http::middleware::rate_limit;
 use crate::{
     domain::dm::forwarding::{
         authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
@@ -35,7 +36,10 @@ use crate::{
         DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
         DmThreadMessageListQuery, DmThreadPage,
     },
-    shared::errors::{bad_request, conflict, forbidden, internal_error, unauthorized, ApiResult},
+    shared::errors::{
+        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
+        ApiResult,
+    },
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -43,6 +47,10 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const DM_ENVELOPE_NODE_TRANSPORT_PROFILE: &str = "encrypted_envelope_node";
+const DM_RATE_SCOPE_DISPATCH: &str = "dm_fanout_dispatch";
+const DM_RATE_SCOPE_CATCH_UP: &str = "dm_fanout_catch_up";
+const DM_RATE_SCOPE_ACK: &str = "dm_envelope_ack";
+const DM_RATE_SCOPE_INTERNAL_FORWARD: &str = "dm_internal_forward";
 
 #[derive(Deserialize)]
 pub struct DmEnvelopeAckInternalRequest {
@@ -248,6 +256,14 @@ pub async fn forward_dm_envelope_internal(
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
     let authenticated =
         authenticate_node_forward_request(&state, &headers, &body).map_err(node_forward_error)?;
+    enforce_dm_rate_limit(
+        &state,
+        DM_RATE_SCOPE_INTERNAL_FORWARD,
+        &authenticated.origin_node_id,
+        state.rate_limits.dm_internal_forward_per_window,
+    )
+    .await?;
+    apply_dm_delivery_metadata_retention(&state).await?;
     let request = authenticated.request;
 
     let response = accept_dm_envelope_for_local_recipient(
@@ -273,6 +289,14 @@ pub async fn run_dm_active_fanout(
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
+    enforce_dm_rate_limit(
+        &state,
+        DM_RATE_SCOPE_DISPATCH,
+        &auth.identity_id,
+        state.rate_limits.dm_dispatch_per_window,
+    )
+    .await?;
+    apply_dm_delivery_metadata_retention(&state).await?;
 
     if let Some(destination_node_id) = payload
         .destination_node_id
@@ -684,6 +708,15 @@ pub async fn run_dm_fanout_catch_up(
 
     let device_id = payload.device_id.trim().to_string();
     let identity_id = auth.identity_id;
+    let catch_up_rate_key = format!("{identity_id}:{device_id}");
+    enforce_dm_rate_limit(
+        &state,
+        DM_RATE_SCOPE_CATCH_UP,
+        &catch_up_rate_key,
+        state.rate_limits.dm_catch_up_per_window,
+    )
+    .await?;
+    apply_dm_delivery_metadata_retention(&state).await?;
 
     let Some(record) = load_dm_profile_device(&state, &identity_id, &device_id).await? else {
         return Ok(Json(DmFanoutCatchUpResponse {
@@ -849,6 +882,18 @@ pub async fn ack_dm_envelope_internal(
     }
 
     let cursor = validate_dm_envelope_ack_internal(&payload)?;
+    let ack_rate_key = format!(
+        "{}:{}",
+        payload.recipient_identity_id.trim(),
+        payload.device_id.trim()
+    );
+    enforce_dm_rate_limit(
+        &state,
+        DM_RATE_SCOPE_ACK,
+        &ack_rate_key,
+        state.rate_limits.dm_ack_per_window,
+    )
+    .await?;
     let expected_envelope_id = dm_envelope_id(
         payload.message_id.trim(),
         payload.recipient_identity_id.trim(),
@@ -1065,6 +1110,56 @@ fn node_forward_error(error: NodeForwardRequestError) -> (StatusCode, Json<ApiEr
         NodeForwardRequestErrorStatus::Forbidden => forbidden(error.code, error.message),
         NodeForwardRequestErrorStatus::Conflict => conflict(error.code, error.message),
     }
+}
+
+async fn enforce_dm_rate_limit(
+    state: &AppState,
+    scope: &str,
+    key: &str,
+    limit: usize,
+) -> ApiResult<()> {
+    let allowed = if let Some(pool) = state.db_pool.as_ref() {
+        rate_limit::allow_distributed(pool, scope, key, limit, state.rate_limits.window_seconds)
+            .await
+            .map_err(|_| {
+                internal_error("rate_limiter_unavailable", "failed to check DM rate limit")
+            })?
+    } else {
+        state
+            .rate_limiter
+            .allow(scope, key, limit, state.rate_limits.window_seconds)
+    };
+
+    if !allowed {
+        return Err(too_many_requests(
+            "rate_limited",
+            "too many DM requests; retry later",
+        ));
+    }
+
+    Ok(())
+}
+
+async fn apply_dm_delivery_metadata_retention(state: &AppState) -> ApiResult<()> {
+    let Some(pool) = state.db_pool.as_ref() else {
+        return Ok(());
+    };
+
+    let now = Utc::now();
+    let delivery_cutoff =
+        now - chrono::Duration::seconds(state.dm_retention.delivery_log_retention_seconds);
+    let outbound_cutoff = now
+        - chrono::Duration::seconds(state.dm_retention.outbound_forwarding_log_retention_seconds);
+    dm_repo::purge_expired_dm_delivery_metadata(pool, delivery_cutoff, outbound_cutoff)
+        .await
+        .map_err(|_| {
+            internal_error(
+                "storage_unavailable",
+                "failed to apply DM delivery metadata retention",
+            )
+        })?;
+
+    Ok(())
 }
 
 fn default_dm_policy() -> DmPolicy {

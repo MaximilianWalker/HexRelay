@@ -13,7 +13,7 @@
 
 - Primary edit location for networking-layer architecture across E2EE DM envelope delivery and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-05-11 defined the dynamic server-node policy graph, opt-in discovery and relay rules, user-consented node introductions, and the networking algorithms HexRelay should use as the server-node P2P architecture matures.
+- Latest meaningful change: 2026-05-11 added executable DM delivery-metadata retention and abuse-control defaults to the server-node P2P encrypted-envelope architecture.
 
 ## Purpose
 
@@ -413,6 +413,15 @@ Use:
 
 Reliability must not require plaintext access. Queue inspection, retry, and dedupe operate on envelope metadata only.
 
+Current MVP-adjacent backend baseline:
+
+- Fanout delivery-log metadata retention defaults to 30 days.
+- Outbound forwarding metadata retention defaults to 7 days.
+- Fanout delivery metadata may be deleted after expiry only when every currently registered profile device has advanced beyond the row cursor, or when the recipient identity has no registered profile device.
+- Canonical encrypted DM history is separate from delivery metadata and is not deleted by this metadata purge.
+- Outbound forwarding metadata purge deletes expired `forwarded` rows and terminal `failed` rows with no future retry schedule; queued or retry-scheduled rows remain.
+- Retention metadata must not include DM plaintext, decrypted previews, private keys, recipient-device endpoint hints, LAN/WAN addresses, pairing material, or direct user-to-user transport state.
+
 ### Abuse Controls
 
 Use:
@@ -427,6 +436,13 @@ Use:
 - per-policy audit logs that avoid plaintext content.
 
 Open relay behavior must never be the default. Any `open_limited` relay mode requires explicit operator opt-in and conservative limits.
+
+Current MVP-adjacent backend baseline:
+
+- DM dispatch is rate-limited by sender identity.
+- DM catch-up and delivery ack are rate-limited by identity/device.
+- Authenticated server-node forwarding ingress is rate-limited by origin node id.
+- Abuse controls operate on request counts, delivery state, policy, and node provenance; they must not inspect plaintext or require server-side decryption.
 
 ## Shared Responsibilities
 
@@ -531,6 +547,8 @@ Open relay behavior must never be the default. Any `open_limited` relay mode req
 ### DM Path Validation
 
 - Conformance suite ensures ciphertext-only server-node/message-node handling, no server-side plaintext/private-key custody, and metadata minimization.
+- Retention tests ensure expired replay/forwarding metadata can be deleted without deleting canonical ciphertext history.
+- Abuse-control tests ensure dispatch, catch-up, ack, and authenticated node-forward ingress can be rate-limited without plaintext inspection.
 - Relationship bootstrap tests ensure bootstrap material is released only after accepted contact/friend state and contains no recipient-device network endpoint material.
 - Active-device fanout tests ensure online profile devices receive DM ciphertext envelopes and only acked devices count as delivered.
 - Late-device activation tests ensure missed DM payloads converge by cursor replay.

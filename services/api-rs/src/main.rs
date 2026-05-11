@@ -62,6 +62,7 @@ async fn main() {
     .with_local_node_identity(config.local_node_identity.clone())
     .with_node_owner_identity_ids(config.node_owner_identity_ids.clone())
     .with_node_admin_identity_ids(config.node_admin_identity_ids.clone())
+    .with_dm_retention(config.dm_retention.clone())
     .with_db_pool(db_pool);
 
     let app = build_app(state);
