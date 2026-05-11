@@ -202,7 +202,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Normal DM send success uses the server-node P2P encrypted-envelope path and must not require recipient-device network reachability.
 - Server nodes/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata needed for authorization, routing, dedupe, delivery state, retention, and abuse controls.
 - Delivery metadata retention is separate from canonical encrypted DM history: expired replay/forwarding metadata can be purged without deleting accepted ciphertext history.
-- Abuse controls are metadata-only and policy-only: dispatch is sender scoped, catch-up and ack are identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
+- Abuse controls are metadata-only and policy-only: dispatch is sender scoped, catch-up is identity scoped across profile devices, ack is identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
 - Active-device realtime fanout exposes backend-only target summaries for queued-to-verified-websocket, pending/no-connection, unverified device binding, saturated queue, and stale-connection cleanup outcomes.
 - Live dispatch summaries are not user-visible read or final-delivery state; final delivery remains `dm.envelope.ack` backed and late-device catch-up remains the deterministic fallback.
 - Origin, delivery, relay, and discoverable node roles are selected by current node policy and route availability; no node role implies ownership of a user's identity.

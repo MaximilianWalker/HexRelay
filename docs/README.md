@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 clarified realtime presence replay hydration/replay key retention and indexed the DM outbound-forward retry fixture-isolation CI correction.
+- Latest meaningful change: 2026-05-11 indexed the DM catch-up limiter/retention-ordering PR review correction.
 
 ## Purpose
 

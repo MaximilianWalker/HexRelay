@@ -440,7 +440,7 @@ Open relay behavior must never be the default. Any `open_limited` relay mode req
 Current MVP-adjacent backend baseline:
 
 - DM dispatch is rate-limited by sender identity.
-- DM catch-up and delivery ack are rate-limited by identity/device.
+- DM catch-up is rate-limited by identity across profile devices; delivery ack is rate-limited by identity/device.
 - Authenticated server-node forwarding ingress is rate-limited by origin node id.
 - Abuse controls operate on request counts, delivery state, policy, and node provenance; they must not inspect plaintext or require server-side decryption.
 

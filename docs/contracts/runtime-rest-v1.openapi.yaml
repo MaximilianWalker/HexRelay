@@ -2060,6 +2060,9 @@ paths:
         Profile-device convergence replay for server-node P2P E2EE DM
         envelopes. Canonical accepted DM history and delivery metadata persist
         when configured storage is available without exposing plaintext content.
+        Catch-up throttling is identity-scoped across profile devices, while
+        retention cleanup runs only after the requested active profile-device
+        secret is validated.
       security:
         - CookieAuth: []
         - BearerAuth: []

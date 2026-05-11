@@ -138,7 +138,7 @@
 - Default retention windows are 30 days for fanout delivery-log metadata and 7 days for outbound forwarding metadata.
 - Fanout metadata is deleted after expiry when every registered profile device has cursor-converged, or after expiry when no profile device is registered. Ciphertext history is not deleted by this metadata purge.
 - Outbound metadata purge deletes expired `forwarded` and terminal `failed` rows, while preserving queued or retry-scheduled rows.
-- Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up and ack are identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
+- Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up is identity scoped across profile devices, ack is identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
 - Realtime dispatch summaries are backend-only and classify each target profile device by queued-to-verified-websocket, pending/no connection, pending/unverified device binding, pending/saturated outbound queue, plus stale connection cleanup count.
 - Final delivery remains ack-backed: API dispatch responses still report `delivered_device_ids` only after recipient-device ack, and live dispatch summaries must not be treated as user-visible read/delivery UX.
 
