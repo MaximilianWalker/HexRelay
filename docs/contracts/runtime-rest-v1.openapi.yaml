@@ -17,12 +17,15 @@ info:
     structured allow/deny/failure logs for node-owner debugging without changing
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
-    adapter boundary without changing REST route or payload contracts. DM delivery
-    uses server-node P2P E2EE ciphertext envelopes plus minimal delivery
-    metadata; runtime contracts must not expose node-bypassing DM bootstrap or
-    plaintext relay behavior. App-to-node dedicated-server administration starts
-    with a public node connection descriptor plus an authenticated capabilities
-    endpoint; admin/owner status is returned only after normal session auth.
+    adapter boundary without changing REST route or payload contracts.
+    Server-channel realtime dispatch records internal accepted-summary telemetry
+    for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
+    preserving the existing REST success payloads. DM delivery uses server-node
+    P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
+    contracts must not expose node-bypassing DM bootstrap or plaintext relay
+    behavior. App-to-node dedicated-server administration starts with a public
+    node connection descriptor plus an authenticated capabilities endpoint;
+    admin/owner status is returned only after normal session auth.
 servers:
   - url: https://api.hexrelay.local
 paths:
