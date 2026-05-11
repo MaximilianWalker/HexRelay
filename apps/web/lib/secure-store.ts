@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-const FALLBACK_PREFIX = "hexrelay.secure.fallback.v1";
+const FALLBACK_PREFIX = "hexrelay.secure.fallback";
 
 function fallbackStorage(): Storage | null {
   if (typeof window === "undefined") {

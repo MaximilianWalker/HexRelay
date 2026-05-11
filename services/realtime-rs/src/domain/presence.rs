@@ -18,7 +18,7 @@ use tracing::warn;
 
 use crate::domain::replay_store;
 
-const PRESENCE_EVENTS_CHANNEL: &str = "presence:v1:events";
+const PRESENCE_EVENTS_CHANNEL: &str = "presence:events";
 const PRESENCE_SNAPSHOT_TTL_SECONDS: u64 = 120;
 const PRESENCE_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
 const PRESENCE_REPLAY_KEY_TTL_SECONDS: u64 = PRESENCE_DEVICE_CURSOR_TTL_SECONDS;
@@ -36,7 +36,6 @@ pub struct PresenceUpdatedData {
 pub struct PresenceUpdatedEnvelope {
     pub event_id: String,
     pub event_type: String,
-    pub event_version: u8,
     pub occurred_at: String,
     pub correlation_id: String,
     pub producer: String,
@@ -391,7 +390,7 @@ async fn publish_presence_edge_direct(
         .await
         .map_err(|error| format!("open Redis connection: {error}"))?;
 
-    let count_key = format!("presence:v1:count:{identity_id}");
+    let count_key = format!("presence:count:{identity_id}");
     let next_count: i64 = if online {
         redis::cmd("INCR")
             .arg(&count_key)
@@ -442,7 +441,7 @@ async fn publish_presence_edge_direct(
         return Ok(());
     }
 
-    let sequence_key = format!("presence:v1:seq:{identity_id}");
+    let sequence_key = format!("presence:seq:{identity_id}");
     let presence_seq: u64 = redis::cmd("INCR")
         .arg(sequence_key)
         .query_async(&mut connection)
@@ -458,7 +457,7 @@ async fn publish_presence_edge_direct(
     };
     let snapshot_json = serde_json::to_string(&snapshot)
         .map_err(|error| format!("serialize presence snapshot: {error}"))?;
-    let snapshot_key = format!("presence:v1:snapshot:{identity_id}");
+    let snapshot_key = format!("presence:snapshot:{identity_id}");
     let _: () = redis::cmd("SET")
         .arg(snapshot_key)
         .arg(snapshot_json)
@@ -491,7 +490,6 @@ async fn publish_presence_edge_direct(
             .as_str()
             .unwrap_or_default()
             .to_string(),
-        event_version: client_event["event_version"].as_u64().unwrap_or(1) as u8,
         occurred_at: client_event["occurred_at"]
             .as_str()
             .unwrap_or_default()
@@ -566,15 +564,15 @@ where
 }
 
 fn presence_stream_head_key(identity_id: &str) -> String {
-    format!("presence:v1:watcher_stream_head:{identity_id}")
+    format!("presence:watcher_stream_head:{identity_id}")
 }
 
 fn presence_replay_log_key(identity_id: &str) -> String {
-    format!("presence:v1:watcher_stream_log:{identity_id}")
+    format!("presence:watcher_stream_log:{identity_id}")
 }
 
 fn presence_device_cursor_key(identity_id: &str, device_id: &str) -> String {
-    format!("presence:v1:watcher_device_cursor:{identity_id}:{device_id}")
+    format!("presence:watcher_device_cursor:{identity_id}:{device_id}")
 }
 
 async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {

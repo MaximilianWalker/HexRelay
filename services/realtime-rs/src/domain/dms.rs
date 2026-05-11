@@ -61,7 +61,6 @@ pub struct DmDeviceProofData {
 #[derive(Deserialize)]
 struct RealtimeInboundEnvelope {
     event_type: String,
-    event_version: u8,
     #[serde(default)]
     correlation_id: Option<String>,
     data: serde_json::Value,
@@ -510,12 +509,6 @@ fn parse_dm_envelope_ack(
             message: "unsupported realtime event_type",
         });
     }
-    if envelope.event_version != 1 {
-        return Err(DmAckError {
-            code: "event_version_unsupported",
-            message: "event_version must be 1",
-        });
-    }
     let data =
         serde_json::from_value::<DmEnvelopeAckData>(envelope.data).map_err(|_| DmAckError {
             code: "event_invalid",
@@ -552,12 +545,6 @@ fn parse_dm_device_proof(
         return Err(DmAckError {
             code: "event_unsupported",
             message: "unsupported realtime event_type",
-        });
-    }
-    if envelope.event_version != 1 {
-        return Err(DmAckError {
-            code: "event_version_unsupported",
-            message: "event_version must be 1",
         });
     }
 
@@ -930,7 +917,7 @@ mod tests {
 
     #[test]
     fn dm_ack_requires_matching_session_identity_and_device() {
-        let raw = r#"{"event_type":"dm.envelope.ack","event_version":1,"data":{"envelope_id":"dm-env-12345678","message_id":"msg-1","thread_id":"thread-1","recipient_identity_id":"usr-recipient","device_id":"desktop-main","delivery_cursor":"3","ack_status":"received","received_at":"2026-03-26T00:00:01Z"}}"#;
+        let raw = r#"{"event_type":"dm.envelope.ack","data":{"envelope_id":"dm-env-12345678","message_id":"msg-1","thread_id":"thread-1","recipient_identity_id":"usr-recipient","device_id":"desktop-main","delivery_cursor":"3","ack_status":"received","received_at":"2026-03-26T00:00:01Z"}}"#;
 
         assert!(parse_dm_envelope_ack(raw, "usr-recipient", Some("desktop-main")).is_ok());
         let wrong_identity =

@@ -1,4 +1,4 @@
-# Crypto Conformance Checklist (MVP Profile v1)
+# Crypto Conformance Checklist (MVP Profile)
 
 ## Document Metadata
 
@@ -6,18 +6,18 @@
 - Owner: QA and core maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-03-04
+- last_updated: 2026-05-12
 - Source of truth: `docs/testing/crypto-conformance-checklist.md`
 
 ## Quick Context
 
-- Verification authority for `docs/contracts/crypto-profile-v1.md` evidence requirements.
+- Verification authority for `docs/contracts/crypto-profile.md` evidence requirements.
 - Update this checklist when crypto profile requirements or evidence standards change.
-- Latest meaningful change: 2026-03-04 mapped all CP-* requirements to explicit verification steps and evidence artifacts.
+- Latest meaningful change: 2026-05-12 aligned the checklist title with the unversioned crypto profile contract artifact.
 
 ## Purpose
 
-- Define per-requirement verification steps for `docs/contracts/crypto-profile-v1.md`.
+- Define per-requirement verification steps for `docs/contracts/crypto-profile.md`.
 - Standardize evidence required for release and audit readiness.
 
 ## Verification Checklist

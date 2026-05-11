@@ -5,8 +5,8 @@ export type PersonaRecord = {
   lastSelectedAt: string;
 };
 
-const PERSONAS_KEY = "hexrelay.personas.v1";
-const ACTIVE_PERSONA_KEY = "hexrelay.active-persona.v1";
+const PERSONAS_KEY = "hexrelay.personas";
+const ACTIVE_PERSONA_KEY = "hexrelay.active-persona";
 const UI_PREFS_EVENT = "hexrelay-ui-preferences-changed";
 
 function notifyPersonaChange(): void {

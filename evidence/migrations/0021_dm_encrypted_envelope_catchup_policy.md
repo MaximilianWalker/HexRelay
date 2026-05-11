@@ -44,7 +44,7 @@
 - Rollback or restore command(s): restore database backup before migration if the old policy mode must be inspected.
 - Expected outcome: runtime using the current server-node encrypted-envelope delivery baseline should not run against a restored schema that only accepts `best_effort_online`.
 - Actual outcome: acknowledged.
-- Evidence path: `docs/product/01-mvp-plan.md`, `docs/product/02-prd-v1.md`, `docs/contracts/runtime-rest-v1.openapi.yaml`.
+- Evidence path: `docs/product/01-mvp-plan.md`, `docs/product/02-prd.md`, `docs/contracts/runtime-rest.openapi.yaml`.
 
 ## Data Integrity Verification
 

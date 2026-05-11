@@ -18,7 +18,7 @@
 ## Contents
 
 - Canonical strategy: `docs/product/01-mvp-plan.md`
-- Canonical requirements: `docs/product/02-prd-v1.md`
+- Canonical requirements: `docs/product/02-prd.md`
 - Clarifications log: `docs/product/03-clarifications.md`
 - Dependencies and risk register: `docs/product/04-dependencies-risks.md`
 - DM encrypted-envelope delivery proposals: `docs/product/10-infra-free-dm-connectivity-proposals.md`

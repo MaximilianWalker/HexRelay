@@ -11,12 +11,12 @@ Only project-specific constraints are defined here.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
 - Windows and Linux are both mandatory first-class targets for development, testing, packaging, and release planning; never plan Windows-only delivery or leave Linux as a later afterthought.
 - Tauri is the default desktop shell choice for release planning unless a later explicit decision replaces it.
-- HTTP API endpoints are internal/local app surfaces and must not use path version prefixes such as `/v1`; update all in-repo consumers and contracts atomically instead of adding compatibility aliases.
+- HTTP API and realtime surfaces are internal/local app surfaces and must not use speculative project-owned version names. Do not add path prefixes such as `/v1`, `v1` contract artifact filenames, `V1` schema aliases, event-version envelope fields, cache-key version prefixes, token-format version segments, or storage-key version suffixes unless a real migration/rollout constraint already requires them; update all in-repo consumers and contracts atomically instead of adding compatibility aliases.
 
 ## 2) Editing Boundaries
 
 - Keep architecture docs current in the canonical `docs/architecture/*` authorities when major runtime or boundary decisions change; update `docs/product/01-mvp-plan.md` as well when those decisions change product scope or strategy.
-- Keep requirements and dependency/risk state current in `docs/product/02-prd-v1.md` and `docs/product/04-dependencies-risks.md` when behavior changes.
+- Keep requirements and dependency/risk state current in `docs/product/02-prd.md` and `docs/product/04-dependencies-risks.md` when behavior changes.
 - Prefer minimal diffs and avoid broad refactors during MVP setup.
 
 ## 3) Product Guardrails

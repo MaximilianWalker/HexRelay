@@ -25,7 +25,7 @@ import { syncWorkspaceTabsForRestoreMode } from "@/lib/workspace-tabs";
 
 import styles from "../surfaces.module.css";
 
-const DM_POLICY_KEY = "hexrelay.settings.dm-policy.v1";
+const DM_POLICY_KEY = "hexrelay.settings.dm-policy";
 const DM_POLICY_EVENT = "hexrelay-dm-policy-changed";
 const SHOW_DEV_TESTING = process.env.NODE_ENV === "development";
 

@@ -17,7 +17,7 @@ Describe the proposal and expected outcome.
 ## Canonical References
 
 - Product plan: `docs/product/01-mvp-plan.md`
-- Requirements: `docs/product/02-prd-v1.md`
+- Requirements: `docs/product/02-prd.md`
 - Iteration board (if relevant):
 
 ## MVP Fit

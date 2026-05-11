@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs fanout_cursor_metadata_persists_across_db_restart`, `cargo test -p api-rs accepted_dm_without_active_devices_survives_restart_and_catches_up_later`, `cargo test -p api-rs fanout_dispatch_delivers_to_all_active_profile_devices`, `cargo check -p api-rs`, `python -c "from scripts.contract_parity import engine; raise SystemExit(engine.validate_api_semantic_contracts('docs/contracts/runtime-rest-v1.openapi.yaml'))"`
+- Command(s) executed: `cargo test -p api-rs fanout_cursor_metadata_persists_across_db_restart`, `cargo test -p api-rs accepted_dm_without_active_devices_survives_restart_and_catches_up_later`, `cargo test -p api-rs fanout_dispatch_delivers_to_all_active_profile_devices`, `cargo check -p api-rs`, `python -c "from scripts.contract_parity import engine; raise SystemExit(engine.validate_api_semantic_contracts('docs/contracts/runtime-rest.openapi.yaml'))"`
 - Expected outcome: accepted DM send persists canonical DM history plus durable delivery metadata before success, and catch-up survives restart when DB storage is configured.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the PR #88 delivery session.

@@ -1,6 +1,6 @@
-const DEVICE_ID_STORAGE_KEY = "hexrelay.dm.device-id.v1";
-const DEVICE_SECRET_STORAGE_KEY = "hexrelay.dm.device-secret.v1";
-const ENVELOPE_STORAGE_PREFIX = "hexrelay.dm.envelopes.v1";
+const DEVICE_ID_STORAGE_KEY = "hexrelay.dm.device-id";
+const DEVICE_SECRET_STORAGE_KEY = "hexrelay.dm.device-secret";
+const ENVELOPE_STORAGE_PREFIX = "hexrelay.dm.envelopes";
 const MAX_STORED_ENVELOPES = 500;
 const DEVICE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const DEVICE_SECRET_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
@@ -25,7 +25,6 @@ export type StoredDmEnvelope = DmEnvelopeAckSource & {
 
 export type DmEnvelopeDispatchedEvent = {
   event_type: "dm.envelope.dispatched";
-  event_version: 1;
   correlation_id?: string;
   data: {
     envelope_id: string;
@@ -44,7 +43,6 @@ export type DmEnvelopeDispatchedEvent = {
 
 export type DmEnvelopeAckEvent = {
   event_type: "dm.envelope.ack";
-  event_version: 1;
   data: {
     envelope_id: string;
     message_id: string;
@@ -59,7 +57,6 @@ export type DmEnvelopeAckEvent = {
 
 export type DmDeviceVerifiedEvent = {
   event_type: "dm.device.verified";
-  event_version: 1;
   data: {
     device_id: string;
     verified_at: string;
@@ -207,7 +204,7 @@ export function parseRealtimeEvent(raw: string): unknown | null {
 }
 
 export function isDmEnvelopeDispatchedEvent(value: unknown): value is DmEnvelopeDispatchedEvent {
-  if (!isRecord(value) || value.event_type !== "dm.envelope.dispatched" || value.event_version !== 1) {
+  if (!isRecord(value) || value.event_type !== "dm.envelope.dispatched") {
     return false;
   }
 
@@ -231,7 +228,7 @@ export function isDmEnvelopeDispatchedEvent(value: unknown): value is DmEnvelope
 }
 
 export function isDmEnvelopeAckEvent(value: unknown): value is DmEnvelopeAckEvent {
-  if (!isRecord(value) || value.event_type !== "dm.envelope.ack" || value.event_version !== 1) {
+  if (!isRecord(value) || value.event_type !== "dm.envelope.ack") {
     return false;
   }
 
@@ -252,7 +249,7 @@ export function isDmEnvelopeAckEvent(value: unknown): value is DmEnvelopeAckEven
 }
 
 export function isDmDeviceVerifiedEvent(value: unknown): value is DmDeviceVerifiedEvent {
-  if (!isRecord(value) || value.event_type !== "dm.device.verified" || value.event_version !== 1) {
+  if (!isRecord(value) || value.event_type !== "dm.device.verified") {
     return false;
   }
 
@@ -420,7 +417,6 @@ export function buildDmEnvelopeAck(
   options?: { correlationId?: string; receivedAt?: string },
 ): {
   event_type: "dm.envelope.ack";
-  event_version: 1;
   correlation_id: string;
   data: {
     envelope_id: string;
@@ -435,7 +431,6 @@ export function buildDmEnvelopeAck(
 } {
   return {
     event_type: "dm.envelope.ack",
-    event_version: 1,
     correlation_id: options?.correlationId ?? createCorrelationId(),
     data: {
       envelope_id: source.envelopeId,
@@ -456,7 +451,6 @@ export function buildDmDeviceProof(
   options?: { correlationId?: string },
 ): {
   event_type: "dm.device.proof";
-  event_version: 1;
   correlation_id: string;
   data: {
     device_id: string;
@@ -465,7 +459,6 @@ export function buildDmDeviceProof(
 } {
   return {
     event_type: "dm.device.proof",
-    event_version: 1,
     correlation_id: options?.correlationId ?? createCorrelationId(),
     data: {
       device_id: deviceId,

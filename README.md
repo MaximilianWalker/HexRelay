@@ -35,7 +35,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 ## Start Here
 
 - Product strategy: `docs/product/01-mvp-plan.md`
-- Product requirements: `docs/product/02-prd-v1.md`
+- Product requirements: `docs/product/02-prd.md`
 - Documentation index and source-of-truth map: `docs/README.md`
 - System overview: `docs/architecture/01-system-overview.md`
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
@@ -50,7 +50,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Before treating current runtime behavior as fully settled, review open `watch` items in `docs/operations/readiness-corrections-log.md`; current deferred gaps include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, and docs-governance/process watches.
 - If you want project direction and delivery scope first, read:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/planning/iterations/README.md`
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
