@@ -1,10 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::error::TrySendError;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::state::AppState;
 
@@ -25,6 +25,19 @@ pub struct PublishDmEnvelopeInput {
     pub accepted_at: String,
     pub delivery_cursor: u64,
     pub target_device_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DmEnvelopeDispatchSummary {
+    pub message_id: String,
+    pub recipient_identity_id: String,
+    pub target_device_count: u32,
+    pub queued_device_ids: Vec<String>,
+    pub pending_device_ids: Vec<String>,
+    pub no_connection_device_ids: Vec<String>,
+    pub unverified_device_ids: Vec<String>,
+    pub saturated_device_ids: Vec<String>,
+    pub stale_connection_count: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -81,11 +94,14 @@ pub fn is_dm_device_proof_event(raw: &str) -> bool {
 pub async fn publish_dm_envelope_dispatched(
     state: &AppState,
     input: PublishDmEnvelopeInput,
-) -> Result<(), String> {
+) -> Result<DmEnvelopeDispatchSummary, String> {
     validate_publish_input(&input)?;
     let target_device_ids = normalize_device_ids(&input.target_device_ids);
     if target_device_ids.is_empty() {
-        return Ok(());
+        return Ok(empty_dispatch_summary(
+            &input.message_id,
+            &input.recipient_identity_id,
+        ));
     }
 
     let dispatched_at = Utc::now().to_rfc3339();
@@ -116,8 +132,26 @@ pub async fn publish_dm_envelope_dispatched(
         })
         .collect::<Vec<_>>();
 
-    dispatch_dm_envelopes_locally(state, &input.recipient_identity_id, &events).await;
-    Ok(())
+    let summary = dispatch_dm_envelopes_locally(
+        state,
+        &input.message_id,
+        &input.recipient_identity_id,
+        &events,
+    )
+    .await;
+    info!(
+        message_id = %summary.message_id,
+        recipient_identity_id = %summary.recipient_identity_id,
+        target_device_count = summary.target_device_count,
+        queued_device_count = summary.queued_device_ids.len(),
+        pending_device_count = summary.pending_device_ids.len(),
+        no_connection_device_count = summary.no_connection_device_ids.len(),
+        unverified_device_count = summary.unverified_device_ids.len(),
+        saturated_device_count = summary.saturated_device_ids.len(),
+        stale_connection_count = summary.stale_connection_count,
+        "DM envelope realtime dispatch summarized"
+    );
+    Ok(summary)
 }
 
 pub async fn handle_dm_envelope_ack(
@@ -292,32 +326,49 @@ pub async fn verify_dm_device_binding(
 
 async fn dispatch_dm_envelopes_locally(
     state: &AppState,
+    message_id: &str,
     recipient_identity_id: &str,
     events: &[(String, String)],
-) {
+) -> DmEnvelopeDispatchSummary {
+    let mut device_states = events
+        .iter()
+        .map(|(device_id, _)| (device_id.clone(), DeviceDispatchState::NoConnection))
+        .collect::<BTreeMap<_, _>>();
     let mut stale_connections = Vec::new();
     let mut guard = state.connection_senders.lock().await;
-    let Some(connections) = guard.get_mut(recipient_identity_id) else {
-        return;
-    };
 
-    for (connection_id, entry) in connections.iter() {
-        let Some(device_id) = entry.device_id.as_deref() else {
-            continue;
-        };
-        if !entry.dm_device_verified {
-            continue;
-        }
-        for (target_device_id, payload) in events {
-            if device_id != target_device_id {
+    if let Some(connections) = guard.get_mut(recipient_identity_id) {
+        for (connection_id, entry) in connections.iter() {
+            let Some(device_id) = entry.device_id.as_deref() else {
+                continue;
+            };
+            let Some(device_state) = device_states.get_mut(device_id) else {
+                continue;
+            };
+            if !entry.dm_device_verified {
+                if *device_state == DeviceDispatchState::NoConnection {
+                    *device_state = DeviceDispatchState::Unverified;
+                }
                 continue;
             }
+
+            let Some((_, payload)) = events
+                .iter()
+                .find(|(target_device_id, _)| target_device_id == device_id)
+            else {
+                continue;
+            };
             match entry.sender.try_send(payload.clone()) {
-                Ok(()) => {}
+                Ok(()) => {
+                    *device_state = DeviceDispatchState::Queued;
+                }
                 Err(TrySendError::Closed(_)) => {
                     stale_connections.push(connection_id.clone());
                 }
                 Err(TrySendError::Full(_)) => {
+                    if *device_state != DeviceDispatchState::Queued {
+                        *device_state = DeviceDispatchState::Saturated;
+                    }
                     warn!(
                         recipient_identity_id = %recipient_identity_id,
                         connection_id = %connection_id,
@@ -327,13 +378,88 @@ async fn dispatch_dm_envelopes_locally(
                 }
             }
         }
+
+        for connection_id in &stale_connections {
+            connections.remove(connection_id);
+        }
+        if connections.is_empty() {
+            guard.remove(recipient_identity_id);
+        }
     }
 
-    for connection_id in stale_connections {
-        connections.remove(&connection_id);
+    build_dispatch_summary(
+        message_id,
+        recipient_identity_id,
+        device_states,
+        stale_connections.len(),
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeviceDispatchState {
+    NoConnection,
+    Unverified,
+    Saturated,
+    Queued,
+}
+
+fn empty_dispatch_summary(
+    message_id: &str,
+    recipient_identity_id: &str,
+) -> DmEnvelopeDispatchSummary {
+    DmEnvelopeDispatchSummary {
+        message_id: message_id.to_string(),
+        recipient_identity_id: recipient_identity_id.to_string(),
+        target_device_count: 0,
+        queued_device_ids: Vec::new(),
+        pending_device_ids: Vec::new(),
+        no_connection_device_ids: Vec::new(),
+        unverified_device_ids: Vec::new(),
+        saturated_device_ids: Vec::new(),
+        stale_connection_count: 0,
     }
-    if connections.is_empty() {
-        guard.remove(recipient_identity_id);
+}
+
+fn build_dispatch_summary(
+    message_id: &str,
+    recipient_identity_id: &str,
+    device_states: BTreeMap<String, DeviceDispatchState>,
+    stale_connection_count: usize,
+) -> DmEnvelopeDispatchSummary {
+    let mut queued_device_ids = Vec::new();
+    let mut pending_device_ids = Vec::new();
+    let mut no_connection_device_ids = Vec::new();
+    let mut unverified_device_ids = Vec::new();
+    let mut saturated_device_ids = Vec::new();
+
+    for (device_id, state) in &device_states {
+        match state {
+            DeviceDispatchState::Queued => queued_device_ids.push(device_id.clone()),
+            DeviceDispatchState::NoConnection => {
+                pending_device_ids.push(device_id.clone());
+                no_connection_device_ids.push(device_id.clone());
+            }
+            DeviceDispatchState::Unverified => {
+                pending_device_ids.push(device_id.clone());
+                unverified_device_ids.push(device_id.clone());
+            }
+            DeviceDispatchState::Saturated => {
+                pending_device_ids.push(device_id.clone());
+                saturated_device_ids.push(device_id.clone());
+            }
+        }
+    }
+
+    DmEnvelopeDispatchSummary {
+        message_id: message_id.to_string(),
+        recipient_identity_id: recipient_identity_id.to_string(),
+        target_device_count: u32::try_from(device_states.len()).unwrap_or(u32::MAX),
+        queued_device_ids,
+        pending_device_ids,
+        no_connection_device_ids,
+        unverified_device_ids,
+        saturated_device_ids,
+        stale_connection_count: u32::try_from(stale_connection_count).unwrap_or(u32::MAX),
     }
 }
 
@@ -632,7 +758,7 @@ mod tests {
             ]),
         );
 
-        publish_dm_envelope_dispatched(
+        let summary = publish_dm_envelope_dispatched(
             &state,
             PublishDmEnvelopeInput {
                 message_id: "msg-1".to_string(),
@@ -648,6 +774,13 @@ mod tests {
         )
         .await
         .expect("publish DM envelope");
+        assert_eq!(summary.target_device_count, 2);
+        assert_eq!(
+            summary.queued_device_ids,
+            vec!["desktop-main".to_string(), "phone-main".to_string()]
+        );
+        assert!(summary.pending_device_ids.is_empty());
+        assert!(summary.no_connection_device_ids.is_empty());
 
         let desktop_payload = desktop_rx.recv().await.expect("desktop event");
         let phone_payload = phone_rx.recv().await.expect("phone event");
@@ -689,7 +822,7 @@ mod tests {
             )]),
         );
 
-        publish_dm_envelope_dispatched(
+        let summary = publish_dm_envelope_dispatched(
             &state,
             PublishDmEnvelopeInput {
                 message_id: "msg-1".to_string(),
@@ -705,11 +838,94 @@ mod tests {
         )
         .await
         .expect("publish DM envelope");
+        assert_eq!(summary.target_device_count, 1);
+        assert!(summary.queued_device_ids.is_empty());
+        assert_eq!(summary.pending_device_ids, vec!["desktop-main".to_string()]);
+        assert_eq!(
+            summary.saturated_device_ids,
+            vec!["desktop-main".to_string()]
+        );
 
         assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
         let guard = state.connection_senders.lock().await;
         let connections = guard.get("usr-recipient").expect("remaining connections");
         assert!(connections.contains_key("conn-full"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_dm_envelope_reports_pending_target_reasons() {
+        let state = test_state();
+        let (unverified_tx, mut unverified_rx) = mpsc::channel::<String>(1);
+        let (closed_tx, closed_rx) = mpsc::channel::<String>(1);
+        drop(closed_rx);
+
+        state.connection_senders.lock().await.insert(
+            "usr-recipient".to_string(),
+            std::collections::HashMap::from([
+                (
+                    "conn-unverified".to_string(),
+                    crate::state::ConnectionSenderEntry {
+                        sender: unverified_tx,
+                        device_id: Some("phone-main".to_string()),
+                        dm_device_verified: false,
+                    },
+                ),
+                (
+                    "conn-closed".to_string(),
+                    crate::state::ConnectionSenderEntry {
+                        sender: closed_tx,
+                        device_id: Some("desktop-main".to_string()),
+                        dm_device_verified: true,
+                    },
+                ),
+            ]),
+        );
+
+        let summary = publish_dm_envelope_dispatched(
+            &state,
+            PublishDmEnvelopeInput {
+                message_id: "msg-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                sender_identity_id: "usr-sender".to_string(),
+                recipient_identity_id: "usr-recipient".to_string(),
+                ciphertext: "enc:abcdefghijklmnopqrstuvwxyz".to_string(),
+                source_device_id: None,
+                accepted_at: "2026-03-26T00:00:00Z".to_string(),
+                delivery_cursor: 3,
+                target_device_ids: vec![
+                    "desktop-main".to_string(),
+                    "phone-main".to_string(),
+                    "tablet-main".to_string(),
+                ],
+            },
+        )
+        .await
+        .expect("publish DM envelope");
+
+        assert_eq!(summary.target_device_count, 3);
+        assert!(summary.queued_device_ids.is_empty());
+        assert_eq!(
+            summary.pending_device_ids,
+            vec![
+                "desktop-main".to_string(),
+                "phone-main".to_string(),
+                "tablet-main".to_string()
+            ]
+        );
+        assert_eq!(
+            summary.no_connection_device_ids,
+            vec!["desktop-main".to_string(), "tablet-main".to_string()]
+        );
+        assert_eq!(
+            summary.unverified_device_ids,
+            vec!["phone-main".to_string()]
+        );
+        assert_eq!(summary.stale_connection_count, 1);
+        assert!(unverified_rx.try_recv().is_err());
+        let guard = state.connection_senders.lock().await;
+        let connections = guard.get("usr-recipient").expect("remaining connection");
+        assert!(!connections.contains_key("conn-closed"));
+        assert!(connections.contains_key("conn-unverified"));
     }
 
     #[test]

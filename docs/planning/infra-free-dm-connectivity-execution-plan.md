@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of server-node P2P DM encrypted-envelope delivery.
 - The legacy file path is retained to avoid link churn; this plan no longer tracks infrastructure-free node-bypassing DM connectivity.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 added the T4.1.8 metadata-retention and abuse-control implementation details for server-node P2P message-node E2EE envelopes.
+- Latest meaningful change: 2026-05-11 added T4.1.9 recipient-targeted realtime dispatch observability for server-node P2P message-node E2EE envelopes.
 
 ## Purpose
 
@@ -120,6 +120,15 @@ Evidence path baseline:
 - Outbound retention rule: delete expired `forwarded` and terminal `failed` `dm_outbound_forwarding_log` rows; keep queued or retry-scheduled rows until retry resolution.
 - Abuse-control rule: DM dispatch uses sender-scoped rate limits; catch-up and ack use identity/device-scoped rate limits; authenticated node-forward ingress uses origin-node-scoped rate limits.
 - Config defaults: `API_DM_DISPATCH_RATE_LIMIT=120`, `API_DM_CATCH_UP_RATE_LIMIT=120`, `API_DM_ACK_RATE_LIMIT=600`, `API_DM_INTERNAL_FORWARD_RATE_LIMIT=240`, `API_DM_DELIVERY_LOG_RETENTION_SECONDS=2592000`, and `API_DM_OUTBOUND_FORWARDING_LOG_RETENTION_SECONDS=604800`.
+- No UX changes were introduced by this slice.
+
+## Current T4.1.9 Implementation Notes
+
+- Active-device targeting finding: API fanout still selects active recipient profile devices from the server-side device manifest and sends only those device ids to realtime.
+- Realtime dispatch finding: realtime now returns an internal dispatch summary for every DM envelope dispatch request with target count, queued-to-verified-websocket ids, pending ids, no-connection ids, unverified-device-binding ids, saturated-queue ids, and stale connection cleanup count.
+- Correctness boundary: queued-to-verified-websocket means the envelope was queued to a verified websocket connection for that profile device. It is not final recipient delivery, read state, or UX-facing delivery status.
+- Ack boundary: final delivery remains `dm.envelope.ack` backed. API dispatch responses keep `delivered_device_ids` empty until ack-backed delivery state exists, and late-device catch-up remains the deterministic fallback for pending devices.
+- Metadata boundary: realtime dispatch summaries contain ids, counts, and state categories only; they do not contain plaintext, private keys, endpoint hints, LAN/WAN addresses, pairing material, or direct user-to-user transport state.
 - No UX changes were introduced by this slice.
 
 ## Risks and Mitigations

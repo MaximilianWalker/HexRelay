@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-11 recorded T4.1.8 DM delivery metadata retention and abuse-control implementation details.
+- Latest meaningful change: 2026-05-11 recorded T4.1.9 recipient-targeted realtime DM dispatch-summary implementation details.
 
 ## Purpose
 
@@ -29,6 +29,28 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-11 (T4.1.9 DM realtime dispatch summaries)
+
+- Area affected: Realtime DM envelope dispatch, API dispatch logging, active-device fanout evidence, networking architecture docs, product DM delivery notes, and verification matrix.
+- Change summary:
+  - Added an internal realtime dispatch summary for `dm.envelope.dispatched` publication.
+  - Classified target profile-device outcomes as queued-to-verified-websocket, pending/no-connection, pending/unverified-device-binding, pending/saturated-queue, and stale connection cleanup count.
+  - Added API-side structured logging for the internal realtime summary returned by the message-node dispatch endpoint.
+  - Added tests covering targeted delivery summaries, pending target reasons, saturated outbound queues, stale websocket cleanup, and the internal dispatch response body.
+- Rationale:
+  - T4.1.9 needed clearer backend observability for active-device fanout without changing UX or weakening the ack-backed delivery contract.
+  - The implementation keeps final delivery tied to `dm.envelope.ack`; live websocket queueing is observable but not treated as read state or final recipient delivery.
+- Linked docs updated:
+  - `docs/architecture/04-communication-networking-layer-plan.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/product/10-infra-free-dm-connectivity-proposals.md`
+  - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/README.md`
 
 ### 2026-05-11 (T4.1.8 DM metadata retention and abuse controls)
 

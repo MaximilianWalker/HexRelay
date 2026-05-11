@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 recorded T4.1.8 DM delivery-metadata retention and metadata-only abuse-control trace coverage.
+- Latest meaningful change: 2026-05-11 recorded T4.1.9 recipient-targeted realtime DM dispatch-summary trace coverage.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 

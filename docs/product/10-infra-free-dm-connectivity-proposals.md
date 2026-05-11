@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM delivery solution candidates and trade-offs.
 - The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free node-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 added concrete metadata-retention and abuse-control defaults for server-node P2P E2EE envelope delivery.
+- Latest meaningful change: 2026-05-11 added backend realtime dispatch summaries for recipient-targeted encrypted-envelope delivery.
 
 ## Purpose
 
@@ -139,6 +139,8 @@
 - Fanout metadata is deleted after expiry when every registered profile device has cursor-converged, or after expiry when no profile device is registered. Ciphertext history is not deleted by this metadata purge.
 - Outbound metadata purge deletes expired `forwarded` and terminal `failed` rows, while preserving queued or retry-scheduled rows.
 - Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up and ack are identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
+- Realtime dispatch summaries are backend-only and classify each target profile device by queued-to-verified-websocket, pending/no connection, pending/unverified device binding, pending/saturated outbound queue, plus stale connection cleanup count.
+- Final delivery remains ack-backed: API dispatch responses still report `delivered_device_ids` only after recipient-device ack, and live dispatch summaries must not be treated as user-visible read/delivery UX.
 
 ## Proposition 5 (Rank 5): Delivery State and Diagnostic Semantics
 

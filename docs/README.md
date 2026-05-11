@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 indexed the T4.1.8 DM delivery metadata retention and abuse-control updates across architecture, product, planning, and migration evidence docs.
+- Latest meaningful change: 2026-05-11 indexed the T4.1.9 recipient-targeted realtime DM dispatch-summary updates across architecture, product, planning, and verification docs.
 
 ## Purpose
 

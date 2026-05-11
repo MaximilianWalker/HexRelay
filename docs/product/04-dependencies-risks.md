@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-05-11 recorded T4.1.8 DM delivery-metadata retention and abuse-control mitigation evidence.
+- Latest meaningful change: 2026-05-11 recorded T4.1.9 DM active-device realtime dispatch-summary mitigation evidence.
 
 ## Purpose
 
@@ -47,14 +47,14 @@
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
 | R-007 | User identity or private-node scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, signed opt-in node descriptors, descriptor-scope validation, rate limits, denylists, and bootstrap release only on accepted requests | API |
 | R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, metadata-only rate limits, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
-| R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, and active+late-device convergence tests for DM and server paths | Core/Realtime |
+| R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, active+late-device convergence tests, and backend realtime target summaries for queued/pending device outcomes | Core/Realtime |
 
 ## Review Cadence
 
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-05-11 (added T4.1.8 backend mitigation evidence for DM delivery-metadata retention, outbound forwarding metadata retention, and metadata-only abuse controls).
+- Last reviewed: 2026-05-11 (added T4.1.9 backend mitigation evidence for active-device realtime target summaries while preserving ack-backed final delivery).
 
 ## Risk to Task Mitigation Matrix
 
