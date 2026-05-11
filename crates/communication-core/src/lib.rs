@@ -6,6 +6,10 @@ pub mod transport;
 pub use app::PolicyEngine;
 pub use config::CommunicationConfig;
 pub use domain::{
+    CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, StaticPeerRegistry,
+    StaticPeerRegistryError,
+};
+pub use domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,
     PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
