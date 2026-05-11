@@ -561,7 +561,10 @@ async fn validate_session_upstream(
     cookie_header: Option<&str>,
     authorization_header: Option<&str>,
 ) -> UpstreamSessionValidation {
-    let url = format!("{}/auth/sessions/validate", state.api_base_url);
+    let url = format!(
+        "{}/auth/sessions/validate",
+        state.api_base_url.trim_end_matches('/')
+    );
     let mut request = state.http_client.get(url);
     if let Some(cookie_header) = cookie_header {
         request = request.header("cookie", cookie_header);
