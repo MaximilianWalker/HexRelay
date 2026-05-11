@@ -92,6 +92,7 @@ jobs:
       REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN: ci-channel-dispatch-token-12345
       REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN: ci-presence-watcher-token-12345
       REALTIME_PRESENCE_REDIS_URL: redis://127.0.0.1:6379/0
+      RUST_TEST_THREADS: 1
     strategy:
       fail-fast: false
       matrix:
@@ -338,6 +339,7 @@ jobs:
       REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN: ci-channel-dispatch-token-12345
       REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN: ci-presence-watcher-token-12345
       REALTIME_PRESENCE_REDIS_URL: redis://127.0.0.1:6379/0
+      RUST_TEST_THREADS: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v5
