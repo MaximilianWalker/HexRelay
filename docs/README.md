@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide and added the app-to-node connection/capability contract for dedicated-server administration.
+- Latest meaningful change: 2026-05-11 routed private mesh bootstrap operations to the operations guide and added the app-to-node connection/capability contract plus two-node HTTP forwarding smoke pointer.
 
 ## Purpose
 

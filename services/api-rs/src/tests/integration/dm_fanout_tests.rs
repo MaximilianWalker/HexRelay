@@ -118,9 +118,69 @@ fn signed_node_forward_body(
     (body, timestamp, nonce, signature)
 }
 
+fn api_node_state(
+    local: &SignedNodeDescriptor,
+    static_peers: Vec<NodeDescriptor>,
+    pool: sqlx::PgPool,
+) -> AppState {
+    AppState::new(
+        local.descriptor.node_id.clone(),
+        vec![TEST_ALLOWED_ORIGIN.to_string()],
+        "v1".to_string(),
+        Vec::new(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        None,
+        "http://127.0.0.1:8081".to_string(),
+        BTreeMap::from([(
+            "v1".to_string(),
+            "hexrelay-dev-signing-key-change-me".to_string(),
+        )]),
+        None,
+        false,
+        "Lax".to_string(),
+        ApiRateLimitConfig {
+            auth_challenge_per_window: 30,
+            auth_verify_per_window: 30,
+            discovery_query_per_window: 30,
+            invite_create_per_window: 20,
+            invite_redeem_per_window: 40,
+            window_seconds: 60,
+        },
+        false,
+    )
+    .with_public_identity_registration(true)
+    .with_db_pool(pool)
+    .with_local_node_identity(Some(LocalNodeIdentity {
+        descriptor: local.descriptor.clone(),
+        private_key_pkcs8: local.private_key_pkcs8.clone(),
+    }))
+    .with_static_peer_registry(
+        StaticPeerRegistry::try_new(static_peers).expect("API node static peer registry"),
+    )
+}
+
 async fn start_node_forward_capture(
 ) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
     start_node_forward_capture_with_status(StatusCode::ACCEPTED).await
+}
+
+async fn bind_api_node() -> (String, tokio::net::TcpListener) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind API node");
+    let addr = listener.local_addr().expect("API node address");
+
+    (format!("http://{}", addr), listener)
+}
+
+fn spawn_api_node(
+    listener: tokio::net::TcpListener,
+    app: axum::Router,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    })
 }
 
 async fn start_node_forward_capture_with_status(
@@ -211,6 +271,104 @@ async fn seed_due_failed_outbound_forward(
     )
     .await
     .expect("seed failed outbound forward");
+}
+
+#[tokio::test]
+async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let sender = unique_identity("usr-two-node-sender");
+    let recipient = unique_identity("usr-two-node-recipient");
+    ensure_db_identity_key(&pool, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+    dm_repo::upsert_dm_policy(
+        &pool,
+        &recipient,
+        &DmPolicy {
+            inbound_policy: "anyone".to_string(),
+            offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
+        },
+    )
+    .await
+    .expect("set recipient DM policy");
+    dm_repo::upsert_dm_profile_device(
+        &pool,
+        &recipient,
+        &DmProfileDeviceRecord {
+            device_id: "phone-main".to_string(),
+            device_secret_hash: "test-secret-hash".to_string(),
+            active: true,
+            last_seen_epoch: Utc::now().timestamp(),
+        },
+    )
+    .await
+    .expect("upsert recipient profile device");
+
+    let (node_a_base_url, node_a_listener) = bind_api_node().await;
+    let (node_b_base_url, node_b_listener) = bind_api_node().await;
+    let node_a = signed_node_descriptor("node-a", "descriptor-node-a", &node_a_base_url);
+    let node_b = signed_node_descriptor("node-b", "descriptor-node-b", &node_b_base_url);
+    let node_a_state = api_node_state(&node_a, vec![node_b.descriptor.clone()], pool.clone());
+    let sender_token = issue_db_session_cookie(&pool, &node_a_state, &sender).await;
+    let node_b_state = api_node_state(&node_b, vec![node_a.descriptor.clone()], pool.clone());
+    let node_b_handle = spawn_api_node(node_b_listener, build_app(node_b_state));
+    let node_a_handle = spawn_api_node(node_a_listener, build_app(node_a_state));
+
+    let message_id = format!("msg-two-node-http-{}", Uuid::new_v4().simple());
+    let response = reqwest::Client::new()
+        .post(format!("{node_a_base_url}/dm/fanout/dispatch"))
+        .header("authorization", format!("Bearer {sender_token}"))
+        .json(&serde_json::json!({
+            "recipient_identity_id": recipient.as_str(),
+            "message_id": message_id.as_str(),
+            "ciphertext": "enc:two-node-http-smoke",
+            "source_device_id": "desktop-main",
+            "destination_node_id": node_b.descriptor.node_id.as_str(),
+        }))
+        .send()
+        .await
+        .expect("two-node fanout response");
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .expect("read two-node fanout response");
+    assert_eq!(status.as_u16(), StatusCode::OK.as_u16(), "{body}");
+    let payload: serde_json::Value =
+        serde_json::from_str(&body).expect("decode two-node fanout response");
+    assert_eq!(payload["status"], "accepted");
+    assert_eq!(payload["reason_code"], "fanout_forwarded_to_static_peer");
+    assert_eq!(payload["delivery_state"], "forwarded");
+
+    let outbound = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &node_b.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load two-node outbound forward")
+    .expect("two-node outbound forward");
+    assert_eq!(outbound.forwarding_state, "forwarded");
+    assert_eq!(outbound.attempt_count, 1);
+    assert!(outbound.last_error.is_none());
+
+    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+        .await
+        .expect("load node B delivery records");
+    let accepted = records
+        .iter()
+        .find(|record| record.message_id == message_id)
+        .expect("node B accepted forwarded envelope");
+    assert_eq!(accepted.sender_identity_id, sender);
+    assert_eq!(accepted.ciphertext, "enc:two-node-http-smoke");
+    assert_eq!(accepted.source_device_id.as_deref(), Some("desktop-main"));
+    assert_eq!(accepted.delivery_state, "pending_delivery");
+    assert_eq!(accepted.reachability_state, "unknown");
+
+    node_a_handle.abort();
+    node_b_handle.abort();
 }
 
 #[tokio::test]

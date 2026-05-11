@@ -13,7 +13,7 @@
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-05-11 added the private mesh bootstrap operator guide and clarified the app-mediated dedicated-server administration boundary plus node capability contract.
+- Latest meaningful change: 2026-05-11 added the private mesh bootstrap operator guide, app-mediated dedicated-server administration boundary, node capability contract, and two-node HTTP forwarding smoke pointer.
 
 ## Purpose
 
