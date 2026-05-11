@@ -28,6 +28,8 @@ const ACK_WAIT_MS = 5_000;
 const CATCH_UP_LIMIT = 100;
 const MAX_CATCH_UP_PAGES = 25;
 const RECONNECT_DELAY_MS = 5_000;
+const HEARTBEAT_RETRY_DELAY_MS = 5_000;
+const PROOF_RETRY_DELAY_MS = 5_000;
 
 function readActiveIdentitySnapshot(): string {
   try {
@@ -71,7 +73,54 @@ export function RealtimeClient() {
     let closed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
+    let heartbeatTimer: number | null = null;
+    let proofRetryTimer: number | null = null;
+    let deviceVerified = false;
     const pendingAcks = new Map<string, (acked: boolean) => void>();
+
+    function clearProofRetry(): void {
+      if (proofRetryTimer !== null) {
+        window.clearTimeout(proofRetryTimer);
+        proofRetryTimer = null;
+      }
+    }
+
+    function scheduleReconnect(): void {
+      if (closed || reconnectTimer !== null) {
+        return;
+      }
+
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, RECONNECT_DELAY_MS);
+    }
+
+    function scheduleHeartbeatRetry(): void {
+      if (closed || heartbeatTimer !== null) {
+        return;
+      }
+
+      heartbeatTimer = window.setTimeout(() => {
+        heartbeatTimer = null;
+        startAfterHeartbeat();
+      }, HEARTBEAT_RETRY_DELAY_MS);
+    }
+
+    function sendDeviceProof(targetSocket: WebSocket): void {
+      if (closed || deviceVerified || targetSocket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      targetSocket.send(JSON.stringify(buildDmDeviceProof(activeDeviceId, activeDeviceSecret)));
+      clearProofRetry();
+      proofRetryTimer = window.setTimeout(() => {
+        proofRetryTimer = null;
+        if (!closed && !deviceVerified && socket === targetSocket) {
+          sendDeviceProof(targetSocket);
+        }
+      }, PROOF_RETRY_DELAY_MS);
+    }
 
     function sendAck(source: StoredDmEnvelope): void {
       if (socket?.readyState !== WebSocket.OPEN) {
@@ -140,17 +189,26 @@ export function RealtimeClient() {
         return;
       }
 
-      socket = new WebSocket(buildRealtimeWebSocketUrl(env.NEXT_PUBLIC_REALTIME_WS_URL, activeDeviceId));
-      socket.addEventListener("open", () => {
-        socket?.send(JSON.stringify(buildDmDeviceProof(activeDeviceId, activeDeviceSecret)));
+      if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+        return;
+      }
+
+      const nextSocket = new WebSocket(buildRealtimeWebSocketUrl(env.NEXT_PUBLIC_REALTIME_WS_URL, activeDeviceId));
+      socket = nextSocket;
+      deviceVerified = false;
+
+      nextSocket.addEventListener("open", () => {
+        sendDeviceProof(nextSocket);
       });
-      socket.addEventListener("message", (event: MessageEvent) => {
+      nextSocket.addEventListener("message", (event: MessageEvent) => {
         if (typeof event.data !== "string") {
           return;
         }
 
         const parsed = parseRealtimeEvent(event.data);
         if (isDmDeviceVerifiedEvent(parsed) && parsed.data.device_id === activeDeviceId) {
+          deviceVerified = true;
+          clearProofRetry();
           void catchUpAndAck();
           return;
         }
@@ -164,27 +222,43 @@ export function RealtimeClient() {
           resolveAck(parsed.data.envelope_id);
         }
       });
-      socket.addEventListener("close", () => {
-        socket = null;
-        if (!closed) {
-          reconnectTimer = window.setTimeout(connect, RECONNECT_DELAY_MS);
+      nextSocket.addEventListener("close", () => {
+        clearProofRetry();
+        if (socket === nextSocket) {
+          socket = null;
         }
+        scheduleReconnect();
       });
     }
 
-    void heartbeatDmProfileDevice({ deviceId: activeDeviceId, deviceSecret: activeDeviceSecret, active: true })
-      .catch(() => null)
-      .then((result) => {
-        if (!closed && result?.ok) {
-          connect();
-        }
-      });
+    function startAfterHeartbeat(): void {
+      void heartbeatDmProfileDevice({ deviceId: activeDeviceId, deviceSecret: activeDeviceSecret, active: true })
+        .catch(() => null)
+        .then((result) => {
+          if (closed) {
+            return;
+          }
+
+          if (result?.ok) {
+            connect();
+            return;
+          }
+
+          scheduleHeartbeatRetry();
+        });
+    }
+
+    startAfterHeartbeat();
 
     return () => {
       closed = true;
+      if (heartbeatTimer !== null) {
+        window.clearTimeout(heartbeatTimer);
+      }
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);
       }
+      clearProofRetry();
       pendingAcks.forEach((resolve) => resolve(false));
       pendingAcks.clear();
       socket?.close();
