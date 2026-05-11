@@ -133,7 +133,7 @@ if [ -n "${contact_qr_matches}" ]; then
 fi
 
 if [ -n "${matches}" ]; then
-  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired user direct-DM surfaces, or contact-invite QR UI."
+  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired node-bypassing DM surfaces, or contact-invite QR UI."
   echo "These terms are disallowed for DM E2EE envelope delivery policy:"
   printf '%s' "${matches}"
   exit 1

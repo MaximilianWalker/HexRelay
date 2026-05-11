@@ -244,6 +244,7 @@ pub struct DmPolicyUpdate {
 #[derive(Deserialize)]
 pub struct DmProfileDeviceHeartbeatRequest {
     pub device_id: String,
+    pub device_secret: String,
     pub active: bool,
 }
 
@@ -283,13 +284,16 @@ pub struct DmFanoutDispatchResponse {
 #[derive(Deserialize)]
 pub struct DmFanoutCatchUpRequest {
     pub device_id: String,
+    pub device_secret: String,
     pub cursor: Option<String>,
     pub limit: Option<u32>,
 }
 
 #[derive(Clone, Serialize)]
 pub struct DmFanoutCatchUpItem {
+    pub envelope_id: String,
     pub cursor: String,
+    pub thread_id: String,
     pub message_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
@@ -310,6 +314,7 @@ pub struct DmFanoutCatchUpResponse {
 #[derive(Clone)]
 pub struct DmProfileDeviceRecord {
     pub device_id: String,
+    pub device_secret_hash: String,
     pub active: bool,
     pub last_seen_epoch: i64,
 }
@@ -317,6 +322,7 @@ pub struct DmProfileDeviceRecord {
 #[derive(Clone)]
 pub struct DmFanoutDeliveryRecord {
     pub cursor: u64,
+    pub thread_id: String,
     pub message_id: String,
     pub sender_identity_id: String,
     pub ciphertext: String,

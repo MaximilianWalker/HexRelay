@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 pivoted Iteration 2 DM task tracing to node/server-routed E2EE encrypted-envelope delivery and user direct-DM surface retirement.
+- Latest meaningful change: 2026-05-11 pivoted Iteration 2 DM task tracing to server-node P2P E2EE encrypted-envelope delivery and node-bypassing DM surface retirement.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 
@@ -39,7 +39,7 @@
 | Global/shared-server user discovery with abuse controls | T3.4.1 |
 | Shared communication networking layer abstraction (mode routing, adapters, diagnostics model) | T4.0.1, T4.0.2, T4.0.3, T4.3.3 |
 | DM/group DM encrypted-envelope delivery + server-channel messaging primitives | T4.1.1, T4.1.7, T4.3.1, T4.3.2 |
-| E2EE DM delivery stack (policy, relationship bootstrap, message-node delivery, metadata, user direct-DM surface retirement) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8, T4.1.11 |
+| E2EE DM delivery stack (policy, relationship bootstrap, server-node/message-node delivery, metadata, node-bypassing DM surface retirement) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8, T4.1.11 |
 | Multi-device eventual sync for DM and server communication | T4.1.9, T4.1.10, T4.3.4, T3.3.2 |
 | DM inbound policy defaults and user overrides | T4.1.2 |
 | E2EE 1:1 DM | T4.5.1, T4.5.2 |

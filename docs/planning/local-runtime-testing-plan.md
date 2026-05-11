@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-08 aligned local runtime testing guardrails with node/server-routed E2EE encrypted-envelope DM delivery and retired user direct-DM transport surfaces.
+- Latest meaningful change: 2026-05-11 aligned local runtime testing guardrails with server-node P2P E2EE encrypted-envelope DM delivery and retired node-bypassing client DM transport surfaces.
 
 ## Organization Decision
 
@@ -65,7 +65,7 @@
 - Refuse destructive seed/reset commands against non-local databases.
 - Prefer deterministic profiles over ad hoc manual setup.
 - Make Windows the baseline for usability, not an afterthought.
-- Keep network simulation local and deterministic for DM; tests must validate baseline encrypted-envelope delivery without router/cloud/direct-peer setup.
+- Keep network simulation local and deterministic for DM; tests must validate baseline encrypted-envelope delivery without router/cloud/recipient-device transport setup.
 - Make simulated failures explicit and observable in UI and logs.
 
 ## Testing Profile Catalog
@@ -129,7 +129,7 @@
 - Bob default policy: `friends_only`.
 - Carol may use `same_server` for context-sensitive behavior.
 - Dave should use a restrictive setup to validate blocked or not-authorized behavior.
-- Bootstrap fixtures must not include user direct endpoint hints, endpoint cards, pairing QR/manual-code payloads, or LAN/WAN discovery data.
+- Bootstrap fixtures must not include recipient-device endpoint hints, endpoint cards, pairing QR/manual-code payloads, or LAN/WAN discovery data.
 
 ### DM Thread and Message Data
 
@@ -447,7 +447,7 @@ npm run network -- --reset
 ### DM Envelope Delivery Guardrail
 
 - Network simulation must not add server-readable plaintext, private-key custody, unencrypted mailboxing, or plaintext relay behavior to DM runtime behavior.
-- Optional direct-peer failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-node delivery.
+- Optional node-to-node failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-node delivery.
 - Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
 - The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
 
@@ -622,7 +622,7 @@ Critical path:
 | DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
 | DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
 | DEC-04 | Network simulation | Docker controls plus Toxiproxy plus app-level dev faults | Keeps Windows/Linux behavior Docker-only and deterministic | Toxiproxy is TCP-level rather than packet-level shaping |
-| DEC-05 | DM transport | Validate encrypted-envelope message-node delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or user direct-DM transport/bootstrap surfaces |
+| DEC-05 | DM transport | Validate encrypted-envelope message-node delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or node-bypassing client DM transport/bootstrap surfaces |
 | DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
 
 ## Risks and Mitigations
@@ -659,7 +659,7 @@ Critical path:
 - `status` reports every instance and health URL.
 - `stop` cleans every tracked local process.
 - `network --profile offline-alice` makes Alice unreachable or disconnected in a visible way.
-- `network --profile partition-alice-bob` degrades node/realtime connectivity without introducing plaintext/key custody, unencrypted relay behavior, or user direct-DM transport.
+- `network --profile partition-alice-bob` degrades node/realtime connectivity without introducing plaintext/key custody, unencrypted relay behavior, or node-bypassing DM transport.
 - `network --reset` restores normal connectivity.
 - Dev session bootstrap is unavailable or inert outside development mode.
 - Production builds do not expose test profile controls.

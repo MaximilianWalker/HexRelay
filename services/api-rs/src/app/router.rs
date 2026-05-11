@@ -19,8 +19,9 @@ use crate::{
         directory::{get_server, list_contacts, list_servers},
         discovery::list_discovery_users,
         dm::{
-            get_dm_policy, heartbeat_dm_profile_device, list_dm_thread_messages, list_dm_threads,
-            mark_dm_thread_read, run_dm_active_fanout, run_dm_fanout_catch_up, update_dm_policy,
+            ack_dm_envelope_internal, get_dm_policy, heartbeat_dm_profile_device,
+            list_dm_thread_messages, list_dm_threads, mark_dm_thread_read, run_dm_active_fanout,
+            run_dm_fanout_catch_up, update_dm_policy, verify_dm_profile_device_internal,
         },
         friends::{
             accept_friend_request, cancel_friend_request, create_friend_request,
@@ -93,6 +94,14 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route("/v1/dm/fanout/dispatch", post(run_dm_active_fanout))
         .route("/v1/dm/fanout/catch-up", post(run_dm_fanout_catch_up))
+        .route(
+            "/v1/internal/dm/envelopes/ack",
+            post(ack_dm_envelope_internal),
+        )
+        .route(
+            "/v1/internal/dm/profile-devices/verify",
+            post(verify_dm_profile_device_internal),
+        )
         .route("/v1/dm/threads", get(list_dm_threads))
         .route(
             "/v1/dm/threads/:thread_id/messages",

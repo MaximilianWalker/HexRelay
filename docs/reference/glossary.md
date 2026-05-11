@@ -6,27 +6,27 @@
 - Owner: Product and engineering maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/reference/glossary.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 added DM encrypted-envelope delivery and message-node terms.
+- Latest meaningful change: 2026-05-11 clarified that P2P participation is between server nodes and removed the old direct-peer optimization term.
 
 ## Terms
 
 ### Runtime Term Mapping
 
-- `Node`: deployable HexRelay server runtime context (API + realtime + data services).
+- `Node`: deployable HexRelay server runtime context (API + realtime + data services) that can participate as a peer in the server-node P2P network.
 - `Dedicated server`: node running headless for remote clients.
 - `Desktop local-first`: user-installed app running local UI plus local node runtime.
 - `Guild/server`: user-facing community container in product UX, not equivalent to deployment node.
 
 ### Definitions
 
-- Node: A self-hosted HexRelay server instance operated locally or on a VPS.
+- Node: A self-hosted HexRelay server instance operated locally or on a VPS; nodes are the peers in HexRelay's server-node P2P network.
 - Persona: A distinct user account/profile context available on the same device.
 - Guild: A server/community space containing channels and role permissions.
 - Profile capsule: Versioned user profile payload split into signed public data and encrypted private data.
@@ -34,10 +34,10 @@
 - Cutover: Optional migration action that revokes old device sessions after successful import.
 - `.hxb` bundle: Encrypted and signed migration package used in full device migration.
 - Shared-server discovery: User discovery mode limited to people who share at least one guild/server context.
-- Message node: Shared server/runtime role that stores and forwards E2EE DM envelopes plus minimal delivery metadata, without DM plaintext or private-key custody.
-- E2EE DM envelope: Ciphertext payload encrypted on the sender device for recipient devices; shared servers/message nodes may route and store it but cannot decrypt it.
+- Server-node P2P network: The network formed by HexRelay server runtimes that peer with one another for node-to-node delivery and discovery; clients attach to nodes.
+- Message node: Server/runtime role in the server-node P2P network that stores and forwards E2EE DM envelopes plus minimal delivery metadata, without DM plaintext or private-key custody.
+- E2EE DM envelope: Ciphertext payload encrypted on the sender device for recipient devices; server nodes/message nodes may route and store it but cannot decrypt it.
 - Encrypted mailbox: Bounded message-node storage for E2EE DM envelopes and delivery metadata; it must never contain server-readable DM plaintext.
-- Direct-peer optimization: Optional LAN/WAN path that can carry E2EE DM envelopes between trusted peers when available; it is not required for normal DM send success.
 - DM plaintext: Decrypted DM content and views that exist only on client/user devices.
 - Nonce challenge: Server-issued one-time value signed by the client key to prove identity ownership at login.
 - Forward secrecy: Property where compromise of long-term keys does not expose past DM plaintext.

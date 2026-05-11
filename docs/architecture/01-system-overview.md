@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/architecture/01-system-overview.md`
 
 ## Quick Context
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-08 locked whole-system DM trust boundaries to node/server-routed E2EE envelope delivery and removed user direct-DM transport/bootstrap scope.
+- Latest meaningful change: 2026-05-11 locked whole-system DM trust boundaries to server-node P2P E2EE envelope delivery and removed node-bypassing client DM transport/bootstrap scope.
 
 ## Purpose
 
@@ -53,8 +53,8 @@ Detailed mode authority:
   - ephemeral/shared runtime state for presence snapshots, replay logs, cursors, and pubsub fanout coordination
 - object storage
   - durable blob/media storage when enabled by feature scope
-- target shared server/message node DM path
-  - stores and forwards E2EE DM envelopes plus minimal delivery metadata only
+- server-node P2P DM path
+  - server nodes/message nodes peer as the DM delivery network and store/forward E2EE DM envelopes plus minimal delivery metadata only
   - never stores DM plaintext or client private keys
 
 ## Topology by Mode
@@ -70,6 +70,7 @@ Detailed mode authority:
 - API and realtime run as separate headless services.
 - Browser clients connect remotely through operator-managed ingress.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
+- Dedicated server runtimes may participate as peers in the server-node P2P network; clients still attach to nodes rather than forming DM transport paths between recipient devices.
 
 ## Trust Boundaries
 
@@ -85,8 +86,8 @@ Detailed mode authority:
   - default trust boundary for desktop local-first mode
 - `operator ingress`
   - dedicated deployments must provide TLS termination and header sanitization
-- `target shared server/message node DM path`
-  - server may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
+- `server-node P2P DM path`
+  - server nodes may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
   - server must not decrypt DM content, receive private keys, or provide an unencrypted DM mailbox/relay
 
 Detailed authorities:
@@ -102,7 +103,7 @@ Detailed authorities:
   - local runtime state in desktop local-first mode
 - node-authoritative
   - sessions, invites, friends, server memberships, server-channel messages
-  - encrypted DM envelopes and minimal delivery metadata accepted by a shared server/message node
+  - encrypted DM envelopes and minimal delivery metadata accepted by a server node/message node in the server-node P2P network
   - server-side authz and policy decisions
 - ephemeral/shared runtime state
   - Redis-backed live cursors, presence snapshots, pubsub coordination, and replay acceleration state
@@ -125,7 +126,7 @@ Detailed authority:
   - realtime fanout happens afterward through protected internal publish routes
 - `DM delivery`
   - relationship, policy, and public bootstrap material come from API control-plane flows
-  - client encrypts DM payloads before node delivery; message nodes store/fan out ciphertext envelopes only
+  - client encrypts DM payloads before server-node delivery; message nodes in the server-node P2P network store/fan out ciphertext envelopes only
   - sender success semantics must mean durable encrypted-envelope acceptance, not merely attempted live fanout
 
 ## Current Guarantees and Non-Guarantees

@@ -59,17 +59,17 @@
     {
       "identity_id": "usr-test-alice",
       "inbound_policy": "friends_only",
-      "offline_delivery_mode": "best_effort_online"
+      "offline_delivery_mode": "encrypted_envelope_catchup"
     },
     {
       "identity_id": "usr-test-carol",
       "inbound_policy": "same_server",
-      "offline_delivery_mode": "best_effort_online"
+      "offline_delivery_mode": "encrypted_envelope_catchup"
     },
     {
       "identity_id": "usr-test-dave",
       "inbound_policy": "friends_only",
-      "offline_delivery_mode": "best_effort_online"
+      "offline_delivery_mode": "encrypted_envelope_catchup"
     }
   ],
   "devices": [],

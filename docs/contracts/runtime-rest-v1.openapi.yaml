@@ -18,8 +18,8 @@ info:
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
     adapter boundary without changing REST route or payload contracts. DM delivery
-    uses node/server-routed E2EE ciphertext envelopes plus minimal delivery
-    metadata; runtime contracts must not expose user direct-DM bootstrap or
+    uses server-node P2P E2EE ciphertext envelopes plus minimal delivery
+    metadata; runtime contracts must not expose node-bypassing DM bootstrap or
     plaintext relay behavior.
 servers:
   - url: https://api.hexrelay.local
@@ -1418,6 +1418,70 @@ paths:
                     message: presence watcher lookup requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/internal/dm/envelopes/ack:
+    post:
+      summary: Persist DM envelope device acknowledgement
+      description: >-
+        Internal service-to-service endpoint used by `services/realtime-rs` after an
+        authenticated websocket device sends `dm.envelope.ack`. A successful ack is
+        idempotent: it records the device id once on the matching delivery record and
+        advances that device's durable fanout cursor only across contiguous
+        acked envelopes so out-of-order acks cannot skip earlier unacked delivery.
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime for current runtime DM dispatch/ack plumbing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmEnvelopeAckInternalRequest'
+            examples:
+              received:
+                value:
+                  envelope_id: dm-env-954daf5a4134c15c3f3586cb397f909e8df14ee9ef8a7559b0da694d05322f75
+                  message_id: msg-1001
+                  thread_id: dm-usr-jules-p-usr-nora-k
+                  recipient_identity_id: usr-jules-p
+                  device_id: desktop-main
+                  delivery_cursor: '7'
+                  ack_status: received
+                  received_at: '2026-03-26T00:00:01Z'
+      responses:
+        '202':
+          description: Ack persisted or already present for this device and delivery cursor.
+        '400':
+          description: Ack payload is invalid or does not match a pending delivery record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                invalidAck:
+                  value:
+                    code: dm_ack_invalid
+                    message: delivery_cursor must be numeric
+                unknownAck:
+                  value:
+                    code: dm_ack_unknown
+                    message: ack did not match a pending DM delivery record
+        '401':
+          description: Internal token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                internalTokenInvalid:
+                  value:
+                    code: internal_token_invalid
+                    message: DM envelope ack requires a valid internal token
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/discovery/users:
     get:
       summary: List discoverable users for authenticated identity
@@ -1487,8 +1551,7 @@ paths:
           description: >-
             Effective DM inbound policy for the authenticated identity. New
             identities default to `friends_only` with
-            `offline_delivery_mode=best_effort_online` until an explicit update
-            is persisted.
+            `offline_delivery_mode=encrypted_envelope_catchup`.
           content:
             application/json:
               schema:
@@ -1498,7 +1561,7 @@ paths:
                   summary: New identities inherit the default DM policy
                   value:
                     inbound_policy: friends_only
-                    offline_delivery_mode: best_effort_online
+                    offline_delivery_mode: encrypted_envelope_catchup
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1531,7 +1594,7 @@ paths:
                   summary: Runtime returns the persisted effective policy
                   value:
                     inbound_policy: anyone
-                    offline_delivery_mode: best_effort_online
+                    offline_delivery_mode: encrypted_envelope_catchup
         '400':
           description: Invalid DM inbound policy
           content:
@@ -1546,6 +1609,66 @@ paths:
                     message: "inbound_policy must be one of: friends_only, same_server, anyone"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/internal/dm/profile-devices/verify:
+    post:
+      summary: Verify DM profile-device proof
+      description: >-
+        Internal service-to-service endpoint used by `services/realtime-rs` to
+        verify a websocket connection's `(identity_id, device_id, device_secret)`
+        binding before the connection is eligible for live `dm.envelope.dispatched`
+        delivery or websocket `dm.envelope.ack` persistence. The raw
+        `device_secret` is accepted only on this protected internal route and is
+        never echoed in realtime events.
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime for current runtime DM dispatch/ack plumbing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmProfileDeviceVerifyInternalRequest'
+            examples:
+              validProof:
+                value:
+                  identity_id: usr-jules-p
+                  device_id: desktop-main
+                  device_secret: secret-desktop-main
+      responses:
+        '204':
+          description: Profile device is registered, active, and bound to the supplied secret.
+        '400':
+          description: Verification payload is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                invalidDevice:
+                  value:
+                    code: profile_device_invalid
+                    message: device_secret must be 16-128 chars
+        '401':
+          description: Internal token is invalid or the device proof does not match an active profile device.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                secretInvalid:
+                  value:
+                    code: profile_device_secret_invalid
+                    message: device_secret does not match this profile device
+                deviceInactive:
+                  value:
+                    code: profile_device_inactive
+                    message: profile device is not active
         '500':
           $ref: '#/components/responses/InternalServerError'
   /v1/dm/profile-devices/heartbeat:
@@ -1593,7 +1716,7 @@ paths:
                   summary: Profile-device heartbeat payload is invalid
                   value:
                     code: profile_device_invalid
-                    message: device_id must be non-empty and <= 64 chars
+                    message: device_secret must be 16-128 chars
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1602,7 +1725,7 @@ paths:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
       description: >-
-        Profile-device convergence primitive for node/server-routed E2EE DM
+        Profile-device convergence primitive for server-node P2P E2EE DM
         envelopes. Success means the encrypted DM payload is durably accepted
         into canonical DM history plus delivery metadata before active-device
         delivery is evaluated.
@@ -1622,15 +1745,15 @@ paths:
           description: >-
             DM envelope acceptance result. Success means the message has already
             been durably accepted into canonical DM history and durable delivery
-            metadata; active-device delivery remains pending until a realtime
-            dispatch/ack path is added.
+            metadata; active-device realtime dispatch is attempted asynchronously,
+            and delivered devices are recorded only after recipient-device ack.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
               examples:
                 acceptedForDelivery:
-                  summary: Message is durably accepted for node/server-routed delivery while active-device dispatch remains pending
+                  summary: Message is durably accepted for server-node P2P delivery while active-device dispatch remains pending
                   value:
                     status: accepted
                     reason_code: fanout_pending_delivery
@@ -1683,7 +1806,7 @@ paths:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
       description: >-
-        Profile-device convergence replay for node/server-routed E2EE DM
+        Profile-device convergence replay for server-node P2P E2EE DM
         envelopes. Canonical accepted DM history and delivery metadata persist
         when configured storage is available without exposing plaintext content.
       security:
@@ -1706,7 +1829,7 @@ paths:
                 $ref: '#/components/schemas/DmFanoutCatchUpResponse'
               examples:
                 readyReplay:
-                  summary: Late-activated device replays missed messages and advances cursor
+                  summary: Late-activated device replays missed messages and returns the last replay cursor
                   value:
                     status: ready
                     reason_code: fanout_catch_up_ok
@@ -1716,7 +1839,9 @@ paths:
                     next_cursor: '1'
                     deduped_message_ids: []
                     items:
-                      - cursor: '1'
+                      - envelope_id: dm-env-954daf5a4134c15c3f3586cb397f909e8df14ee9ef8a7559b0da694d05322f75
+                        cursor: '1'
+                        thread_id: dm-usr-jules-p-usr-nora-k
                         message_id: msg-2001
                         ciphertext: enc:late-2001
                         source_device_id: null
@@ -2256,7 +2381,7 @@ paths:
           description: >-
             Peer identity bundle for the other party in an accepted relationship.
             Returns the peer's current identity key and profile-device snapshot
-            rather than the caller's material, without direct endpoint material.
+            rather than the caller's material, without recipient-device endpoint material.
           content:
             application/json:
               schema:
@@ -2766,7 +2891,7 @@ components:
           enum: [friends_only, same_server, anyone]
         offline_delivery_mode:
           type: string
-          enum: [best_effort_online]
+          enum: [encrypted_envelope_catchup]
     DmPolicyUpdate:
       type: object
       required: [inbound_policy]
@@ -2776,12 +2901,17 @@ components:
           enum: [friends_only, same_server, anyone]
     DmProfileDeviceHeartbeatRequest:
       type: object
-      required: [device_id, active]
+      required: [device_id, device_secret, active]
       properties:
         device_id:
           type: string
           minLength: 1
           maxLength: 64
+        device_secret:
+          type: string
+          minLength: 16
+          maxLength: 128
+          description: Per-device shared secret used to bind profile-device heartbeat, catch-up, and ack operations to the same registered device.
         active:
           type: boolean
     DmProfileDeviceSummary:
@@ -2855,10 +2985,10 @@ components:
         fanout_count:
           type: integer
           minimum: 0
-          description: Number of recipient devices that received confirmed immediate active-device delivery in this response; the current node-envelope baseline reports `0` until a realtime dispatch/ack path exists.
+          description: Number of recipient devices with confirmed ack-backed delivery in this synchronous response; currently `0` because realtime device acks arrive asynchronously through the internal ack path.
         delivered_device_ids:
           type: array
-          description: Sorted recipient device ids with confirmed immediate active-device delivery for this accepted message; currently empty until a realtime dispatch/ack path exists.
+          description: Sorted recipient device ids with confirmed ack-backed active-device delivery for this accepted message; dispatch responses remain empty because realtime device acks arrive asynchronously through the internal ack path.
           items:
             type: string
         skipped_device_ids:
@@ -2868,12 +2998,17 @@ components:
             type: string
     DmFanoutCatchUpRequest:
       type: object
-      required: [device_id]
+      required: [device_id, device_secret]
       properties:
         device_id:
           type: string
           minLength: 1
           maxLength: 64
+        device_secret:
+          type: string
+          minLength: 16
+          maxLength: 128
+          description: Must match the secret established by the profile-device heartbeat for this device id.
         cursor:
           type: string
           nullable: true
@@ -2884,10 +3019,17 @@ components:
           nullable: true
     DmFanoutCatchUpItem:
       type: object
-      required: [cursor, message_id, ciphertext]
+      required: [envelope_id, cursor, thread_id, message_id, ciphertext]
       properties:
+        envelope_id:
+          type: string
+          description: Stable envelope identifier derived from message id, recipient identity, target device id, and delivery cursor for ack correlation.
         cursor:
           type: string
+          description: Recipient delivery cursor for this encrypted envelope.
+        thread_id:
+          type: string
+          description: DM thread containing the encrypted message envelope.
         message_id:
           type: string
         ciphertext:
@@ -2895,6 +3037,67 @@ components:
         source_device_id:
           type: string
           nullable: true
+    DmEnvelopeAckInternalRequest:
+      type: object
+      required:
+        - envelope_id
+        - message_id
+        - thread_id
+        - recipient_identity_id
+        - device_id
+        - delivery_cursor
+        - ack_status
+        - received_at
+      properties:
+        envelope_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        message_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        thread_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        recipient_identity_id:
+          type: string
+          minLength: 3
+          maxLength: 64
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        delivery_cursor:
+          type: string
+          minLength: 1
+        ack_status:
+          type: string
+          enum: [received]
+        received_at:
+          type: string
+          format: date-time
+    DmProfileDeviceVerifyInternalRequest:
+      type: object
+      required:
+        - identity_id
+        - device_id
+        - device_secret
+      properties:
+        identity_id:
+          type: string
+          minLength: 3
+          maxLength: 64
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        device_secret:
+          type: string
+          minLength: 16
+          maxLength: 128
+          description: Raw per-profile-device secret supplied over a protected internal proof request; stored only as a hash and never echoed in public realtime events.
     DmFanoutCatchUpResponse:
       type: object
       required:
@@ -2925,7 +3128,7 @@ components:
           description: Number of replay items returned in this response after duplicate suppression.
         next_cursor:
           type: string
-          description: Next device replay cursor. Blocked branches force `"0"`; ready branches preserve or advance the per-device cursor.
+          description: Cursor of the last returned missing envelope, or the durable device cursor when no envelopes are returned. Blocked branches force `"0"`; durable per-device cursor advancement occurs only after contiguous `dm.envelope.ack` persistence.
         deduped_message_ids:
           type: array
           description: Message IDs skipped as duplicate replay entries using key `(message_id, sender_identity_id, source_device_id, ciphertext)`.
@@ -3353,6 +3556,11 @@ components:
             - thread_not_found
             - dm_policy_invalid
             - profile_device_invalid
+            - profile_device_unknown
+            - profile_device_secret_invalid
+            - profile_device_inactive
+            - dm_ack_invalid
+            - dm_ack_unknown
             - fanout_invalid
             - fanout_message_id_conflict
             - friendship_lookup_failed

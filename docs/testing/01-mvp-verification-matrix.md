@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-08 replaced peer-routed DM connectivity evidence with E2EE encrypted-envelope delivery and retired peer-routing negative conformance evidence.
+- Latest meaningful change: 2026-05-11 aligned DM verification evidence with server-node P2P encrypted-envelope delivery and node-bypassing negative conformance evidence.
 
 ## Requirement to Evidence Matrix
 
@@ -22,7 +22,7 @@
 | Identity/auth/invites | T2.1.1, T2.2.1, T2.3.1, T2.4.1 | OpenAPI conformance + auth/invite integration report | `npm --prefix apps/web run e2e:smoke` and `cargo test -p api-rs --all-features` | `evidence/iteration-01/identity-auth-invites/<YYYY-MM-DD>/` |
 | Friend request privacy mediation | T3.1.1, T3.1.2, T3.1.5 | Privacy policy test report (no pre-accept identity exposure) | Friend-request integration tests assert redaction before acceptance | `evidence/iteration-02/friend-privacy/<YYYY-MM-DD>/` |
 | DM inbound policy defaults/overrides | T4.1.2 | DM policy matrix test output | Integration tests cover default + override policy matrix outcomes | `evidence/iteration-03/dm-policy/<YYYY-MM-DD>/` |
-| E2EE DM envelope delivery conformance | T4.1.3-T4.1.8, T4.1.11 | Encrypted-envelope conformance report (policy gate, relationship bootstrap validation, message-node ciphertext handling, metadata minimization, user direct-DM negative checks) | Suite confirms server/message-node surfaces accept/store/fan out ciphertext envelopes only, reject plaintext/private-key inputs, minimize delivery metadata, preserve deterministic delivery states, and reject user direct-DM routes/config/contracts/runtime identifiers | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
+| E2EE DM envelope delivery conformance | T4.1.3-T4.1.8, T4.1.11 | Encrypted-envelope conformance report (policy gate, relationship bootstrap validation, server-node/message-node ciphertext handling, metadata minimization, node-bypassing negative checks) | Suite confirms server-node/message-node surfaces accept/store/fan out ciphertext envelopes only, reject plaintext/private-key inputs, minimize delivery metadata, preserve deterministic delivery states, and reject node-bypassing DM routes/config/contracts/runtime identifiers | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | DM multi-device eventual-sync convergence | T4.1.9, T4.1.10 | DM fanout + late-device catch-up report | Tests verify one ciphertext envelope converges across all profile devices, including devices activated after first receive | `evidence/iteration-02/dm-connectivity/<YYYY-MM-DD>/` |
 | Server-channel/presence multi-device convergence | T3.3.2, T4.3.4 | Server event fanout + hydration report | Tests verify channel/presence events hydrate all profile devices via per-device cursor after reconnect/late activation | `evidence/iteration-02/profile-device-sync/<YYYY-MM-DD>/` |
 | Local runtime testing adoption | PH-01-PH-07 | Durable evidence bundle with fixture seed summaries, runtime smoke outputs, network simulation event logs, and browser scenario notes under `outputs/` | `cargo test -p api-rs fixture`; `npm --prefix apps/web run test`; `npm run test:runtime`; `npm run test:network`; `node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir <path>` | `evidence/local-runtime-testing/fixtures/<run-id>/`; `evidence/local-runtime-testing/runtime/<profile>/<run-id>/`; `evidence/local-runtime-testing/network/<profile>/<scenario>/<run-id>/`; `evidence/local-runtime-testing/browser/<scenario>/<run-id>/` |

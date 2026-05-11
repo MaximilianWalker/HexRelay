@@ -50,6 +50,7 @@ import {
   type WorkspaceTab,
 } from "@/lib/workspace-tabs";
 
+import { RealtimeClient } from "./realtime-client";
 import styles from "./workspace-shell.module.css";
 
 type TabItem = {
@@ -317,6 +318,7 @@ export function WorkspaceShell({
 
   return (
     <main className={`${styles.shell} ${isTopbar ? styles.topbarMode : ""} ${collapsed ? styles.collapsed : ""}`}>
+      <RealtimeClient />
       <div className={styles.frame}>
         {isTopbar ? (
           <header className={styles.topbar}>

@@ -8,8 +8,10 @@ use crate::{
 
 use crate::domain::auth::validation::is_valid_identity_id;
 
-pub const DM_OFFLINE_DELIVERY_MODE: &str = "best_effort_online";
+pub const DM_OFFLINE_DELIVERY_MODE: &str = "encrypted_envelope_catchup";
 pub const DM_PROFILE_DEVICE_ID_MAX_LENGTH: usize = 64;
+pub const DM_PROFILE_DEVICE_SECRET_MIN_LENGTH: usize = 16;
+pub const DM_PROFILE_DEVICE_SECRET_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
 pub const DM_FANOUT_CATCH_UP_DEFAULT_LIMIT: u32 = 50;
@@ -37,19 +39,8 @@ pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
 pub fn validate_profile_device_heartbeat(
     payload: &DmProfileDeviceHeartbeatRequest,
 ) -> ApiResult<()> {
-    let device_id = payload.device_id.trim();
-    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
-        return Err(bad_request(
-            "profile_device_invalid",
-            "device_id must be non-empty and <= 64 chars",
-        ));
-    }
-    if device_id != payload.device_id {
-        return Err(bad_request(
-            "profile_device_invalid",
-            "device_id must not include leading or trailing whitespace",
-        ));
-    }
+    validate_device_id(&payload.device_id, "profile_device_invalid")?;
+    validate_device_secret(&payload.device_secret, "profile_device_invalid")?;
 
     Ok(())
 }
@@ -104,19 +95,8 @@ pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<
 }
 
 pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(u32, Option<u64>)> {
-    let device_id = payload.device_id.trim();
-    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
-        return Err(bad_request(
-            "fanout_invalid",
-            "device_id must be non-empty and <= 64 chars",
-        ));
-    }
-    if device_id != payload.device_id {
-        return Err(bad_request(
-            "fanout_invalid",
-            "device_id must not include leading or trailing whitespace",
-        ));
-    }
+    validate_device_id(&payload.device_id, "fanout_invalid")?;
+    validate_device_secret(&payload.device_secret, "fanout_invalid")?;
 
     let limit = payload.limit.unwrap_or(DM_FANOUT_CATCH_UP_DEFAULT_LIMIT);
     if limit == 0 || limit > DM_FANOUT_CATCH_UP_MAX_LIMIT {
@@ -151,6 +131,50 @@ pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(
     };
 
     Ok((limit, cursor))
+}
+
+pub fn validate_device_id(value: &str, code: &'static str) -> ApiResult<()> {
+    let device_id = value.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            code,
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if device_id != value {
+        return Err(bad_request(
+            code,
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn validate_device_secret(value: &str, code: &'static str) -> ApiResult<()> {
+    let secret = value.trim();
+    if secret.len() < DM_PROFILE_DEVICE_SECRET_MIN_LENGTH
+        || secret.len() > DM_PROFILE_DEVICE_SECRET_MAX_LENGTH
+    {
+        return Err(bad_request(code, "device_secret must be 16-128 chars"));
+    }
+    if secret != value {
+        return Err(bad_request(
+            code,
+            "device_secret must not include leading or trailing whitespace",
+        ));
+    }
+    if !secret
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err(bad_request(
+            code,
+            "device_secret must use only letters, numbers, _ or -",
+        ));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -192,12 +216,14 @@ mod tests {
     fn validates_profile_device_heartbeat_payload() {
         let payload = DmProfileDeviceHeartbeatRequest {
             device_id: "desktop-1".to_string(),
+            device_secret: "secret-desktop-1".to_string(),
             active: true,
         };
         assert!(validate_profile_device_heartbeat(&payload).is_ok());
 
         let invalid = DmProfileDeviceHeartbeatRequest {
             device_id: "  desktop-1".to_string(),
+            device_secret: "secret-desktop-1".to_string(),
             active: true,
         };
         assert!(validate_profile_device_heartbeat(&invalid).is_err());
@@ -226,6 +252,7 @@ mod tests {
     fn validates_fanout_catch_up_payload() {
         let payload = DmFanoutCatchUpRequest {
             device_id: "desktop-main".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: Some("2".to_string()),
             limit: Some(25),
         };
@@ -236,6 +263,7 @@ mod tests {
 
         let invalid_device = DmFanoutCatchUpRequest {
             device_id: "  ".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: None,
             limit: None,
         };
@@ -243,6 +271,7 @@ mod tests {
 
         let invalid_limit = DmFanoutCatchUpRequest {
             device_id: "desktop-main".to_string(),
+            device_secret: "secret-desktop-main".to_string(),
             cursor: None,
             limit: Some(0),
         };

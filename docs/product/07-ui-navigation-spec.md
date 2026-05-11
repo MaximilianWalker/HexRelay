@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/07-ui-navigation-spec.md`
 
 ## Quick Context
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-05-08 clarified DM workspace wording around node-routed private-message delivery.
+- Latest meaningful change: 2026-05-11 added the global UX approval gate and aligned DM workspace context with server-node P2P private-message delivery.
 
 ## Design Direction
 
@@ -21,6 +21,7 @@
 - Explicit deviation: server navigation must not use the small circular icon rail as the primary pattern.
 - Goal: preserve fast switching behavior while improving scalability for large server lists.
 - Navigation style requirement: browser-like affordances are encouraged for server switching (tabs, saved tabs, folders).
+- UX approval gate: no UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
 
 ## Primary App Surfaces
 

@@ -753,7 +753,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
 
     for policy in &scenario.dm_policies {
         require_identity(&identity_ids, &policy.identity_id, "dm policy")?;
-        if policy.offline_delivery_mode != "best_effort_online" {
+        if policy.offline_delivery_mode != "encrypted_envelope_catchup" {
             return Err(DevSeedError::Config(format!(
                 "unsupported offline delivery mode '{}'",
                 policy.offline_delivery_mode
@@ -1973,6 +1973,6 @@ mod tests {
             .find(|policy| policy.identity_id == identity_id)
             .expect("fixture DM policy exists");
         assert_eq!(policy.inbound_policy, inbound_policy);
-        assert_eq!(policy.offline_delivery_mode, "best_effort_online");
+        assert_eq!(policy.offline_delivery_mode, "encrypted_envelope_catchup");
     }
 }

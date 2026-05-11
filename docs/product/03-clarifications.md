@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/03-clarifications.md`
 
 ## Quick Context
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-05-08 superseded the old peer-routed DM transport clarifications with the E2EE envelope delivery baseline and retired peer-routing transport/bootstrap surfaces.
+- Latest meaningful change: 2026-05-11 clarified that server runtimes are the P2P peers for E2EE envelope delivery and retired node-bypassing client DM transport/bootstrap surfaces.
 
 ## Purpose
 
@@ -54,10 +54,10 @@
 - C-016 (resolved 2026-03-04; superseded 2026-05-08): MVP contact add uses expiring server-mediated contact invite links only; QR codes are reserved for server invitations and trusted device-link/restore flows.
 - C-017 (resolved 2026-03-04): Server invites support optional expiration/max-uses, including non-expiring multi-use links for open-access behavior.
 - C-018 (resolved 2026-03-04): Server-mediated friend requests are intent-based, raw key/profile-identifying data is not exposed by default, and DM inbound policy defaults to friends-only with user opt-in overrides.
-- C-019 (resolved 2026-03-04; superseded 2026-05-08): The old peer-routed DM transport decision is replaced by E2EE envelope delivery through shared servers/message nodes. Servers may store/forward ciphertext envelopes and minimal delivery metadata only; DM plaintext and private keys remain client/device-only.
+- C-019 (resolved 2026-03-04; superseded 2026-05-08; clarified 2026-05-11): The old infrastructure-free DM transport decision is replaced by E2EE envelope delivery through server nodes/message nodes in the server-node P2P network. Servers may store/forward ciphertext envelopes and minimal delivery metadata only; DM plaintext and private keys remain client/device-only.
 - C-020 (resolved 2026-03-04; superseded 2026-05-08): MVP DM offline behavior requires durable encrypted-envelope acceptance into canonical DM history plus bounded eventual catch-up, not best-effort-only online delivery.
 - C-021 (resolved 2026-03-04): Primary runtime is downloadable desktop local-first; dedicated server deployments remain a supported optional mode.
-- C-022 (resolved 2026-03-12; superseded 2026-05-08): User direct-DM LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP scope. Normal DM success uses shared-server/message-node ciphertext-envelope delivery, while plaintext relay, server-side decryption, and private-key custody remain forbidden.
+- C-022 (resolved 2026-03-12; superseded 2026-05-08; clarified 2026-05-11): Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope. Normal DM success uses server-node/message-node ciphertext-envelope delivery, while plaintext relay, server-side decryption, and private-key custody remain forbidden.
 - C-023 (resolved 2026-03-12): One profile may run on multiple devices, and incoming communication must converge across all profile devices (active fanout plus later-active catch-up) for both DM and server communication domains.
 
 ## Related Documents

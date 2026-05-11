@@ -1,4 +1,4 @@
-This directory follows the global AGENTS.md at `~/.config/opencode/AGENTS.md`.
+This project follows the parent/global AGENTS.md loaded by the agent.
 Only project-specific constraints are defined here.
 
 # HexRelay Repo Rules
@@ -24,10 +24,10 @@ Only project-specific constraints are defined here.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
 - For MVP-stage protocol and API work, prefer the cleanest single-shape design that can evolve later; avoid speculative versioning, dual-schema migrations, or compatibility layers unless an actual consumer or rollout constraint already makes them necessary.
-- DM plaintext and private keys must remain client/device-only; shared servers/message nodes may carry and store only end-to-end encrypted DM envelopes plus minimal delivery metadata.
-- User-to-user direct LAN/WAN DM transport and bootstrap are out of scope for MVP; server/node discovery work must not reintroduce user direct-DM paths.
+- DM plaintext and private keys must remain client/device-only; server nodes/message nodes in the server-node P2P network may carry and store only end-to-end encrypted DM envelopes plus minimal delivery metadata.
+- DM delivery must route through server nodes/message nodes; client devices must not establish recipient-device LAN/WAN DM transport or bootstrap paths, and server/node discovery work must not reintroduce node-bypassing DM paths.
 - Do not introduce server-readable DM content, private-key upload, or unencrypted DM mailbox/relay behavior.
-- Do not implement new DM delivery UX changes until the user explicitly approves the proposed flow, copy, and advanced-control behavior.
+- Do not implement UX changes until the user explicitly approves the proposed flow, copy, controls, and behavior.
 
 ## 4) Readiness Feedback Loop (Required)
 

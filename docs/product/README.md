@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 reframed DM proposal authority around node/server-routed encrypted-envelope delivery and retired user direct-DM transport.
+- Latest meaningful change: 2026-05-11 aligned product docs with server-node P2P DM envelope delivery and the global UX approval gate.
 
 ## Contents
 

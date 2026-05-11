@@ -43,7 +43,7 @@ async fn bootstrap_returns_peer_identity_after_acceptance() {
     let accept_resp = app.clone().oneshot(accept_req).await.expect("accept resp");
     assert_eq!(accept_resp.status(), StatusCode::OK);
 
-    // Requester fetches relationship-scoped material without direct endpoint hints.
+    // Requester fetches relationship-scoped material without recipient-device endpoint hints.
     let bootstrap_req = Request::builder()
         .method("GET")
         .uri(format!(

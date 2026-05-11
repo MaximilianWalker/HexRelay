@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-05-08 locked DM defaults to node/server-routed encrypted-envelope delivery and removed user direct-DM transport defaults.
+- Latest meaningful change: 2026-05-11 locked DM defaults to server-node P2P encrypted-envelope delivery and removed node-bypassing client DM transport defaults.
 
 ## Override Precedence
 

@@ -25,9 +25,22 @@ info:
     best-effort: REST mutation success is not transactional with downstream
     realtime delivery, downstream dispatch failures are logged, and no durable
     retry/outbox guarantee exists in the current runtime.
-    Clients may optionally send `x-hexrelay-device-id` during websocket upgrade to enable
-    per-device replay/hydration for `presence.updated`, `channel.message.created`,
-    `channel.message.updated`, and `channel.message.deleted`.
+    Clients may optionally send `x-hexrelay-device-id` during websocket upgrade,
+    or the `device_id` query parameter for browser websocket clients that cannot
+    set custom upgrade headers, to enable per-device replay/hydration for
+    `presence.updated`, `channel.message.created`, `channel.message.updated`, and
+    `channel.message.deleted`; the same device binding is required for
+    device-targeted DM envelope dispatch and `dm.envelope.ack` validation. Native
+    clients may provide `x-hexrelay-device-secret` during websocket upgrade;
+    browser clients must send `dm.device.proof` after `realtime.connected` because
+    long-lived `device_secret` values are not accepted in websocket URLs. DM live
+    dispatch and ack persistence require a verified websocket device proof matching
+    the profile-device secret registered through `/v1/dm/profile-devices/heartbeat`;
+    the secret is never echoed in public realtime events.
+    API-accepted encrypted DM envelopes now bridge into realtime through a protected
+    internal dispatch route. Connected recipient profile devices receive
+    `dm.envelope.dispatched`; clients ack receipt with `dm.envelope.ack`, which the
+    gateway persists through the API internal ack route before echoing a successful ack.
     When present, late-joining profile devices receive missed supported events before new
     live transitions only for recipients that had an active profiled connection when the
     original event was published.
@@ -73,6 +86,26 @@ channels:
     messages:
       channelMessageDeletedV1:
         $ref: '#/components/messages/ChannelMessageDeletedV1'
+  dmEnvelopeDispatched:
+    address: dm.envelope.dispatched
+    messages:
+      dmEnvelopeDispatchedV1:
+        $ref: '#/components/messages/DmEnvelopeDispatchedV1'
+  dmDeviceProof:
+    address: dm.device.proof
+    messages:
+      dmDeviceProofV1:
+        $ref: '#/components/messages/DmDeviceProofV1'
+  dmDeviceVerified:
+    address: dm.device.verified
+    messages:
+      dmDeviceVerifiedV1:
+        $ref: '#/components/messages/DmDeviceVerifiedV1'
+  dmEnvelopeAck:
+    address: dm.envelope.ack
+    messages:
+      dmEnvelopeAckV1:
+        $ref: '#/components/messages/DmEnvelopeAckV1'
   error:
     address: error
     messages:
@@ -151,6 +184,50 @@ operations:
       $ref: '#/channels/channelMessageDeleted'
     messages:
       - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
+  receiveDmEnvelopeDispatched:
+    action: receive
+    channel:
+      $ref: '#/channels/dmEnvelopeDispatched'
+    messages:
+      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatchedV1'
+  sendDmDeviceProof:
+    action: send
+    channel:
+      $ref: '#/channels/dmDeviceProof'
+    messages:
+      - $ref: '#/channels/dmDeviceProof/messages/dmDeviceProofV1'
+    x-hexrelay-dm-device-proof-semantics:
+      requires_session_identity_match: true
+      requires_websocket_device_match: true
+      verifies_profile_device_secret_before_dm_dispatch: true
+      device_secret_transport: websocket_message_or_native_upgrade_header
+      rejects_device_secret_query_parameter: true
+      rejection_codes:
+        - event_invalid
+        - event_device_mismatch
+        - dm_device_proof_failed
+  receiveDmDeviceVerified:
+    action: receive
+    channel:
+      $ref: '#/channels/dmDeviceVerified'
+    messages:
+      - $ref: '#/channels/dmDeviceVerified/messages/dmDeviceVerifiedV1'
+  sendDmEnvelopeAck:
+    action: send
+    channel:
+      $ref: '#/channels/dmEnvelopeAck'
+    messages:
+      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAckV1'
+    x-hexrelay-dm-ack-semantics:
+      requires_session_identity_match: true
+      requires_websocket_device_match: true
+      requires_verified_websocket_device_proof: true
+      persists_ack_before_success_echo: true
+      rejection_codes:
+        - event_invalid
+        - event_identity_mismatch
+        - event_device_mismatch
+        - dm_ack_failed
   receiveError:
     action: receive
     channel:
@@ -183,6 +260,18 @@ components:
     ChannelMessageDeletedV1:
       payload:
         $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
+    DmEnvelopeDispatchedV1:
+      payload:
+        $ref: '#/components/schemas/DmEnvelopeDispatchedEventV1'
+    DmDeviceProofV1:
+      payload:
+        $ref: '#/components/schemas/DmDeviceProofEventV1'
+    DmDeviceVerifiedV1:
+      payload:
+        $ref: '#/components/schemas/DmDeviceVerifiedEventV1'
+    DmEnvelopeAckV1:
+      payload:
+        $ref: '#/components/schemas/DmEnvelopeAckEventV1'
     ErrorV1:
       payload:
         $ref: '#/components/schemas/ErrorEventV1'
@@ -197,7 +286,7 @@ components:
         event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel] }
+        producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel, dm-message-node] }
     CallSignalOfferDataV1:
       type: object
       additionalProperties: false
@@ -271,10 +360,13 @@ components:
             - event_invalid
             - event_version_unsupported
             - event_identity_mismatch
+            - event_device_mismatch
             - event_unsupported
             - event_serialize_failed
             - event_too_large
             - event_rate_limited
+            - dm_ack_failed
+            - dm_device_proof_failed
         message: { type: string }
     PresenceUpdatedDataV1:
       type: object
@@ -326,6 +418,80 @@ components:
         channel_seq:
           type: integer
           minimum: 1
+    DmEnvelopeDispatchedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - envelope_id
+        - message_id
+        - thread_id
+        - sender_identity_id
+        - recipient_identity_id
+        - target_device_id
+        - ciphertext
+        - accepted_at
+        - dispatched_at
+        - delivery_cursor
+        - transport_scope
+      properties:
+        envelope_id: { type: string, minLength: 8, maxLength: 128 }
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        thread_id: { type: string, minLength: 1, maxLength: 128 }
+        sender_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        recipient_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        target_device_id: { type: string, minLength: 1, maxLength: 64 }
+        ciphertext: { type: string, minLength: 1 }
+        accepted_at: { type: string, format: date-time }
+        dispatched_at: { type: string, format: date-time }
+        delivery_cursor: { type: string, minLength: 1 }
+        transport_scope:
+          type: string
+          enum: [encrypted_envelope_node]
+    DmEnvelopeAckDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - envelope_id
+        - message_id
+        - thread_id
+        - recipient_identity_id
+        - device_id
+        - delivery_cursor
+        - ack_status
+        - received_at
+      properties:
+        envelope_id: { type: string, minLength: 8, maxLength: 128 }
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        thread_id: { type: string, minLength: 1, maxLength: 128 }
+        recipient_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        device_id: { type: string, minLength: 1, maxLength: 64 }
+        delivery_cursor: { type: string, minLength: 1 }
+        ack_status:
+          type: string
+          enum: [received]
+        received_at: { type: string, format: date-time }
+    DmDeviceProofDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - device_id
+        - device_secret
+      properties:
+        device_id: { type: string, minLength: 1, maxLength: 64 }
+        device_secret:
+          type: string
+          minLength: 16
+          maxLength: 128
+          description: Raw profile-device proof sent over the established websocket or native upgrade header; never placed in websocket URLs or echoed in public events.
+    DmDeviceVerifiedDataV1:
+      type: object
+      additionalProperties: false
+      required:
+        - device_id
+        - verified_at
+      properties:
+        device_id: { type: string, minLength: 1, maxLength: 64 }
+        verified_at: { type: string, format: date-time }
     RealtimeConnectedEventV1:
       allOf:
         - $ref: '#/components/schemas/EventEnvelopeV1'
@@ -368,3 +534,31 @@ components:
           properties:
             event_type: { const: channel.message.deleted }
             data: { $ref: '#/components/schemas/ChannelMessageDeletedDataV1' }
+    DmEnvelopeDispatchedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.envelope.dispatched }
+            data: { $ref: '#/components/schemas/DmEnvelopeDispatchedDataV1' }
+    DmDeviceProofEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.device.proof }
+            data: { $ref: '#/components/schemas/DmDeviceProofDataV1' }
+    DmDeviceVerifiedEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.device.verified }
+            data: { $ref: '#/components/schemas/DmDeviceVerifiedDataV1' }
+    DmEnvelopeAckEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          properties:
+            event_type: { const: dm.envelope.ack }
+            data: { $ref: '#/components/schemas/DmEnvelopeAckDataV1' }

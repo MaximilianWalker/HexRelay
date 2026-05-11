@@ -12,6 +12,7 @@ use crate::{
         publish_channel_message_updated, PublishChannelMessageCreatedInput,
         PublishChannelMessageDeletedInput, PublishChannelMessageUpdatedInput,
     },
+    domain::dms::{publish_dm_envelope_dispatched, PublishDmEnvelopeInput},
     state::DevFaultConfig,
 };
 
@@ -52,6 +53,19 @@ pub struct ChannelMessageDeletedDispatchRequest {
     pub deleted_at: String,
     pub channel_seq: u64,
     pub recipients: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DmEnvelopeDispatchRequest {
+    pub message_id: String,
+    pub thread_id: String,
+    pub sender_identity_id: String,
+    pub recipient_identity_id: String,
+    pub ciphertext: String,
+    pub source_device_id: Option<String>,
+    pub accepted_at: String,
+    pub delivery_cursor: u64,
+    pub target_device_ids: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +164,36 @@ pub async fn publish_channel_message_deleted_internal(
     {
         Ok(()) => StatusCode::ACCEPTED,
         Err(_) => StatusCode::BAD_GATEWAY,
+    }
+}
+
+pub async fn publish_dm_envelope_dispatched_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<DmEnvelopeDispatchRequest>,
+) -> StatusCode {
+    if !internal_token_valid(&state, &headers) {
+        return StatusCode::UNAUTHORIZED;
+    }
+
+    match publish_dm_envelope_dispatched(
+        &state,
+        PublishDmEnvelopeInput {
+            message_id: payload.message_id,
+            thread_id: payload.thread_id,
+            sender_identity_id: payload.sender_identity_id,
+            recipient_identity_id: payload.recipient_identity_id,
+            ciphertext: payload.ciphertext,
+            source_device_id: payload.source_device_id,
+            accepted_at: payload.accepted_at,
+            delivery_cursor: payload.delivery_cursor,
+            target_device_ids: payload.target_device_ids,
+        },
+    )
+    .await
+    {
+        Ok(()) => StatusCode::ACCEPTED,
+        Err(_) => StatusCode::BAD_REQUEST,
     }
 }
 

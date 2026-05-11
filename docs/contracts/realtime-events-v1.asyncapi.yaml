@@ -48,6 +48,12 @@ channels:
     messages:
       dmDeliveryUpdatedV1:
         $ref: '#/components/messages/DmDeliveryUpdatedV1'
+  dmMessageRead:
+    address: dm.message.read
+    description: Explicit DM read receipt or reader-profile read-state sync event, separate from envelope delivery acknowledgement.
+    messages:
+      dmMessageReadV1:
+        $ref: '#/components/messages/DmMessageReadV1'
   callStateChanged:
     address: call.state.changed
     description: Voice/call lifecycle state transition event.
@@ -127,6 +133,18 @@ operations:
       $ref: '#/channels/dmDeliveryUpdated'
     messages:
       - $ref: '#/channels/dmDeliveryUpdated/messages/dmDeliveryUpdatedV1'
+  sendDmMessageRead:
+    action: send
+    channel:
+      $ref: '#/channels/dmMessageRead'
+    messages:
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
+  receiveDmMessageRead:
+    action: receive
+    channel:
+      $ref: '#/channels/dmMessageRead'
+    messages:
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
   receiveCallStateChanged:
     action: receive
     channel:
@@ -317,6 +335,47 @@ components:
               pending_device_ids: [phone-main]
               failed_device_ids: []
               updated_at: 2026-05-08T15:00:01Z
+    DmMessageReadV1:
+      name: DmMessageReadV1
+      title: DM Message Read
+      summary: Sent when a reader device advances explicit DM read state; participant fanout happens only when reader privacy allows it.
+      payload:
+        $ref: '#/components/schemas/DmMessageReadEventV1'
+      examples:
+        - name: participant_visible_read_receipt
+          payload:
+            event_id: 42f52f03-cd6f-46ec-8df4-9f9f6d625a17
+            event_type: dm.message.read
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:05Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: web-client
+            data:
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              reader_identity_id: usr-recipient
+              reader_device_id: laptop-main
+              read_cursor: '42'
+              read_at: 2026-05-08T15:00:05Z
+              receipt_scope: participants
+              fanout_scope: thread_participants
+        - name: reader_profile_sync_only
+          payload:
+            event_id: 8712ae9c-597a-488e-8b7a-5a9d92ef1d07
+            event_type: dm.message.read
+            event_version: 1
+            occurred_at: 2026-05-08T15:00:05Z
+            correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
+            producer: web-client
+            data:
+              message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
+              thread_id: dm-usr-sender-usr-recipient
+              reader_identity_id: usr-recipient
+              reader_device_id: laptop-main
+              read_cursor: '42'
+              read_at: 2026-05-08T15:00:05Z
+              receipt_scope: self_devices
+              fanout_scope: reader_profile_devices
     CallStateChangedV1:
       name: CallStateChangedV1
       title: Call State Changed
@@ -662,6 +721,58 @@ components:
               const: dm.delivery.updated
             data:
               $ref: '#/components/schemas/DmDeliveryUpdatedDataV1'
+    DmMessageReadDataV1:
+      type: object
+      additionalProperties: false
+      oneOf:
+        - properties:
+            receipt_scope:
+              const: participants
+            fanout_scope:
+              const: thread_participants
+        - properties:
+            receipt_scope:
+              const: self_devices
+            fanout_scope:
+              const: reader_profile_devices
+      required:
+        - message_id
+        - thread_id
+        - reader_identity_id
+        - reader_device_id
+        - read_cursor
+        - read_at
+        - receipt_scope
+        - fanout_scope
+      properties:
+        message_id: { type: string, minLength: 3, maxLength: 128 }
+        thread_id: { type: string, minLength: 3, maxLength: 128 }
+        reader_identity_id: { type: string, minLength: 3, maxLength: 64 }
+        reader_device_id: { type: string, minLength: 1, maxLength: 64 }
+        read_cursor:
+          type: string
+          minLength: 1
+          description: Reader-visible thread cursor advanced by the explicit read action.
+        read_at: { type: string, format: date-time }
+        receipt_scope:
+          type: string
+          enum: [participants, self_devices]
+          description: Participant-visible receipts require reader privacy consent; self-device scope must not fan out to other participants.
+        fanout_scope:
+          type: string
+          enum: [thread_participants, reader_profile_devices]
+          description: Target audience selected after applying thread membership and reader read-receipt privacy policy.
+    DmMessageReadEventV1:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - type: object
+          additionalProperties: false
+          required: [data]
+          properties:
+            event_type:
+              const: dm.message.read
+            data:
+              $ref: '#/components/schemas/DmMessageReadDataV1'
     CallStateChangedDataV1:
       type: object
       additionalProperties: false

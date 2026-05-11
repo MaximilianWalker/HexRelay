@@ -1,5 +1,9 @@
 use super::*;
 
+fn device_secret(device_id: &str) -> String {
+    format!("secret-{device_id}")
+}
+
 async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
     let request = Request::builder()
         .method("POST")
@@ -42,7 +46,8 @@ async fn fanout_dispatch_accepts_for_catch_up_without_claiming_active_delivery()
             )
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"device_id":"{device_id}","active":{active}}}"#
+                r#"{{"device_id":"{device_id}","device_secret":"{}","active":{active}}}"#,
+                device_secret(device_id)
             )))
             .expect("build profile device heartbeat request");
         let heartbeat_response = app
@@ -112,7 +117,8 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
             )
             .header("content-type", "application/json")
             .body(Body::from(format!(
-                r#"{{"device_id":"{device_id}","active":true}}"#
+                r#"{{"device_id":"{device_id}","device_secret":"{}","active":true}}"#,
+                device_secret(device_id)
             )))
             .expect("build profile device heartbeat request");
         let heartbeat_response = app
@@ -166,7 +172,10 @@ async fn fanout_dispatch_does_not_skip_recipient_device_matching_source_device_i
             format!("Bearer {}", tokens[recipient.as_str()]),
         )
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"desktop-main"}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}"}}"#,
+            device_secret("desktop-main")
+        )))
         .expect("build fanout catch-up request");
     let catch_up_response = app.oneshot(catch_up).await.expect("catch-up response");
     assert_eq!(catch_up_response.status(), StatusCode::OK);
@@ -420,7 +429,10 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
         )
         .header("x-csrf-token", "test-csrf")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"device_id":"desktop-main","active":true}"#))
+        .body(Body::from(format!(
+            r#"{{"device_id":"desktop-main","device_secret":"{}","active":true}}"#,
+            device_secret("desktop-main")
+        )))
         .expect("build profile device heartbeat request");
     let heartbeat_response = app
         .clone()

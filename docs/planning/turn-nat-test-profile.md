@@ -6,14 +6,14 @@
 - Owner: Platform and Realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/turn-nat-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define a deterministic TURN/NAT validation profile for Iteration 3 voice and screen share gates.
 - Primary edit location: update this file when NAT scenarios, thresholds, or evidence requirements change.
-- Latest meaningful change: 2026-05-08 preserved the non-overlap between voice/media TURN validation and node/server-routed DM encrypted-envelope delivery testing.
+- Latest meaningful change: 2026-05-11 preserved the non-overlap between voice/media TURN validation and server-node P2P DM encrypted-envelope delivery testing.
 
 ## Scope and Alignment
 

@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-08 locked DM delivery planning to node/server-routed E2EE encrypted envelopes and retired user direct-DM transport/bootstrap work.
+- Latest meaningful change: 2026-05-11 locked DM delivery planning to server-node P2P E2EE encrypted envelopes and retired node-bypassing client DM transport/bootstrap work.
 
 ## Purpose
 
@@ -30,14 +30,14 @@
 
 ## Log Entries
 
-### 2026-05-08 (DM direct-DM surface retirement)
+### 2026-05-08 (DM node-bypassing surface retirement)
 
 - Area affected: Product DM delivery policy, runtime REST/realtime contracts, web contact/DM surfaces, Iteration 2 sequencing, local testing, verification evidence, and CI guardrails.
 - Change summary:
-  - Superseded the earlier optional direct-peer optimization direction and locked MVP DMs to node/server-routed E2EE envelope delivery only.
-  - Retired user direct-DM pairing QR/manual-code bootstrap, connectivity preflight, LAN discovery, endpoint cards, WAN wizard, and parallel dial from runtime, web, contracts, docs, tests, and guardrails.
+  - Superseded the earlier optional node-bypassing optimization direction and locked MVP DMs to server-node P2P E2EE envelope delivery only.
+  - Retired recipient-device pairing QR/manual-code bootstrap, connectivity preflight, LAN discovery, endpoint cards, WAN wizard, and parallel dial from runtime, web, contracts, docs, tests, and guardrails.
   - Reserved QR scope for server invites and trusted device-link/restore flows rather than contact or DM bootstrap.
-  - Reframed `T4.1.5`, `T4.1.6`, and `T4.1.11` as direct-DM surface retirement tasks with negative conformance evidence.
+  - Reframed `T4.1.5`, `T4.1.6`, and `T4.1.11` as node-bypassing DM surface retirement tasks with negative conformance evidence.
 - Rationale:
   - Normal-user DMs must be zero-config and reliable through ciphertext-only message-node delivery without router, LAN, or peer-dial setup.
 - Linked docs updated:
@@ -61,13 +61,13 @@
 
 - Area affected: Product DM delivery policy, architecture trust boundaries, Iteration 2 sequencing, verification evidence, and CI guardrails.
 - Change summary:
-  - Replaced the mandatory peer-routed DM transport baseline with shared-server/message-node E2EE envelope delivery.
+  - Replaced the mandatory node-bypassing DM transport baseline with server-node/message-node E2EE envelope delivery.
   - Locked the security boundary that DM plaintext and private keys remain client/device-only while message nodes may carry/store ciphertext envelopes plus minimal delivery metadata.
-  - Reframed LAN/WAN peer-routing work as non-baseline and later retired it from MVP scope.
+  - Reframed LAN/WAN node-bypassing work as non-baseline and later retired it from MVP scope.
   - Updated Iteration 2 sequencing so `T4.1.7` becomes encrypted-envelope message-node delivery and WAN/parallel dial work moves behind explicit re-scoping.
-  - Replaced the broad peer-routed policy guardrail direction with unsafe-semantics guardrails for plaintext, private-key custody, unencrypted mailboxing, and plaintext relay behavior.
+  - Replaced the broad node-bypassing policy guardrail direction with unsafe-semantics guardrails for plaintext, private-key custody, unencrypted mailboxing, and plaintext relay behavior.
 - Rationale:
-  - Strict peer-routed transport cannot provide reliable zero-config cross-WAN DMs for normal users; E2EE envelope delivery preserves privacy while making baseline delivery usable.
+  - Strict node-bypassing transport cannot provide reliable zero-config cross-WAN DMs for normal users; E2EE envelope delivery preserves privacy while making baseline delivery usable.
 - Linked docs updated:
   - `AGENTS.md`
   - `docs/product/01-mvp-plan.md`
@@ -105,7 +105,7 @@
   - Kept preflight LAN priority deterministic by returning `preflight_ok_lan` only for fresh local-only peer snapshots. This behavior is superseded by the later node/server envelope pivot.
   - Marked `T4.1.6` done and, at closeout time, advanced the recommended Iteration 2 sequence to `T4.1.7` WAN setup work, with `T4.1.8` available in parallel. This recommendation is superseded by the later 2026-05-08 encrypted-envelope delivery baseline pivot above.
 - Rationale:
-  - `T4.1.6` acceptance required same-LAN peer-routing improvements without introducing infrastructure fallback or durable LAN discovery state; this is now historical only.
+  - `T4.1.6` acceptance required same-LAN node-bypassing improvements without introducing infrastructure fallback or durable LAN discovery state; this is now historical only.
 - Linked docs updated:
   - `docs/contracts/runtime-rest-v1.openapi.yaml`
   - `docs/contracts/README.md`
@@ -122,11 +122,11 @@
 - Change summary:
   - Tightened preflight peer identity validation to the shared identity-id shape and expanded backend coverage for local bind denial, peer reachability failure, LAN-ready preference, and deterministic remediation text.
   - Enforced cookie-auth CSRF parity on the preflight POST while keeping bearer-auth diagnostics unchanged.
-  - Added a web preflight API helper and private-message troubleshooter card that reported pairing availability, peer status, peer-routed transport, stable reason labels, and ordered remediation steps before enabling the composer.
-  - Stored validated imported pairing metadata in session-scoped browser storage so the private-message preflight could distinguish missing pairing from ready/blocked peer-routing outcomes without backend rendezvous.
+  - Added a web preflight API helper and private-message troubleshooter card that reported pairing availability, recipient-device status, node-bypassing transport, stable reason labels, and ordered remediation steps before enabling the composer.
+  - Stored validated imported pairing metadata in session-scoped browser storage so the private-message preflight could distinguish missing pairing from ready/blocked node-bypassing outcomes without backend rendezvous.
   - Marked `T4.1.5` done and advanced the recommended Iteration 2 sequence to `T4.1.6` LAN discovery fast path.
 - Rationale:
-  - `T4.1.5` acceptance required failed peer-routing connections to map to deterministic reason codes with actionable in-product remediation; this is now superseded by node/server-routed envelope delivery.
+  - `T4.1.5` acceptance required failed node-bypassing connections to map to deterministic reason codes with actionable in-product remediation; this is now superseded by server-node P2P envelope delivery.
 - Linked docs updated:
   - `docs/contracts/runtime-rest-v1.openapi.yaml`
   - `docs/product/02-prd-v1.md`
@@ -137,7 +137,7 @@
 
 ### 2026-05-07 (T4.1.4 signed DM pairing closeout)
 
-- Historical/superseded note: this direct-DM pairing/bootstrap slice was retired by the 2026-05-08 node/server-routed E2EE envelope pivot.
+- Historical/superseded note: this DM pairing/bootstrap slice was retired by the 2026-05-08 server-node P2P E2EE envelope pivot.
 
 - Area affected: DM pairing envelope schema, contacts pairing UX, runtime REST contract, and Iteration 2 sequencing.
 - Change summary:
@@ -158,16 +158,16 @@
 
 ### 2026-05-07 (T4.0.2 transport adapter rollout closeout)
 
-- Historical/superseded note: the DM peer-routing adapter work was retired by the 2026-05-08 node/server-routed E2EE envelope pivot; server/channel node-client adapter lessons remain relevant.
+- Historical/superseded note: the DM node-bypassing adapter work was retired by the 2026-05-08 server-node P2P E2EE envelope pivot; server/channel node-client adapter lessons remain relevant.
 
 - Area affected: Shared communication transport adapters, DM direct runtime paths, server-channel dispatch, and presence dispatch.
 - Change summary:
-  - Added shared direct-peer dispatch bootstraps in `communication-core` alongside the existing node-client dispatch bootstrap.
-  - Routed ready DM preflight, successful DM parallel dial, and accepted DM active fanout through peer adapter boundaries while preserving peer-routed response semantics.
+  - Added shared node-bypassing dispatch bootstraps in `communication-core` alongside the existing node-client dispatch bootstrap.
+  - Routed ready DM preflight, successful DM parallel dial, and accepted DM active fanout through node-bypassing adapter boundaries while preserving node-bypassing response semantics.
   - Removed the outer current-thread presence bypass so presence edge dispatch consistently enters `NodeClientTransport`; the current-thread workaround now remains inside the local dispatch sender.
-  - Expanded adapter conformance coverage for peer send/connect and reran DM, presence, clippy, formatting, and peer-routed policy validations.
+  - Expanded adapter conformance coverage for client send/connect and reran DM, presence, clippy, formatting, and node-bypassing policy validations.
 - Rationale:
-  - `T4.0.2` acceptance requires existing call paths to route through adapter interfaces without behavior regression; the remaining gaps were DM peer-routing paths and a presence runtime bypass around the node-client adapter.
+  - `T4.0.2` acceptance requires existing call paths to route through adapter interfaces without behavior regression; the remaining gaps were DM node-bypassing paths and a presence runtime bypass around the node-client adapter.
 - Linked docs updated:
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
@@ -335,7 +335,7 @@
   - Added `services/api-rs/src/bin/seed_dev.rs` and `services/api-rs/src/dev_seed.rs` for transactional local fixture seeding with production and non-local database guards.
   - Added `npm run seed`, Windows/Unix seed wrappers, and seed fixture validation tests.
 - Rationale:
-  - The web profile picker and multi-instance runtime work need real local API identities, sessions, contacts, policies, profile devices, and DM history before they can be useful. Then-current endpoint-card fixture assumptions were retired by the 2026-05-08 node/server-routed E2EE envelope pivot.
+  - The web profile picker and multi-instance runtime work need real local API identities, sessions, contacts, policies, profile devices, and DM history before they can be useful. Then-current endpoint-card fixture assumptions were retired by the 2026-05-08 server-node P2P E2EE envelope pivot.
 - Linked docs updated:
   - `docs/planning/local-runtime-testing-plan.md`
   - `scripts/README.md`
@@ -362,7 +362,7 @@
 
 ### 2026-04-11 (T4.1.4 DM pairing web slice)
 
-- Historical/superseded note: this DM pairing QR/link/manual-code web slice was retired by the 2026-05-08 node/server-routed E2EE envelope pivot.
+- Historical/superseded note: this DM pairing QR/link/manual-code web slice was retired by the 2026-05-08 server-node P2P E2EE envelope pivot.
 
 - Area affected: Iteration 2 DM pairing/bootstrap web delivery.
 - Change summary:
@@ -380,7 +380,7 @@
 
 - Area affected: Iteration 2 DM transport policy enforcement and CI guardrails.
 - Change summary:
-  - Confirmed the runtime already enforced the then-current peer-routed DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
+  - Confirmed the runtime already enforced the then-current node-bypassing DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
   - Expanded `scripts/validate-dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
   - Marked `T4.1.3` done on the Iteration 2 sprint board.
 - Rationale:
@@ -424,7 +424,7 @@
   - Extended `communication-core` router tests to cover shared dispatching-adapter mode enforcement and payload forwarding semantics.
   - Marked `T4.0.2` as in progress on the Iteration 2 sprint board.
 - Rationale:
-  - The currently exercised production adapter path is node-client transport, not direct peer transport. Centralizing that path first closes a real duplication gap and moves `T4.0.2` forward without inventing premature DM transport machinery.
+  - The currently exercised production adapter path is node-client transport, not node-bypassing transport. Centralizing that path first closes a real duplication gap and moves `T4.0.2` forward without inventing premature DM transport machinery.
 - Linked docs updated:
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
@@ -530,7 +530,7 @@
 - Change summary:
   - Added explicit profile-device convergence contract requiring active-device fanout plus late-device catch-up for DM communication and server communication paths.
   - Extended Iteration 2 backlog and execution docs with convergence tasks (`T4.1.9`, `T4.1.10`, `T3.3.2`, `T4.3.4`) and updated exit criteria/evidence mapping.
-  - Updated product clarifications, defaults, and risk register to preserve the then-current peer-routed DM policy while requiring deterministic multi-device eventual consistency.
+  - Updated product clarifications, defaults, and risk register to preserve the then-current node-bypassing DM policy while requiring deterministic multi-device eventual consistency.
   - Updated testing matrix to require profile-device convergence evidence for both DM and server-channel/presence flows.
 - Rationale:
   - One profile can be active on multiple devices; communication state must converge without introducing infrastructure-dependent DM fallback.
@@ -575,9 +575,9 @@
 - Change summary:
   - Added shared communication networking-layer architecture plan with explicit DM peer path vs server communication divergence boundaries.
   - Added full infrastructure-free DM connectivity execution plan with phased delivery and deterministic task gates.
-  - Updated MVP plan and PRD to require peer-routed DM transport, signed out-of-band pairing bootstrap, deterministic failure guidance, and no infra-assisted DM fallback.
-  - Expanded Iteration 2 backlog with shared communication-layer tasks (`T4.0.1` to `T4.0.3`, `T4.3.3`) and peer-routing tasks (`T4.1.3` to `T4.1.8`).
-  - Updated configuration defaults and verification matrix to enforce peer-routed policy at runtime and evidence level.
+  - Updated MVP plan and PRD to require node-bypassing DM transport, signed out-of-band pairing bootstrap, deterministic failure guidance, and no infra-assisted DM fallback.
+  - Expanded Iteration 2 backlog with shared communication-layer tasks (`T4.0.1` to `T4.0.3`, `T4.3.3`) and node-bypassing tasks (`T4.1.3` to `T4.1.8`).
+  - Updated configuration defaults and verification matrix to enforce node-bypassing policy at runtime and evidence level.
 - Rationale:
   - Convert high-level policy lock into executable delivery artifacts so implementation work remains deterministic and policy-compliant.
 - Linked docs updated:
@@ -598,8 +598,8 @@
 - Area affected: DM connectivity architecture guardrails and dependency/risk register.
 - Change summary:
   - Added repository-level guardrail rejecting infrastructure-dependent DM connectivity solutions (including STUN/TURN/relay).
-  - Locked clarification entry that accepted DM connectivity candidates must be infrastructure-free and fail with explicit user guidance when peer routing is unavailable.
-  - Updated dependency/risk register entries to remove TURN fallback assumptions and raise NAT-restricted peer-routing risk visibility.
+  - Locked clarification entry that accepted DM connectivity candidates must be infrastructure-free and fail with explicit user guidance when node-bypassing connectivity is unavailable.
+  - Updated dependency/risk register entries to remove TURN fallback assumptions and raise NAT-restricted node-bypassing risk visibility.
 - Rationale:
   - Enforce hard product direction toward no-infrastructure DM connectivity and prevent incremental drift toward hosted connectivity dependencies.
 - Linked docs updated:
@@ -1376,7 +1376,7 @@
   - Added encrypted local outbox retry expectation to DM execution and verification docs.
   - Registered config default, risk, and decision entries for offline DM behavior.
 - Rationale:
-  - Preserve the then-current peer-routed DM transport decision without introducing server-side DM queues in MVP.
+  - Preserve the then-current node-bypassing DM transport decision without introducing server-side DM queues in MVP.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
   - `docs/product/02-prd-v1.md`
@@ -1392,7 +1392,7 @@
 
 - Area affected: Core messaging architecture and MVP execution tasks
 - Change summary:
-  - Corrected DM architecture to the then-current peer-routed transport model with no guild/community server relay/storage.
+  - Corrected DM architecture to the then-current node-bypassing transport model with no guild/community server relay/storage.
   - Updated plan, PRD, Iteration 2 tasks, REST/realtime contracts, data lifecycle matrix, and verification matrix to match this model.
   - Removed server-ciphertext DM assumptions from execution and validation language.
 - Rationale:

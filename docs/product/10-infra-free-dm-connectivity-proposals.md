@@ -6,36 +6,36 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
 
 - Primary edit location for detailed DM delivery solution candidates and trade-offs.
-- The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free peer-routed DM connectivity.
+- The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free node-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-08 locked proposals to node/server-routed E2EE envelope delivery and removed user direct-DM transport/bootstrap proposals.
+- Latest meaningful change: 2026-05-11 locked proposals to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap proposals, and broadened UX approval to all UX decisions.
 
 ## Purpose
 
 - Convert the MVP DM delivery baseline into concrete implementation options.
-- Keep the security boundary explicit: servers/message nodes may carry ciphertext envelopes, never DM plaintext or private keys.
-- Keep user direct-DM LAN/WAN transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, and parallel dial out of MVP scope.
+- Keep the security boundary explicit: server nodes/message nodes may carry ciphertext envelopes, never DM plaintext or private keys.
+- Keep node-bypassing client DM transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, and parallel dial out of MVP scope.
 - Keep execution sequencing in `docs/planning/infra-free-dm-connectivity-execution-plan.md` and avoid duplicating full implementation architecture here.
 
 ## Locked Constraints
 
 - DM plaintext, decrypted views, and private keys remain client/device-only.
-- Shared servers/message nodes may carry and store only E2EE DM envelopes plus minimal delivery metadata.
-- Normal DM send success uses node/server encrypted-envelope delivery.
+- Server nodes/message nodes in the server-node P2P network may carry and store only E2EE DM envelopes plus minimal delivery metadata.
+- Normal DM send success uses server-node P2P encrypted-envelope delivery.
 - Contact/friend bootstrap may expose only the identity and profile-device material required for client-side E2EE setup after relationship acceptance.
-- Unencrypted DM mailboxing, server-side decryption, server-readable DM content, private-key upload/custody, plaintext relay behavior, and user direct-DM transport/bootstrap are out of scope.
+- Unencrypted DM mailboxing, server-side decryption, server-readable DM content, private-key upload/custody, plaintext relay behavior, and node-bypassing DM transport/bootstrap are out of scope.
 
 ## Evaluation Criteria
 
 - **Confidentiality boundary**: no server-readable plaintext or private-key custody.
 - **Metadata minimization**: delivery metadata is necessary, bounded, and covered by retention/deletion policy.
-- **Normal-user reliability**: successful DM delivery works without NAT/router setup, LAN discovery, or direct peer reachability.
+- **Normal-user reliability**: successful DM delivery works without NAT/router setup, LAN discovery, or recipient-device network reachability.
 - **Client-only decryption**: recipients decrypt locally and failures are recoverable without server secrets.
 - **Relationship-gated bootstrap**: public identity and profile-device material are released only through accepted contact/friend state.
 - **Implementation risk**: complexity and portability across target desktop environments.
@@ -44,9 +44,9 @@
 
 ### What Changes
 
-- Make shared servers/message nodes the default and only MVP DM delivery path for ciphertext envelopes.
+- Make server nodes/message nodes in the server-node P2P network the default and only MVP DM delivery path for ciphertext envelopes.
 - Store canonical encrypted DM history and minimal delivery metadata before sender-visible success.
-- Remove user direct-DM bootstrap/connectivity assumptions from API, realtime, web, contracts, docs, and tests.
+- Remove node-bypassing bootstrap/connectivity assumptions from API, realtime, web, contracts, docs, and tests.
 
 ### How It Works
 
@@ -74,19 +74,19 @@
 ### What Changes
 
 - Add durable guardrails around key custody, envelope shapes, logging, and server-side validation.
-- Reject unsafe semantics and reintroduced user direct-DM surfaces mechanically.
+- Reject unsafe semantics and reintroduced node-bypassing DM surfaces mechanically.
 
 ### How It Works
 
 1. Client-side crypto owns private keys and envelope encryption/decryption.
 2. Runtime APIs accept ciphertext envelope fields and reject plaintext-like DM payload fields.
 3. Logs and audit events record ids, state, and reason codes only.
-4. CI policy checks reject server-readable plaintext, private-key upload/custody, unencrypted mailbox, plaintext relay semantics, and user direct-DM routes/config/contracts.
+4. CI policy checks reject server-readable plaintext, private-key upload/custody, unencrypted mailbox, plaintext relay semantics, and node-bypassing DM routes/config/contracts.
 
 ### Acceptance Criteria
 
 - CI guardrail passes legitimate `encrypted envelope`, `store-and-forward`, and `message node` terminology.
-- CI guardrail fails fixtures or callsites that introduce plaintext DM storage, server-side decryption, private-key upload semantics, or user direct-DM endpoints.
+- CI guardrail fails fixtures or callsites that introduce plaintext DM storage, server-side decryption, private-key upload semantics, or node-bypassing DM endpoints.
 - Crypto and API tests cover envelope-only server handling and client-only decrypt behavior.
 
 ## Proposition 3 (Rank 3): Relationship and Encryption Bootstrap
@@ -94,20 +94,20 @@
 ### What Changes
 
 - Use accepted contact-invite redemption and accepted mediated friend requests as trust gates for identity and encryption bootstrap material.
-- Decouple bootstrap from direct endpoint reachability entirely.
+- Decouple bootstrap from recipient-device endpoint reachability entirely.
 
 ### How It Works
 
 1. Contact-invite redemption or accepted friend request establishes trusted relationship state.
 2. API returns only the peer identity key and profile-device snapshot required for client-side E2EE setup.
 3. Block state, request state, and DM policy checks fail closed before bootstrap material is released.
-4. Once trusted, the message-node path carries encrypted envelopes without requiring direct dial success.
+4. Once trusted, the message-node path carries encrypted envelopes without requiring recipient-device dial success.
 
 ### Acceptance Criteria
 
 - Accepted mediated friend requests release only the bootstrap material needed for DM relationship and encryption setup.
 - Pending/declined/blocked relationships cannot retrieve bootstrap material.
-- Bootstrap responses contain no direct endpoint hints/cards, LAN/WAN data, QR/manual-code pairing payloads, or relay secrets.
+- Bootstrap responses contain no recipient-device endpoint hints/cards, LAN/WAN data, QR/manual-code pairing payloads, or relay secrets.
 
 ## Proposition 4 (Rank 4): Delivery Metadata, Retention, and Abuse Controls
 
@@ -119,7 +119,7 @@
 ### How It Works
 
 1. Each accepted envelope has stable message/thread ids, sender/recipient/device routing ids, timestamps, delivery state, and dedupe metadata.
-2. Metadata excludes plaintext, plaintext-derived searchable content, private keys, and direct endpoint material.
+2. Metadata excludes plaintext, plaintext-derived searchable content, private keys, and recipient-device endpoint material.
 3. Retention policy applies to ciphertext envelopes and delivery metadata separately from client-local decrypted views.
 4. Abuse controls use relationship state, rate limits, deny/block state, and envelope counts rather than content inspection.
 
@@ -134,7 +134,7 @@
 ### What Changes
 
 - Model delivery states around node acceptance, live fanout, pending delivery, and catch-up rather than peer connectivity.
-- Keep new UX copy/control changes behind explicit user approval.
+- Keep all UX flow, copy, control, and behavior changes behind explicit user approval.
 
 ### How It Works
 
@@ -145,7 +145,7 @@
 
 ### Acceptance Criteria
 
-- Reason codes are deterministic and do not reference direct peer connectivity.
+- Reason codes are deterministic and do not reference recipient-device network connectivity.
 - Pending delivery/catch-up states preserve accepted encrypted-envelope history.
 - UX-facing changes are proposed and explicitly approved before implementation.
 
@@ -160,7 +160,7 @@
 - Server-readable DM content.
 - Private-key upload, escrow, or server custody.
 - Unencrypted DM mailboxing or plaintext relay behavior.
-- User-to-user direct DM LAN/WAN transport, endpoint hints/cards, connectivity preflight, pairing QR/manual-code bootstrap, WAN wizard, or parallel dial.
+- Node-bypassing LAN/WAN DM transport, endpoint hints/cards, connectivity preflight, pairing QR/manual-code bootstrap, WAN wizard, or parallel dial.
 - Reworking unrelated app-layer features while implementing DM delivery changes.
 
 ## Related Documents

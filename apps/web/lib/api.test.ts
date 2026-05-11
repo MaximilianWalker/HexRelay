@@ -6,6 +6,7 @@ import {
   createContactInvite,
   createFriendRequest,
   createInvite,
+  catchUpDmFanout,
   declineFriendRequest,
   fetchDmPolicy,
   fetchContacts,
@@ -13,6 +14,7 @@ import {
   fetchServers,
   fetchTestingProfiles,
   issueAuthChallenge,
+  heartbeatDmProfileDevice,
   redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
@@ -238,7 +240,7 @@ describe("api auth transport", () => {
       new Response(
         JSON.stringify({
           inbound_policy: "same_server",
-          offline_delivery_mode: "manual_retry",
+          offline_delivery_mode: "encrypted_envelope_catchup",
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       ),
@@ -404,7 +406,7 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             inbound_policy: "friends_only",
-            offline_delivery_mode: "best_effort_online",
+            offline_delivery_mode: "encrypted_envelope_catchup",
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
@@ -413,7 +415,7 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             inbound_policy: "same_server",
-            offline_delivery_mode: "best_effort_online",
+            offline_delivery_mode: "encrypted_envelope_catchup",
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
@@ -434,5 +436,77 @@ describe("api auth transport", () => {
     expect(headers.get("x-csrf-token")).toBe("csrf-123");
     expect(headers.get("content-type")).toBe("application/json");
     expect(postInit?.body).toBe('{"inbound_policy":"same_server"}');
+  });
+
+  it("supports DM profile-device heartbeat and catch-up endpoints", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            identity_id: "usr-test-alice",
+            devices: [
+              {
+                device_id: "web-main",
+                active: true,
+                last_seen_at: "2026-05-08T15:00:00Z",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "ready",
+            reason_code: "fanout_catch_up_ok",
+            transport_profile: "encrypted_envelope_node",
+            device_id: "web-main",
+            replay_count: 1,
+            next_cursor: "7",
+            deduped_message_ids: [],
+            items: [
+              {
+                envelope_id: "dm-env-1",
+                cursor: "7",
+                thread_id: "dm-usr-a-usr-b",
+                message_id: "msg-1",
+                ciphertext: "enc:payload",
+                source_device_id: null,
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const heartbeat = await heartbeatDmProfileDevice({
+      deviceId: "web-main",
+      deviceSecret: "secret-web-main",
+      active: true,
+    });
+    const catchUp = await catchUpDmFanout({
+      deviceId: "web-main",
+      deviceSecret: "secret-web-main",
+      cursor: "6",
+      limit: 10,
+    });
+
+    expect(heartbeat.ok).toBe(true);
+    expect(catchUp.ok).toBe(true);
+    const [heartbeatUrl, heartbeatInit] = fetchMock.mock.calls[0] ?? [];
+    expect(String(heartbeatUrl)).toContain("/v1/dm/profile-devices/heartbeat");
+    expect(heartbeatInit?.body).toBe('{"device_id":"web-main","device_secret":"secret-web-main","active":true}');
+    const heartbeatHeaders = new Headers(heartbeatInit?.headers ?? {});
+    expect(heartbeatHeaders.get("x-csrf-token")).toBe("csrf-123");
+
+    const [catchUpUrl, catchUpInit] = fetchMock.mock.calls[1] ?? [];
+    expect(String(catchUpUrl)).toContain("/v1/dm/fanout/catch-up");
+    expect(catchUpInit?.body).toBe(
+      '{"device_id":"web-main","device_secret":"secret-web-main","cursor":"6","limit":10}',
+    );
+    const catchUpHeaders = new Headers(catchUpInit?.headers ?? {});
+    expect(catchUpHeaders.get("x-csrf-token")).toBe("csrf-123");
   });
 });

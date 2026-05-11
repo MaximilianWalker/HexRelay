@@ -3,16 +3,21 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use ring::digest;
+use serde::Deserialize;
 use std::collections::HashSet;
+use tracing::warn;
 
+use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::{
+    domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     domain::dm::validation::{
-        validate_dm_policy_update, validate_fanout_catch_up, validate_fanout_dispatch,
-        validate_profile_device_heartbeat, DM_OFFLINE_DELIVERY_MODE,
+        validate_device_id, validate_device_secret, validate_dm_policy_update,
+        validate_fanout_catch_up, validate_fanout_dispatch, validate_profile_device_heartbeat,
+        DM_OFFLINE_DELIVERY_MODE, DM_PROFILE_DEVICE_ID_MAX_LENGTH,
     },
     models::{
         ApiError, DmFanoutCatchUpItem, DmFanoutCatchUpRequest, DmFanoutCatchUpResponse,
@@ -22,7 +27,7 @@ use crate::{
         DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
         DmThreadMessageListQuery, DmThreadPage,
     },
-    shared::errors::{bad_request, conflict, internal_error, ApiResult},
+    shared::errors::{bad_request, conflict, internal_error, unauthorized, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -30,6 +35,25 @@ use crate::{
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
 const DM_ENVELOPE_NODE_TRANSPORT_PROFILE: &str = "encrypted_envelope_node";
+
+#[derive(Deserialize)]
+pub struct DmEnvelopeAckInternalRequest {
+    pub envelope_id: String,
+    pub message_id: String,
+    pub thread_id: String,
+    pub recipient_identity_id: String,
+    pub device_id: String,
+    pub delivery_cursor: String,
+    pub ack_status: String,
+    pub received_at: String,
+}
+
+#[derive(Deserialize)]
+pub struct DmProfileDeviceVerifyInternalRequest {
+    pub identity_id: String,
+    pub device_id: String,
+    pub device_secret: String,
+}
 
 pub async fn get_dm_policy(
     axum::extract::State(state): axum::extract::State<AppState>,
@@ -95,19 +119,27 @@ pub async fn heartbeat_dm_profile_device(
 
     let now_epoch = Utc::now().timestamp();
     let device_id = payload.device_id.trim().to_string();
+    let device_secret_hash = device_secret_hash(payload.device_secret.trim());
     let identity_id = auth.identity_id.clone();
     let record = DmProfileDeviceRecord {
         device_id: device_id.clone(),
+        device_secret_hash,
         active: payload.active,
         last_seen_epoch: now_epoch,
     };
 
     let devices = if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::upsert_dm_profile_device(pool, &identity_id, &record)
+        let upserted = dm_repo::upsert_dm_profile_device(pool, &identity_id, &record)
             .await
             .map_err(|_| {
                 internal_error("storage_unavailable", "failed to persist profile device")
             })?;
+        if !upserted {
+            return Err(unauthorized(
+                "profile_device_secret_invalid",
+                "device_secret does not match this profile device",
+            ));
+        }
         dm_repo::list_dm_profile_devices(pool, &identity_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
@@ -120,6 +152,15 @@ pub async fn heartbeat_dm_profile_device(
             .write()
             .expect("acquire dm profile devices write lock");
         let devices = devices_by_identity.entry(identity_id.clone()).or_default();
+        if devices
+            .get(&device_id)
+            .is_some_and(|existing| existing.device_secret_hash != record.device_secret_hash)
+        {
+            return Err(unauthorized(
+                "profile_device_secret_invalid",
+                "device_secret does not match this profile device",
+            ));
+        }
         devices.insert(device_id, record);
         devices.clone()
     };
@@ -136,6 +177,52 @@ pub async fn heartbeat_dm_profile_device(
         identity_id,
         devices: profile_devices_to_response(&devices, now_epoch),
     }))
+}
+
+pub async fn verify_dm_profile_device_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<DmProfileDeviceVerifyInternalRequest>,
+) -> ApiResult<StatusCode> {
+    if !internal_token_valid(&state, &headers) {
+        return Err(unauthorized(
+            "internal_token_invalid",
+            "DM profile device verification requires a valid internal token",
+        ));
+    }
+
+    if !is_valid_identity_id(&payload.identity_id) {
+        return Err(bad_request(
+            "profile_device_invalid",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
+    }
+    validate_profile_device_secret_input(&payload.device_id, &payload.device_secret)?;
+
+    let Some(record) =
+        load_dm_profile_device(&state, &payload.identity_id, &payload.device_id).await?
+    else {
+        return Err(unauthorized(
+            "profile_device_unknown",
+            "profile device is not registered for this identity",
+        ));
+    };
+
+    if record.device_secret_hash != device_secret_hash(payload.device_secret.trim()) {
+        return Err(unauthorized(
+            "profile_device_secret_invalid",
+            "device_secret does not match this profile device",
+        ));
+    }
+
+    if !record.active {
+        return Err(unauthorized(
+            "profile_device_inactive",
+            "profile device is not active",
+        ));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn run_dm_active_fanout(
@@ -305,6 +392,7 @@ pub async fn run_dm_active_fanout(
         .map_err(|_| internal_error("storage_unavailable", "failed to advance fanout cursor"))?;
     let delivery_record = DmFanoutDeliveryRecord {
         cursor,
+        thread_id: thread_id.clone(),
         message_id: message_id.clone(),
         sender_identity_id: auth.identity_id.clone(),
         ciphertext: payload.ciphertext.clone(),
@@ -333,6 +421,33 @@ pub async fn run_dm_active_fanout(
         )
     })?;
 
+    if !active_device_ids.is_empty() {
+        if let Err(error) = dispatch_dm_envelope(
+            &state,
+            DispatchDmEnvelopeInput {
+                message_id: &message_id,
+                thread_id: &thread_id,
+                sender_identity_id: &auth.identity_id,
+                recipient_identity_id,
+                ciphertext: &payload.ciphertext,
+                source_device_id: source_device_id.as_deref(),
+                accepted_at: &created_at,
+                delivery_cursor: cursor,
+                target_device_ids: &active_device_ids,
+            },
+        )
+        .await
+        {
+            warn!(
+                message_id = %message_id,
+                thread_id = %thread_id,
+                recipient_identity_id = %recipient_identity_id,
+                error = %error,
+                "failed to enqueue DM envelope realtime dispatch"
+            );
+        }
+    }
+
     Ok(Json(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
         reason_code,
@@ -357,64 +472,37 @@ pub async fn run_dm_fanout_catch_up(
     let device_id = payload.device_id.trim().to_string();
     let identity_id = auth.identity_id;
 
-    {
-        let devices = if let Some(pool) = state.db_pool.as_ref() {
-            dm_repo::list_dm_profile_devices(pool, &identity_id)
-                .await
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to load profile devices")
-                })?
-                .into_iter()
-                .map(|record| (record.device_id.clone(), record))
-                .collect::<std::collections::HashMap<_, _>>()
-        } else {
-            state
-                .dm_profile_devices
-                .read()
-                .expect("acquire dm profile devices read lock")
-                .get(&identity_id)
-                .cloned()
-                .unwrap_or_default()
-        };
+    let Some(record) = load_dm_profile_device(&state, &identity_id, &device_id).await? else {
+        return Ok(Json(DmFanoutCatchUpResponse {
+            status: "blocked".to_string(),
+            reason_code: "fanout_device_unknown".to_string(),
+            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+            device_id,
+            replay_count: 0,
+            next_cursor: "0".to_string(),
+            deduped_message_ids: vec![],
+            items: vec![],
+        }));
+    };
 
-        if devices.is_empty() {
-            return Ok(Json(DmFanoutCatchUpResponse {
-                status: "blocked".to_string(),
-                reason_code: "fanout_device_unknown".to_string(),
-                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
-                device_id,
-                replay_count: 0,
-                next_cursor: "0".to_string(),
-                deduped_message_ids: vec![],
-                items: vec![],
-            }));
-        }
+    if record.device_secret_hash != device_secret_hash(payload.device_secret.trim()) {
+        return Err(unauthorized(
+            "profile_device_secret_invalid",
+            "device_secret does not match this profile device",
+        ));
+    }
 
-        let Some(record) = devices.get(&device_id) else {
-            return Ok(Json(DmFanoutCatchUpResponse {
-                status: "blocked".to_string(),
-                reason_code: "fanout_device_unknown".to_string(),
-                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
-                device_id,
-                replay_count: 0,
-                next_cursor: "0".to_string(),
-                deduped_message_ids: vec![],
-                items: vec![],
-            }));
-        };
-
-        if !record.active {
-            return Ok(Json(DmFanoutCatchUpResponse {
-                status: "blocked".to_string(),
-                reason_code: "fanout_device_inactive".to_string(),
-                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
-                device_id,
-                replay_count: 0,
-                next_cursor: "0".to_string(),
-                deduped_message_ids: vec![],
-                items: vec![],
-            }));
-        }
+    if !record.active {
+        return Ok(Json(DmFanoutCatchUpResponse {
+            status: "blocked".to_string(),
+            reason_code: "fanout_device_inactive".to_string(),
+            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+            device_id,
+            replay_count: 0,
+            next_cursor: "0".to_string(),
+            deduped_message_ids: vec![],
+            items: vec![],
+        }));
     }
 
     let last_cursor = if let Some(pool) = state.db_pool.as_ref() {
@@ -473,18 +561,16 @@ pub async fn run_dm_fanout_catch_up(
             .unwrap_or_default()
     };
 
-    let effective_cursor = user_cursor.max(last_cursor);
+    let effective_cursor = last_cursor;
 
     let mut items = Vec::new();
     let mut deduped_message_ids = Vec::new();
     let mut seen_delivery_keys = HashSet::new();
-    let mut scanned_cursor = last_cursor;
+    let mut response_cursor = effective_cursor;
     for entry in &entries {
         if entry.cursor <= effective_cursor {
             continue;
         }
-
-        scanned_cursor = entry.cursor;
 
         if entry.delivered_device_ids.iter().any(|id| id == &device_id) {
             continue;
@@ -502,11 +588,14 @@ pub async fn run_dm_fanout_catch_up(
         }
 
         items.push(DmFanoutCatchUpItem {
+            envelope_id: dm_envelope_id(&entry.message_id, &identity_id, &device_id, entry.cursor),
             cursor: entry.cursor.to_string(),
+            thread_id: entry.thread_id.clone(),
             message_id: entry.message_id.clone(),
             ciphertext: entry.ciphertext.clone(),
             source_device_id: entry.source_device_id.clone(),
         });
+        response_cursor = entry.cursor;
 
         if items.len() >= limit as usize {
             break;
@@ -515,31 +604,6 @@ pub async fn run_dm_fanout_catch_up(
 
     deduped_message_ids.sort();
     deduped_message_ids.dedup();
-
-    let mut committed_cursor = last_cursor;
-    if scanned_cursor > last_cursor {
-        if let Some(pool) = state.db_pool.as_ref() {
-            committed_cursor = dm_repo::upsert_dm_fanout_device_cursor(
-                pool,
-                &identity_id,
-                &device_id,
-                scanned_cursor,
-            )
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to persist fanout cursor")
-            })?;
-        } else {
-            let mut fanout_cursors = state
-                .dm_fanout_device_cursors
-                .write()
-                .expect("acquire dm fanout cursor write lock");
-            let device_cursors = fanout_cursors.entry(identity_id.clone()).or_default();
-            let current = device_cursors.get(&device_id).copied().unwrap_or(0);
-            committed_cursor = current.max(scanned_cursor);
-            device_cursors.insert(device_id.clone(), committed_cursor);
-        }
-    }
 
     let reason_code = if items.is_empty() {
         "fanout_catch_up_no_missed"
@@ -553,10 +617,64 @@ pub async fn run_dm_fanout_catch_up(
         transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
         device_id,
         replay_count: items.len() as u32,
-        next_cursor: committed_cursor.to_string(),
+        next_cursor: response_cursor.to_string(),
         deduped_message_ids,
         items,
     }))
+}
+
+pub async fn ack_dm_envelope_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<DmEnvelopeAckInternalRequest>,
+) -> ApiResult<StatusCode> {
+    if !internal_token_valid(&state, &headers) {
+        return Err(unauthorized(
+            "internal_token_invalid",
+            "DM envelope ack requires a valid internal token",
+        ));
+    }
+
+    let cursor = validate_dm_envelope_ack_internal(&payload)?;
+    let expected_envelope_id = dm_envelope_id(
+        payload.message_id.trim(),
+        payload.recipient_identity_id.trim(),
+        payload.device_id.trim(),
+        cursor,
+    );
+    if payload.envelope_id != expected_envelope_id {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "envelope_id does not match the acknowledged DM envelope",
+        ));
+    }
+
+    let pool = state.db_pool.as_ref().ok_or_else(|| {
+        internal_error(
+            "storage_unavailable",
+            "durable dm ack requires configured database storage",
+        )
+    })?;
+
+    let acked = dm_repo::ack_dm_fanout_delivery_device(
+        pool,
+        payload.recipient_identity_id.trim(),
+        payload.thread_id.trim(),
+        payload.message_id.trim(),
+        payload.device_id.trim(),
+        cursor,
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to persist dm envelope ack"))?;
+
+    if !acked {
+        return Err(bad_request(
+            "dm_ack_unknown",
+            "ack did not match a pending DM delivery record",
+        ));
+    }
+
+    Ok(StatusCode::ACCEPTED)
 }
 
 pub async fn list_dm_threads(
@@ -846,6 +964,164 @@ async fn dm_interaction_policy_decision(
         }
         _ => Ok(DmInteractionPolicyDecision::BlockedUnknown),
     }
+}
+
+fn validate_dm_envelope_ack_internal(payload: &DmEnvelopeAckInternalRequest) -> ApiResult<u64> {
+    if payload.envelope_id.trim().is_empty() || payload.envelope_id.len() > 128 {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "envelope_id must be non-empty and <= 128 chars",
+        ));
+    }
+    if trimmed_invalid(&payload.envelope_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "envelope_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    for (field, value) in [
+        ("message_id", payload.message_id.as_str()),
+        ("thread_id", payload.thread_id.as_str()),
+    ] {
+        if value.trim().is_empty() || value.len() > 128 {
+            return Err(bad_request(
+                "dm_ack_invalid",
+                match field {
+                    "message_id" => "message_id must be non-empty and <= 128 chars",
+                    _ => "thread_id must be non-empty and <= 128 chars",
+                },
+            ));
+        }
+        if trimmed_invalid(value) {
+            return Err(bad_request(
+                "dm_ack_invalid",
+                match field {
+                    "message_id" => "message_id must not include leading or trailing whitespace",
+                    _ => "thread_id must not include leading or trailing whitespace",
+                },
+            ));
+        }
+    }
+
+    if !is_valid_identity_id(&payload.recipient_identity_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "recipient_identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
+    }
+
+    let device_id = payload.device_id.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if trimmed_invalid(&payload.device_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    if payload.ack_status != "received" {
+        return Err(bad_request("dm_ack_invalid", "ack_status must be received"));
+    }
+
+    DateTime::parse_from_rfc3339(payload.received_at.trim())
+        .map_err(|_| bad_request("dm_ack_invalid", "received_at must be an RFC3339 date-time"))?;
+    if trimmed_invalid(&payload.received_at) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "received_at must not include leading or trailing whitespace",
+        ));
+    }
+
+    let cursor = payload
+        .delivery_cursor
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| bad_request("dm_ack_invalid", "delivery_cursor must be numeric"))?;
+    if cursor == 0 {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "delivery_cursor must be greater than zero",
+        ));
+    }
+    if trimmed_invalid(&payload.delivery_cursor) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "delivery_cursor must not include leading or trailing whitespace",
+        ));
+    }
+
+    Ok(cursor)
+}
+
+fn internal_token_valid(state: &AppState, headers: &HeaderMap) -> bool {
+    headers
+        .get("x-hexrelay-internal-token")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        == Some(state.channel_dispatch_internal_token.as_str())
+}
+
+async fn load_dm_profile_device(
+    state: &AppState,
+    identity_id: &str,
+    device_id: &str,
+) -> ApiResult<Option<DmProfileDeviceRecord>> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return dm_repo::get_dm_profile_device(pool, identity_id, device_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to load profile device"));
+    }
+
+    Ok(state
+        .dm_profile_devices
+        .read()
+        .expect("acquire dm profile devices read lock")
+        .get(identity_id)
+        .and_then(|devices| devices.get(device_id))
+        .cloned())
+}
+
+fn validate_profile_device_secret_input(device_id: &str, device_secret: &str) -> ApiResult<()> {
+    validate_device_id(device_id, "profile_device_invalid")?;
+    validate_device_secret(device_secret, "profile_device_invalid")
+}
+
+fn trimmed_invalid(value: &str) -> bool {
+    value.trim() != value
+}
+
+fn device_secret_hash(value: &str) -> String {
+    let digest = digest::digest(&digest::SHA256, value.as_bytes());
+    lower_hex(digest.as_ref())
+}
+
+fn dm_envelope_id(
+    message_id: &str,
+    recipient_identity_id: &str,
+    target_device_id: &str,
+    delivery_cursor: u64,
+) -> String {
+    let material =
+        format!("{message_id}:{recipient_identity_id}:{target_device_id}:{delivery_cursor}");
+    let digest = digest::digest(&digest::SHA256, material.as_bytes());
+    format!("dm-env-{}", lower_hex(digest.as_ref()))
+}
+
+fn lower_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 fn ciphertext_fingerprint(value: &str) -> [u8; 32] {

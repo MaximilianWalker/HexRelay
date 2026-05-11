@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-08 pivoted Iteration 2 DM delivery sequencing to node/server-routed E2EE encrypted-envelope delivery and retired user direct-DM transport/bootstrap work.
+- Latest meaningful change: 2026-05-11 pivoted Iteration 2 DM delivery sequencing to server-node P2P E2EE encrypted-envelope delivery and retired node-bypassing client DM transport/bootstrap work.
 
 ## Iteration Scope
 
@@ -60,14 +60,14 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers over encrypted-envelope history without server-readable plaintext |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay semantics while allowing encrypted-envelope store-and-forward terminology |
-| T4.1.4 | Implement relationship-scoped DM bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no direct-reachability, QR/manual-code pairing, or endpoint-hint requirement |
-| T4.1.5 | Retire user peer-routed DM preflight and deterministic troubleshooter surfaces | E4 / S4.1 | M | Core/Web | T4.1.4 | Runtime routes, web helpers, contracts, tests, and docs no longer expose DM connectivity preflight or peer-route troubleshooting |
-| T4.1.6 | Retire user DM LAN discovery fast path | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Realtime and REST surfaces no longer accept or publish user DM LAN discovery hints |
-| T4.1.7 | Implement encrypted-envelope message-node DM delivery baseline | E4 / S4.1 | XL | API/Core | T4.1.3, T4.1.4 | `EncryptedEnvelopeNodeTransport` accepts/stores/fans out ciphertext envelopes plus minimal metadata; server rejects plaintext/private-key inputs; direct reachability is not required |
+| T4.1.4 | Implement relationship-scoped DM bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no recipient-device reachability, QR/manual-code pairing, or endpoint-hint requirement |
+| T4.1.5 | Retire node-bypassing DM preflight and deterministic troubleshooter surfaces | E4 / S4.1 | M | Core/Web | T4.1.4 | Runtime routes, web helpers, contracts, tests, and docs no longer expose DM connectivity preflight or node-bypassing troubleshooting |
+| T4.1.6 | Retire DM LAN discovery fast path | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Realtime and REST surfaces no longer accept or publish recipient-device LAN discovery hints for DMs |
+| T4.1.7 | Implement encrypted-envelope message-node DM delivery baseline | E4 / S4.1 | XL | API/Core | T4.1.3, T4.1.4 | `EncryptedEnvelopeNodeTransport` accepts/stores/fans out ciphertext envelopes plus minimal metadata through server nodes/message nodes; server rejects plaintext/private-key inputs; recipient-device reachability is not required |
 | T4.1.8 | Add DM delivery metadata minimization, retention, and abuse controls | E4 / S4.1 | L | API/Core/Security | T4.1.7 | Metadata schema excludes plaintext/private keys, retention/deletion behavior is deterministic, and rate/abuse controls operate without plaintext inspection |
 | T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.7 | One accepted ciphertext envelope fanouts to all currently active devices linked to recipient profile |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.8, T4.1.9 | Devices activated after first delivery replay missed ciphertext envelopes and converge deterministically |
-| T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no user DM WAN wizard, endpoint-card, or parallel-dial surfaces |
+| T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.1 | Implement guild/channel/role schema | E4 / S4.2 | L | API | T4.1.1 | Roles and channel membership constraints are enforced in DB/API |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support read/create with reply and mention metadata in the runtime API baseline; edit/delete/audit-safe realtime follow in subsequent T4.3.x slices |
@@ -97,7 +97,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.0.1-T4.0.3 | Shared communication layer foundation (interface, adapters, provenance/reason taxonomy) | Contract tests confirm mode routing, provenance schema stability, and deterministic reason codes |
 | T4.1.1-T4.3.1 | DM/group DM client models and server-channel message endpoints | Contract and pagination tests pass; channel CRUD/reply/mention behavior covered |
 | T4.1.2 | DM policy settings and inbound permission enforcement | Policy tests confirm default friends-only and optional same-server/anyone overrides |
-| T4.1.3-T4.1.11 | E2EE DM envelope delivery stack (policy, relationship bootstrap, message-node delivery, metadata, direct-DM surface retirement, multi-device convergence) | Envelope-delivery conformance suite passes: ciphertext-only server handling, no private-key custody, metadata minimization, deterministic reason codes, user direct-DM negative checks, and profile-device convergence checks |
+| T4.1.3-T4.1.11 | E2EE DM envelope delivery stack (policy, relationship bootstrap, server-node/message-node delivery, metadata, node-bypassing surface retirement, multi-device convergence) | Envelope-delivery conformance suite passes: ciphertext-only server handling, no private-key custody, metadata minimization, deterministic reason codes, node-bypassing DM negative checks, and profile-device convergence checks |
 | T4.3.2, T4.3.3, T4.3.4, T3.3.2 | Realtime websocket event fanout, adapterization, and profile-device convergence | Ordered event stream and device-cursor hydration tests show zero loss/duplication under reconnect and late-device activation |
 | T4.4.1 | Permission middleware and authorization test matrix | Bypass attempts fail across role/channel scenarios |
 | T4.5.1-T4.5.4 | E2EE session bootstrap and encrypt/decrypt flows for 1:1 + group DMs | Client-only decrypt/key ownership confirmed; encrypted-envelope delivery, offline catch-up behavior, and rekey/member-change tests pass |
@@ -131,7 +131,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.x-T3.2.1 | `evidence/iteration-02/social-graph/` | policy integration test suite |
 | T4.1.x-T4.5.x | `evidence/iteration-02/messaging-e2ee/` | contract + crypto integration suites |
 | T4.0.1-T4.0.3, T4.3.3 | `evidence/iteration-02/networking-layer/` | communication-layer contract + adapter conformance suite |
-| T4.1.3-T4.1.11 | `evidence/iteration-02/dm-connectivity/` | encrypted-envelope delivery + user direct-DM negative conformance suite |
+| T4.1.3-T4.1.11 | `evidence/iteration-02/dm-connectivity/` | encrypted-envelope delivery + node-bypassing DM negative conformance suite |
 | T3.3.2, T4.3.4 | `evidence/iteration-02/profile-device-sync/` | profile-device convergence suite |
 | T4.6.x | `evidence/iteration-02/navigation/` | UI checklist + screenshot review |
 
@@ -148,19 +148,19 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/v1/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` owns the initial shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and envelope-delivery extension is now tracked under `T4.1.7` |
-| T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; user direct-peer DM adapter scope is superseded by the node/server envelope baseline |
+| T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; node-bypassing DM adapter scope is superseded by the server-node P2P envelope baseline |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without server-readable plaintext; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | dm envelope baseline pivot branch | Direct-only policy is superseded; CI guardrails now target unsafe semantics: server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay behavior |
 | T4.1.4 | Implement relationship-scoped DM bootstrap | T4.1.4 pairing closeout branch, superseded by envelope-baseline pivot | Bootstrap authority is now accepted contact/friend relationship state plus identity/profile-device material only; QR/manual-code pairing and endpoint hints are retired |
-| T4.1.5 | Retire user peer-routed DM preflight and deterministic troubleshooter surfaces | T4.1.5 connectivity preflight branch, superseded by envelope-baseline pivot | Peer-routed DM preflight and troubleshooter surfaces are retired because normal DM delivery uses node/server encrypted envelopes |
-| T4.1.6 | Retire user DM LAN discovery fast path | T4.1.6 LAN discovery fast-path branch, superseded by envelope-baseline pivot | User DM LAN discovery surfaces are retired; server/node discovery work must remain separately scoped |
+| T4.1.5 | Retire node-bypassing DM preflight and deterministic troubleshooter surfaces | T4.1.5 connectivity preflight branch, superseded by envelope-baseline pivot | DM preflight and troubleshooter surfaces are retired because normal DM delivery uses server-node P2P encrypted envelopes |
+| T4.1.6 | Retire DM LAN discovery fast path | T4.1.6 LAN discovery fast-path branch, superseded by envelope-baseline pivot | DM LAN discovery surfaces are retired; server/node discovery work must remain separately scoped |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is completing the direct-DM surface retirement plus `T4.1.7` encrypted-envelope message-node DM delivery baseline |
+| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended task is completing the node-bypassing DM surface retirement plus `T4.1.7` encrypted-envelope message-node DM delivery baseline |
 
 ## Suggested Sprint Sequencing
 
@@ -184,7 +184,7 @@ Week 6:
 
 - T4.1.7 -> T4.1.8 to establish encrypted-envelope message-node delivery and metadata/retention controls
 - T4.1.7 -> T4.1.9 -> T4.1.10 for DM multi-device convergence over ciphertext envelopes
-- T4.1.11 direct-DM surface retirement before any new DM delivery UX work
+- T4.1.11 node-bypassing DM surface retirement before any UX-facing delivery work; all UX changes require explicit user approval
 - T4.3.1 -> T4.3.2
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
@@ -202,7 +202,7 @@ Week 6:
 - Shared communication layer routes encrypted-envelope DM delivery and server-channel paths through explicit adapter boundaries.
 - DM envelope-delivery guardrails block server-readable plaintext, private-key custody, unencrypted mailboxing, and plaintext relay behavior.
 - DM bootstrap works through accepted contact/friend relationship state and releases only identity/profile-device material needed for client-side E2EE.
-- User direct-DM pairing QR/manual-code, preflight, LAN discovery, endpoint-card, WAN wizard, and parallel-dial surfaces are absent from runtime, web, contracts, tests, and docs.
+- Recipient-device pairing QR/manual-code, preflight, LAN discovery, endpoint-card, WAN wizard, and parallel-dial surfaces are absent from DM runtime, web, contracts, tests, and docs.
 - DM incoming payloads converge to all profile devices (active fanout + later-active replay by cursor).
 - Broad profile-device announcement/discovery is not a separate MVP gap; future work should only revisit optional self/profile device-state UX or authorized endpoint-card freshness if convergence UX proves insufficient.
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
@@ -233,7 +233,7 @@ Week 6:
 
 - Keep event payload contracts versioned.
 - Record authorization decision logs for node-owner debugging.
-- Shared servers/message nodes may store/fan out only E2EE DM envelopes and minimal delivery metadata.
+- Server nodes/message nodes in the server-node P2P network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.
 - Server communication path must remain isolated from DM ciphertext-only and client-only-key policy routing rules.
 - Multi-device sync contracts (cursor, dedupe, hydration) must be shared across DM and server paths.

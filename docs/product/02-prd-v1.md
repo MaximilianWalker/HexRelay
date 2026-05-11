@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-08
+- last_updated: 2026-05-11
 - Source of truth: `docs/product/02-prd-v1.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-08 locked DM requirements to node/server-routed E2EE envelope delivery and removed user direct-DM transport/bootstrap surfaces.
+- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, and broadened UX approval to all UX decisions.
 
 ## Product Summary
 
@@ -40,7 +40,7 @@ Build a communication stack where users and communities control identity, data l
 
 - User-owned identity, not provider-owned identity.
 - No central lock-in for accounts, hosting, or data portability.
-- Secure-by-default direct communication (E2EE DMs).
+- Secure-by-default private messaging (E2EE DMs).
 - Practical decentralization: hybrid architecture first, deeper federation later.
 - Core stability before ecosystem expansion.
 
@@ -108,7 +108,7 @@ Build a communication stack where users and communities control identity, data l
 1. Users establish contact eligibility through contact-invite redemption or accepted server-mediated friend request.
 2. API releases only the public identity and profile-device bootstrap material required for client-side E2EE setup after relationship acceptance.
 3. Client encrypts outbound DM payloads into per-recipient/device E2EE envelopes.
-4. Shared servers/message nodes carry and store only ciphertext envelopes plus minimal delivery metadata.
+4. Server nodes/message nodes in the server-node P2P network carry and store only ciphertext envelopes plus minimal delivery metadata.
 5. Recipient client decrypts locally; server-side plaintext access and private-key custody are forbidden.
 6. If recipient is offline or currently unreachable, accepted encrypted envelopes remain in canonical DM history and delivery metadata drives bounded eventual catch-up on later reconnect.
 7. If any recipient device receives first, profile-linked sibling devices converge via active fanout or deferred catch-up when they later become active.
@@ -173,17 +173,19 @@ Build a communication stack where users and communities control identity, data l
 - Messaging
   - DMs/group DMs and server channels with edits, mentions, and replies.
   - Moderation-visible edit history applies to server channels, not private DMs.
-  - Shared servers/message nodes may carry and store E2EE DM envelopes plus minimal delivery metadata only.
+  - Server nodes/message nodes in the server-node P2P network may carry and store E2EE DM envelopes plus minimal delivery metadata only.
   - DM plaintext, decrypted views, and private keys must remain client/device-only.
   - DM send success must mean durable sender-side acceptance of encrypted envelopes into canonical DM history plus delivery metadata, not merely an attempted live fanout.
   - Default DM policy allows incoming DMs only from friends/accepted requests.
   - Per-user override options: allow same-server members or anyone.
   - Incoming DM envelopes must converge across all devices linked to a profile, including devices activated after first delivery.
+- UX approval
+  - No UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
 - DM delivery execution model
-  - E2EE envelope delivery through shared servers/message nodes is the only MVP DM transport path.
+  - E2EE envelope delivery through server nodes/message nodes in the server-node P2P network is the only MVP DM transport path.
   - Accepted contact-invite redemption or accepted mediated friend-request bootstrap is required before encryption material is trusted.
   - Delivery-state diagnostics are required for blocked policy, missing bootstrap, offline recipient, message-node unavailable, and catch-up/replay failures; these diagnostics must not become a DM preflight/troubleshooter UX.
-  - User direct-DM pairing QR/manual code, LAN discovery, WAN wizard, endpoint cards, connectivity preflight, and parallel dial are out of scope.
+  - Recipient-device pairing QR/manual code, LAN discovery, WAN wizard, endpoint cards, connectivity preflight, and parallel dial are out of scope for DM delivery.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe over ciphertext envelopes.
   - Unencrypted DM mailboxing, server-side decryption, server-readable DM content, and private-key upload/custody are out of scope.
 - Server communication multi-device convergence
@@ -213,7 +215,7 @@ Build a communication stack where users and communities control identity, data l
   - Stable reconnect and event ordering behavior.
 - Security
   - TLS everywhere, encrypted at rest for node data, E2EE for 1:1 and group DMs.
-  - Shared servers/message nodes store and forward DM ciphertext envelopes only; plaintext and private keys stay client/device-only.
+  - Server nodes/message nodes store and forward DM ciphertext envelopes only; plaintext and private keys stay client/device-only.
   - No key/invite secret leakage to logs.
   - Nonce challenge is single-use with strict TTL and replay rejection.
 - Onboarding
@@ -228,7 +230,7 @@ Build a communication stack where users and communities control identity, data l
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
-- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS.
+- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
 
 ## Success Metrics (MVP)
 
