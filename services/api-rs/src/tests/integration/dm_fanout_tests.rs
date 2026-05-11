@@ -12,6 +12,7 @@ use crate::{
             forwarding::{
                 forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
             },
+            outbound_forwarding::{retry_due_dm_outbound_forwards, DmOutboundForwardRetryConfig},
             validation::DM_OFFLINE_DELIVERY_MODE,
         },
         node_identity::LocalNodeIdentity,
@@ -175,6 +176,41 @@ async fn set_dm_policy_anyone(app: axum::Router, token: &str) -> axum::Router {
         .expect("dm policy update response");
     assert_eq!(response.status(), StatusCode::OK);
     app
+}
+
+async fn seed_due_failed_outbound_forward(
+    pool: &sqlx::PgPool,
+    sender: &str,
+    recipient: &str,
+    destination_node_id: &str,
+    message_id: &str,
+) {
+    ensure_db_identity_key(pool, sender).await;
+    dm_repo::record_dm_outbound_forward_queued(
+        pool,
+        &dm_repo::DmOutboundForwardWrite {
+            sender_identity_id: sender,
+            destination_node_id,
+            message_id,
+            thread_id: "thread-seeded-outbound-forward",
+            recipient_identity_id: recipient,
+            ciphertext: "enc:seeded-outbound-forward",
+            source_device_id: Some("desktop-main"),
+            delivery_cursor: 1,
+        },
+    )
+    .await
+    .expect("seed queued outbound forward");
+    dm_repo::mark_dm_outbound_forward_failed(
+        pool,
+        sender,
+        destination_node_id,
+        message_id,
+        "seeded retryable failure",
+        Some(Utc::now() - Duration::seconds(1)),
+    )
+    .await
+    .expect("seed failed outbound forward");
 }
 
 #[tokio::test]
@@ -454,6 +490,213 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
         .last_error
         .as_deref()
         .is_some_and(|value| value.contains("500 Internal Server Error")));
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
+    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let message_id = format!("msg-static-peer-retry-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await;
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 1);
+    assert_eq!(summary.retryable_failed, 0);
+    assert_eq!(summary.terminal_failed, 0);
+    let captured = capture_rx
+        .await
+        .expect("capture retried node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load retried outbound forward record")
+    .expect("retried outbound forward record");
+    assert_eq!(record.forwarding_state, "forwarded");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record.next_attempt_at.is_none());
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
+    let (destination_base_url, capture_rx) =
+        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let message_id = format!("msg-static-peer-retry-failed-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await;
+    let before_retry = Utc::now();
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 0);
+    assert_eq!(summary.retryable_failed, 1);
+    assert_eq!(summary.terminal_failed, 0);
+    let captured = capture_rx
+        .await
+        .expect("capture failed retried node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+    assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
+
+    let record = dm_repo::get_dm_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await
+    .expect("load failed retried outbound forward record")
+    .expect("failed retried outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("500 Internal Server Error")));
+    assert!(record
+        .next_attempt_at
+        .is_some_and(|value| value > before_retry));
+}
+
+#[tokio::test]
+async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured() {
+    let sender = unique_identity("usr-origin-retry-sender");
+    let recipient = unique_identity("usr-remote-retry-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let destination_node_id = "node-missing";
+    let message_id = format!("msg-static-peer-retry-terminal-{}", Uuid::new_v4().simple());
+    seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
+        .await;
+    let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
+
+    let summary = retry_due_dm_outbound_forwards(
+        &state,
+        DmOutboundForwardRetryConfig {
+            limit: 10,
+            max_attempts: 5,
+            stale_attempt_seconds: 0,
+        },
+    )
+    .await
+    .expect("retry due outbound forwards");
+
+    assert_eq!(summary.scanned, 1);
+    assert_eq!(summary.attempted, 1);
+    assert_eq!(summary.forwarded, 0);
+    assert_eq!(summary.retryable_failed, 0);
+    assert_eq!(summary.terminal_failed, 1);
+
+    let record =
+        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_node_id, &message_id)
+            .await
+            .expect("load terminal outbound forward record")
+            .expect("terminal outbound forward record");
+    assert_eq!(record.forwarding_state, "failed");
+    assert_eq!(record.attempt_count, 2);
+    assert!(record
+        .last_error
+        .as_deref()
+        .is_some_and(|value| value.contains("static peer route unavailable")));
+    assert!(record.next_attempt_at.is_none());
+
+    let due = dm_repo::list_due_dm_outbound_forward_records(&pool, 10, 5, 0)
+        .await
+        .expect("list due outbound forwards after terminal failure");
+    assert!(due.iter().all(|record| record.message_id != message_id));
 }
 
 #[tokio::test]

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 routed durable outbound static-peer DM forwarding state updates to the runtime REST and data-lifecycle authorities.
+- Latest meaningful change: 2026-05-11 routed durable outbound static-peer DM retry scheduling updates to the data-lifecycle authority.
 
 ## Purpose
 

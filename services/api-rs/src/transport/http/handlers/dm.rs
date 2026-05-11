@@ -17,6 +17,10 @@ use crate::{
     domain::dm::forwarding::{
         authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
     },
+    domain::dm::outbound_forwarding::{
+        forwarding_error_summary, next_retry_attempt_after_failure,
+        DM_OUTBOUND_FORWARD_MAX_ATTEMPTS,
+    },
     domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     domain::dm::validation::{
         validate_device_id, validate_device_secret, validate_dm_policy_update,
@@ -316,7 +320,7 @@ async fn forward_dm_envelope_to_destination_node(
     let accepted_at = Utc::now().to_rfc3339();
     let delivery_cursor = outbound_forward_delivery_cursor();
     let target_device_ids = Vec::new();
-    dm_repo::record_dm_outbound_forward_queued(
+    let attempt_count = dm_repo::record_dm_outbound_forward_queued(
         pool,
         &dm_repo::DmOutboundForwardWrite {
             sender_identity_id: &auth.identity_id,
@@ -378,12 +382,21 @@ async fn forward_dm_envelope_to_destination_node(
         }
         Err(error) => {
             let stored_error = forwarding_error_summary(&error);
+            let next_attempt_at = next_retry_attempt_after_failure(
+                Utc::now(),
+                destination_node_id,
+                &payload.message_id,
+                attempt_count,
+                DM_OUTBOUND_FORWARD_MAX_ATTEMPTS,
+                &stored_error,
+            );
             if let Err(update_error) = dm_repo::mark_dm_outbound_forward_failed(
                 pool,
                 &auth.identity_id,
                 destination_node_id,
                 &payload.message_id,
                 &stored_error,
+                next_attempt_at,
             )
             .await
             {
@@ -418,17 +431,6 @@ fn outbound_forward_delivery_cursor() -> u64 {
     u64::try_from(Utc::now().timestamp_millis())
         .unwrap_or(1)
         .max(1)
-}
-
-fn forwarding_error_summary(error: &str) -> String {
-    const MAX_FORWARDING_ERROR_LENGTH: usize = 512;
-
-    let trimmed = error.trim();
-    if trimmed.len() <= MAX_FORWARDING_ERROR_LENGTH {
-        return trimmed.to_string();
-    }
-
-    trimmed.chars().take(MAX_FORWARDING_ERROR_LENGTH).collect()
 }
 
 async fn accept_dm_envelope_for_local_recipient(

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::models::{
@@ -396,8 +397,8 @@ pub async fn list_dm_fanout_delivery_records(
 pub async fn record_dm_outbound_forward_queued(
     pool: &PgPool,
     record: &DmOutboundForwardWrite<'_>,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
+) -> Result<u32, sqlx::Error> {
+    let row = sqlx::query(
         "
         INSERT INTO dm_outbound_forwarding_log (
             sender_identity_id,
@@ -412,11 +413,12 @@ pub async fn record_dm_outbound_forward_queued(
             attempt_count,
             last_error,
             last_attempt_at,
+            next_attempt_at,
             forwarded_at,
             created_at,
             updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', 1, NULL, NOW(), NULL, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', 1, NULL, NOW(), NULL, NULL, NOW(), NOW())
         ON CONFLICT (sender_identity_id, destination_node_id, message_id) DO UPDATE
         SET thread_id = EXCLUDED.thread_id,
             recipient_identity_id = EXCLUDED.recipient_identity_id,
@@ -427,8 +429,10 @@ pub async fn record_dm_outbound_forward_queued(
             attempt_count = dm_outbound_forwarding_log.attempt_count + 1,
             last_error = NULL,
             last_attempt_at = NOW(),
+            next_attempt_at = NULL,
             forwarded_at = NULL,
             updated_at = NOW()
+        RETURNING attempt_count
         ",
     )
     .bind(record.sender_identity_id)
@@ -442,10 +446,12 @@ pub async fn record_dm_outbound_forward_queued(
         i64::try_from(record.delivery_cursor)
             .map_err(|_| sqlx::Error::Protocol("delivery_cursor too large for storage".into()))?,
     )
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
 
-    Ok(())
+    let attempt_count = row.try_get::<i32, _>("attempt_count")?;
+    u32::try_from(attempt_count)
+        .map_err(|_| sqlx::Error::Protocol("attempt_count must be non-negative".into()))
 }
 
 pub async fn mark_dm_outbound_forward_succeeded(
@@ -459,6 +465,7 @@ pub async fn mark_dm_outbound_forward_succeeded(
         UPDATE dm_outbound_forwarding_log
         SET forwarding_state = 'forwarded',
             last_error = NULL,
+            next_attempt_at = NULL,
             forwarded_at = NOW(),
             updated_at = NOW()
         WHERE sender_identity_id = $1
@@ -481,12 +488,15 @@ pub async fn mark_dm_outbound_forward_failed(
     destination_node_id: &str,
     message_id: &str,
     error: &str,
+    next_attempt_at: Option<DateTime<Utc>>,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query(
         "
         UPDATE dm_outbound_forwarding_log
         SET forwarding_state = 'failed',
             last_error = $4,
+            next_attempt_at = $5,
+            forwarded_at = NULL,
             updated_at = NOW()
         WHERE sender_identity_id = $1
           AND destination_node_id = $2
@@ -497,9 +507,113 @@ pub async fn mark_dm_outbound_forward_failed(
     .bind(destination_node_id)
     .bind(message_id)
     .bind(error)
+    .bind(next_attempt_at)
     .execute(pool)
     .await
     .map(|result| result.rows_affected() > 0)
+}
+
+pub async fn mark_dm_outbound_forward_retry_started(
+    pool: &PgPool,
+    sender_identity_id: &str,
+    destination_node_id: &str,
+    message_id: &str,
+    max_attempts: u32,
+    stale_after_seconds: i64,
+) -> Result<Option<u32>, sqlx::Error> {
+    let max_attempts = i32::try_from(max_attempts)
+        .map_err(|_| sqlx::Error::Protocol("max_attempts too large for storage".into()))?;
+    let row = sqlx::query(
+        "
+        UPDATE dm_outbound_forwarding_log
+        SET forwarding_state = 'queued',
+            attempt_count = attempt_count + 1,
+            last_error = NULL,
+            last_attempt_at = NOW(),
+            next_attempt_at = NULL,
+            forwarded_at = NULL,
+            updated_at = NOW()
+        WHERE sender_identity_id = $1
+          AND destination_node_id = $2
+          AND message_id = $3
+          AND attempt_count < $4
+          AND (
+              (forwarding_state = 'failed'
+               AND next_attempt_at IS NOT NULL
+               AND next_attempt_at <= NOW())
+              OR
+              (forwarding_state = 'queued'
+               AND (last_attempt_at IS NULL
+                    OR last_attempt_at <= NOW() - ($5::DOUBLE PRECISION * INTERVAL '1 second')))
+          )
+        RETURNING attempt_count
+        ",
+    )
+    .bind(sender_identity_id)
+    .bind(destination_node_id)
+    .bind(message_id)
+    .bind(max_attempts)
+    .bind(stale_after_seconds.max(0) as f64)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(|row| {
+        let attempt_count = row.try_get::<i32, _>("attempt_count")?;
+        u32::try_from(attempt_count)
+            .map_err(|_| sqlx::Error::Protocol("attempt_count must be non-negative".into()))
+    })
+    .transpose()
+}
+
+pub async fn list_due_dm_outbound_forward_records(
+    pool: &PgPool,
+    limit: u32,
+    max_attempts: u32,
+    stale_after_seconds: i64,
+) -> Result<Vec<DmOutboundForwardRecord>, sqlx::Error> {
+    let limit = i64::from(limit.max(1));
+    let max_attempts = i32::try_from(max_attempts)
+        .map_err(|_| sqlx::Error::Protocol("max_attempts too large for storage".into()))?;
+    let rows = sqlx::query(
+        "
+        SELECT sender_identity_id,
+               destination_node_id,
+               message_id,
+               thread_id,
+               recipient_identity_id,
+               ciphertext,
+               source_device_id,
+               delivery_cursor,
+               forwarding_state,
+               attempt_count,
+               last_error,
+               next_attempt_at
+        FROM dm_outbound_forwarding_log
+        WHERE attempt_count < $2
+          AND (
+              (forwarding_state = 'failed'
+               AND next_attempt_at IS NOT NULL
+               AND next_attempt_at <= NOW())
+              OR
+              (forwarding_state = 'queued'
+               AND (last_attempt_at IS NULL
+                    OR last_attempt_at <= NOW() - ($3::DOUBLE PRECISION * INTERVAL '1 second')))
+          )
+        ORDER BY COALESCE(next_attempt_at, last_attempt_at, created_at) ASC,
+                 updated_at ASC,
+                 sender_identity_id ASC,
+                 destination_node_id ASC,
+                 message_id ASC
+        LIMIT $1
+        ",
+    )
+    .bind(limit)
+    .bind(max_attempts)
+    .bind(stale_after_seconds.max(0) as f64)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(map_dm_outbound_forward_row).collect()
 }
 
 pub async fn get_dm_outbound_forward_record(
@@ -520,7 +634,8 @@ pub async fn get_dm_outbound_forward_record(
                delivery_cursor,
                forwarding_state,
                attempt_count,
-               last_error
+               last_error,
+               next_attempt_at
         FROM dm_outbound_forwarding_log
         WHERE sender_identity_id = $1
           AND destination_node_id = $2
@@ -716,5 +831,6 @@ fn map_dm_outbound_forward_row(
         attempt_count: u32::try_from(attempt_count)
             .map_err(|_| sqlx::Error::Protocol("attempt_count must be non-negative".into()))?,
         last_error: row.try_get::<Option<String>, _>("last_error")?,
+        next_attempt_at: row.try_get::<Option<DateTime<Utc>>, _>("next_attempt_at")?,
     })
 }

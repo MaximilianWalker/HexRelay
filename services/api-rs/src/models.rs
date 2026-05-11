@@ -346,6 +346,7 @@ pub struct DmOutboundForwardRecord {
     pub forwarding_state: String,
     pub attempt_count: u32,
     pub last_error: Option<String>,
+    pub next_attempt_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Serialize)]
