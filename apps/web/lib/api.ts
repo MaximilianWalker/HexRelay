@@ -151,7 +151,7 @@ export async function registerIdentityKey(input: {
   identityId: string;
   publicKey: string;
 }): Promise<ApiResult<undefined>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/identity/keys/register`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/identity/keys/register`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -169,7 +169,7 @@ export async function registerIdentityKey(input: {
 export async function issueAuthChallenge(input: {
   identityId: string;
 }): Promise<ApiResult<{ challenge_id: string; nonce: string; expires_at: string }>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/challenge`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/auth/challenge`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -187,7 +187,7 @@ export async function verifyAuthChallenge(input: {
   challengeId: string;
   signature: string;
 }): Promise<ApiResult<{ session_id: string; expires_at: string }>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/verify`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/auth/verify`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -207,7 +207,7 @@ export async function verifyAuthChallenge(input: {
 export async function fetchTestingProfiles(): Promise<
   ApiResult<{ items: TestingProfileSummary[] }>
 > {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dev/testing/profiles`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dev/testing/profiles`, {
     method: "GET",
   });
 
@@ -217,7 +217,7 @@ export async function fetchTestingProfiles(): Promise<
 export async function activateTestingSession(input: {
   profileId: string;
 }): Promise<ApiResult<TestingSessionResponse>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dev/testing/sessions`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dev/testing/sessions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -233,7 +233,7 @@ export async function activateTestingSession(input: {
 export async function revokeSession(input: {
   sessionId: string;
 }): Promise<ApiResult<undefined>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/auth/sessions/revoke`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/auth/sessions/revoke`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -251,7 +251,7 @@ export async function createInvite(input: {
   maxUses?: number;
   expiresAt?: string;
 }): Promise<ApiResult<{ token: string; mode: string; max_uses?: number; expires_at?: string }>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/invites`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -299,7 +299,7 @@ export async function fetchServers(input: {
   }
 
   const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/servers?${params.toString()}`,
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers?${params.toString()}`,
     { method: "GET" },
   );
 
@@ -339,7 +339,7 @@ export async function fetchContacts(input: {
   }
 
   const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/contacts?${params.toString()}`,
+    `${env.NEXT_PUBLIC_API_BASE_URL}/contacts?${params.toString()}`,
     { method: "GET" },
   );
 
@@ -350,7 +350,7 @@ export async function createFriendRequest(input: {
   requesterIdentityId: string;
   targetIdentityId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -385,7 +385,7 @@ export async function fetchFriendRequests(input: {
   }
 
   const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests?${params.toString()}`,
+    `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests?${params.toString()}`,
     { method: "GET" },
   );
 
@@ -396,7 +396,7 @@ export async function acceptFriendRequest(input: {
   requestId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
   const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/accept`,
+    `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/accept`,
     { method: "POST" },
   );
 
@@ -407,7 +407,7 @@ export async function declineFriendRequest(input: {
   requestId: string;
 }): Promise<ApiResult<undefined>> {
   const response = await apiFetch(
-    `${env.NEXT_PUBLIC_API_BASE_URL}/v1/friends/requests/${input.requestId}/decline`,
+    `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/decline`,
     { method: "POST" },
   );
 
@@ -415,7 +415,7 @@ export async function declineFriendRequest(input: {
 }
 
 export async function fetchDmPolicy(): Promise<ApiResult<DmPolicyResponse>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dm/privacy-policy`, {
     method: "GET",
   });
 
@@ -425,7 +425,7 @@ export async function fetchDmPolicy(): Promise<ApiResult<DmPolicyResponse>> {
 export async function updateDmPolicy(input: {
   inboundPolicy: DmInboundPolicy;
 }): Promise<ApiResult<DmPolicyResponse>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/privacy-policy`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dm/privacy-policy`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -443,7 +443,7 @@ export async function heartbeatDmProfileDevice(input: {
   deviceSecret: string;
   active: boolean;
 }): Promise<ApiResult<DmProfileDeviceHeartbeatResponse>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/profile-devices/heartbeat`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dm/profile-devices/heartbeat`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -475,7 +475,7 @@ export async function catchUpDmFanout(input: {
     body.limit = input.limit;
   }
 
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/dm/fanout/catch-up`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/dm/fanout/catch-up`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -490,7 +490,7 @@ export async function redeemInvite(input: {
   token: string;
   nodeFingerprint: string;
 }): Promise<ApiResult<{ accepted: boolean }>> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/invites/redeem`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/invites/redeem`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -518,7 +518,7 @@ export async function createContactInvite(input: {
     created_at: string;
   }>
 > {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/contact-invites`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -544,7 +544,7 @@ export async function redeemContactInvite(input: {
     created_at: string;
   }>
 > {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/v1/contact-invites/redeem`, {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites/redeem`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

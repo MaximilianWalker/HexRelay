@@ -153,100 +153,100 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ),
     }
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
-        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
-        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
-        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
-        ('POST', '/v1/dm/threads/{thread_id}/read'),
+        ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
+        ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+        ('DELETE', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+        ('POST', '/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_ROUTES = {
-        ('POST', '/v1/identity/keys/register'),
-        ('POST', '/v1/auth/challenge'),
-        ('POST', '/v1/auth/sessions/revoke'),
-        ('GET', '/v1/friends/requests'),
-        ('POST', '/v1/friends/requests'),
-        ('POST', '/v1/friends/requests/{request_id}/accept'),
-        ('POST', '/v1/friends/requests/{request_id}/decline'),
-        ('POST', '/v1/friends/requests/{request_id}/cancel'),
-        ('GET', '/v1/friends/requests/{request_id}/bootstrap'),
-        ('POST', '/v1/users/block'),
-        ('POST', '/v1/users/mute'),
-        ('GET', '/v1/internal/presence/watchers/{identity_id}'),
-        ('POST', '/v1/dm/privacy-policy'),
-        ('POST', '/v1/dm/profile-devices/heartbeat'),
-        ('POST', '/v1/dm/fanout/dispatch'),
-        ('POST', '/v1/dm/fanout/catch-up'),
-        ('POST', '/v1/internal/dm/envelopes/ack'),
-        ('POST', '/v1/invites'),
-        ('POST', '/v1/contact-invites'),
-        ('POST', '/v1/auth/verify'),
-        ('POST', '/v1/invites/redeem'),
-        ('POST', '/v1/contact-invites/redeem'),
-        ('GET', '/v1/discovery/users'),
-        ('GET', '/v1/servers/{server_id}'),
-        ('GET', '/v1/servers/{server_id}/channels'),
-        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
-        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
-        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
-        ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'),
-        ('GET', '/v1/dm/threads'),
-        ('GET', '/v1/dm/threads/{thread_id}/messages'),
-        ('POST', '/v1/dm/threads/{thread_id}/read'),
+        ('POST', '/identity/keys/register'),
+        ('POST', '/auth/challenge'),
+        ('POST', '/auth/sessions/revoke'),
+        ('GET', '/friends/requests'),
+        ('POST', '/friends/requests'),
+        ('POST', '/friends/requests/{request_id}/accept'),
+        ('POST', '/friends/requests/{request_id}/decline'),
+        ('POST', '/friends/requests/{request_id}/cancel'),
+        ('GET', '/friends/requests/{request_id}/bootstrap'),
+        ('POST', '/users/block'),
+        ('POST', '/users/mute'),
+        ('GET', '/internal/presence/watchers/{identity_id}'),
+        ('POST', '/dm/privacy-policy'),
+        ('POST', '/dm/profile-devices/heartbeat'),
+        ('POST', '/dm/fanout/dispatch'),
+        ('POST', '/dm/fanout/catch-up'),
+        ('POST', '/internal/dm/envelopes/ack'),
+        ('POST', '/invites'),
+        ('POST', '/contact-invites'),
+        ('POST', '/auth/verify'),
+        ('POST', '/invites/redeem'),
+        ('POST', '/contact-invites/redeem'),
+        ('GET', '/discovery/users'),
+        ('GET', '/servers/{server_id}'),
+        ('GET', '/servers/{server_id}/channels'),
+        ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
+        ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+        ('DELETE', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
+        ('GET', '/servers/{server_id}/channels/{channel_id}/messages'),
+        ('GET', '/dm/threads'),
+        ('GET', '/dm/threads/{thread_id}/messages'),
+        ('POST', '/dm/threads/{thread_id}/read'),
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_EXPECTATIONS = {
-        ('POST', '/v1/identity/keys/register'): {
+        ('POST', '/identity/keys/register'): {
             'algorithm_invalid',
             'identity_invalid',
             'public_key_invalid',
             'identity_registration_disabled',
             'identity_exists',
         },
-        ('POST', '/v1/auth/challenge'): {'identity_invalid'},
-        ('POST', '/v1/auth/sessions/revoke'): {'session_invalid'},
-        ('GET', '/v1/friends/requests'): {'identity_invalid'},
-        ('POST', '/v1/friends/requests'): {
+        ('POST', '/auth/challenge'): {'identity_invalid'},
+        ('POST', '/auth/sessions/revoke'): {'session_invalid'},
+        ('GET', '/friends/requests'): {'identity_invalid'},
+        ('POST', '/friends/requests'): {
             'identity_invalid',
             'blocked_user',
             'friend_request_exists',
         },
-        ('POST', '/v1/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
-        ('POST', '/v1/friends/requests/{request_id}/decline'): {'identity_invalid', 'transition_invalid'},
-        ('POST', '/v1/friends/requests/{request_id}/cancel'): {'identity_invalid', 'transition_invalid'},
-        ('GET', '/v1/friends/requests/{request_id}/bootstrap'): {
+        ('POST', '/friends/requests/{request_id}/accept'): {'identity_invalid', 'transition_invalid'},
+        ('POST', '/friends/requests/{request_id}/decline'): {'identity_invalid', 'transition_invalid'},
+        ('POST', '/friends/requests/{request_id}/cancel'): {'identity_invalid', 'transition_invalid'},
+        ('GET', '/friends/requests/{request_id}/bootstrap'): {
             'identity_invalid',
             'bootstrap_not_available',
             'blocked_user',
         },
-        ('POST', '/v1/users/block'): {'identity_invalid', 'already_blocked'},
-        ('POST', '/v1/users/mute'): {'identity_invalid', 'already_muted'},
-        ('POST', '/v1/dm/privacy-policy'): {'dm_policy_invalid'},
-        ('POST', '/v1/dm/profile-devices/heartbeat'): {'profile_device_invalid'},
-        ('POST', '/v1/invites'): {'invite_invalid'},
-        ('POST', '/v1/contact-invites'): {'invite_invalid'},
-        ('POST', '/v1/auth/verify'): {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
-        ('POST', '/v1/invites/redeem'): {
+        ('POST', '/users/block'): {'identity_invalid', 'already_blocked'},
+        ('POST', '/users/mute'): {'identity_invalid', 'already_muted'},
+        ('POST', '/dm/privacy-policy'): {'dm_policy_invalid'},
+        ('POST', '/dm/profile-devices/heartbeat'): {'profile_device_invalid'},
+        ('POST', '/invites'): {'invite_invalid'},
+        ('POST', '/contact-invites'): {'invite_invalid'},
+        ('POST', '/auth/verify'): {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
+        ('POST', '/invites/redeem'): {
             'invite_invalid',
             'fingerprint_mismatch',
             'invite_expired',
             'invite_exhausted',
         },
-        ('POST', '/v1/contact-invites/redeem'): {
+        ('POST', '/contact-invites/redeem'): {
             'invite_invalid',
             'invite_expired',
             'invite_exhausted',
             'blocked_user',
             'friend_request_exists',
         },
-        ('GET', '/v1/discovery/users'): {'scope_invalid'},
-        ('GET', '/v1/servers/{server_id}'): {'server_access_denied'},
-        ('GET', '/v1/servers/{server_id}/channels'): {'server_access_denied'},
-        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
+        ('GET', '/discovery/users'): {'scope_invalid'},
+        ('GET', '/servers/{server_id}'): {'server_access_denied'},
+        ('GET', '/servers/{server_id}/channels'): {'server_access_denied'},
+        ('POST', '/servers/{server_id}/channels/{channel_id}/messages'): {
             'message_content_invalid',
             'reply_target_invalid',
             'mention_invalid',
             'server_access_denied',
             'channel_not_found',
         },
-        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+        ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
             'message_content_invalid',
             'mention_invalid',
             'server_access_denied',
@@ -255,70 +255,70 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'message_not_found',
             'message_deleted',
         },
-        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+        ('DELETE', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
             'server_access_denied',
             'message_delete_forbidden',
             'channel_not_found',
             'message_not_found',
         },
-        ('GET', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
+        ('GET', '/servers/{server_id}/channels/{channel_id}/messages'): {
             'server_access_denied',
             'channel_not_found',
         },
-        ('GET', '/v1/dm/threads'): {'cursor_invalid'},
-        ('GET', '/v1/dm/threads/{thread_id}/messages'): {'cursor_invalid', 'thread_not_found'},
-        ('POST', '/v1/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
-        ('POST', '/v1/dm/fanout/dispatch'): {'fanout_invalid'},
-        ('POST', '/v1/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
-        ('POST', '/v1/internal/dm/envelopes/ack'): {
+        ('GET', '/dm/threads'): {'cursor_invalid'},
+        ('GET', '/dm/threads/{thread_id}/messages'): {'cursor_invalid', 'thread_not_found'},
+        ('POST', '/dm/threads/{thread_id}/read'): {'last_read_seq_invalid', 'thread_not_found'},
+        ('POST', '/dm/fanout/dispatch'): {'fanout_invalid'},
+        ('POST', '/dm/fanout/catch-up'): {'fanout_invalid', 'cursor_out_of_range'},
+        ('POST', '/internal/dm/envelopes/ack'): {
             'dm_ack_invalid',
             'dm_ack_unknown',
             'internal_token_invalid',
         },
     }
     ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS = {
-        ('POST', '/v1/identity/keys/register'): {
+        ('POST', '/identity/keys/register'): {
             '400': {'algorithm_invalid', 'identity_invalid', 'public_key_invalid'},
             '403': {'identity_registration_disabled'},
             '409': {'identity_exists'},
         },
-        ('POST', '/v1/auth/challenge'): {
+        ('POST', '/auth/challenge'): {
             '400': {'identity_invalid'},
         },
-        ('POST', '/v1/auth/verify'): {
+        ('POST', '/auth/verify'): {
             '400': {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
             '401': {'nonce_invalid'},
         },
-        ('POST', '/v1/auth/sessions/revoke'): {
+        ('POST', '/auth/sessions/revoke'): {
             '400': {'session_invalid'},
             '401': {'session_invalid'},
         },
-        ('GET', '/v1/friends/requests'): {
+        ('GET', '/friends/requests'): {
             '400': {'identity_invalid'},
             '401': {'identity_invalid'},
         },
-        ('POST', '/v1/friends/requests'): {
+        ('POST', '/friends/requests'): {
             '400': {'identity_invalid'},
             '401': {'identity_invalid'},
             '403': {'blocked_user'},
             '409': {'friend_request_exists'},
         },
-        ('POST', '/v1/users/block'): {
+        ('POST', '/users/block'): {
             '400': {'identity_invalid'},
             '409': {'already_blocked'},
         },
-        ('POST', '/v1/users/mute'): {
+        ('POST', '/users/mute'): {
             '400': {'identity_invalid'},
             '409': {'already_muted'},
         },
-        ('GET', '/v1/internal/presence/watchers/{identity_id}'): {
+        ('GET', '/internal/presence/watchers/{identity_id}'): {
             '401': {'internal_token_invalid'},
         },
-        ('POST', '/v1/internal/dm/envelopes/ack'): {
+        ('POST', '/internal/dm/envelopes/ack'): {
             '400': {'dm_ack_invalid', 'dm_ack_unknown'},
             '401': {'internal_token_invalid'},
         },
-        ('POST', '/v1/servers/{server_id}/channels/{channel_id}/messages'): {
+        ('POST', '/servers/{server_id}/channels/{channel_id}/messages'): {
             '400': {
                 'message_content_invalid',
                 'reply_target_invalid',
@@ -327,13 +327,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             '403': {'server_access_denied'},
             '404': {'channel_not_found'},
         },
-        ('PATCH', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+        ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
             '400': {'message_content_invalid', 'mention_invalid'},
             '403': {'server_access_denied', 'message_edit_forbidden'},
             '404': {'channel_not_found', 'message_not_found'},
             '409': {'message_deleted'},
         },
-        ('DELETE', '/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
+        ('DELETE', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'): {
             '403': {'server_access_denied', 'message_delete_forbidden'},
             '404': {'channel_not_found', 'message_not_found'},
         },

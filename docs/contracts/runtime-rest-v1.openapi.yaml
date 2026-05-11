@@ -40,7 +40,7 @@ paths:
                   value:
                     service: api-rs
                     status: ok
-  /v1/identity/keys/register:
+  /identity/keys/register:
     post:
       summary: Register a public identity key
       description: |
@@ -103,7 +103,7 @@ paths:
                     message: identity_id already has a registered key
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/auth/challenge:
+  /auth/challenge:
     post:
       summary: Issue a nonce challenge
       requestBody:
@@ -146,7 +146,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/auth/verify:
+  /auth/verify:
     post:
       summary: Verify challenge signature and issue session cookies
       requestBody:
@@ -219,7 +219,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/auth/sessions/revoke:
+  /auth/sessions/revoke:
     post:
       summary: Revoke an active session
       security:
@@ -272,7 +272,7 @@ paths:
                     message: session_id does not match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/auth/sessions/validate:
+  /auth/sessions/validate:
     get:
       summary: Validate active session
       security:
@@ -299,7 +299,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dev/testing/profiles:
+  /dev/testing/profiles:
     get:
       summary: List dev testing profiles
       description: |
@@ -335,7 +335,7 @@ paths:
                   value:
                     code: dev_testing_disabled
                     message: dev testing endpoints are disabled
-  /v1/dev/testing/sessions:
+  /dev/testing/sessions:
     post:
       summary: Activate a dev testing profile session
       description: |
@@ -438,7 +438,7 @@ paths:
                   value:
                     code: session_key_missing
                     message: active signing key is unavailable
-  /v1/invites:
+  /invites:
     post:
       summary: Create an invite token
       security:
@@ -499,7 +499,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/invites/redeem:
+  /invites/redeem:
     post:
       summary: Redeem an invite token
       requestBody:
@@ -554,7 +554,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/contact-invites:
+  /contact-invites:
     post:
       summary: Create a contact invite token
       security:
@@ -606,7 +606,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/contact-invites/redeem:
+  /contact-invites/redeem:
     post:
       summary: Redeem a contact invite token and create friend request
       description: |
@@ -708,7 +708,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/servers:
+  /servers:
     get:
       summary: List servers for authenticated identity
       description: Returns identity-scoped server summaries from persisted server membership records with deterministic filter/search behavior. Joined-server membership authority now backs this surface, while richer guild/channel authz semantics remain future work.
@@ -771,7 +771,7 @@ paths:
                     message: message_id already exists for an accepted DM
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/servers/{server_id}:
+  /servers/{server_id}:
     get:
       summary: Get a single joined server for authenticated identity
       description: Returns the requested server summary only when the authenticated identity has persisted membership for that server. Non-members receive deterministic `403 server_access_denied` without exposing extra membership state.
@@ -807,7 +807,7 @@ paths:
                     message: server membership required
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/servers/{server_id}/channels:
+  /servers/{server_id}/channels:
     get:
       summary: List channels for an authorized server member
       description: Returns persisted channels for the requested server only when the authenticated identity has membership in that server. Results use stable creation order and expose the current `last_message_seq` cursor baseline for each channel.
@@ -843,7 +843,7 @@ paths:
                     message: server membership required
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/servers/{server_id}/channels/{channel_id}/messages:
+  /servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages for an authorized member
       description: Returns persisted server-channel messages only when the authenticated identity has membership in the requested server and the requested `channel_id` belongs to that same server. Requests for unknown channel ids return `404 channel_not_found`, while cross-server path mismatches fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
@@ -1062,7 +1062,7 @@ paths:
                     message: server channel was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}:
+  /servers/{server_id}/channels/{channel_id}/messages/{message_id}:
     patch:
       summary: Edit a server-channel message for an authorized author
       description: >-
@@ -1312,7 +1312,7 @@ paths:
                     message: server channel message was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/contacts:
+  /contacts:
     get:
       summary: List contacts for authenticated identity
       description: Returns accepted and pending contact relationships for the authenticated identity. When Redis-backed presence snapshots are configured, accepted contacts surface the current `online` or `offline` presence snapshot from the realtime presence service.
@@ -1373,7 +1373,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/internal/presence/watchers/{identity_id}:
+  /internal/presence/watchers/{identity_id}:
     get:
       summary: Resolve authorized presence watchers for an identity
       description: Internal service-to-service endpoint used by `services/realtime-rs` to resolve which identities may receive presence updates for the subject identity.
@@ -1418,7 +1418,7 @@ paths:
                     message: presence watcher lookup requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/internal/dm/envelopes/ack:
+  /internal/dm/envelopes/ack:
     post:
       summary: Persist DM envelope device acknowledgement
       description: >-
@@ -1482,7 +1482,7 @@ paths:
                     message: DM envelope ack requires a valid internal token
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/discovery/users:
+  /discovery/users:
     get:
       summary: List discoverable users for authenticated identity
       description: Returns privacy-safe discovery cards for users known in the current HexRelay environment. Supports `global` scope (all known discoverable users) and `shared_server` scope (only trusted shared-membership peers), excludes blocked and denylisted users, and enforces authenticated query rate limiting.
@@ -1539,7 +1539,7 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/privacy-policy:
+  /dm/privacy-policy:
     get:
       summary: Get DM inbound policy for authenticated identity
       description: Returns persisted DM inbound-policy authority when configured storage is available; otherwise falls back to in-memory test/runtime state.
@@ -1611,7 +1611,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/internal/dm/profile-devices/verify:
+  /internal/dm/profile-devices/verify:
     post:
       summary: Verify DM profile-device proof
       description: >-
@@ -1671,7 +1671,7 @@ paths:
                     message: profile device is not active
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/profile-devices/heartbeat:
+  /dm/profile-devices/heartbeat:
     post:
       summary: Mark DM profile device activity state for multi-device fanout
       description: Persists profile-device activity metadata when configured storage is available so active-device control state survives restart without persisting DM payload content.
@@ -1721,7 +1721,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/fanout/dispatch:
+  /dm/fanout/dispatch:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
       description: >-
@@ -1802,7 +1802,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/fanout/catch-up:
+  /dm/fanout/catch-up:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
       description: >-
@@ -1888,7 +1888,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/threads:
+  /dm/threads:
     get:
       summary: List DM and group DM threads for authenticated identity
       description: Returns only threads where the authenticated identity is a participant. Filtering (unread_only), cursor positioning, and limit are evaluated in SQL; cursor pagination uses the last returned `thread_id`.
@@ -1934,7 +1934,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/threads/{thread_id}/messages:
+  /dm/threads/{thread_id}/messages:
     get:
       summary: List encrypted message history for a DM thread
       description: Returns message history only when the authenticated identity is a participant in the requested thread. Current runtime behavior is persistence-backed in the local runtime store, participant-scoped, ordered by descending `seq`, and paginated directly from SQL storage.
@@ -1993,7 +1993,7 @@ paths:
                     message: dm thread was not found
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/dm/threads/{thread_id}/read:
+  /dm/threads/{thread_id}/read:
     post:
       summary: Mark a DM thread as read up to a given sequence number
       description: Monotonically advances the authenticated identity's `last_read_seq` for the specified thread. The server uses `GREATEST(current, requested)` so stale or duplicate requests are safe no-ops. Returns the effective `last_read_seq` and remaining `unread` count.
@@ -2048,7 +2048,7 @@ paths:
                     message: dm thread was not found or identity is not a participant
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/friends/requests:
+  /friends/requests:
     get:
       summary: List the authenticated identity's inbound/outbound friend requests
       security:
@@ -2200,7 +2200,7 @@ paths:
                     message: pending friend request already exists
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/friends/requests/{request_id}/accept:
+  /friends/requests/{request_id}/accept:
     post:
       summary: Accept pending friend request
       security:
@@ -2270,7 +2270,7 @@ paths:
                     message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/friends/requests/{request_id}/decline:
+  /friends/requests/{request_id}/decline:
     post:
       summary: Decline pending friend request
       security:
@@ -2314,7 +2314,7 @@ paths:
                     message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/friends/requests/{request_id}/cancel:
+  /friends/requests/{request_id}/cancel:
     post:
       summary: Cancel pending friend request
       security:
@@ -2358,7 +2358,7 @@ paths:
                     message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/friends/requests/{request_id}/bootstrap:
+  /friends/requests/{request_id}/bootstrap:
     get:
       summary: Fetch server-mediated peer identity material after friend request acceptance
       description: >-
@@ -2440,7 +2440,7 @@ paths:
                     message: identity material is unavailable while a block relationship exists between these users
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/block:
+  /users/block:
     post:
       summary: Block a user
       security:
@@ -2499,7 +2499,7 @@ paths:
                     message: user is already blocked
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/unblock:
+  /users/unblock:
     post:
       summary: Unblock a user
       security:
@@ -2522,7 +2522,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/blocked:
+  /users/blocked:
     get:
       summary: List blocked users
       security:
@@ -2556,7 +2556,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/mute:
+  /users/mute:
     post:
       summary: Mute a user
       security:
@@ -2615,7 +2615,7 @@ paths:
                     message: user is already muted
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/unmute:
+  /users/unmute:
     post:
       summary: Unmute a user
       security:
@@ -2638,7 +2638,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /v1/users/muted:
+  /users/muted:
     get:
       summary: List muted users
       security:

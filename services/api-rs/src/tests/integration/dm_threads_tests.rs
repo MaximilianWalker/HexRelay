@@ -147,7 +147,7 @@ async fn lists_dm_threads_with_unread_filter_and_cursor() {
 
     let first_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads?unread_only=true&limit=1")
+        .uri("/dm/threads?unread_only=true&limit=1")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens[identities.nora_id.as_str()]),
@@ -176,7 +176,7 @@ async fn lists_dm_threads_with_unread_filter_and_cursor() {
     let second_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads?unread_only=true&limit=1&cursor={next_cursor}"
+            "/dm/threads?unread_only=true&limit=1&cursor={next_cursor}"
         ))
         .header(
             "cookie",
@@ -213,7 +213,7 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let first_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/{}/messages?limit=2",
+            "/dm/threads/{}/messages?limit=2",
             history.nora_jules_thread_id
         ))
         .header(
@@ -250,7 +250,7 @@ async fn lists_dm_thread_messages_with_seq_cursor_pagination() {
     let second_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/{}/messages?limit=2&cursor={next_cursor}",
+            "/dm/threads/{}/messages?limit=2&cursor={next_cursor}",
             history.nora_jules_thread_id
         ))
         .header(
@@ -294,7 +294,7 @@ async fn dm_thread_messages_cursor_is_strictly_exclusive() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/{}/messages?limit=2&cursor=404",
+            "/dm/threads/{}/messages?limit=2&cursor=404",
             history.nora_jules_thread_id
         ))
         .header(
@@ -344,7 +344,7 @@ async fn dm_thread_messages_returns_empty_page_for_member_without_messages() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/v1/dm/threads/{thread_id}/messages?limit=10"))
+        .uri(format!("/dm/threads/{thread_id}/messages?limit=10"))
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens["usr-nora-k"]),
@@ -378,7 +378,7 @@ async fn dm_thread_messages_accept_cursor_larger_than_storage_range() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/{}/messages?limit=2&cursor={}",
+            "/dm/threads/{}/messages?limit=2&cursor={}",
             history.nora_jules_thread_id,
             u64::MAX
         ))
@@ -419,7 +419,7 @@ async fn dm_thread_listing_is_scoped_to_authenticated_identity_membership() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads?limit=10")
+        .uri("/dm/threads?limit=10")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens[identities.jules_id.as_str()]),
@@ -453,7 +453,7 @@ async fn dm_thread_listing_returns_group_dm_shape_for_group_participants() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads?limit=10")
+        .uri("/dm/threads?limit=10")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens[identities.nora_id.as_str()]),
@@ -508,7 +508,7 @@ async fn dm_thread_messages_return_not_found_for_non_members() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads/{}/messages?limit=10",
+            "/dm/threads/{}/messages?limit=10",
             history.nora_alex_thread_id
         ))
         .header(
@@ -549,7 +549,7 @@ async fn unread_only_cursor_restarts_when_cursor_thread_becomes_fully_read() {
     // Page 1: get first thread with unread_only=true, limit=1
     let first_request = Request::builder()
         .method("GET")
-        .uri("/v1/dm/threads?unread_only=true&limit=1")
+        .uri("/dm/threads?unread_only=true&limit=1")
         .header(
             "cookie",
             format!("hexrelay_session={}", tokens[identities.nora_id.as_str()]),
@@ -589,7 +589,7 @@ async fn unread_only_cursor_restarts_when_cursor_thread_becomes_fully_read() {
     let second_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/dm/threads?unread_only=true&limit=10&cursor={cursor}"
+            "/dm/threads?unread_only=true&limit=10&cursor={cursor}"
         ))
         .header(
             "cookie",
@@ -675,7 +675,7 @@ async fn mark_dm_thread_read_advances_last_read_seq_and_returns_unread() {
     // Mark read up to seq 403, expect unread=1 (seq 404 remains unread).
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-mark-advance/read")
+        .uri("/dm/threads/dm-mark-advance/read")
         .header(
             "cookie",
             format!(
@@ -758,7 +758,7 @@ async fn mark_dm_thread_read_is_monotonic() {
     // First advance to 403
     let advance_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-mark-mono/read")
+        .uri("/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
             format!(
@@ -781,7 +781,7 @@ async fn mark_dm_thread_read_is_monotonic() {
     // Try to regress to 401 — should be a no-op, seq stays at 403
     let regress_request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-mark-mono/read")
+        .uri("/dm/threads/dm-mark-mono/read")
         .header(
             "cookie",
             format!(
@@ -836,7 +836,7 @@ async fn mark_dm_thread_read_returns_not_found_for_non_member() {
     // usr-jules-p is not a participant in dm-mark-nomember
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/dm/threads/dm-mark-nomember/read")
+        .uri("/dm/threads/dm-mark-nomember/read")
         .header(
             "cookie",
             format!(

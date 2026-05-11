@@ -101,7 +101,7 @@ async fn register_identity(
 ) -> (StatusCode, axum::Router) {
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{identity_id}","public_key":"{public_key}","algorithm":"ed25519"}}"#
@@ -141,7 +141,7 @@ async fn authenticate_identity(app: axum::Router, identity_id: &str) -> (String,
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(format!(r#"{{"identity_id":"{identity_id}"}}"#)))
         .expect("build challenge request");
@@ -164,7 +164,7 @@ async fn authenticate_identity(app: axum::Router, identity_id: &str) -> (String,
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"{identity_id}","challenge_id":"{}","signature":"{}"}}"#,

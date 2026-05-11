@@ -394,7 +394,7 @@
 - Area affected: Iteration 2 DM privacy-policy delivery traceability.
 - Change summary:
   - Confirmed the backend/runtime already delivers the `T4.1.2` acceptance criteria through the existing DM privacy-policy read/update endpoints, default `friends_only` behavior, persisted per-identity override state, and recipient-policy enforcement across DM preflight/fanout/parallel-dial paths.
-  - Added one missing explicit integration assertion in `services/api-rs/src/tests/integration/dm_policy_tests.rs` proving that `same_server` can be set via `POST /v1/dm/privacy-policy` and read back unchanged.
+  - Added one missing explicit integration assertion in `services/api-rs/src/tests/integration/dm_policy_tests.rs` proving that `same_server` can be set via `POST /dm/privacy-policy` and read back unchanged.
   - Marked `T4.1.2` done on the Iteration 2 sprint board.
 - Rationale:
   - The runtime behavior was already present; the real gap was stale planning status plus one missing explicit readback regression for the `same_server` policy value.
@@ -513,7 +513,7 @@
 
 - Area affected: Iteration 2 API sequencing, runtime REST contract, and server workspace enablement.
 - Change summary:
-  - Started `T4.3.1` as a backend-first runtime slice centered on server-channel message read/create endpoints under the existing `/v1/servers/{server_id}/channels/{channel_id}/messages` namespace.
+  - Started `T4.3.1` as a backend-first runtime slice centered on server-channel message read/create endpoints under the existing `/servers/{server_id}/channels/{channel_id}/messages` namespace.
   - Locked the first delivered scope to persisted message listing, message creation, same-channel reply validation, and same-server mention validation.
   - Explicitly deferred edit/delete mutations, websocket fanout, richer audit-event semantics, and deeper channel/role permissions to later `T4.3.x` and `T4.4.x` follow-ups.
 - Rationale:
@@ -944,7 +944,7 @@
 - Area affected: Cross-cutting quality/security hardening
 - Change summary:
   - Added identity registration conflict guard to prevent silent key overwrite for existing identities.
-  - Added `GET /v1/auth/sessions/validate` and reused centralized `AuthSession` extractor for server-side session-bound auth context.
+  - Added `GET /auth/sessions/validate` and reused centralized `AuthSession` extractor for server-side session-bound auth context.
   - Restricted API CORS from wildcard to env-driven explicit allowlist (`API_ALLOWED_ORIGINS`).
   - Hardened friend-request handlers to require database pool in non-test runtime and keep in-memory path only for tests.
   - Added realtime websocket auth gate by validating `x-session-id` against API before upgrade.
@@ -1065,7 +1065,7 @@
 
 - Area affected: Iteration 1 web/backend integration (`T2.1.3` support)
 - Change summary:
-  - Added API read endpoints `GET /v1/servers` and `GET /v1/contacts` with deterministic query filtering.
+  - Added API read endpoints `GET /servers` and `GET /contacts` with deterministic query filtering.
   - Added backend tests covering server/contact list filtering paths.
   - Rewired web Servers and Contacts routes to call live API endpoints instead of local in-file datasets.
   - Added dynamic server workspace route scaffold at `/servers/[serverId]` and linked server cards to workspace route navigation.
@@ -1125,7 +1125,7 @@
 - Area affected: Iteration 1 web security and session lifecycle execution (`T2.1.2`, `T2.1.3`, `T2.3.1`)
 - Change summary:
   - Replaced plain localStorage private-key persistence with persona-scoped AES-GCM encrypted storage.
-  - Added Home persona remove action and switch-time session revoke integration using `POST /v1/auth/sessions/revoke`.
+  - Added Home persona remove action and switch-time session revoke integration using `POST /auth/sessions/revoke`.
   - Added persona cleanup paths to remove encrypted key/session records on persona deletion.
   - Added lightweight onboarding/home telemetry event tracking for API flow stages and failures.
 - Rationale:
@@ -1149,7 +1149,7 @@
   - Wired identity onboarding to live API flow: register identity key -> challenge issue -> challenge verify.
   - Added client crypto utilities for ed25519 key generation/import parsing and nonce signature generation.
   - Added persona-scoped local session/private-key storage utilities and stored auth session on successful verify.
-  - Added onboarding access action to create test invites via live `POST /v1/invites` before redemption.
+  - Added onboarding access action to create test invites via live `POST /invites` before redemption.
   - Extended web API client module to cover identity/auth/invite endpoints.
 - Rationale:
   - Replace onboarding placeholders with executable integration against implemented Iteration 1 API primitives.
@@ -1189,7 +1189,7 @@
   - Added CORS middleware to API router so web onboarding can call local API endpoints in dev.
   - Added `API_NODE_FINGERPRINT` runtime config and threaded value into application state.
   - Added API tests for fingerprint mismatch rejection and updated invite redeem tests to include expected node fingerprint.
-  - Wired onboarding access screen to live `POST /v1/invites/redeem` calls and mapped API error codes (`invite_invalid`, `invite_expired`, `invite_exhausted`, `fingerprint_mismatch`).
+  - Wired onboarding access screen to live `POST /invites/redeem` calls and mapped API error codes (`invite_invalid`, `invite_expired`, `invite_exhausted`, `fingerprint_mismatch`).
 - Rationale:
   - Enforce fail-closed join verification at API boundary and remove placeholder token simulation from onboarding.
 - Linked docs updated:
@@ -1236,7 +1236,7 @@
 
 - Area affected: Iteration 1 invite execution (`T2.2.1`)
 - Change summary:
-  - Implemented `POST /v1/invites` and `POST /v1/invites/redeem` in `services/api-rs`.
+  - Implemented `POST /invites` and `POST /invites/redeem` in `services/api-rs`.
   - Added invite mode/expiry/max-uses validation including one-time invite max-use enforcement.
   - Added deterministic invalid, expired, and exhausted invite behavior with explicit error codes.
   - Added API tests for multi-use redeem success, one-time exhaustion, and expired invite rejection.
@@ -1258,8 +1258,8 @@
 
 - Area affected: Iteration 1 auth execution (`T2.3.1`)
 - Change summary:
-  - Implemented `POST /v1/auth/verify` with nonce lookup/expiry checks, ed25519 signature verification, single-use challenge consumption, and in-memory session issuance.
-  - Implemented `POST /v1/auth/sessions/revoke` with deterministic invalid-session rejection.
+  - Implemented `POST /auth/verify` with nonce lookup/expiry checks, ed25519 signature verification, single-use challenge consumption, and in-memory session issuance.
+  - Implemented `POST /auth/sessions/revoke` with deterministic invalid-session rejection.
   - Added API tests covering verify/revoke success path and invalid signature rejection.
   - Updated Iteration 1 OpenAPI to include `AuthVerifyResponse` and explicit `400/401` verify outcomes.
 - Rationale:
@@ -1282,7 +1282,7 @@
 
 - Area affected: Iteration 1 auth bootstrap execution (`T2.3.1`)
 - Change summary:
-  - Implemented `POST /v1/auth/challenge` in `services/api-rs` with registered-identity enforcement and nonce challenge issuance.
+  - Implemented `POST /auth/challenge` in `services/api-rs` with registered-identity enforcement and nonce challenge issuance.
   - Added in-memory challenge store to API state and modularized handler wiring to include auth challenge routing.
   - Added API tests for challenge issuance (registered identity) and unknown identity rejection.
   - Updated Iteration 1 OpenAPI contract to include `AuthChallengeResponse` schema.
@@ -1303,7 +1303,7 @@
 
 - Area affected: Iteration 1 `T2.1.1` execution progress
 - Change summary:
-  - Implemented `POST /v1/identity/keys/register` in `services/api-rs` with fail-fast validation for algorithm and public key format.
+  - Implemented `POST /identity/keys/register` in `services/api-rs` with fail-fast validation for algorithm and public key format.
   - Added API tests covering success path and invalid algorithm/key rejection.
   - Aligned Iteration 1 OpenAPI error-code enum with identity registration validation errors.
   - Marked `T2.1.1` as in progress in the Iteration 1 board.

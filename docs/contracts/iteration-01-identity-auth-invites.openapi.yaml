@@ -11,7 +11,7 @@ info:
 servers:
   - url: https://api.hexrelay.local
 paths:
-  /v1/identity/keys/register:
+  /identity/keys/register:
     post:
       summary: Register a public identity key
       requestBody:
@@ -27,7 +27,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /v1/auth/challenge:
+  /auth/challenge:
     post:
       summary: Issue a nonce challenge
       requestBody:
@@ -45,7 +45,7 @@ paths:
                 $ref: '#/components/schemas/AuthChallengeResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-  /v1/auth/verify:
+  /auth/verify:
     post:
       summary: Verify challenge signature and issue session cookies
       requestBody:
@@ -74,7 +74,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /v1/auth/sessions/revoke:
+  /auth/sessions/revoke:
     post:
       summary: Revoke an active session
       security:
@@ -96,7 +96,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /v1/auth/sessions/validate:
+  /auth/sessions/validate:
     get:
       summary: Validate active session
       security:
@@ -112,7 +112,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /v1/invites:
+  /invites:
     post:
       summary: Create an invite token
       security:
@@ -136,7 +136,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /v1/invites/redeem:
+  /invites/redeem:
     post:
       summary: Redeem an invite token
       requestBody:

@@ -5,7 +5,7 @@ async fn presence_watchers_require_internal_token() {
     let app = build_app(AppState::default());
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/internal/presence/watchers/usr-main")
+        .uri("/internal/presence/watchers/usr-main")
         .body(Body::empty())
         .expect("build watcher request");
 
@@ -64,7 +64,7 @@ async fn presence_watchers_include_self_and_accepted_unblocked_friends_only() {
     let app = build_app(state.clone());
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/internal/presence/watchers/usr-main")
+        .uri("/internal/presence/watchers/usr-main")
         .header(
             "x-hexrelay-internal-token",
             state.presence_watcher_internal_token.as_str(),
@@ -98,7 +98,7 @@ async fn presence_watchers_reject_channel_dispatch_token() {
     let app = build_app(state);
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/internal/presence/watchers/usr-main")
+        .uri("/internal/presence/watchers/usr-main")
         .header(
             "x-hexrelay-internal-token",
             "hexrelay-dev-channel-dispatch-token-change-me",

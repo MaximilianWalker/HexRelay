@@ -1,6 +1,6 @@
 openapi: 3.1.0
 paths:
-  /v1/friends/requests/direct:
+  /friends/requests/direct:
     post:
       security:
         - CookieAuth: []

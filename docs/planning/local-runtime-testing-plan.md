@@ -231,8 +231,8 @@ npm run reset-dev-db -- --profile all --yes
 
 ### Acceptance Criteria
 
-- Alice can call `GET /v1/contacts` with the generated session.
-- Alice can call `GET /v1/dm/privacy-policy` with the generated session.
+- Alice can call `GET /contacts` with the generated session.
+- Alice can call `GET /dm/privacy-policy` with the generated session.
 - Dev bootstrap returns 403 or is absent when disabled.
 - Production config cannot enable the bootstrap path accidentally.
 

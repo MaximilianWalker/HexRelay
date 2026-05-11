@@ -256,12 +256,12 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Iteration 1 OpenAPI Contract Baseline
 
 - Publish these endpoints before parallel API/web implementation starts:
-  - `POST /v1/identity/keys/register`
-  - `POST /v1/auth/challenge`
-  - `POST /v1/auth/verify`
-  - `POST /v1/auth/sessions/revoke`
-  - `POST /v1/invites`
-  - `POST /v1/invites/redeem`
+  - `POST /identity/keys/register`
+  - `POST /auth/challenge`
+  - `POST /auth/verify`
+  - `POST /auth/sessions/revoke`
+  - `POST /invites`
+  - `POST /invites/redeem`
 - Required shared error code set for Iteration 1:
   - `invite_invalid`
   - `invite_expired`

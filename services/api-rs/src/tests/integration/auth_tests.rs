@@ -9,7 +9,7 @@ async fn registers_identity_key_with_hex_key() {
     let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-1","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
@@ -25,7 +25,7 @@ async fn rejects_duplicate_identity_registration() {
     let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-dup","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
@@ -36,7 +36,7 @@ async fn rejects_duplicate_identity_registration() {
 
     let duplicate_request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-dup","public_key":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","algorithm":"ed25519"}"#,
@@ -81,7 +81,7 @@ async fn rejects_public_identity_registration_when_disabled() {
 
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-1","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
@@ -103,7 +103,7 @@ async fn rejects_invalid_algorithm() {
     let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-1","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"rsa"}"#,
@@ -119,7 +119,7 @@ async fn rejects_invalid_public_key_format() {
     let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-1","public_key":"not-a-real-key","algorithm":"ed25519"}"#,
@@ -135,7 +135,7 @@ async fn rejects_identity_id_with_surrounding_whitespace() {
     let app = app_with_public_identity_registration();
     let request = Request::builder()
         .method("POST")
-        .uri("/v1/identity/keys/register")
+        .uri("/identity/keys/register")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":" user-1 ","public_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","algorithm":"ed25519"}"#,
@@ -158,7 +158,7 @@ async fn issues_auth_challenge_for_registered_identity() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-1"}"#))
         .expect("build challenge request");
@@ -175,7 +175,7 @@ async fn issues_indistinguishable_challenge_for_unknown_identity() {
     let app = app_with_public_identity_registration();
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"missing-user"}"#))
         .expect("build challenge request");
@@ -195,7 +195,7 @@ async fn issues_indistinguishable_challenge_for_unknown_identity() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"missing-user","challenge_id":"{}","signature":"{}"}}"#,
@@ -223,7 +223,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 
     let missing_challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"missing-user"}"#))
         .expect("build missing challenge request");
@@ -243,7 +243,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 
     let missing_verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"missing-user","challenge_id":"{}","signature":"{}"}}"#,
@@ -273,7 +273,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-signed"}"#))
         .expect("build challenge request");
@@ -298,7 +298,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 
     let bad_signature_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"user-signed","challenge_id":"{}","signature":"{}"}}"#,
@@ -366,7 +366,7 @@ async fn rate_limits_auth_challenge_requests() {
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-rate-limit"}"#))
         .expect("build first challenge request");
@@ -379,7 +379,7 @@ async fn rate_limits_auth_challenge_requests() {
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-rate-limit"}"#))
         .expect("build second challenge request");
@@ -436,7 +436,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.1")
         .body(Body::from(r#"{"identity_id":"user-xff"}"#))
@@ -450,7 +450,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.1")
         .body(Body::from(r#"{"identity_id":"user-xff"}"#))
@@ -508,7 +508,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-real-ip", "198.51.100.2")
         .body(Body::from(r#"{"identity_id":"user-xri"}"#))
@@ -522,7 +522,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-real-ip", "198.51.100.2")
         .body(Body::from(r#"{"identity_id":"user-xri"}"#))
@@ -567,7 +567,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.20")
         .body(Body::from(r#"{"identity_id":"spray-user-a"}"#))
@@ -581,7 +581,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.20")
         .body(Body::from(r#"{"identity_id":"spray-user-b"}"#))
@@ -626,7 +626,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.30")
         .body(Body::from(
@@ -642,7 +642,7 @@ async fn rate_limits_auth_verify_source_even_when_identity_changes() {
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .header("x-forwarded-for", "198.51.100.30")
         .body(Body::from(
@@ -668,7 +668,7 @@ async fn verifies_auth_challenge_and_revokes_session() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-verify"}"#))
         .expect("build challenge request");
@@ -691,7 +691,7 @@ async fn verifies_auth_challenge_and_revokes_session() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"user-verify","challenge_id":"{}","signature":"{}"}}"#,
@@ -738,7 +738,7 @@ async fn verifies_auth_challenge_and_revokes_session() {
 
     let revoke_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/sessions/revoke")
+        .uri("/auth/sessions/revoke")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -784,7 +784,7 @@ async fn rejects_session_revoke_with_missing_csrf_header() {
 
     let revoke_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/sessions/revoke")
+        .uri("/auth/sessions/revoke")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -806,7 +806,7 @@ async fn rejects_session_revoke_with_mismatched_csrf_header() {
 
     let revoke_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/sessions/revoke")
+        .uri("/auth/sessions/revoke")
         .header("content-type", "application/json")
         .header(
             "cookie",
@@ -835,7 +835,7 @@ async fn rejects_invalid_signature_on_verify() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-invalid-signature"}"#))
         .expect("build challenge request");
@@ -855,7 +855,7 @@ async fn rejects_invalid_signature_on_verify() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"identity_id":"user-invalid-signature","challenge_id":"{}","signature":"{}"}}"#,
@@ -874,7 +874,7 @@ async fn validates_session_with_header() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/auth/sessions/validate")
+        .uri("/auth/sessions/validate")
         .header("authorization", format!("Bearer {}", tokens["usr-session"]))
         .body(Body::empty())
         .expect("build session validate request");
@@ -898,7 +898,7 @@ async fn rejects_replayed_challenge_verification() {
 
     let challenge_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/challenge")
+        .uri("/auth/challenge")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"identity_id":"user-replay"}"#))
         .expect("build challenge request");
@@ -926,14 +926,14 @@ async fn rejects_replayed_challenge_verification() {
 
     let request_a = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(verify_body.clone()))
         .expect("build verify request a");
 
     let request_b = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(verify_body))
         .expect("build verify request b");
@@ -989,7 +989,7 @@ async fn rejects_expired_challenge_verification() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-expired","challenge_id":"challenge-expired","signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"}"#,
@@ -1034,7 +1034,7 @@ async fn verify_rejects_malformed_signature() {
 
     let verify_request = Request::builder()
         .method("POST")
-        .uri("/v1/auth/verify")
+        .uri("/auth/verify")
         .header("content-type", "application/json")
         .body(Body::from(
             r#"{"identity_id":"user-bad-signature","challenge_id":"challenge-bad-signature","signature":"not-valid-base64"}"#,

@@ -11,6 +11,7 @@ Only project-specific constraints are defined here.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
 - Windows and Linux are both mandatory first-class targets for development, testing, packaging, and release planning; never plan Windows-only delivery or leave Linux as a later afterthought.
 - Tauri is the default desktop shell choice for release planning unless a later explicit decision replaces it.
+- HTTP API endpoints are internal/local app surfaces and must not use path version prefixes such as `/v1`; update all in-repo consumers and contracts atomically instead of adding compatibility aliases.
 
 ## 2) Editing Boundaries
 

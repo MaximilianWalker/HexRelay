@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 aligned DM documentation routing with server-node P2P envelope delivery and the global UX approval gate.
+- Latest meaningful change: 2026-05-11 removed HTTP endpoint path version prefixes from runtime contracts and internal API consumers.
 
 ## Purpose
 

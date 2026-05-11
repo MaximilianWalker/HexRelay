@@ -579,7 +579,7 @@ fn presence_device_cursor_key(identity_id: &str, device_id: &str) -> String {
 async fn resolve_watchers(state: &AppState, identity_id: &str) -> Vec<String> {
     let mut watchers = BTreeSet::from([identity_id.to_string()]);
     let url = format!(
-        "{}/v1/internal/presence/watchers/{}",
+        "{}/internal/presence/watchers/{}",
         state.api_base_url.trim_end_matches('/'),
         identity_id
     );
@@ -721,7 +721,7 @@ mod tests {
         body: serde_json::Value,
     ) -> String {
         let app = Router::new().route(
-            "/v1/internal/presence/watchers/usr-main",
+            "/internal/presence/watchers/usr-main",
             get(move || {
                 let body = body.clone();
                 async move { (status, Json(body)) }

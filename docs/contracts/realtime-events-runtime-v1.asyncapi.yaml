@@ -16,7 +16,7 @@ info:
     so limiter/cache behavior remains stable across process restarts and instances.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
-    `/v1/auth/sessions/validate`.
+    `/auth/sessions/validate`.
     Persisted server-channel message create, edit, and delete mutations in
     `services/api-rs` now bridge into this runtime surface through protected
     internal realtime publish routes, so successful REST mutations attempt to
@@ -35,7 +35,7 @@ info:
     browser clients must send `dm.device.proof` after `realtime.connected` because
     long-lived `device_secret` values are not accepted in websocket URLs. DM live
     dispatch and ack persistence require a verified websocket device proof matching
-    the profile-device secret registered through `/v1/dm/profile-devices/heartbeat`;
+    the profile-device secret registered through `/dm/profile-devices/heartbeat`;
     the secret is never echoed in public realtime events.
     API-accepted encrypted DM envelopes now bridge into realtime through a protected
     internal dispatch route. Connected recipient profile devices receive

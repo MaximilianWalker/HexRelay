@@ -6,7 +6,7 @@ async fn creates_and_redeems_multi_use_invite() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":2}"#))
@@ -27,7 +27,7 @@ async fn creates_and_redeems_multi_use_invite() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -44,7 +44,7 @@ async fn creates_and_redeems_multi_use_invite() {
 
     let second_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -65,7 +65,7 @@ async fn rejects_exhausted_one_time_invite() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"one_time"}"#))
@@ -86,7 +86,7 @@ async fn rejects_exhausted_one_time_invite() {
 
     let first_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -102,7 +102,7 @@ async fn rejects_exhausted_one_time_invite() {
 
     let second_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -129,7 +129,7 @@ async fn rejects_expired_invite() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(
@@ -157,7 +157,7 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":2}"#))
@@ -178,7 +178,7 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"mismatch-node"}}"#,
@@ -249,7 +249,7 @@ async fn rate_limits_invite_redeem_requests() {
 
     let first_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -265,7 +265,7 @@ async fn rate_limits_invite_redeem_requests() {
 
     let second_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites/redeem")
+        .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
             r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
@@ -285,7 +285,7 @@ async fn contact_invite_redeem_creates_pending_friend_request() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
@@ -307,7 +307,7 @@ async fn contact_invite_redeem_creates_pending_friend_request() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-target"]))
         .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
@@ -336,7 +336,7 @@ async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
@@ -355,7 +355,7 @@ async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
 
     let first_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-target"]))
         .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
@@ -373,7 +373,7 @@ async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
 
     let second_redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-target"]))
         .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
@@ -397,7 +397,7 @@ async fn contact_invite_redeem_rejects_blocked_pair() {
 
     let block_request = Request::builder()
         .method("POST")
-        .uri("/v1/users/block")
+        .uri("/users/block")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"target_identity_id":"usr-target"}"#))
@@ -411,7 +411,7 @@ async fn contact_invite_redeem_rejects_blocked_pair() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
@@ -432,7 +432,7 @@ async fn contact_invite_redeem_rejects_blocked_pair() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-target"]))
         .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
@@ -458,7 +458,7 @@ async fn rejects_invalid_invite_create_mode() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/invites")
+        .uri("/invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"forever"}"#))
@@ -484,7 +484,7 @@ async fn contact_invite_redeem_rejects_self_redeem() {
 
     let create_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites")
+        .uri("/contact-invites")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
@@ -505,7 +505,7 @@ async fn contact_invite_redeem_rejects_self_redeem() {
 
     let redeem_request = Request::builder()
         .method("POST")
-        .uri("/v1/contact-invites/redeem")
+        .uri("/contact-invites/redeem")
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
         .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))

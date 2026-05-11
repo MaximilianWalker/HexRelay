@@ -90,7 +90,7 @@ async fn lists_server_channel_messages_for_members_only() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=2",
+            "/servers/{}/channels/{}/messages?limit=2",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -131,7 +131,7 @@ async fn rejects_server_channel_listing_for_outsiders() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=2",
+            "/servers/{}/channels/{}/messages?limit=2",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -164,7 +164,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
     let list_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=2",
+            "/servers/{}/channels/{}/messages?limit=2",
             fixture.server_id, fixture.channel_id
         ))
         .body(Body::empty())
@@ -172,7 +172,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
     let create_request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header("content-type", "application/json")
@@ -183,7 +183,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
     let edit_request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header("content-type", "application/json")
@@ -194,7 +194,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
     let delete_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .body(Body::empty())
@@ -247,7 +247,7 @@ async fn returns_not_found_for_unknown_server_channel() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=2",
+            "/servers/{}/channels/{}/messages?limit=2",
             fixture.server_id, missing_channel_id
         ))
         .header(
@@ -367,9 +367,7 @@ async fn rejects_server_channel_message_create_when_channel_is_not_in_requested_
 
     let request = Request::builder()
         .method("POST")
-        .uri(format!(
-            "/v1/servers/{server_a}/channels/{channel_b}/messages"
-        ))
+        .uri(format!("/servers/{server_a}/channels/{channel_b}/messages"))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .header("content-type", "application/json")
         .body(Body::from(
@@ -431,7 +429,7 @@ async fn rejects_server_channel_message_patch_and_delete_when_channel_is_not_in_
     let patch_request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
+            "/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
         ))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .header("content-type", "application/json")
@@ -442,7 +440,7 @@ async fn rejects_server_channel_message_patch_and_delete_when_channel_is_not_in_
     let delete_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
+            "/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
         ))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())
@@ -486,7 +484,7 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
     let create_request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -501,7 +499,7 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
     let edit_request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -516,7 +514,7 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
     let delete_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -565,7 +563,7 @@ async fn paginates_server_channel_messages_by_channel_seq_cursor() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=1",
+            "/servers/{}/channels/{}/messages?limit=1",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -593,7 +591,7 @@ async fn paginates_server_channel_messages_by_channel_seq_cursor() {
     let second_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=1&cursor=2",
+            "/servers/{}/channels/{}/messages?limit=1&cursor=2",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -635,7 +633,7 @@ async fn rejects_server_channel_message_cursor_outside_storage_range() {
     let request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=1&cursor={}",
+            "/servers/{}/channels/{}/messages?limit=1&cursor={}",
             fixture.server_id,
             fixture.channel_id,
             u64::MAX
@@ -675,7 +673,7 @@ async fn creates_server_channel_message_with_reply_and_mentions() {
     let request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -746,7 +744,7 @@ async fn rejects_server_channel_message_with_cross_channel_reply_target() {
     let request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -786,7 +784,7 @@ async fn rejects_server_channel_message_with_non_member_mention() {
     let request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -826,7 +824,7 @@ async fn rejects_server_channel_message_with_invalid_mention_identity_format() {
     let request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -866,7 +864,7 @@ async fn normalizes_blank_reply_target_to_none_on_server_channel_create() {
     let request = Request::builder()
         .method("POST")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages",
+            "/servers/{}/channels/{}/messages",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -908,7 +906,7 @@ async fn author_can_edit_server_channel_message_and_replace_mentions() {
     let request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -958,7 +956,7 @@ async fn no_op_server_channel_edit_preserves_null_edited_at() {
     let request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.second_message_id
         ))
         .header(
@@ -997,7 +995,7 @@ async fn rejects_server_channel_edit_for_non_author_member() {
     let request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.second_message_id
         ))
         .header(
@@ -1034,7 +1032,7 @@ async fn rejects_server_channel_edit_for_deleted_message() {
     let delete_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -1053,7 +1051,7 @@ async fn rejects_server_channel_edit_for_deleted_message() {
     let edit_request = Request::builder()
         .method("PATCH")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -1093,7 +1091,7 @@ async fn soft_delete_server_channel_message_returns_tombstone_and_is_idempotent(
     let request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -1117,7 +1115,7 @@ async fn soft_delete_server_channel_message_returns_tombstone_and_is_idempotent(
     let repeat_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -1149,7 +1147,7 @@ async fn rejects_server_channel_delete_for_non_author_member() {
     let request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.second_message_id
         ))
         .header(
@@ -1186,7 +1184,7 @@ async fn deleted_server_channel_messages_remain_visible_as_tombstones() {
     let delete_request = Request::builder()
         .method("DELETE")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages/{}",
+            "/servers/{}/channels/{}/messages/{}",
             fixture.server_id, fixture.channel_id, fixture.first_message_id
         ))
         .header(
@@ -1205,7 +1203,7 @@ async fn deleted_server_channel_messages_remain_visible_as_tombstones() {
     let list_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{}/channels/{}/messages?limit=2",
+            "/servers/{}/channels/{}/messages?limit=2",
             fixture.server_id, fixture.channel_id
         ))
         .header(
@@ -1448,7 +1446,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let client = reqwest::Client::new();
     let create_response = client
         .post(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages"
         ))
         .bearer_auth(&member_token)
         .json(&serde_json::json!({
@@ -1481,7 +1479,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let edit_response = client
         .patch(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
         ))
         .bearer_auth(&member_token)
         .json(&serde_json::json!({
@@ -1509,7 +1507,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let no_op_edit_response = client
         .patch(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
         ))
         .bearer_auth(&member_token)
         .json(&serde_json::json!({
@@ -1537,7 +1535,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let delete_response = client
         .delete(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
         ))
         .bearer_auth(&member_token)
         .send()
@@ -1561,7 +1559,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let repeated_delete_response = client
         .delete(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages/{message_id}"
         ))
         .bearer_auth(&member_token)
         .send()
@@ -1640,7 +1638,7 @@ async fn server_channel_create_succeeds_when_realtime_dispatch_is_unreachable() 
 
     let create_response = reqwest::Client::new()
         .post(format!(
-            "{api_base_url}/v1/servers/{server_id}/channels/{channel_id}/messages"
+            "{api_base_url}/servers/{server_id}/channels/{channel_id}/messages"
         ))
         .bearer_auth(&tokens[&member_id])
         .json(&serde_json::json!({
@@ -1661,7 +1659,7 @@ async fn server_channel_create_succeeds_when_realtime_dispatch_is_unreachable() 
     let list_request = Request::builder()
         .method("GET")
         .uri(format!(
-            "/v1/servers/{server_id}/channels/{channel_id}/messages?limit=10"
+            "/servers/{server_id}/channels/{channel_id}/messages?limit=10"
         ))
         .header("authorization", format!("Bearer {}", tokens[&member_id]))
         .body(Body::empty())

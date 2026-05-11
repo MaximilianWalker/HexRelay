@@ -13,7 +13,7 @@ servers:
 security:
   - cookieAuth: []
 paths:
-  /v1/friends/requests:
+  /friends/requests:
     post:
       summary: Create friend request
       operationId: createFriendRequest
@@ -48,7 +48,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendRequestPage'
-  /v1/friends/requests/{request_id}/accept:
+  /friends/requests/{request_id}/accept:
     post:
       summary: Accept friend request
       operationId: acceptFriendRequest
@@ -63,7 +63,7 @@ paths:
                 $ref: '#/components/schemas/FriendEdge'
         '404':
           $ref: '#/components/responses/NotFound'
-  /v1/friends/requests/{request_id}/decline:
+  /friends/requests/{request_id}/decline:
     post:
       summary: Decline friend request
       operationId: declineFriendRequest
@@ -72,7 +72,7 @@ paths:
       responses:
         '204':
           description: Request declined
-  /v1/friends:
+  /friends:
     get:
       summary: List friends
       operationId: listFriends
@@ -86,7 +86,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FriendEdgePage'
-  /v1/friends/{user_id}/block:
+  /friends/{user_id}/block:
     post:
       summary: Block user
       operationId: blockUser
@@ -95,7 +95,7 @@ paths:
       responses:
         '204':
           description: User blocked
-  /v1/friends/{user_id}/mute:
+  /friends/{user_id}/mute:
     post:
       summary: Mute user
       operationId: muteUser
@@ -104,7 +104,7 @@ paths:
       responses:
         '204':
           description: User muted
-  /v1/contact-invites:
+  /contact-invites:
     post:
       summary: Create user contact invite token
       operationId: createContactInvite
@@ -121,7 +121,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactInvite'
-  /v1/contact-invites/redeem:
+  /contact-invites/redeem:
     post:
       summary: Redeem user contact invite token
       operationId: redeemContactInvite
@@ -140,7 +140,7 @@ paths:
                 $ref: '#/components/schemas/FriendRequest'
         '400':
           $ref: '#/components/responses/BadRequest'
-  /v1/discovery/users:
+  /discovery/users:
     get:
       summary: Query global/shared-server user discovery
       operationId: discoveryUsers
@@ -165,7 +165,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDiscoveryPage'
-  /v1/dm/privacy-policy:
+  /dm/privacy-policy:
     get:
       summary: Get user DM inbound policy
       operationId: getDmPolicy
@@ -192,7 +192,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmPolicy'
-  /v1/dm/threads:
+  /dm/threads:
     get:
       summary: List DM and group DM threads
       operationId: listDmThreads
@@ -211,7 +211,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DmThreadPage'
-  /v1/dm/threads/{thread_id}/messages:
+  /dm/threads/{thread_id}/messages:
     get:
       summary: List DM thread message history
       operationId: listDmThreadMessages
@@ -236,7 +236,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
-  /v1/guilds:
+  /guilds:
     post:
       summary: Create server (guild)
       operationId: createGuild
@@ -265,7 +265,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Guild'
-  /v1/guilds/{guild_id}/channels:
+  /guilds/{guild_id}/channels:
     post:
       summary: Create channel
       operationId: createChannel
@@ -284,7 +284,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Channel'
-  /v1/guilds/{guild_id}/channels/{channel_id}/messages:
+  /guilds/{guild_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages
       operationId: listChannelMessages
@@ -319,7 +319,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelMessage'
-  /v1/messages/{message_id}:
+  /messages/{message_id}:
     patch:
       summary: Edit server-channel message
       operationId: editChannelMessage
@@ -346,7 +346,7 @@ paths:
       responses:
         '204':
           description: Message deleted
-  /v1/messages/{message_id}/reply:
+  /messages/{message_id}/reply:
     post:
       summary: Reply to server-channel message
       operationId: replyChannelMessage
@@ -365,7 +365,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelMessage'
-  /v1/profile/public:
+  /profile/public:
     get:
       summary: Get signed public profile card
       operationId: getPublicProfile
@@ -392,7 +392,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicProfile'
-  /v1/profile/private:
+  /profile/private:
     get:
       summary: Get encrypted private profile capsule
       operationId: getPrivateProfile
@@ -419,7 +419,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PrivateProfileCapsule'
-  /v1/migration/export:
+  /migration/export:
     post:
       summary: Start full migration export
       operationId: migrationExport
@@ -436,7 +436,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MigrationJob'
-  /v1/migration/import:
+  /migration/import:
     post:
       summary: Start migration import and reconciliation
       operationId: migrationImport
@@ -453,7 +453,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MigrationJob'
-  /v1/migration/cutover:
+  /migration/cutover:
     post:
       summary: Revoke old sessions after successful migration
       operationId: migrationCutover
@@ -470,7 +470,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CutoverResult'
-  /v1/discovery/registry:
+  /discovery/registry:
     get:
       summary: Fetch signed discovery registry entries
       operationId: getRegistryEntries

@@ -141,7 +141,7 @@ pub async fn handle_dm_envelope_ack(
     }
 
     let url = format!(
-        "{}/v1/internal/dm/envelopes/ack",
+        "{}/internal/dm/envelopes/ack",
         state.api_base_url.trim_end_matches('/')
     );
     match state
@@ -231,7 +231,7 @@ pub async fn verify_dm_device_binding(
     correlation_id: Option<String>,
 ) -> (String, bool) {
     let url = format!(
-        "{}/v1/internal/dm/profile-devices/verify",
+        "{}/internal/dm/profile-devices/verify",
         state.api_base_url.trim_end_matches('/')
     );
     let response = state

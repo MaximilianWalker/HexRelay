@@ -113,7 +113,7 @@ async fn wait_for_api_readiness(api_base_url: &str) -> Result<(), String> {
 
     wait_for_api_endpoint(
         &client,
-        &format!("{api_base_url}/v1/auth/sessions/validate"),
+        &format!("{api_base_url}/auth/sessions/validate"),
         "api session validation readiness check",
         MAX_WAIT,
         RETRY_SLEEP,
@@ -173,7 +173,7 @@ mod tests {
 
         let app = Router::new()
             .route("/health", get(health))
-            .route("/v1/auth/sessions/validate", get(validate))
+            .route("/auth/sessions/validate", get(validate))
             .with_state(ApiReadinessStubState {
                 health_status,
                 validate_status,
