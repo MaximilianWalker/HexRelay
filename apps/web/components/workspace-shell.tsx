@@ -366,6 +366,7 @@ export function WorkspaceShell({
 
   const pinnedWorkspaceTabs = workspaceTabs.filter((tab) => tab.pinned);
   const regularWorkspaceTabs = workspaceTabs.filter((tab) => !tab.pinned);
+  const showRegularWorkspaceTabs = regularWorkspaceTabs.length > 0 || !collapsed;
   const workspaceTabSections = (
     <>
       {pinnedWorkspaceTabs.length > 0 ? (
@@ -373,9 +374,11 @@ export function WorkspaceShell({
           {renderWorkspaceTabs(pinnedWorkspaceTabs)}
         </div>
       ) : null}
-      <div className={styles.workspaceSection} role="group" aria-label="Workspace tabs">
-        {renderWorkspaceTabs(regularWorkspaceTabs, "Open a server or conversation to create a tab.")}
-      </div>
+      {showRegularWorkspaceTabs ? (
+        <div className={styles.workspaceSection} role="group" aria-label="Workspace tabs">
+          {renderWorkspaceTabs(regularWorkspaceTabs, "Open a server or conversation to create a tab.")}
+        </div>
+      ) : null}
     </>
   );
 

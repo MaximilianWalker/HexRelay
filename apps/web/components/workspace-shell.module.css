@@ -24,7 +24,7 @@
 .sidebar {
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 22px 16px;
+  padding: 22px 14px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -358,8 +358,18 @@
 }
 
 .collapsed .sidebar {
-  width: 72px;
+  width: 76px;
   padding: 14px 10px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.collapsed .sidebarPrimary,
+.collapsed .sidebar .workspaceSection,
+.collapsed .sidebarControls {
+  width: 52px;
+  box-sizing: border-box;
+  padding: 8px;
 }
 
 .collapsed .brand,
@@ -379,7 +389,39 @@
 }
 
 .collapsed .navLink {
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
   justify-content: center;
+  padding: 0;
+}
+
+.collapsed .topNav,
+.collapsed .workspaceTabs {
+  justify-items: center;
+}
+
+.collapsed .workspaceTab {
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.collapsed .workspaceTabActive {
+  box-shadow: none;
+}
+
+.collapsed .workspaceTabImage {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  border-radius: 8px;
+  font-size: 0.68rem;
 }
 
 .sidebarControls {
@@ -396,10 +438,12 @@
 .collapsed .sidebarControls {
   align-items: center;
   align-self: center;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .collapsed .frame {
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 76px 1fr;
 }
 
 .topbarMode.collapsed .frame {
@@ -420,10 +464,11 @@
   --content-surface: #fbfdff;
 
   min-width: 0;
-  padding: 22px;
+  padding: 22px 22px 22px 0;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 0;
+  filter: drop-shadow(0 16px 36px rgba(33, 84, 124, 0.1));
 }
 
 .visuallyHidden {
@@ -542,10 +587,14 @@
 .topbarMode.collapsed .profileSummary,
 .collapsed .sidebarControls .profileSummary {
   justify-content: center;
+  min-width: 0;
+  width: 36px;
 }
 
 .collapsed .sidebarControls .profileActions {
   flex-direction: column;
+  gap: 6px;
+  margin-left: 0;
 }
 
 .tabBar {
@@ -563,7 +612,6 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(231, 243, 252, 0.86)),
     rgba(255, 255, 255, 0.84);
   backdrop-filter: blur(6px);
-  box-shadow: 0 10px 28px rgba(33, 84, 124, 0.08);
   padding: 8px 10px 0;
 }
 
@@ -668,7 +716,6 @@ button.tab:focus-visible {
   border-radius: 0 0 16px 16px;
   background: var(--content-surface);
   backdrop-filter: blur(6px);
-  box-shadow: 0 16px 36px rgba(33, 84, 124, 0.1);
   padding: 16px;
 }
 
