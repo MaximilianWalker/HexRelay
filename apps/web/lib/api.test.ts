@@ -6,11 +6,15 @@ import {
   createContactInvite,
   createFriendRequest,
   createInvite,
+  createServerChannelMessage,
   catchUpDmFanout,
   declineFriendRequest,
   fetchDmPolicy,
   fetchContacts,
   fetchFriendRequests,
+  fetchServer,
+  fetchServerChannelMessages,
+  fetchServerChannels,
   fetchServers,
   fetchTestingProfiles,
   issueAuthChallenge,
@@ -113,6 +117,129 @@ describe("api auth transport", () => {
     expect(String(url)).toContain("favorites_only=true");
     expect(String(url)).toContain("unread_only=true");
     expect(String(url)).toContain("muted_only=true");
+  });
+
+  it("supports server workspace detail, channels, and message history endpoints", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: {
+              id: "fixture-server-atlas",
+              name: "Atlas Test Server",
+              unread: 2,
+              favorite: true,
+              muted: false,
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "fixture-channel-atlas-general",
+                name: "general",
+                kind: "text",
+                last_message_seq: 3,
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                message_id: "fixture-server-message-general-003",
+                channel_id: "fixture-channel-atlas-general",
+                author_id: "usr-test-carol",
+                channel_seq: 3,
+                content: "Reply confirmed, Bob.",
+                reply_to_message_id: "fixture-server-message-general-002",
+                mentions: ["usr-test-bob"],
+                created_at: "2026-05-04T11:12:00Z",
+                edited_at: null,
+                deleted_at: null,
+              },
+            ],
+            next_cursor: "3",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    const server = await fetchServer({ serverId: "fixture-server-atlas" });
+    const channels = await fetchServerChannels({ serverId: "fixture-server-atlas" });
+    const messages = await fetchServerChannelMessages({
+      serverId: "fixture-server-atlas",
+      channelId: "fixture-channel-atlas-general",
+      cursor: "3",
+      limit: 10,
+    });
+
+    expect(server.ok).toBe(true);
+    expect(channels.ok).toBe(true);
+    expect(messages.ok).toBe(true);
+    const [serverUrl, serverInit] = fetchMock.mock.calls[0] ?? [];
+    const [channelsUrl, channelsInit] = fetchMock.mock.calls[1] ?? [];
+    const [messagesUrl, messagesInit] = fetchMock.mock.calls[2] ?? [];
+    expect(String(serverUrl)).toContain("/servers/fixture-server-atlas");
+    expect(String(channelsUrl)).toContain("/servers/fixture-server-atlas/channels");
+    expect(String(messagesUrl)).toContain(
+      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+    );
+    expect(String(messagesUrl)).toContain("cursor=3");
+    expect(String(messagesUrl)).toContain("limit=10");
+    expect(serverInit?.method).toBe("GET");
+    expect(channelsInit?.method).toBe("GET");
+    expect(messagesInit?.method).toBe("GET");
+  });
+
+  it("sends csrf and message payload for server channel message creation", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message_id: "scm-created",
+          channel_id: "fixture-channel-atlas-general",
+          author_id: "usr-test-alice",
+          channel_seq: 4,
+          content: "Checking in with Bob.",
+          reply_to_message_id: "fixture-server-message-general-003",
+          mentions: ["usr-test-bob"],
+          created_at: "2026-05-04T11:13:00Z",
+          edited_at: null,
+          deleted_at: null,
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await createServerChannelMessage({
+      serverId: "fixture-server-atlas",
+      channelId: "fixture-channel-atlas-general",
+      content: "Checking in with Bob.",
+      replyToMessageId: "fixture-server-message-general-003",
+      mentionIdentityIds: ["usr-test-bob"],
+    });
+
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain(
+      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+    );
+    expect(init?.method).toBe("POST");
+    const headers = new Headers(init?.headers ?? {});
+    expect(headers.get("x-csrf-token")).toBe("csrf-123");
+    expect(headers.get("content-type")).toBe("application/json");
+    expect(init?.body).toBe(
+      '{"content":"Checking in with Bob.","reply_to_message_id":"fixture-server-message-general-003","mention_identity_ids":["usr-test-bob"]}',
+    );
   });
 
   it("sends content-type and csrf for friend request creation", async () => {

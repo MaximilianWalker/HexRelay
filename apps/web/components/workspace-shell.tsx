@@ -57,6 +57,13 @@ type TabItem = {
   id: string;
   label: string;
   icon?: typeof IconServer2;
+  onSelect?: () => void;
+};
+
+type WorkspaceTabMeta = {
+  label?: string;
+  imageLabel?: string;
+  unread?: number;
 };
 
 const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
@@ -69,6 +76,14 @@ type ProfileSummary = {
 
 function getTabIcon(tab: WorkspaceTab): typeof IconServer2 {
   return tab.kind === "dm" ? IconMessageCircle : IconServer2;
+}
+
+function normalizeUnread(value: number | undefined): number {
+  if (!Number.isFinite(value) || !value || value <= 0) {
+    return 0;
+  }
+
+  return Math.floor(value);
 }
 
 function getInitials(name: string): string {
@@ -117,6 +132,7 @@ export function WorkspaceShell({
   tabs,
   activeTabId,
   tabActions,
+  workspaceTab,
   children,
 }: {
   title: string;
@@ -124,6 +140,7 @@ export function WorkspaceShell({
   tabs: TabItem[];
   activeTabId: string;
   tabActions?: React.ReactNode;
+  workspaceTab?: WorkspaceTabMeta;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -139,7 +156,19 @@ export function WorkspaceShell({
     () => "pinned",
   );
   const workspaceTabs = useSyncExternalStore(subscribeWorkspaceTabs, readWorkspaceTabsSnapshot, () => EMPTY_WORKSPACE_TABS);
-  const routeTab = useMemo(() => routeToWorkspaceTab(pathname), [pathname]);
+  const routeTab = useMemo(() => {
+    const tab = routeToWorkspaceTab(pathname);
+    if (!tab) {
+      return null;
+    }
+
+    return {
+      ...tab,
+      label: workspaceTab?.label ?? tab.label,
+      imageLabel: workspaceTab?.imageLabel ?? workspaceTab?.label ?? tab.label,
+      unread: normalizeUnread(workspaceTab?.unread),
+    };
+  }, [pathname, workspaceTab?.imageLabel, workspaceTab?.label, workspaceTab?.unread]);
 
   useEffect(() => {
     if (routeTab) {
@@ -260,12 +289,19 @@ export function WorkspaceShell({
     </>
   );
 
-  const workspaceTabItems =
-    workspaceTabs.length > 0 ? (
+  function renderWorkspaceTabs(tabsToRender: WorkspaceTab[], emptyMessage?: string): React.ReactNode {
+    if (tabsToRender.length === 0) {
+      return emptyMessage ? <p className={styles.emptyTabs}>{emptyMessage}</p> : null;
+    }
+
+    return (
       <div className={styles.workspaceTabs} role="list">
-        {workspaceTabs.map((tab) => {
+        {tabsToRender.map((tab) => {
           const TabIcon = getTabIcon(tab);
           const active = routeTab?.id === tab.id;
+          const unread = normalizeUnread(tab.unread);
+          const imageLabel = tab.imageLabel ?? tab.label;
+          const isServer = tab.kind === "server";
 
           return (
             <div
@@ -281,40 +317,70 @@ export function WorkspaceShell({
                 className={styles.workspaceTabLink}
                 href={tab.href}
               >
-                <TabIcon className={styles.workspaceTabIcon} aria-hidden="true" />
+                {isServer ? (
+                  <span className={styles.workspaceTabImage} aria-hidden="true">
+                    {getInitials(imageLabel)}
+                  </span>
+                ) : (
+                  <TabIcon className={styles.workspaceTabIcon} aria-hidden="true" />
+                )}
                 <span className={styles.workspaceTabLabel}>{tab.label}</span>
               </Link>
-              <button
-                aria-label={tab.pinned ? `Unpin ${tab.label}` : `Pin ${tab.label}`}
-                className={styles.workspaceTabAction}
-                onClick={() => toggleWorkspaceTabPinned(tab.id)}
-                title={tab.pinned ? "Unpin tab" : "Pin tab"}
-                type="button"
-              >
-                {tab.pinned ? (
-                  <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
-                ) : (
-                  <IconPinnedOff className={styles.workspaceTabIcon} aria-hidden="true" />
-                )}
-              </button>
-              {!tab.pinned ? (
+              <div className={styles.workspaceTabActions}>
+                {isServer && unread > 0 ? (
+                  <span className={styles.workspaceTabBadge} aria-label={`${unread} unread notifications`}>
+                    {unread}
+                  </span>
+                ) : null}
                 <button
-                  aria-label={`Close ${tab.label}`}
+                  aria-label={tab.pinned ? `Unpin ${tab.label}` : `Pin ${tab.label}`}
                   className={styles.workspaceTabAction}
-                  onClick={() => handleCloseWorkspaceTab(tab)}
-                  title="Close tab"
+                  onClick={() => toggleWorkspaceTabPinned(tab.id)}
+                  title={tab.pinned ? "Unpin tab" : "Pin tab"}
                   type="button"
                 >
-                  <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
+                  {tab.pinned ? (
+                    <IconPinnedOff className={styles.workspaceTabIcon} aria-hidden="true" />
+                  ) : (
+                    <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
+                  )}
                 </button>
-              ) : null}
+                {!tab.pinned ? (
+                  <button
+                    aria-label={`Close ${tab.label}`}
+                    className={styles.workspaceTabAction}
+                    onClick={() => handleCloseWorkspaceTab(tab)}
+                    title="Close tab"
+                    type="button"
+                  >
+                    <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
             </div>
           );
         })}
       </div>
-    ) : (
-      <p className={styles.emptyTabs}>Open a server or conversation to create a tab.</p>
     );
+  }
+
+  const pinnedWorkspaceTabs = workspaceTabs.filter((tab) => tab.pinned);
+  const regularWorkspaceTabs = workspaceTabs.filter((tab) => !tab.pinned);
+  const showRegularWorkspaceTabs = regularWorkspaceTabs.length > 0 || !collapsed;
+  const workspaceTabSections = (
+    <>
+      {pinnedWorkspaceTabs.length > 0 ? (
+        <div className={`${styles.workspaceSection} ${styles.workspaceSectionPinned}`} role="group" aria-label="Pinned tabs">
+          {renderWorkspaceTabs(pinnedWorkspaceTabs)}
+        </div>
+      ) : null}
+      {showRegularWorkspaceTabs ? (
+        <div className={styles.workspaceSection} role="group" aria-label="Workspace tabs">
+          {renderWorkspaceTabs(regularWorkspaceTabs, "Open a server or conversation to create a tab.")}
+        </div>
+      ) : null}
+    </>
+  );
 
   return (
     <main className={`${styles.shell} ${isTopbar ? styles.topbarMode : ""} ${collapsed ? styles.collapsed : ""}`}>
@@ -328,9 +394,8 @@ export function WorkspaceShell({
                 {navLinks}
               </nav>
             </div>
-            <div className={styles.workspaceSection} role="group" aria-label="Workspace tabs">
-              <p className={styles.sectionTitle}>Tabs</p>
-              {workspaceTabItems}
+            <div className={styles.workspaceStack} role="group" aria-label="Workspace tabs">
+              {workspaceTabSections}
             </div>
             <div className={styles.topbarControls}>
               {profileControls}
@@ -354,7 +419,9 @@ export function WorkspaceShell({
               </nav>
             </div>
 
-            <div className={styles.workspaceSection}>{workspaceTabItems}</div>
+            <div className={styles.workspaceStack} role="group" aria-label="Workspace tabs">
+              {workspaceTabSections}
+            </div>
             <div className={styles.sidebarControls}>
               {profileControls}
               <button
@@ -383,12 +450,25 @@ export function WorkspaceShell({
             <div className={styles.tabs}>
               {tabs.map((tab) => {
                 const TabIcon = tab.icon;
+                const tabClassName = `${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`;
+
+                if (tab.onSelect) {
+                  return (
+                    <button
+                      aria-pressed={tab.id === activeTabId}
+                      className={tabClassName}
+                      key={tab.id}
+                      onClick={tab.onSelect}
+                      type="button"
+                    >
+                      {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
+                      <span className={styles.tabLabel}>{tab.label}</span>
+                    </button>
+                  );
+                }
 
                 return (
-                  <div
-                    className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`}
-                    key={tab.id}
-                  >
+                  <div className={tabClassName} key={tab.id}>
                     {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
                     <span className={styles.tabLabel}>{tab.label}</span>
                   </div>
