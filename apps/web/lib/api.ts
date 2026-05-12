@@ -57,6 +57,39 @@ export type TestingSessionResponse = {
   csrf_token: string;
 };
 
+export type ServerSummary = {
+  id: string;
+  name: string;
+  unread: number;
+  favorite: boolean;
+  muted: boolean;
+};
+
+export type ServerChannelSummary = {
+  id: string;
+  name: string;
+  kind: string;
+  last_message_seq: number;
+};
+
+export type ServerChannelMessage = {
+  message_id: string;
+  channel_id: string;
+  author_id: string;
+  channel_seq: number;
+  content: string;
+  reply_to_message_id?: string | null;
+  mentions: string[];
+  created_at: string;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+};
+
+export type ServerChannelMessagePage = {
+  items: ServerChannelMessage[];
+  next_cursor?: string | null;
+};
+
 const CSRF_COOKIE = "hexrelay_csrf";
 const CSRF_STORAGE_KEY = "hexrelay.csrf.runtime.v1";
 
@@ -275,13 +308,7 @@ export async function fetchServers(input: {
   mutedOnly?: boolean;
 }): Promise<
   ApiResult<{
-    items: Array<{
-      id: string;
-      name: string;
-      unread: number;
-      favorite: boolean;
-      muted: boolean;
-    }>;
+    items: ServerSummary[];
   }>
 > {
   const params = new URLSearchParams();
@@ -301,6 +328,80 @@ export async function fetchServers(input: {
   const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/servers?${params.toString()}`,
     { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function fetchServer(input: {
+  serverId: string;
+}): Promise<ApiResult<{ item: ServerSummary }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(input.serverId)}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function fetchServerChannels(input: {
+  serverId: string;
+}): Promise<ApiResult<{ items: ServerChannelSummary[] }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(input.serverId)}/channels`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function fetchServerChannelMessages(input: {
+  serverId: string;
+  channelId: string;
+  cursor?: string;
+  limit?: number;
+}): Promise<ApiResult<ServerChannelMessagePage>> {
+  const params = new URLSearchParams();
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
+  }
+
+  const query = params.toString();
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(
+      input.serverId,
+    )}/channels/${encodeURIComponent(input.channelId)}/messages${query ? `?${query}` : ""}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function createServerChannelMessage(input: {
+  serverId: string;
+  channelId: string;
+  content: string;
+  replyToMessageId?: string | null;
+  mentionIdentityIds?: string[];
+}): Promise<ApiResult<ServerChannelMessage>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(
+      input.serverId,
+    )}/channels/${encodeURIComponent(input.channelId)}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        content: input.content,
+        reply_to_message_id: input.replyToMessageId,
+        mention_identity_ids: input.mentionIdentityIds ?? [],
+      }),
+    },
   );
 
   return parseResponse(response);
