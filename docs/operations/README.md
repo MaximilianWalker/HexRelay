@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-12
 - Source of truth: `docs/operations/README.md`
 
 ## Quick Context
 
 - Primary edit location for operations-document topology and process pointers.
 - Detailed contributor workflow lives in `docs/operations/contributor-guide.md`.
-- Latest meaningful change: 2026-05-11 added the private mesh bootstrap operator guide, app-mediated dedicated-server administration boundary, node capability contract, and two-node HTTP forwarding smoke pointer.
+- Latest meaningful change: 2026-05-12 added the recurring quality audit ledger index and automation handoff pointer.
 
 ## Purpose
 
@@ -35,4 +35,5 @@
 - Runtime config reference: `docs/reference/runtime-config-reference.md`
 - Local runtime testing plan: `docs/planning/local-runtime-testing-plan.md`
 - Readiness corrections log: `docs/operations/readiness-corrections-log.md`
+- Quality audit ledger index: `docs/operations/quality-audits/README.md`
 - Migration validation template: `docs/operations/migration-validation-template.md`

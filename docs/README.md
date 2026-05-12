@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-12 removed project-owned API/realtime versioning artifacts and retired the legacy REST compatibility alias.
+- Latest meaningful change: 2026-05-12 added recurring quality audit ledgers and exempted their generated ledger edits from docs-index freshness churn.
 
 ## Purpose
 
@@ -58,6 +58,7 @@
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |
+| Recurring quality audit ledgers | `docs/operations/quality-audits/README.md` | Maintainers | Quality audit topic list, status model, rotation policy, or audit ledger protocol changes |
 | MVP requirement-to-evidence verification | `docs/testing/01-mvp-verification-matrix.md` | Delivery/QA maintainers | Verification mapping, evidence format, or validator rules change |
 | Observability evidence template | `docs/testing/observability-evidence-template.md` | Delivery/QA maintainers | Observability evidence format, provenance fields, or SLO reporting requirements change |
 | Crypto profile conformance verification | `docs/testing/crypto-conformance-checklist.md` | QA/core maintainers | Crypto profile requirement, verification steps, or evidence expectations change |
@@ -78,7 +79,7 @@
 
 ## Lightweight Governance
 
-- If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
+- If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` or recurring ledger output under `docs/operations/quality-audits/**` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
 - If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer, except when the old path itself preserves retired project-owned API/realtime versioning or a legacy internal compatibility alias.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
@@ -120,6 +121,7 @@
 - `docs/operations/local-runtime-testing-quickstart.md`
 - `docs/operations/dev-prerequisites.md`
 - `docs/operations/readiness-corrections-log.md`
+- `docs/operations/quality-audits/README.md`
 - `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/local-runtime-testing-plan.md`
