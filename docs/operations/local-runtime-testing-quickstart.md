@@ -57,8 +57,8 @@ npm run stop -- --runtime-profile single
 5. Set local signing values in `services/api-rs/.env` if they are missing.
 
 ```text
-API_SESSION_SIGNING_KEYS=v1:hexrelay-dev-signing-key-change-me
-API_SESSION_SIGNING_KEY_ID=v1
+API_SESSION_SIGNING_KEYS=primary:hexrelay-dev-signing-key-change-me
+API_SESSION_SIGNING_KEY_ID=primary
 ```
 
 6. Enable dev testing only for local fixture/session UI flows.

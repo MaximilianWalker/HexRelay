@@ -222,14 +222,14 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
     let state = AppState::new(
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
-        "v1".to_string(),
+        "primary".to_string(),
         Vec::new(),
         "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
         "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
-            "v1".to_string(),
+            "primary".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
         )]),
         None,
@@ -279,13 +279,13 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
         .await
         .expect("redis connection");
     let _: () = redis::cmd("SET")
-        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(format!("presence:snapshot:{accepted}"))
         .arg(r#"{"status":"online"}"#)
         .query_async(&mut redis)
         .await
         .expect("set accepted presence snapshot");
     let _: () = redis::cmd("SET")
-        .arg(format!("presence:v1:snapshot:{pending}"))
+        .arg(format!("presence:snapshot:{pending}"))
         .arg(r#"{"status":"online"}"#)
         .query_async(&mut redis)
         .await
@@ -326,8 +326,8 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
     assert_eq!(pending_item["pending_request"], true);
 
     let _: () = redis::cmd("DEL")
-        .arg(format!("presence:v1:snapshot:{accepted}"))
-        .arg(format!("presence:v1:snapshot:{pending}"))
+        .arg(format!("presence:snapshot:{accepted}"))
+        .arg(format!("presence:snapshot:{pending}"))
         .query_async(&mut redis)
         .await
         .expect("clear presence snapshots");
@@ -348,14 +348,14 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
     let state = AppState::new(
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
-        "v1".to_string(),
+        "primary".to_string(),
         Vec::new(),
         "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
         "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
-            "v1".to_string(),
+            "primary".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
         )]),
         None,
@@ -394,7 +394,7 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
         .get_multiplexed_tokio_connection()
         .await
         .expect("redis connection");
-    let presence_key = format!("presence:v1:snapshot:{accepted}");
+    let presence_key = format!("presence:snapshot:{accepted}");
     for (status, seq) in [("online", 1_u64), ("offline", 2_u64), ("online", 3_u64)] {
         let payload = serde_json::json!({
             "status": status,
@@ -458,14 +458,14 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
     let api_state = AppState::new(
         TEST_NODE_FINGERPRINT.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
-        "v1".to_string(),
+        "primary".to_string(),
         Vec::new(),
         "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
         "hexrelay-dev-presence-watcher-token-change-me".to_string(),
         Some(redis_client.clone()),
         "http://127.0.0.1:8081".to_string(),
         BTreeMap::from([(
-            "v1".to_string(),
+            "primary".to_string(),
             "hexrelay-dev-signing-key-change-me".to_string(),
         )]),
         None,
@@ -546,14 +546,14 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
         .await
         .expect("redis connection");
     let _: () = redis::cmd("DEL")
-        .arg(format!("presence:v1:snapshot:{accepted}"))
-        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
-        .arg(format!("presence:v1:watcher_stream_head:{actor}"))
+        .arg(format!("presence:snapshot:{accepted}"))
+        .arg(format!("presence:watcher_stream_log:{actor}"))
+        .arg(format!("presence:watcher_stream_head:{actor}"))
         .arg(format!(
-            "presence:v1:watcher_device_cursor:{actor}:device-primary"
+            "presence:watcher_device_cursor:{actor}:device-primary"
         ))
-        .arg(format!("presence:v1:count:{accepted}"))
-        .arg(format!("presence:v1:seq:{accepted}"))
+        .arg(format!("presence:count:{accepted}"))
+        .arg(format!("presence:seq:{accepted}"))
         .query_async(&mut redis)
         .await
         .expect("clear cross-service presence keys");
@@ -561,12 +561,12 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
     publish_online_if_needed(&realtime_state, &accepted).await;
 
     let snapshot_raw: String = redis::cmd("GET")
-        .arg(format!("presence:v1:snapshot:{accepted}"))
+        .arg(format!("presence:snapshot:{accepted}"))
         .query_async(&mut redis)
         .await
         .expect("read realtime-written snapshot");
     let replay_entries: Vec<String> = redis::cmd("LRANGE")
-        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
+        .arg(format!("presence:watcher_stream_log:{actor}"))
         .arg(0)
         .arg(-1)
         .query_async(&mut redis)
@@ -622,14 +622,14 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
     assert_eq!(accepted_item["status"], "online");
 
     let _: () = redis::cmd("DEL")
-        .arg(format!("presence:v1:snapshot:{accepted}"))
-        .arg(format!("presence:v1:watcher_stream_log:{actor}"))
-        .arg(format!("presence:v1:watcher_stream_head:{actor}"))
+        .arg(format!("presence:snapshot:{accepted}"))
+        .arg(format!("presence:watcher_stream_log:{actor}"))
+        .arg(format!("presence:watcher_stream_head:{actor}"))
         .arg(format!(
-            "presence:v1:watcher_device_cursor:{actor}:device-primary"
+            "presence:watcher_device_cursor:{actor}:device-primary"
         ))
-        .arg(format!("presence:v1:count:{accepted}"))
-        .arg(format!("presence:v1:seq:{accepted}"))
+        .arg(format!("presence:count:{accepted}"))
+        .arg(format!("presence:seq:{accepted}"))
         .query_async(&mut redis)
         .await
         .expect("clear cross-service presence keys");

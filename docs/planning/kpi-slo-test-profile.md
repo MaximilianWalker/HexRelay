@@ -33,7 +33,7 @@
 
 ## Related Documents
 
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/planning/local-runtime-testing-plan.md`
 - `docs/planning/turn-nat-test-profile.md`
 - `docs/planning/iterations/03-sprint-board.md`

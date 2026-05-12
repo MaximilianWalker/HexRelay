@@ -1,12 +1,12 @@
 asyncapi: 3.0.0
-id: urn:hexrelay:contracts:realtime-events:v1
+id: urn:hexrelay:contracts:realtime-events
 info:
   title: HexRelay Realtime Events Contract
-  version: 0.3.0
+  version: unversioned
   description: |
     Target-state realtime event contract baseline for Iteration 2 and Iteration 3.
     This file may include events not yet implemented in current runtime routing.
-    Use `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` for current
+    Use `docs/contracts/realtime-events-runtime.asyncapi.yaml` for current
     realtime runtime behavior.
     Target-state DM events carry E2EE envelopes only. Shared servers/message
     nodes fan out ciphertext envelopes and minimal delivery metadata, while DM
@@ -22,209 +22,208 @@ channels:
     address: presence.updated
     description: User presence transition event.
     messages:
-      presenceUpdatedV1:
-        $ref: '#/components/messages/PresenceUpdatedV1'
+      presenceUpdated:
+        $ref: '#/components/messages/PresenceUpdated'
   dmMessageCreated:
     address: dm.message.created
     description: Node/server-routed E2EE DM envelope creation event.
     messages:
-      dmMessageCreatedV1:
-        $ref: '#/components/messages/DmMessageCreatedV1'
+      dmMessageCreated:
+        $ref: '#/components/messages/DmMessageCreated'
   dmEnvelopeDispatched:
     address: dm.envelope.dispatched
     description: Message-node dispatch of a ciphertext DM envelope to one target profile device.
     messages:
-      dmEnvelopeDispatchedV1:
-        $ref: '#/components/messages/DmEnvelopeDispatchedV1'
+      dmEnvelopeDispatched:
+        $ref: '#/components/messages/DmEnvelopeDispatched'
   dmEnvelopeAck:
     address: dm.envelope.ack
     description: Recipient profile-device acknowledgement for a ciphertext DM envelope.
     messages:
-      dmEnvelopeAckV1:
-        $ref: '#/components/messages/DmEnvelopeAckV1'
+      dmEnvelopeAck:
+        $ref: '#/components/messages/DmEnvelopeAck'
   dmDeliveryUpdated:
     address: dm.delivery.updated
     description: Delivery-state update derived from durable acceptance, dispatch attempts, and device acknowledgements.
     messages:
-      dmDeliveryUpdatedV1:
-        $ref: '#/components/messages/DmDeliveryUpdatedV1'
+      dmDeliveryUpdated:
+        $ref: '#/components/messages/DmDeliveryUpdated'
   dmMessageRead:
     address: dm.message.read
     description: Explicit DM read receipt or reader-profile read-state sync event, separate from envelope delivery acknowledgement.
     messages:
-      dmMessageReadV1:
-        $ref: '#/components/messages/DmMessageReadV1'
+      dmMessageRead:
+        $ref: '#/components/messages/DmMessageRead'
   callStateChanged:
     address: call.state.changed
     description: Voice/call lifecycle state transition event.
     messages:
-      callStateChangedV1:
-        $ref: '#/components/messages/CallStateChangedV1'
+      callStateChanged:
+        $ref: '#/components/messages/CallStateChanged'
   callSignalOffer:
     address: call.signal.offer
     description: Offer signaling message for call/session establishment.
     messages:
-      callSignalOfferV1:
-        $ref: '#/components/messages/CallSignalOfferV1'
+      callSignalOffer:
+        $ref: '#/components/messages/CallSignalOffer'
   callSignalAnswer:
     address: call.signal.answer
     description: Answer signaling message for call/session establishment.
     messages:
-      callSignalAnswerV1:
-        $ref: '#/components/messages/CallSignalAnswerV1'
+      callSignalAnswer:
+        $ref: '#/components/messages/CallSignalAnswer'
   callSignalIceCandidate:
     address: call.signal.ice_candidate
     description: ICE candidate exchange event.
     messages:
-      callSignalIceCandidateV1:
-        $ref: '#/components/messages/CallSignalIceCandidateV1'
+      callSignalIceCandidate:
+        $ref: '#/components/messages/CallSignalIceCandidate'
   screenshareStateChanged:
     address: screenshare.state.changed
     description: Screen-share lifecycle transition event.
     messages:
-      screenshareStateChangedV1:
-        $ref: '#/components/messages/ScreenShareStateChangedV1'
+      screenshareStateChanged:
+        $ref: '#/components/messages/ScreenShareStateChanged'
   channelMessageCreated:
     address: channel.message.created
     description: Server-channel message creation event for guild/community channels.
     messages:
-      channelMessageCreatedV1:
-        $ref: '#/components/messages/ChannelMessageCreatedV1'
+      channelMessageCreated:
+        $ref: '#/components/messages/ChannelMessageCreated'
   channelMessageUpdated:
     address: channel.message.updated
     description: Server-channel message edit event.
     messages:
-      channelMessageUpdatedV1:
-        $ref: '#/components/messages/ChannelMessageUpdatedV1'
+      channelMessageUpdated:
+        $ref: '#/components/messages/ChannelMessageUpdated'
   channelMessageDeleted:
     address: channel.message.deleted
     description: Server-channel message deletion event.
     messages:
-      channelMessageDeletedV1:
-        $ref: '#/components/messages/ChannelMessageDeletedV1'
+      channelMessageDeleted:
+        $ref: '#/components/messages/ChannelMessageDeleted'
 operations:
   receivePresenceUpdated:
     action: receive
     channel:
       $ref: '#/channels/presenceUpdated'
     messages:
-      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
+      - $ref: '#/channels/presenceUpdated/messages/presenceUpdated'
   receiveDmMessageCreated:
     action: receive
     channel:
       $ref: '#/channels/dmMessageCreated'
     messages:
-      - $ref: '#/channels/dmMessageCreated/messages/dmMessageCreatedV1'
+      - $ref: '#/channels/dmMessageCreated/messages/dmMessageCreated'
   receiveDmEnvelopeDispatched:
     action: receive
     channel:
       $ref: '#/channels/dmEnvelopeDispatched'
     messages:
-      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatchedV1'
+      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatched'
   sendDmEnvelopeAck:
     action: send
     channel:
       $ref: '#/channels/dmEnvelopeAck'
     messages:
-      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAckV1'
+      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAck'
   receiveDmDeliveryUpdated:
     action: receive
     channel:
       $ref: '#/channels/dmDeliveryUpdated'
     messages:
-      - $ref: '#/channels/dmDeliveryUpdated/messages/dmDeliveryUpdatedV1'
+      - $ref: '#/channels/dmDeliveryUpdated/messages/dmDeliveryUpdated'
   sendDmMessageRead:
     action: send
     channel:
       $ref: '#/channels/dmMessageRead'
     messages:
-      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageRead'
   receiveDmMessageRead:
     action: receive
     channel:
       $ref: '#/channels/dmMessageRead'
     messages:
-      - $ref: '#/channels/dmMessageRead/messages/dmMessageReadV1'
+      - $ref: '#/channels/dmMessageRead/messages/dmMessageRead'
   receiveCallStateChanged:
     action: receive
     channel:
       $ref: '#/channels/callStateChanged'
     messages:
-      - $ref: '#/channels/callStateChanged/messages/callStateChangedV1'
+      - $ref: '#/channels/callStateChanged/messages/callStateChanged'
   receiveChannelMessageCreated:
     action: receive
     channel:
       $ref: '#/channels/channelMessageCreated'
     messages:
-      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreated'
   receiveChannelMessageUpdated:
     action: receive
     channel:
       $ref: '#/channels/channelMessageUpdated'
     messages:
-      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
+      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdated'
   receiveChannelMessageDeleted:
     action: receive
     channel:
       $ref: '#/channels/channelMessageDeleted'
     messages:
-      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
+      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeleted'
   receiveCallSignalOffer:
     action: receive
     channel:
       $ref: '#/channels/callSignalOffer'
     messages:
-      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOffer'
   receiveCallSignalAnswer:
     action: receive
     channel:
       $ref: '#/channels/callSignalAnswer'
     messages:
-      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswer'
   receiveCallSignalIceCandidate:
     action: receive
     channel:
       $ref: '#/channels/callSignalIceCandidate'
     messages:
-      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidate'
   receiveScreenShareStateChanged:
     action: receive
     channel:
       $ref: '#/channels/screenshareStateChanged'
     messages:
-      - $ref: '#/channels/screenshareStateChanged/messages/screenshareStateChangedV1'
+      - $ref: '#/channels/screenshareStateChanged/messages/screenshareStateChanged'
   sendCallSignalOffer:
     action: send
     channel:
       $ref: '#/channels/callSignalOffer'
     messages:
-      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOffer'
   sendCallSignalAnswer:
     action: send
     channel:
       $ref: '#/channels/callSignalAnswer'
     messages:
-      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswer'
   sendCallSignalIceCandidate:
     action: send
     channel:
       $ref: '#/channels/callSignalIceCandidate'
     messages:
-      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidate'
 components:
   messages:
-    PresenceUpdatedV1:
-      name: PresenceUpdatedV1
+    PresenceUpdated:
+      name: PresenceUpdated
       title: Presence Updated
       summary: Published when a user's presence changes.
       payload:
-        $ref: '#/components/schemas/PresenceUpdatedEventV1'
+        $ref: '#/components/schemas/PresenceUpdatedEvent'
       examples:
         - name: online
           payload:
             event_id: 8d08fdf4-8de6-4f8e-9dc6-64eb98508f6f
             event_type: presence.updated
-            event_version: 1
             occurred_at: 2026-03-04T14:52:00Z
             correlation_id: 721be58b-65f0-43fd-bec8-3f8671b3d5c2
             producer: realtime-gateway
@@ -233,18 +232,17 @@ components:
               status: online
               updated_at: 2026-03-04T14:52:00Z
               presence_seq: 120
-    DmMessageCreatedV1:
-      name: DmMessageCreatedV1
+    DmMessageCreated:
+      name: DmMessageCreated
       title: DM Message Created
       summary: Published when a new node-routed DM envelope is created.
       payload:
-        $ref: '#/components/schemas/DmMessageCreatedEventV1'
+        $ref: '#/components/schemas/DmMessageCreatedEvent'
       examples:
         - name: encrypted_message_node
           payload:
             event_id: be5468a6-bb4e-4e74-bec2-6f84e81226b1
             event_type: dm.message.created
-            event_version: 1
             occurred_at: 2026-03-04T14:52:01Z
             correlation_id: adfd8d5c-3b7f-474f-8f02-8ba62f33f5c6
             producer: dm-message-node
@@ -257,18 +255,17 @@ components:
               key_id: dm-key-018
               thread_seq: 401
               transport_scope: encrypted_envelope_node
-    DmEnvelopeDispatchedV1:
-      name: DmEnvelopeDispatchedV1
+    DmEnvelopeDispatched:
+      name: DmEnvelopeDispatched
       title: DM Envelope Dispatched
       summary: Published to a recipient device when a message node dispatches an accepted ciphertext envelope.
       payload:
-        $ref: '#/components/schemas/DmEnvelopeDispatchedEventV1'
+        $ref: '#/components/schemas/DmEnvelopeDispatchedEvent'
       examples:
         - name: dispatched_to_profile_device
           payload:
             event_id: 2a5e37f2-4d4c-48f7-a35a-3b5fe6eae91d
             event_type: dm.envelope.dispatched
-            event_version: 1
             occurred_at: 2026-05-08T15:00:00Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
             producer: dm-message-node
@@ -284,18 +281,17 @@ components:
               dispatched_at: 2026-05-08T15:00:00Z
               delivery_cursor: '42'
               transport_scope: encrypted_envelope_node
-    DmEnvelopeAckV1:
-      name: DmEnvelopeAckV1
+    DmEnvelopeAck:
+      name: DmEnvelopeAck
       title: DM Envelope Ack
       summary: Sent by a recipient device after it receives a ciphertext envelope from the message node.
       payload:
-        $ref: '#/components/schemas/DmEnvelopeAckEventV1'
+        $ref: '#/components/schemas/DmEnvelopeAckEvent'
       examples:
         - name: device_received_envelope
           payload:
             event_id: 16c7e139-03b1-4576-80eb-c52382fe9fe7
             event_type: dm.envelope.ack
-            event_version: 1
             occurred_at: 2026-05-08T15:00:01Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
             producer: web-client
@@ -308,18 +304,17 @@ components:
               delivery_cursor: '42'
               ack_status: received
               received_at: 2026-05-08T15:00:01Z
-    DmDeliveryUpdatedV1:
-      name: DmDeliveryUpdatedV1
+    DmDeliveryUpdated:
+      name: DmDeliveryUpdated
       title: DM Delivery Updated
       summary: Published when delivery metadata changes after acceptance, dispatch, or device acknowledgement.
       payload:
-        $ref: '#/components/schemas/DmDeliveryUpdatedEventV1'
+        $ref: '#/components/schemas/DmDeliveryUpdatedEvent'
       examples:
         - name: acked_by_device
           payload:
             event_id: e8d42369-5ad8-45da-8f7b-aeb22c7b1981
             event_type: dm.delivery.updated
-            event_version: 1
             occurred_at: 2026-05-08T15:00:01Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
             producer: dm-message-node
@@ -335,18 +330,17 @@ components:
               pending_device_ids: [phone-main]
               failed_device_ids: []
               updated_at: 2026-05-08T15:00:01Z
-    DmMessageReadV1:
-      name: DmMessageReadV1
+    DmMessageRead:
+      name: DmMessageRead
       title: DM Message Read
       summary: Sent when a reader device advances explicit DM read state; participant fanout happens only when reader privacy allows it.
       payload:
-        $ref: '#/components/schemas/DmMessageReadEventV1'
+        $ref: '#/components/schemas/DmMessageReadEvent'
       examples:
         - name: participant_visible_read_receipt
           payload:
             event_id: 42f52f03-cd6f-46ec-8df4-9f9f6d625a17
             event_type: dm.message.read
-            event_version: 1
             occurred_at: 2026-05-08T15:00:05Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
             producer: web-client
@@ -363,7 +357,6 @@ components:
           payload:
             event_id: 8712ae9c-597a-488e-8b7a-5a9d92ef1d07
             event_type: dm.message.read
-            event_version: 1
             occurred_at: 2026-05-08T15:00:05Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
             producer: web-client
@@ -376,18 +369,17 @@ components:
               read_at: 2026-05-08T15:00:05Z
               receipt_scope: self_devices
               fanout_scope: reader_profile_devices
-    CallStateChangedV1:
-      name: CallStateChangedV1
+    CallStateChanged:
+      name: CallStateChanged
       title: Call State Changed
       summary: Published when call state transitions.
       payload:
-        $ref: '#/components/schemas/CallStateChangedEventV1'
+        $ref: '#/components/schemas/CallStateChangedEvent'
       examples:
         - name: active
           payload:
             event_id: 4f4baf8e-2c17-42f7-bd67-650f3326d4bd
             event_type: call.state.changed
-            event_version: 1
             occurred_at: 2026-03-04T14:52:05Z
             correlation_id: c4f08be4-2fe4-467b-9bf4-67e7a009f717
             producer: voice-signaling
@@ -396,42 +388,41 @@ components:
               state: active
               updated_at: 2026-03-04T14:52:05Z
               call_seq: 16
-    CallSignalOfferV1:
-      name: CallSignalOfferV1
+    CallSignalOffer:
+      name: CallSignalOffer
       title: Call Signal Offer
       summary: SDP offer exchange event.
       payload:
-        $ref: '#/components/schemas/CallSignalOfferEventV1'
-    CallSignalAnswerV1:
-      name: CallSignalAnswerV1
+        $ref: '#/components/schemas/CallSignalOfferEvent'
+    CallSignalAnswer:
+      name: CallSignalAnswer
       title: Call Signal Answer
       summary: SDP answer exchange event.
       payload:
-        $ref: '#/components/schemas/CallSignalAnswerEventV1'
-    CallSignalIceCandidateV1:
-      name: CallSignalIceCandidateV1
+        $ref: '#/components/schemas/CallSignalAnswerEvent'
+    CallSignalIceCandidate:
+      name: CallSignalIceCandidate
       title: Call Signal ICE Candidate
       summary: ICE candidate exchange event.
       payload:
-        $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
-    ScreenShareStateChangedV1:
-      name: ScreenShareStateChangedV1
+        $ref: '#/components/schemas/CallSignalIceCandidateEvent'
+    ScreenShareStateChanged:
+      name: ScreenShareStateChanged
       title: ScreenShare State Changed
       summary: Published when screenshare state transitions.
       payload:
-        $ref: '#/components/schemas/ScreenShareStateChangedEventV1'
-    ChannelMessageCreatedV1:
-      name: ChannelMessageCreatedV1
+        $ref: '#/components/schemas/ScreenShareStateChangedEvent'
+    ChannelMessageCreated:
+      name: ChannelMessageCreated
       title: Channel Message Created
       summary: Published when a server-channel message is created.
       payload:
-        $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
+        $ref: '#/components/schemas/ChannelMessageCreatedEvent'
       examples:
         - name: guild_channel_message
           payload:
             event_id: a7408485-73c0-48d1-b4ff-8794de5a6f84
             event_type: channel.message.created
-            event_version: 1
             occurred_at: 2026-03-04T14:53:00Z
             correlation_id: 0202c016-b114-47c1-a45b-8e8ecf5408d2
             producer: guild-message-service
@@ -442,18 +433,17 @@ components:
               sender_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               created_at: 2026-03-04T14:53:00Z
               channel_seq: 922
-    ChannelMessageUpdatedV1:
-      name: ChannelMessageUpdatedV1
+    ChannelMessageUpdated:
+      name: ChannelMessageUpdated
       title: Channel Message Updated
       summary: Published when a server-channel message is edited.
       payload:
-        $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
+        $ref: '#/components/schemas/ChannelMessageUpdatedEvent'
       examples:
         - name: guild_channel_edit
           payload:
             event_id: 93edaf67-a89e-4822-9685-69f8f8c50ea6
             event_type: channel.message.updated
-            event_version: 1
             occurred_at: 2026-03-04T14:54:00Z
             correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
             producer: guild-message-service
@@ -464,18 +454,17 @@ components:
               editor_identity_id: 4d6f4d44-8a36-4c2f-9348-8681f9f7e2ad
               edited_at: 2026-03-04T14:54:00Z
               channel_seq: 923
-    ChannelMessageDeletedV1:
-      name: ChannelMessageDeletedV1
+    ChannelMessageDeleted:
+      name: ChannelMessageDeleted
       title: Channel Message Deleted
       summary: Published when a server-channel message is deleted.
       payload:
-        $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
+        $ref: '#/components/schemas/ChannelMessageDeletedEvent'
       examples:
         - name: guild_channel_delete
           payload:
             event_id: 31dbed6a-1865-473f-a194-c23f8fe5b163
             event_type: channel.message.deleted
-            event_version: 1
             occurred_at: 2026-03-04T14:55:00Z
             correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
             producer: guild-message-service
@@ -487,13 +476,12 @@ components:
               deleted_at: 2026-03-04T14:55:00Z
               channel_seq: 924
   schemas:
-    EventEnvelopeV1:
+    EventEnvelope:
       type: object
       additionalProperties: false
       required:
         - event_id
         - event_type
-        - event_version
         - occurred_at
         - correlation_id
         - producer
@@ -505,9 +493,6 @@ components:
           type: string
           minLength: 3
           maxLength: 128
-        event_version:
-          type: integer
-          minimum: 1
         occurred_at:
           type: string
           format: date-time
@@ -518,7 +503,7 @@ components:
           type: string
           minLength: 2
           maxLength: 64
-    PresenceUpdatedDataV1:
+    PresenceUpdatedData:
       type: object
       additionalProperties: false
       required:
@@ -539,9 +524,9 @@ components:
         presence_seq:
           type: integer
           minimum: 1
-    PresenceUpdatedEventV1:
+    PresenceUpdatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -549,8 +534,8 @@ components:
             event_type:
               const: presence.updated
             data:
-              $ref: '#/components/schemas/PresenceUpdatedDataV1'
-    DmMessageCreatedDataV1:
+              $ref: '#/components/schemas/PresenceUpdatedData'
+    DmMessageCreatedData:
       type: object
       additionalProperties: false
       required:
@@ -588,9 +573,9 @@ components:
         transport_scope:
           type: string
           enum: [encrypted_envelope_node]
-    DmMessageCreatedEventV1:
+    DmMessageCreatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -598,8 +583,8 @@ components:
             event_type:
               const: dm.message.created
             data:
-              $ref: '#/components/schemas/DmMessageCreatedDataV1'
-    DmEnvelopeDispatchedDataV1:
+              $ref: '#/components/schemas/DmMessageCreatedData'
+    DmEnvelopeDispatchedData:
       type: object
       additionalProperties: false
       required:
@@ -628,9 +613,9 @@ components:
         transport_scope:
           type: string
           enum: [encrypted_envelope_node]
-    DmEnvelopeDispatchedEventV1:
+    DmEnvelopeDispatchedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -638,8 +623,8 @@ components:
             event_type:
               const: dm.envelope.dispatched
             data:
-              $ref: '#/components/schemas/DmEnvelopeDispatchedDataV1'
-    DmEnvelopeAckDataV1:
+              $ref: '#/components/schemas/DmEnvelopeDispatchedData'
+    DmEnvelopeAckData:
       type: object
       additionalProperties: false
       required:
@@ -662,9 +647,9 @@ components:
           type: string
           enum: [received]
         received_at: { type: string, format: date-time }
-    DmEnvelopeAckEventV1:
+    DmEnvelopeAckEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -672,8 +657,8 @@ components:
             event_type:
               const: dm.envelope.ack
             data:
-              $ref: '#/components/schemas/DmEnvelopeAckDataV1'
-    DmDeliveryUpdatedDataV1:
+              $ref: '#/components/schemas/DmEnvelopeAckData'
+    DmDeliveryUpdatedData:
       type: object
       additionalProperties: false
       required:
@@ -710,9 +695,9 @@ components:
           type: array
           items: { type: string, minLength: 1, maxLength: 64 }
         updated_at: { type: string, format: date-time }
-    DmDeliveryUpdatedEventV1:
+    DmDeliveryUpdatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -720,8 +705,8 @@ components:
             event_type:
               const: dm.delivery.updated
             data:
-              $ref: '#/components/schemas/DmDeliveryUpdatedDataV1'
-    DmMessageReadDataV1:
+              $ref: '#/components/schemas/DmDeliveryUpdatedData'
+    DmMessageReadData:
       type: object
       additionalProperties: false
       oneOf:
@@ -762,9 +747,9 @@ components:
           type: string
           enum: [thread_participants, reader_profile_devices]
           description: Target audience selected after applying thread membership and reader read-receipt privacy policy.
-    DmMessageReadEventV1:
+    DmMessageReadEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -772,8 +757,8 @@ components:
             event_type:
               const: dm.message.read
             data:
-              $ref: '#/components/schemas/DmMessageReadDataV1'
-    CallStateChangedDataV1:
+              $ref: '#/components/schemas/DmMessageReadData'
+    CallStateChangedData:
       type: object
       additionalProperties: false
       required:
@@ -797,9 +782,9 @@ components:
         reason:
           type: string
           maxLength: 128
-    CallStateChangedEventV1:
+    CallStateChangedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -807,8 +792,8 @@ components:
             event_type:
               const: call.state.changed
             data:
-              $ref: '#/components/schemas/CallStateChangedDataV1'
-    CallSignalOfferDataV1:
+              $ref: '#/components/schemas/CallStateChangedData'
+    CallSignalOfferData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, sdp_offer]
@@ -817,9 +802,9 @@ components:
         from_identity_id: { type: string, format: uuid }
         to_identity_id: { type: string, format: uuid }
         sdp_offer: { type: string, minLength: 16 }
-    CallSignalOfferEventV1:
+    CallSignalOfferEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -827,8 +812,8 @@ components:
             event_type:
               const: call.signal.offer
             data:
-              $ref: '#/components/schemas/CallSignalOfferDataV1'
-    CallSignalAnswerDataV1:
+              $ref: '#/components/schemas/CallSignalOfferData'
+    CallSignalAnswerData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, sdp_answer]
@@ -837,9 +822,9 @@ components:
         from_identity_id: { type: string, format: uuid }
         to_identity_id: { type: string, format: uuid }
         sdp_answer: { type: string, minLength: 16 }
-    CallSignalAnswerEventV1:
+    CallSignalAnswerEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -847,8 +832,8 @@ components:
             event_type:
               const: call.signal.answer
             data:
-              $ref: '#/components/schemas/CallSignalAnswerDataV1'
-    CallSignalIceCandidateDataV1:
+              $ref: '#/components/schemas/CallSignalAnswerData'
+    CallSignalIceCandidateData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, candidate]
@@ -859,9 +844,9 @@ components:
         candidate: { type: string, minLength: 8 }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }
-    CallSignalIceCandidateEventV1:
+    CallSignalIceCandidateEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -869,8 +854,8 @@ components:
             event_type:
               const: call.signal.ice_candidate
             data:
-              $ref: '#/components/schemas/CallSignalIceCandidateDataV1'
-    ScreenShareStateChangedDataV1:
+              $ref: '#/components/schemas/CallSignalIceCandidateData'
+    ScreenShareStateChangedData:
       type: object
       additionalProperties: false
       required: [call_id, state, updated_at, screenshare_seq]
@@ -881,9 +866,9 @@ components:
           enum: [started, paused, resumed, stopped, failed]
         updated_at: { type: string, format: date-time }
         screenshare_seq: { type: integer, minimum: 1 }
-    ScreenShareStateChangedEventV1:
+    ScreenShareStateChangedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -891,8 +876,8 @@ components:
             event_type:
               const: screenshare.state.changed
             data:
-              $ref: '#/components/schemas/ScreenShareStateChangedDataV1'
-    ChannelMessageCreatedDataV1:
+              $ref: '#/components/schemas/ScreenShareStateChangedData'
+    ChannelMessageCreatedData:
       type: object
       additionalProperties: false
       required:
@@ -921,9 +906,9 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    ChannelMessageCreatedEventV1:
+    ChannelMessageCreatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -931,8 +916,8 @@ components:
             event_type:
               const: channel.message.created
             data:
-              $ref: '#/components/schemas/ChannelMessageCreatedDataV1'
-    ChannelMessageUpdatedDataV1:
+              $ref: '#/components/schemas/ChannelMessageCreatedData'
+    ChannelMessageUpdatedData:
       type: object
       additionalProperties: false
       required:
@@ -961,9 +946,9 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    ChannelMessageUpdatedEventV1:
+    ChannelMessageUpdatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -971,8 +956,8 @@ components:
             event_type:
               const: channel.message.updated
             data:
-              $ref: '#/components/schemas/ChannelMessageUpdatedDataV1'
-    ChannelMessageDeletedDataV1:
+              $ref: '#/components/schemas/ChannelMessageUpdatedData'
+    ChannelMessageDeletedData:
       type: object
       additionalProperties: false
       required:
@@ -1001,9 +986,9 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    ChannelMessageDeletedEventV1:
+    ChannelMessageDeletedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           additionalProperties: false
           required: [data]
@@ -1011,4 +996,4 @@ components:
             event_type:
               const: channel.message.deleted
             data:
-              $ref: '#/components/schemas/ChannelMessageDeletedDataV1'
+              $ref: '#/components/schemas/ChannelMessageDeletedData'

@@ -85,8 +85,8 @@ API_NODE_FINGERPRINT=hexrelay-local-fingerprint
 API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay
 API_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
 API_TRUST_PROXY_HEADERS=false
-API_SESSION_SIGNING_KEYS=v1:hexrelay-dev-signing-key-change-me
-API_SESSION_SIGNING_KEY_ID=v1
+API_SESSION_SIGNING_KEYS=primary:hexrelay-dev-signing-key-change-me
+API_SESSION_SIGNING_KEY_ID=primary
 API_SESSION_COOKIE_SECURE=false
 API_SESSION_COOKIE_SAME_SITE=Lax
 EOF

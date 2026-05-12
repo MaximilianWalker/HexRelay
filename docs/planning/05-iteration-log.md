@@ -95,7 +95,7 @@
   - `docs/architecture/01-system-overview.md`
   - `docs/architecture/README.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/product/README.md`
@@ -116,7 +116,7 @@
 - Linked docs updated:
   - `AGENTS.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/product/08-screen-state-spec.md`
@@ -144,7 +144,7 @@
 - Linked docs updated:
   - `AGENTS.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/product/09-configuration-defaults-register.md`
@@ -157,7 +157,7 @@
   - `docs/planning/iterations/README.md`
   - `docs/planning/local-runtime-testing-plan.md`
   - `docs/planning/turn-nat-test-profile.md`
-  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/contracts/realtime-events.asyncapi.yaml`
   - `docs/contracts/README.md`
   - `docs/testing/01-mvp-verification-matrix.md`
   - `docs/README.md`
@@ -180,10 +180,10 @@
 - Rationale:
   - `T4.1.6` acceptance required same-LAN node-bypassing improvements without introducing infrastructure fallback or durable LAN discovery state; this is now historical only.
 - Linked docs updated:
-  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/contracts/README.md`
   - `docs/architecture/04-communication-networking-layer-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/10-infra-free-dm-connectivity-proposals.md`
   - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
   - `docs/planning/iterations/02-sprint-board.md`
@@ -201,8 +201,8 @@
 - Rationale:
   - `T4.1.5` acceptance required failed node-bypassing connections to map to deterministic reason codes with actionable in-product remediation; this is now superseded by server-node P2P envelope delivery.
 - Linked docs updated:
-  - `docs/contracts/runtime-rest-v1.openapi.yaml`
-  - `docs/product/02-prd-v1.md`
+  - `docs/contracts/runtime-rest.openapi.yaml`
+  - `docs/product/02-prd.md`
   - `docs/product/10-infra-free-dm-connectivity-proposals.md`
   - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
   - `docs/planning/iterations/02-sprint-board.md`
@@ -221,9 +221,9 @@
 - Rationale:
   - `T4.1.4` requires pairing to exchange identity and endpoint bootstrap material without backend rendezvous while keeping replay/expiry and authenticity checks deterministic.
 - Linked docs updated:
-  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/10-infra-free-dm-connectivity-proposals.md`
   - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
   - `docs/planning/iterations/02-sprint-board.md`
@@ -315,7 +315,7 @@
   - `docs/architecture/adr-0002-runtime-deployment-modes.md`
   - `docs/operations/02-dedicated-server-deployment.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/README.md`
   - `docs/operations/README.md`
 
@@ -592,7 +592,7 @@
 - Rationale:
   - The repo now has server-membership authorization primitives, but still needs a coherent persisted channel message API before fanout/UI expansion. Narrowing the first slice reduces risk while unblocking the placeholder server workspace.
 - Linked docs updated:
-  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
   - `docs/README.md`
@@ -614,7 +614,7 @@
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/iterations/README.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/product/09-configuration-defaults-register.md`
@@ -655,7 +655,7 @@
   - Convert high-level policy lock into executable delivery artifacts so implementation work remains deterministic and policy-compliant.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/09-configuration-defaults-register.md`
   - `docs/product/10-infra-free-dm-connectivity-proposals.md`
   - `docs/architecture/04-communication-networking-layer-plan.md`
@@ -759,19 +759,19 @@
 
 - Area affected: Auth/session security, abuse controls, runtime contract governance, and dead/legacy runtime path cleanup.
 - Change summary:
-  - Added versioned bearer token format (`HEXTOKEN_V1`) with signing key ID support and keyring-based token validation.
+  - Added signed bearer token format (`HEXTOKEN`) with signing key ID support and keyring-based token validation.
   - Added API rate limits for auth challenge/verify and invite create/redeem paths.
   - Added realtime websocket connect rate limiting.
   - Removed non-test runtime fallback behavior for identity/auth/invite/session critical storage paths; runtime now requires DB-backed authority for these flows.
-  - Promoted runtime REST contract authority to `docs/contracts/runtime-rest-v1.openapi.yaml` and retained legacy Iteration-1 contract path as compatibility alias.
+  - Promoted runtime REST contract authority to `docs/contracts/runtime-rest.openapi.yaml`; the old legacy alias was removed later when internal API compatibility aliases were retired.
   - Added confidence-hardening evidence artifact baseline under `evidence/iteration-01/confidence-hardening/`.
 - Rationale:
   - Reduce attack surface and runtime drift before additional feature expansion, while cleaning legacy authority naming and dead fallback runtime branches.
 - Linked docs updated:
-  - `docs/contracts/runtime-rest-v1.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/contracts/README.md`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
-  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
+  - `docs/contracts/mvp-rest.openapi.yaml`
   - `docs/README.md`
   - `docs/planning/iterations/README.md`
   - `docs/planning/iterations/01-sprint-board.md`
@@ -805,10 +805,10 @@
   - Resolve independent hard-pass blockers that were not stylistic and materially affected confidence.
 - Linked docs updated:
   - `docs/contracts/README.md`
-  - `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
-  - `docs/contracts/crypto-profile-v1.md`
-  - `docs/contracts/mvp-rest-v1.openapi.yaml`
-  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/contracts/realtime-events-runtime.asyncapi.yaml`
+  - `docs/contracts/crypto-profile.md`
+  - `docs/contracts/mvp-rest.openapi.yaml`
+  - `docs/contracts/realtime-events.asyncapi.yaml`
   - `docs/architecture/adr-0002-runtime-deployment-modes.md`
   - `docs/README.md`
   - `docs/operations/01-mvp-runbook.md`
@@ -831,7 +831,7 @@
   - Added strict realtime HTTP client timeout/connect-timeout defaults for auth validation calls.
   - Replaced websocket text echo behavior with structured event-envelope routing for call signaling event types.
   - Enforced realtime sender identity binding by validating `from_user_id` against authenticated session identity before accepting signaling payloads.
-  - Added realtime contract tests for event version validation, unsupported event handling, malformed payloads, and websocket roundtrip envelope shape.
+  - Added realtime contract tests for unsupported event handling, malformed payloads, and websocket roundtrip envelope shape.
   - Added negative integration test for websocket auth flow when API upstream is unreachable.
   - Added DB migration backfill test for invite plaintext-token hashing and removed plaintext fallback from invite redeem queries.
   - Added web unit tests for secure-store provider failure fallback and recovery phrase derivation stability.
@@ -872,8 +872,8 @@
   - `docs/operations/contributor-guide.md`
   - `docs/reference/glossary.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
-  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/product/02-prd.md`
+  - `docs/contracts/mvp-rest.openapi.yaml`
   - `apps/web/lib/secure-store.ts`
   - `apps/web/lib/sessions.ts`
   - `apps/web/lib/recovery.ts`
@@ -897,7 +897,7 @@
   - `docs/architecture/README.md`
   - `docs/architecture/adr-0002-runtime-deployment-modes.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/09-configuration-defaults-register.md`
   - `docs/reference/glossary.md`
@@ -975,7 +975,7 @@
   - `services/api-rs/src/handlers.rs`
   - `services/api-rs/src/db.rs`
   - `services/api-rs/src/lib.rs`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/05-iteration-log.md`
   - `docs/planning/iterations/02-sprint-board.md`
 
@@ -1323,7 +1323,7 @@
   - `services/api-rs/src/models.rs`
   - `services/api-rs/src/state.rs`
   - `services/api-rs/src/validation.rs`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
 
@@ -1347,7 +1347,7 @@
   - `services/api-rs/src/errors.rs`
   - `services/api-rs/Cargo.toml`
   - `Cargo.lock`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
 
@@ -1369,7 +1369,7 @@
   - `services/api-rs/src/state.rs`
   - `services/api-rs/src/validation.rs`
   - `services/api-rs/Cargo.toml`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/05-iteration-log.md`
 
 ### 2026-03-04 (iteration 1 identity endpoint start)
@@ -1385,7 +1385,7 @@
 - Linked docs updated:
   - `services/api-rs/src/main.rs`
   - `services/api-rs/Cargo.toml`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
 
@@ -1452,7 +1452,7 @@
   - Preserve the then-current node-bypassing DM transport decision without introducing server-side DM queues in MVP.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/product/09-configuration-defaults-register.md`
   - `docs/testing/01-mvp-verification-matrix.md`
@@ -1472,11 +1472,11 @@
   - Align implementation docs with core product intent: server communities should not be DM transport intermediaries.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/iterations/README.md`
-  - `docs/contracts/mvp-rest-v1.openapi.yaml`
-  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/contracts/mvp-rest.openapi.yaml`
+  - `docs/contracts/realtime-events.asyncapi.yaml`
   - `docs/architecture/02-data-lifecycle-retention-replication.md`
   - `docs/testing/01-mvp-verification-matrix.md`
   - `docs/product/03-clarifications.md`
@@ -1497,7 +1497,7 @@
   - Reduce cross-team ambiguity during parallel implementation.
   - Make requirement -> task -> evidence trace deterministic.
 - Linked docs updated:
-  - `docs/contracts/mvp-rest-v1.openapi.yaml`
+  - `docs/contracts/mvp-rest.openapi.yaml`
   - `docs/product/08-screen-state-spec.md`
   - `docs/product/09-configuration-defaults-register.md`
   - `docs/architecture/02-data-lifecycle-retention-replication.md`
@@ -1528,7 +1528,7 @@
   - Preserve user privacy by default while keeping server-assisted contact discovery usable.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/iterations/02-sprint-board.md`
@@ -1548,9 +1548,9 @@
   - Keep invite-based architecture while supporting practical open-server behavior without separate join modes.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/planning/iterations/01-sprint-board.md`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/05-iteration-log.md`
@@ -1567,7 +1567,7 @@
   - Align user add UX with invite-based mental model already used for server joins.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/iterations/README.md`
@@ -1584,7 +1584,7 @@
   - Preserve self-hosted usability and selective discoverability while keeping a clear path toward deeper decentralization.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/05-iteration-log.md`
@@ -1600,7 +1600,7 @@
   - Preserve user data ownership model while keeping server-side security and permission enforcement deterministic.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/iterations/04-sprint-board.md`
@@ -1610,7 +1610,7 @@
 
 - Area affected: Full-picture pre-MVP planning gates
 - Change summary:
-  - Resolved `C-012` by adding versioned realtime contract artifact `docs/contracts/realtime-events-v1.asyncapi.yaml`.
+  - Resolved `C-012` by adding realtime contract artifact `docs/contracts/realtime-events.asyncapi.yaml`.
   - Resolved `C-013` by adding fixed KPI/SLO benchmark profile `docs/planning/kpi-slo-test-profile.md`.
   - Linked Iteration 2/3/4 gate language to resolved artifacts and clarification IDs.
   - Kept `C-014` open pending migration conflict precedence decision.
@@ -1620,7 +1620,7 @@
 - Linked docs updated:
   - `docs/product/03-clarifications.md`
   - `docs/product/04-dependencies-risks.md`
-  - `docs/contracts/realtime-events-v1.asyncapi.yaml`
+  - `docs/contracts/realtime-events.asyncapi.yaml`
   - `docs/planning/kpi-slo-test-profile.md`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/iterations/03-sprint-board.md`
@@ -1687,9 +1687,9 @@
   - Improve deterministic execution quality for AI agents across API/Core/Web/Realtime work.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/04-dependencies-risks.md`
-  - `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+  - `docs/contracts/runtime-rest.openapi.yaml`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/planning/iterations/02-sprint-board.md`
   - `docs/planning/iterations/03-sprint-board.md`
@@ -1712,7 +1712,7 @@
   - Allow focused in-server interaction by temporarily hiding navigation chrome.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/07-ui-navigation-spec.md`
   - `docs/planning/05-iteration-log.md`
@@ -1730,7 +1730,7 @@
   - Improve navigation scalability for users in large server sets.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/07-ui-navigation-spec.md`
   - `docs/product/README.md`
@@ -1753,7 +1753,7 @@
   - Keep decision capture in canonical docs rather than temporary questionnaires.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/03-clarifications.md`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/planning/05-iteration-log.md`
@@ -1765,7 +1765,7 @@
 - Area affected: MVP execution readiness for Iteration 1 identity/auth/invite work
 - Change summary:
   - Locked invite semantics to mode + expiration + max-uses with join-eligibility-only scope.
-  - Added MVP Crypto Profile v1 for identity/auth and baseline DM cryptography.
+  - Added MVP Crypto Profile for identity/auth and baseline DM cryptography.
   - Added Iteration 1 OpenAPI endpoint and error-code baseline for identity/invite/auth.
   - Tightened Iteration 1 sprint acceptance criteria for invite exhaustion and nonce replay behavior.
   - Captured remaining product and UX questions for live user-driven resolution.
@@ -1774,7 +1774,7 @@
   - Improve deterministic execution quality for AI agents.
 - Linked docs updated:
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/planning/iterations/01-sprint-board.md`
   - `docs/product/03-clarifications.md`
   - `docs/product/README.md`
@@ -1787,7 +1787,7 @@
   - Added explicit planning-only onboarding guidance in `README.md`.
   - Added contributor workflow guide at `docs/operations/contributor-guide.md`.
   - Established canonical ADR with `docs/architecture/adr-0001-stack-baseline.md`.
-  - Reduced duplicated locked-decision and risk content in `docs/product/02-prd-v1.md` by pointing to canonical sources.
+  - Reduced duplicated locked-decision and risk content in `docs/product/02-prd.md` by pointing to canonical sources.
   - Added clarifications and dependency/risk source docs under `docs/product/`.
 - Rationale:
   - Improve new-contributor orientation before implementation scaffold exists.
@@ -1796,7 +1796,7 @@
 - Linked docs updated:
   - `README.md`
   - `docs/README.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/architecture/README.md`
   - `docs/reference/glossary.md`
 
@@ -1805,7 +1805,7 @@
 - Area affected: Documentation standards and canonical ownership boundaries
 - Change summary:
   - Removed duplicated task authority from `docs/product/01-mvp-plan.md` and delegated task-level ownership to iteration boards.
-  - Removed KPI threshold duplication from `docs/product/01-mvp-plan.md` and kept KPI authority in `docs/product/02-prd-v1.md`.
+  - Removed KPI threshold duplication from `docs/product/01-mvp-plan.md` and kept KPI authority in `docs/product/02-prd.md`.
   - Normalized repeated iteration links to point at `docs/planning/iterations/README.md` from top-level indexes.
   - Added `Quick Context` sections to canonical operational docs to make edit intent explicit.
   - Normalized ADR metadata with `Status: canonical` and explicit `Decision status: accepted`.
@@ -1818,7 +1818,7 @@
   - `README.md`
   - `docs/README.md`
   - `docs/product/01-mvp-plan.md`
-  - `docs/product/02-prd-v1.md`
+  - `docs/product/02-prd.md`
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/README.md`
   - `docs/planning/iterations/README.md`

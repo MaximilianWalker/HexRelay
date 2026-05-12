@@ -1,9 +1,9 @@
 import { secureGetItem, secureRemoveItem, secureSetItem } from "@/lib/secure-store";
 
-const SESSION_PREFIX = "hexrelay.session.runtime.v1";
-const LEGACY_SESSION_PREFIX = "hexrelay.session.v1";
-const PRIVATE_KEY_PREFIX = "hexrelay.identity.private.v1";
-const MASTER_KEY_STORAGE = "hexrelay.identity.master-key.v1";
+const SESSION_PREFIX = "hexrelay.session.runtime";
+const LEGACY_SESSION_PREFIX = "hexrelay.session";
+const PRIVATE_KEY_PREFIX = "hexrelay.identity.private";
+const MASTER_KEY_STORAGE = "hexrelay.identity.master-key";
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";

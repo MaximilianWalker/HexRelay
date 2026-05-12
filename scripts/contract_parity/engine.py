@@ -1720,7 +1720,6 @@ def _parse_realtime_builder(function_block: str) -> dict[str, object] | None:
     return {
         'envelope_fields': _extract_top_level_rust_fields(envelope_block),
         'event_type': next(iter(re.findall(r'event_type:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
-        'event_version': next(iter(re.findall(r'event_version:\s*(\d+)', envelope_block)), None),
         'producer': next(iter(re.findall(r'producer:\s*"([^"]+)"\.to_string\(\)', envelope_block)), None),
         'data_keys': set(re.findall(r'"([^"]+)"\s*:', data_match.group(1) if data_match else '')),
     }
@@ -1734,7 +1733,7 @@ def _parse_rust_struct_fields(runtime_text: str, struct_name: str) -> set[str]:
 
 
 def _parse_realtime_contract_semantics(contract_text: str, event_schema_name: str) -> dict[str, object] | None:
-    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelopeV1')
+    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelope')
     event_block = _extract_asyncapi_schema_block(contract_text, event_schema_name)
     if envelope_block is None or event_block is None:
         return None
@@ -1870,42 +1869,42 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
     tracked_events = {
         'error': {
             'runtime_fn': 'build_error_event',
-            'contract_schema': 'ErrorEventV1',
+            'contract_schema': 'ErrorEvent',
         },
         'call.signal.offer': {
             'runtime_fn': 'build_event',
-            'contract_schema': 'CallSignalOfferEventV1',
+            'contract_schema': 'CallSignalOfferEvent',
             'function_args': 'call.signal.offer',
         },
         'call.signal.answer': {
             'runtime_fn': 'build_event',
-            'contract_schema': 'CallSignalAnswerEventV1',
+            'contract_schema': 'CallSignalAnswerEvent',
             'function_args': 'call.signal.answer',
         },
         'call.signal.ice_candidate': {
             'runtime_fn': 'build_event',
-            'contract_schema': 'CallSignalIceCandidateEventV1',
+            'contract_schema': 'CallSignalIceCandidateEvent',
             'function_args': 'call.signal.ice_candidate',
         },
         'realtime.connected': {
             'runtime_fn': 'connection_ready_banner',
-            'contract_schema': 'RealtimeConnectedEventV1',
+            'contract_schema': 'RealtimeConnectedEvent',
         },
         'presence.updated': {
             'runtime_fn': 'build_presence_updated_event',
-            'contract_schema': 'PresenceUpdatedEventV1',
+            'contract_schema': 'PresenceUpdatedEvent',
         },
         'channel.message.created': {
             'runtime_fn': 'build_channel_message_created_event',
-            'contract_schema': 'ChannelMessageCreatedEventV1',
+            'contract_schema': 'ChannelMessageCreatedEvent',
         },
         'channel.message.updated': {
             'runtime_fn': 'build_channel_message_updated_event',
-            'contract_schema': 'ChannelMessageUpdatedEventV1',
+            'contract_schema': 'ChannelMessageUpdatedEvent',
         },
         'channel.message.deleted': {
             'runtime_fn': 'build_channel_message_deleted_event',
-            'contract_schema': 'ChannelMessageDeletedEventV1',
+            'contract_schema': 'ChannelMessageDeletedEvent',
         },
     }
 
@@ -1921,9 +1920,9 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
     if not (runtime_inventory & tracked_event_names or contract_inventory & tracked_event_names):
         return 0
 
-    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelopeV1')
+    envelope_block = _extract_asyncapi_schema_block(contract_text, 'EventEnvelope')
     if envelope_block is None:
-        print(f"::error::{contract_path} is missing EventEnvelopeV1 required for realtime semantic validation.")
+        print(f"::error::{contract_path} is missing EventEnvelope required for realtime semantic validation.")
         return 1
 
     envelope_required = set(_parse_inline_list(envelope_block, 'required'))
@@ -1931,11 +1930,6 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
     allowed_producers = {
         item.strip() for item in (producer_match.group(1).split(',') if producer_match else []) if item.strip()
     }
-    version_match = re.search(r'event_version:\s*\{\s*type:\s*integer,\s*enum:\s*\[([^\]]*)\]', envelope_block)
-    allowed_versions = {
-        item.strip() for item in (version_match.group(1).split(',') if version_match else []) if item.strip()
-    }
-
     for event_name, spec in tracked_events.items():
         if event_name not in runtime_inventory and event_name not in contract_inventory:
             continue
@@ -1980,12 +1974,6 @@ def validate_realtime_semantic_contracts(contract_path_str: str, runtime_path_st
         if runtime_semantics['event_type'] != contract_semantics['event_type']:
             errors.append(
                 f"::error::Realtime runtime event `{event_name}` emits event_type `{runtime_semantics['event_type']}` but documents `{contract_semantics['event_type']}` in {contract_path}."
-            )
-
-        if runtime_semantics['event_version'] not in allowed_versions:
-            documented = ', '.join(sorted(allowed_versions)) or '<none>'
-            errors.append(
-                f"::error::Realtime runtime event `{event_name}` emits event_version `{runtime_semantics['event_version']}` but documents [{documented}] in {contract_path}."
             )
 
         if runtime_semantics['producer'] not in allowed_producers:
@@ -2163,11 +2151,11 @@ def extract_asyncapi_contract_error_codes(path: str) -> str:
 
     for line in lines:
         if not in_error_schema:
-            if re.match(r'^\s{4}ErrorDataV1:\s*$', line):
+            if re.match(r'^\s{4}ErrorData:\s*$', line):
                 in_error_schema = True
             continue
 
-        if in_error_schema and re.match(r'^\s{4}[A-Za-z].*:\s*$', line) and not re.match(r'^\s{4}ErrorDataV1:\s*$', line):
+        if in_error_schema and re.match(r'^\s{4}[A-Za-z].*:\s*$', line) and not re.match(r'^\s{4}ErrorData:\s*$', line):
             break
 
         if not in_code_enum:

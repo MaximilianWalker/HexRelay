@@ -4,22 +4,21 @@ channels:
     address: error
 components:
   messages:
-    ErrorV1:
+    Error:
       payload:
-        $ref: '#/components/schemas/ErrorEventV1'
+        $ref: '#/components/schemas/ErrorEvent'
   schemas:
-    EventEnvelopeV1:
+    EventEnvelope:
       type: object
       additionalProperties: false
-      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      required: [event_id, event_type, occurred_at, correlation_id, producer, data]
       properties:
         event_id: { type: string }
         event_type: { type: string }
-        event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
         producer: { type: string, enum: [realtime-gateway] }
-    ErrorDataV1:
+    ErrorData:
       type: object
       additionalProperties: false
       required: [code]
@@ -29,10 +28,10 @@ components:
           enum:
             - event_invalid
         message: { type: string }
-    ErrorEventV1:
+    ErrorEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: error }
-            data: { $ref: '#/components/schemas/ErrorDataV1' }
+            data: { $ref: '#/components/schemas/ErrorData' }

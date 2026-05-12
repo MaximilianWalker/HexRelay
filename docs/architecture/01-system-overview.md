@@ -104,8 +104,8 @@ Detailed mode authority:
   - user-consented introductions can create candidate peers only when the introduced node descriptor permits that sharing
 
 Detailed authorities:
-- `docs/contracts/runtime-rest-v1.openapi.yaml`
-- `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
+- `docs/contracts/runtime-rest.openapi.yaml`
+- `docs/contracts/realtime-events-runtime.asyncapi.yaml`
 - `docs/operations/01-mvp-runbook.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
 
@@ -176,7 +176,7 @@ Current watch items and deferred caveats:
 - stack baseline: `docs/architecture/adr-0001-stack-baseline.md`
 - data ownership/retention: `docs/architecture/02-data-lifecycle-retention-replication.md`
 - communication/networking boundaries: `docs/architecture/04-communication-networking-layer-plan.md`
-- runtime REST contract: `docs/contracts/runtime-rest-v1.openapi.yaml`
-- runtime realtime contract: `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
+- runtime REST contract: `docs/contracts/runtime-rest.openapi.yaml`
+- runtime realtime contract: `docs/contracts/realtime-events-runtime.asyncapi.yaml`
 - runtime config reference: `docs/reference/runtime-config-reference.md`
 - operational procedures: `docs/operations/01-mvp-runbook.md`

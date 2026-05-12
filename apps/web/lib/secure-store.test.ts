@@ -53,7 +53,7 @@ describe("secure-store", () => {
     };
 
     await secureSetItem("key-a", "value-a");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-a")).toBe("value-a");
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-a")).toBe("value-a");
   });
 
   it("falls back to sessionStorage when provider get/remove fail", async () => {
@@ -66,7 +66,7 @@ describe("secure-store", () => {
       sessionStorage: MemoryStorage;
     };
 
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-b", "value-b");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-b", "value-b");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         throw new Error("get failed");
@@ -81,7 +81,7 @@ describe("secure-store", () => {
 
     expect(await secureGetItem("key-b")).toBe("value-b");
     await secureRemoveItem("key-b");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-b")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-b")).toBeNull();
   });
 
   it("reads fallback value when provider returns null", async () => {
@@ -94,7 +94,7 @@ describe("secure-store", () => {
       sessionStorage: MemoryStorage;
     };
 
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-c", "value-c");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-c", "value-c");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return null;
@@ -121,7 +121,7 @@ describe("secure-store", () => {
     };
 
     let providerValue: string | null = null;
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-f", "fallback-f");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-f", "fallback-f");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return providerValue;
@@ -136,7 +136,7 @@ describe("secure-store", () => {
 
     expect(await secureGetItem("key-f")).toBe("fallback-f");
     expect(providerValue).toBe("fallback-f");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-f")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-f")).toBeNull();
   });
 
   it("clears fallback even when provider remove succeeds", async () => {
@@ -149,7 +149,7 @@ describe("secure-store", () => {
       sessionStorage: MemoryStorage;
     };
 
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-d", "value-d");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-d", "value-d");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return null;
@@ -163,7 +163,7 @@ describe("secure-store", () => {
     };
 
     await secureRemoveItem("key-d");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-d")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-d")).toBeNull();
   });
 
   it("clears stale fallback when provider set succeeds", async () => {
@@ -176,7 +176,7 @@ describe("secure-store", () => {
       sessionStorage: MemoryStorage;
     };
 
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-e", "stale-value");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-e", "stale-value");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return "provider-value";
@@ -190,7 +190,7 @@ describe("secure-store", () => {
     };
 
     await secureSetItem("key-e", "new-value");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-e")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-e")).toBeNull();
   });
 
   it("prefers fallback over stale provider value", async () => {
@@ -204,7 +204,7 @@ describe("secure-store", () => {
     };
 
     let providerValue = "stale-provider";
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-g", "fresh-fallback");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-g", "fresh-fallback");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return providerValue;
@@ -219,7 +219,7 @@ describe("secure-store", () => {
 
     expect(await secureGetItem("key-g")).toBe("fresh-fallback");
     expect(providerValue).toBe("fresh-fallback");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-g")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-g")).toBeNull();
   });
 
   it("keeps fallback when provider resync fails", async () => {
@@ -232,7 +232,7 @@ describe("secure-store", () => {
       sessionStorage: MemoryStorage;
     };
 
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.v1.key-h", "fallback-h");
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-h", "fallback-h");
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return "stale-provider";
@@ -246,6 +246,6 @@ describe("secure-store", () => {
     };
 
     expect(await secureGetItem("key-h")).toBe("fallback-h");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.v1.key-h")).toBe("fallback-h");
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-h")).toBe("fallback-h");
   });
 });

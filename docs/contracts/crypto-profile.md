@@ -1,13 +1,13 @@
-# MVP Crypto Profile v1 Contract
+# MVP Crypto Profile Contract
 
 ## Document Metadata
 
-- Doc ID: crypto-profile-v1
+- Doc ID: crypto-profile
 - Owner: Core and security maintainers
 - Status: ready
 - Scope: repository
 - last_updated: 2026-03-11
-- Source of truth: `docs/contracts/crypto-profile-v1.md`
+- Source of truth: `docs/contracts/crypto-profile.md`
 
 ## Quick Context
 

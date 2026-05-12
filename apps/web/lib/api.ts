@@ -58,7 +58,7 @@ export type TestingSessionResponse = {
 };
 
 const CSRF_COOKIE = "hexrelay_csrf";
-const CSRF_STORAGE_KEY = "hexrelay.csrf.runtime.v1";
+const CSRF_STORAGE_KEY = "hexrelay.csrf.runtime";
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") {

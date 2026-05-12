@@ -3,8 +3,6 @@ use chrono::Utc;
 use ring::hmac;
 use std::collections::BTreeMap;
 
-const TOKEN_VERSION: &str = "v1";
-
 pub struct SessionTokenClaims {
     pub expires_at: i64,
     pub identity_id: String,
@@ -21,11 +19,10 @@ pub fn issue_session_token(
 ) -> String {
     let payload = format!("{session_id}:{identity_id}:{expires_at_epoch}");
     let payload_b64 = URL_SAFE_NO_PAD.encode(payload.as_bytes());
-    let signing_input = build_signing_input(TOKEN_VERSION, key_id, &payload_b64);
+    let signing_input = build_signing_input(key_id, &payload_b64);
     let signature = sign_payload(signing_input.as_bytes(), signing_key);
     format!(
-        "{}.{}.{}.{}",
-        TOKEN_VERSION,
+        "{}.{}.{}",
         key_id,
         payload_b64,
         URL_SAFE_NO_PAD.encode(signature)
@@ -37,7 +34,6 @@ pub fn validate_session_token(
     signing_keys: &BTreeMap<String, String>,
 ) -> Option<SessionTokenClaims> {
     let mut parts = token.split('.');
-    let token_version = parts.next()?;
     let key_id = parts.next()?;
     let payload_b64 = parts.next()?;
     let signature_b64 = parts.next()?;
@@ -46,16 +42,12 @@ pub fn validate_session_token(
         return None;
     }
 
-    if token_version != TOKEN_VERSION {
-        return None;
-    }
-
     let signing_key = signing_keys.get(key_id)?;
 
     let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
     let signature = URL_SAFE_NO_PAD.decode(signature_b64).ok()?;
 
-    let signing_input = build_signing_input(token_version, key_id, payload_b64);
+    let signing_input = build_signing_input(key_id, payload_b64);
     if verify_payload(signing_input.as_bytes(), &signature, signing_key).is_err() {
         return None;
     }
@@ -82,8 +74,8 @@ pub fn validate_session_token(
     })
 }
 
-fn build_signing_input(token_version: &str, key_id: &str, payload_b64: &str) -> String {
-    format!("{token_version}.{key_id}.{payload_b64}")
+fn build_signing_input(key_id: &str, payload_b64: &str) -> String {
+    format!("{key_id}.{payload_b64}")
 }
 
 fn sign_payload(payload: &[u8], signing_key: &str) -> Vec<u8> {

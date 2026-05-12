@@ -59,7 +59,7 @@ Without an explicit runtime decision, product/docs/code discussions drift betwee
 
 - `README.md`
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/operations/03-release-packaging.md`
 - `docs/operations/02-dedicated-server-deployment.md`
 - `apps/web/README.md`

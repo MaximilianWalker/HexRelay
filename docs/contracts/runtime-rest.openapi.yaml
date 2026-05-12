@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: HexRelay Runtime REST API
-  version: 0.1.0
+  version: unversioned
   description: |
     Current runtime REST contract authority.
     This artifact defines currently implemented REST behavior and must be

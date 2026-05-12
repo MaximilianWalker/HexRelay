@@ -69,7 +69,7 @@
 
 ## Related Documents
 
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/planning/iterations/02-sprint-board.md`

@@ -7,8 +7,8 @@ use super::{
     StoragePolicy,
 };
 
-const DESCRIPTOR_SIGNING_DOMAIN: &str = "hexrelay.node_descriptor.v1";
-const PEER_INVITE_SIGNING_DOMAIN: &str = "hexrelay.peer_invite.v1";
+const DESCRIPTOR_SIGNING_DOMAIN: &str = "hexrelay.node_descriptor";
+const PEER_INVITE_SIGNING_DOMAIN: &str = "hexrelay.peer_invite";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeDescriptorSignatureError {

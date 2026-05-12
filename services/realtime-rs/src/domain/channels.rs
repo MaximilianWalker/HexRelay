@@ -13,7 +13,7 @@ use tracing::{info, warn};
 
 use crate::domain::replay_store;
 
-const CHANNEL_EVENTS_CHANNEL: &str = "channels:v1:events";
+const CHANNEL_EVENTS_CHANNEL: &str = "channels:events";
 const CHANNEL_REPLAY_LOG_MAX_ENTRIES: usize = 256;
 const CHANNEL_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
 const LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX: usize = 4096;
@@ -71,7 +71,6 @@ pub struct ChannelMessageDispatchSummary {
 pub struct ChannelMessageCreatedEnvelope {
     pub event_id: String,
     pub event_type: String,
-    pub event_version: u8,
     pub occurred_at: String,
     pub correlation_id: String,
     pub producer: String,
@@ -85,7 +84,6 @@ pub struct ChannelMessageCreatedEnvelope {
 pub struct ChannelMessageUpdatedEnvelope {
     pub event_id: String,
     pub event_type: String,
-    pub event_version: u8,
     pub occurred_at: String,
     pub correlation_id: String,
     pub producer: String,
@@ -99,7 +97,6 @@ pub struct ChannelMessageUpdatedEnvelope {
 pub struct ChannelMessageDeletedEnvelope {
     pub event_id: String,
     pub event_type: String,
-    pub event_version: u8,
     pub occurred_at: String,
     pub correlation_id: String,
     pub producer: String,
@@ -460,7 +457,6 @@ pub async fn publish_channel_message_created(
             .as_str()
             .unwrap_or_default()
             .to_string(),
-        event_version: client_event["event_version"].as_u64().unwrap_or(1) as u8,
         occurred_at: client_event["occurred_at"]
             .as_str()
             .unwrap_or_default()
@@ -572,7 +568,6 @@ pub async fn publish_channel_message_updated(
             .as_str()
             .unwrap_or_default()
             .to_string(),
-        event_version: client_event["event_version"].as_u64().unwrap_or(1) as u8,
         occurred_at: client_event["occurred_at"]
             .as_str()
             .unwrap_or_default()
@@ -684,7 +679,6 @@ pub async fn publish_channel_message_deleted(
             .as_str()
             .unwrap_or_default()
             .to_string(),
-        event_version: client_event["event_version"].as_u64().unwrap_or(1) as u8,
         occurred_at: client_event["occurred_at"]
             .as_str()
             .unwrap_or_default()
@@ -789,15 +783,15 @@ async fn persist_channel_replay_entries(
 }
 
 fn channel_stream_head_key(identity_id: &str) -> String {
-    format!("channels:v1:recipient_stream_head:{identity_id}")
+    format!("channels:recipient_stream_head:{identity_id}")
 }
 
 fn channel_replay_log_key(identity_id: &str) -> String {
-    format!("channels:v1:recipient_stream_log:{identity_id}")
+    format!("channels:recipient_stream_log:{identity_id}")
 }
 
 fn channel_device_cursor_key(identity_id: &str, device_id: &str) -> String {
-    format!("channels:v1:recipient_device_cursor:{identity_id}:{device_id}")
+    format!("channels:recipient_device_cursor:{identity_id}:{device_id}")
 }
 
 async fn dispatch_channel_event_locally(

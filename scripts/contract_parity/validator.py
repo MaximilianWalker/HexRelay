@@ -12,8 +12,8 @@ except ImportError:  # pragma: no cover
     import engine  # type: ignore
 
 
-API_CONTRACT = "docs/contracts/runtime-rest-v1.openapi.yaml"
-REALTIME_CONTRACT = "docs/contracts/realtime-events-runtime-v1.asyncapi.yaml"
+API_CONTRACT = "docs/contracts/runtime-rest.openapi.yaml"
+REALTIME_CONTRACT = "docs/contracts/realtime-events-runtime.asyncapi.yaml"
 API_SURFACE_FILES = [
     "services/api-rs/src/models.rs",
     "services/api-rs/src/app/router.rs",

@@ -599,7 +599,7 @@ Current MVP-adjacent backend baseline:
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/planning/iterations/02-sprint-board.md`

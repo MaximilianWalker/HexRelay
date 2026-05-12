@@ -388,7 +388,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
 
     let ack_payload = serde_json::json!({
         "event_type": "dm.envelope.ack",
-        "event_version": 1,
+
         "correlation_id": "corr-dm-ack-1",
         "data": {
             "envelope_id": dispatched["data"]["envelope_id"],

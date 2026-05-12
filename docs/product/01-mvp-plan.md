@@ -59,7 +59,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 - 2026-03-03: Added docs metadata and decision-log section to standardize documentation governance.
 - 2026-03-04: Locked MVP invite scope semantics to mode + expiration + max-uses only; role/channel scoped invites deferred post-MVP.
-- 2026-03-04: Added MVP Crypto Profile v1 and Iteration 1 OpenAPI contract baseline for identity/invite/auth.
+- 2026-03-04: Added MVP Crypto Profile and Iteration 1 OpenAPI contract baseline for identity/invite/auth.
 - 2026-03-04: Locked group DM E2EE as required in MVP.
 - 2026-03-04: Locked discovery abuse baseline as signed registry + rate limiting + denylist support.
 - 2026-03-04: Locked recovery setup as mandatory during onboarding.
@@ -131,12 +131,12 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - DM and group DM messaging (edits, mentions, deletes, replies).
 - E2EE DM delivery stack: ciphertext-envelope node delivery, relationship-scoped contact/encryption bootstrap, delivery metadata minimization, and deterministic delivery-state UI.
 - Profile-device eventual-sync stack: active-device fanout plus late-device replay/catch-up by per-device cursor for DM and server communication.
-- Servers (guilds), text channels, role/permission v1.
+- Servers (guilds), text channels, role/permission baseline.
 - Voice channels, 1:1 calls, and screen share.
 - Attachments upload/download (operator-configurable quotas, no global product cap).
 - Node-owner controls: local kick/ban/logging tools (no global moderation authority).
 - E2EE DMs (1:1 and group DM required in MVP).
-- Data ownership v1: full export and import.
+- Data ownership baseline: full export and import.
 
 ### Out of Scope (Post-MVP)
 
@@ -263,7 +263,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Server verifies signature against bound public key and issues session token.
 - Subsequent logins use challenge-response; no centralized credentials.
 
-### MVP Crypto Profile v1 (Execution Baseline)
+### MVP Crypto Profile (Execution Baseline)
 
 - Identity signing key: Ed25519.
 - Session key exchange baseline: X25519 + HKDF-SHA256.
@@ -292,7 +292,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
   - `signature_invalid`
   - `session_invalid`
 - Contract freeze rule: once Week 2 starts, schema changes require explicit changelog entry in `docs/planning/05-iteration-log.md`.
-- Canonical artifact path: `docs/contracts/runtime-rest-v1.openapi.yaml`.
+- Canonical artifact path: `docs/contracts/runtime-rest.openapi.yaml`.
 - Artifact gate: `T2.*` tasks are `blocked` until this contract is committed and referenced in the sprint board.
 
 ### Discovery Abuse-Control Baseline (MVP)
@@ -388,7 +388,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Iteration 2 Epics
 
 - E3: Friends graph, user discovery, and presence model.
-- E4: DMs/group DMs, guild channels, permissions v1, and E2EE DM baseline.
+- E4: DMs/group DMs, guild channels, permissions baseline, and E2EE DM baseline.
 
 ### Iteration 3 Epics
 
@@ -476,7 +476,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 
 ### MVP Exit Criteria
 
-- Canonical KPI definitions and thresholds are maintained in `docs/product/02-prd-v1.md`.
+- Canonical KPI definitions and thresholds are maintained in `docs/product/02-prd.md`.
 - This plan tracks delivery sequencing; do not update KPI thresholds here.
 
 ## 11) Risks and Mitigations
@@ -494,7 +494,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ## 13) Related Documents
 
 - `README.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
 - `docs/product/10-infra-free-dm-connectivity-proposals.md`

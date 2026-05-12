@@ -16,7 +16,6 @@ operations:
       supported_targeting:
         - self_only
       rejection_codes:
-        - event_version_unsupported
         - event_invalid
         - event_unsupported
   sendCallSignalAnswer:
@@ -43,18 +42,17 @@ operations:
         - event_unsupported
 components:
   schemas:
-    EventEnvelopeV1:
+    EventEnvelope:
       type: object
-      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      required: [event_id, event_type, occurred_at, correlation_id, producer, data]
       properties:
         event_id: { type: string }
         event_type: { type: string }
-        event_version: { type: integer, enum: [1] }
         occurred_at: { type: string }
         correlation_id: { type: string }
         producer: { type: string, enum: [realtime-gateway] }
         data: {}
-    CallSignalOfferDataV1:
+    CallSignalOfferData:
       type: object
       required: [call_id, from_identity_id, to_identity_id, sdp_offer]
       properties:
@@ -62,7 +60,7 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         sdp_offer: { type: string }
-    CallSignalAnswerDataV1:
+    CallSignalAnswerData:
       type: object
       required: [call_id, from_identity_id, to_identity_id, sdp_answer]
       properties:
@@ -70,7 +68,7 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         sdp_answer: { type: string }
-    CallSignalIceCandidateDataV1:
+    CallSignalIceCandidateData:
       type: object
       required: [call_id, from_identity_id, to_identity_id, candidate]
       properties:
@@ -78,28 +76,28 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         candidate: { type: string }
-    CallSignalOfferEventV1:
+    CallSignalOfferEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.offer }
-            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
-    CallSignalAnswerEventV1:
+            data: { $ref: '#/components/schemas/CallSignalOfferData' }
+    CallSignalAnswerEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.answer }
-            data: { $ref: '#/components/schemas/CallSignalAnswerDataV1' }
-    CallSignalIceCandidateEventV1:
+            data: { $ref: '#/components/schemas/CallSignalAnswerData' }
+    CallSignalIceCandidateEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.ice_candidate }
-            data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }
-    ErrorDataV1:
+            data: { $ref: '#/components/schemas/CallSignalIceCandidateData' }
+    ErrorData:
       type: object
       properties:
         code:
@@ -107,5 +105,4 @@ components:
           enum:
             - event_identity_mismatch
             - event_invalid
-            - event_version_unsupported
             - event_unsupported

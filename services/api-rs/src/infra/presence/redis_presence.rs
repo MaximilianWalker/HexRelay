@@ -17,7 +17,7 @@ pub async fn list_presence_statuses(
 
     let keys = identity_ids
         .iter()
-        .map(|identity_id| format!("presence:v1:snapshot:{identity_id}"))
+        .map(|identity_id| format!("presence:snapshot:{identity_id}"))
         .collect::<Vec<_>>();
 
     let mut connection = client.get_multiplexed_tokio_connection().await?;

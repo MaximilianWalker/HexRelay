@@ -112,7 +112,7 @@ pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Err
 }
 
 async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error> {
-    const RUNTIME_BACKFILL_MARKER: &str = "0007_invites_hash_backfill_runtime_v1";
+    const RUNTIME_BACKFILL_MARKER: &str = "0007_invites_hash_backfill_runtime";
 
     let legacy_tokens = sqlx::query_scalar::<_, String>(
         "SELECT token FROM invites WHERE token !~ '^[0-9a-f]{64}$'",
@@ -135,7 +135,7 @@ async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error>
         "INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
     )
     .bind(RUNTIME_BACKFILL_MARKER)
-    .bind("runtime-backfill-v1")
+    .bind("runtime-backfill")
     .execute(&mut *tx)
     .await?;
 
@@ -381,7 +381,7 @@ mod tests {
             .unwrap_or(0);
         let plaintext_token = format!("legacy-token-backfill-test-{token_suffix}");
         sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
-            .bind("0007_invites_hash_backfill_runtime_v1")
+            .bind("0007_invites_hash_backfill_runtime")
             .execute(&pool)
             .await
             .expect("clear runtime backfill marker");

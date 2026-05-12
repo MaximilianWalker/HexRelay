@@ -59,11 +59,11 @@ describe("sessions", () => {
 
     (globalThis as { window?: unknown }).window = buildWindow();
     const windowRef = globalThis.window as ReturnType<typeof buildWindow>;
-    windowRef.sessionStorage.setItem("hexrelay.session.runtime.v1.persona-x", "not-json");
+    windowRef.sessionStorage.setItem("hexrelay.session.runtime.persona-x", "not-json");
     expect(getPersonaSession("persona-x")).toBeNull();
 
     windowRef.sessionStorage.setItem(
-      "hexrelay.session.runtime.v1.persona-x",
+      "hexrelay.session.runtime.persona-x",
       JSON.stringify({ sessionId: "sess-only" }),
     );
     expect(getPersonaSession("persona-x")).toBeNull();
@@ -84,8 +84,8 @@ describe("sessions", () => {
     });
 
     clearPersonaSession("persona-1");
-    expect(windowRef.sessionStorage.getItem("hexrelay.session.runtime.v1.persona-1")).toBeNull();
-    expect(windowRef.localStorage.getItem("hexrelay.session.v1.persona-1")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.session.runtime.persona-1")).toBeNull();
+    expect(windowRef.localStorage.getItem("hexrelay.session.persona-1")).toBeNull();
   });
 
   it("keeps seeded runtime sessions isolated per persona", () => {
@@ -114,7 +114,7 @@ describe("sessions", () => {
     const windowRef = globalThis.window as ReturnType<typeof buildWindow>;
 
     windowRef.localStorage.setItem(
-      "hexrelay.session.v1.persona-1",
+      "hexrelay.session.persona-1",
       JSON.stringify({
         sessionId: "sess-1",
         accessToken: "legacy-token",
@@ -129,8 +129,8 @@ describe("sessions", () => {
       expiresAt: "2030-01-01T00:00:00Z",
     });
 
-    expect(windowRef.localStorage.getItem("hexrelay.session.v1.persona-1")).toBeNull();
-    expect(windowRef.sessionStorage.getItem("hexrelay.session.runtime.v1.persona-1")).toContain("sess-1");
+    expect(windowRef.localStorage.getItem("hexrelay.session.persona-1")).toBeNull();
+    expect(windowRef.sessionStorage.getItem("hexrelay.session.runtime.persona-1")).toContain("sess-1");
   });
 
   it("persists and decrypts persona private keys with the secure-store provider", async () => {
@@ -167,8 +167,8 @@ describe("sessions", () => {
 
     await setPersonaPrivateKey("persona-1", "deadbeef");
 
-    expect(stored.get("hexrelay.identity.master-key.v1")).toBeTruthy();
-    expect(stored.get("hexrelay.identity.private.v1.persona-1")).toBeTruthy();
+    expect(stored.get("hexrelay.identity.master-key")).toBeTruthy();
+    expect(stored.get("hexrelay.identity.private.persona-1")).toBeTruthy();
     expect(deriveKey).toHaveBeenCalledTimes(1);
     expect(encrypt).toHaveBeenCalledTimes(1);
 
@@ -208,11 +208,11 @@ describe("sessions", () => {
 
     expect(await getPersonaPrivateKey("persona-missing")).toBeNull();
 
-    stored.set("hexrelay.identity.private.v1.persona-bad", "broken.payload");
+    stored.set("hexrelay.identity.private.persona-bad", "broken.payload");
     expect(await getPersonaPrivateKey("persona-bad")).toBeNull();
 
     clearPersonaPrivateKey("persona-bad");
     await Promise.resolve();
-    expect(stored.has("hexrelay.identity.private.v1.persona-bad")).toBe(false);
+    expect(stored.has("hexrelay.identity.private.persona-bad")).toBe(false);
   });
 });

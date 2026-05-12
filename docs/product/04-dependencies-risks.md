@@ -27,12 +27,12 @@
 | D-001 | Monorepo scaffold (`apps/web`, Rust services, infra) | Internal | ready | Blocks all code implementation and local bootstrap | Core | Iteration 1 baseline completed with `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` |
 | D-002 | Local infra compose stack (Postgres, Redis, object storage, coturn) | Internal | ready | Blocks auth, messaging, and voice integration tests | Core | `infra/docker-compose.yml` and `infra/README.md` present |
 | D-003 | CI matrix for Rust + web lint/test/build + security audit gates | Internal | ready | Increases regression, dependency, and secure-coding drift risk | Platform | Implemented in `.github/workflows/ci.yml` including cargo/npm audits, semgrep scan, and integration evidence artifact upload |
-| D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest-v1.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
-| D-005 | MVP Crypto Profile v1 implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile-v1.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
+| D-004 | Runtime REST OpenAPI contract artifact (`docs/contracts/runtime-rest.openapi.yaml`) | Internal | ready | Blocks API/Web parallel implementation and schema freeze enforcement | API | Required before Week 2 starts |
+| D-005 | MVP Crypto Profile implementation alignment | Internal | ready | Auth/E2EE tasks can diverge and fail interoperability/security tests | Core | Artifact: `docs/contracts/crypto-profile.md`; checklist: `docs/testing/crypto-conformance-checklist.md` |
 | D-006 | UI navigation authority mapping from spec to tasks | Internal | ready | Navigation features may be omitted or inconsistent at implementation time | Web | Trace matrix present in Iteration 2 board |
 | D-007 | E2EE DM envelope delivery conformance profile | Internal | ready | DM baseline could drift into server-readable payloads, excess metadata, private-key custody, or retired node-bypassing client DM surfaces without repeatable evidence | Core/API/QA | Conformance must prove ciphertext-only server-node/message-node handling, client-only plaintext/private keys, deterministic delivery-metadata retention, metadata-only abuse controls, and absence of node-bypassing client DM transport/bootstrap surfaces |
 | D-010 | TURN/NAT constrained-network validation profile for Iteration 3 voice/screen-share flows | Internal | ready | Voice/screen-share constrained-network behavior cannot be signed off with repeatable evidence | Platform/Realtime | Canonical profile: `docs/planning/turn-nat-test-profile.md`; scoped to voice/screen-share only |
-| D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events-v1.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
+| D-008 | Realtime event/signaling contract artifact (`docs/contracts/realtime-events.asyncapi.yaml`) | Internal | ready | Realtime and web event payloads can drift and break compatibility | Realtime | Required before Iteration 2 realtime fanout sign-off |
 | D-009 | Fixed KPI/SLO test profile (`docs/planning/kpi-slo-test-profile.md`) | Internal | ready | KPI/SLO evidence cannot be compared objectively across runs | Platform | Required before Iteration 4 SLO sign-off |
 
 ## Risk Register
@@ -89,6 +89,6 @@
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/planning/iterations/01-sprint-board.md`
 - `docs/planning/05-iteration-log.md`

@@ -130,7 +130,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -p api-rs --all-features
 cargo test -p realtime-rs --all-features
-API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=v1:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=v1 cargo llvm-cov --workspace --all-features --fail-under-lines 80
+API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=primary:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=primary cargo llvm-cov --workspace --all-features --fail-under-lines 80
 npm --prefix apps/web run lint
 npm --prefix apps/web run test:coverage
 npm --prefix apps/web run build
