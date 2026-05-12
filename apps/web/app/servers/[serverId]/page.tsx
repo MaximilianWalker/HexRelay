@@ -7,13 +7,18 @@ import {
   IconArrowLeft,
   IconBell,
   IconBellOff,
+  IconCircleCheck,
+  IconClock,
   IconHash,
   IconInfoCircle,
   IconMessageCircle,
   IconRefresh,
   IconSend,
-  IconServer2,
+  IconSettings,
+  IconShieldCheck,
   IconStar,
+  IconUsers,
+  IconVolume,
 } from "@tabler/icons-react";
 
 import { WorkspaceShell } from "@/components/workspace-shell";
@@ -125,8 +130,63 @@ const PREVIEW_MESSAGES: ServerChannelMessage[] = [
   },
 ];
 
+const PREVIEW_RULES = [
+  "Keep validation notes in the right channel.",
+  "Use mentions when a specific seeded user needs to verify a flow.",
+  "Move voice-session issues into the voice tab once that surface is ready.",
+];
+
+const PREVIEW_ROLE_SUMMARY = [
+  { label: "Admins", names: "Alice" },
+  { label: "Maintainers", names: "Bob" },
+  { label: "Members", names: "Carol" },
+];
+
+const PREVIEW_ROLE_DESCRIPTIONS: Record<string, string> = {
+  Admins: "Full server management and settings access.",
+  Maintainers: "Coordinate channel, workspace, and validation activity.",
+  Members: "Participate in chat, voice, and fixture validation.",
+};
+
+const PREVIEW_MEMBERS = [
+  {
+    identityId: "usr-test-alice",
+    role: "Admins",
+    title: "Server owner",
+    presence: "online",
+    favorite: true,
+    muted: false,
+    unread: 2,
+    joinedAt: "2026-05-04T11:01:00Z",
+    lastActive: "Reviewing #ops-lab",
+  },
+  {
+    identityId: "usr-test-bob",
+    role: "Maintainers",
+    title: "Fixture maintainer",
+    presence: "online",
+    favorite: false,
+    muted: false,
+    unread: 1,
+    joinedAt: "2026-05-04T11:02:00Z",
+    lastActive: "Tracking setup notes",
+  },
+  {
+    identityId: "usr-test-carol",
+    role: "Members",
+    title: "Validation member",
+    presence: "away",
+    favorite: false,
+    muted: true,
+    unread: 0,
+    joinedAt: "2026-05-04T11:03:00Z",
+    lastActive: "Confirmed reply flow",
+  },
+];
+
+type PreviewMember = (typeof PREVIEW_MEMBERS)[number];
 type LoadState = "idle" | "loading" | "ready" | "error";
-type ServerView = "overview" | "chat";
+type ServerView = "overview" | "users" | "chat" | "voice" | "settings";
 
 function subscribeBrowserReady(): () => void {
   return () => {};
@@ -267,10 +327,12 @@ function ServerIcon({ name }: { name: string }) {
 function ChannelButton({
   channel,
   active,
+  notificationCount,
   onSelect,
 }: {
   channel: ServerChannelSummary;
   active: boolean;
+  notificationCount: number;
   onSelect: (channelId: string) => void;
 }) {
   return (
@@ -282,7 +344,11 @@ function ChannelButton({
     >
       <IconHash className={styles.icon} aria-hidden="true" />
       <span>{channel.name}</span>
-      <span className={styles.channelSeq}>seq {channel.last_message_seq}</span>
+      {notificationCount > 0 ? (
+        <span className={styles.channelBadge} aria-label={`${notificationCount} unseen mentions`}>
+          {notificationCount}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -341,6 +407,54 @@ function MessageBubble({
           <IconMessageCircle className={styles.icon} aria-hidden="true" />
         </button>
       ) : null}
+    </article>
+  );
+}
+
+function MemberCard({ member, current }: { member: PreviewMember; current: boolean }) {
+  const name = authorLabel(member.identityId);
+  const presenceLabel = member.presence === "online" ? "Online" : "Away";
+
+  return (
+    <article className={`${styles.memberCard} ${current ? styles.memberCardCurrent : ""}`}>
+      <div className={styles.memberAvatarWrap}>
+        <div className={styles.memberAvatar}>{initials(name)}</div>
+        <span
+          aria-label={presenceLabel}
+          className={`${styles.presenceDot} ${member.presence === "online" ? styles.presenceOnline : styles.presenceAway}`}
+          role="img"
+        />
+      </div>
+      <div className={styles.memberInfo}>
+        <div className={styles.memberNameRow}>
+          <h4>{name}</h4>
+          {current ? <span className={styles.memberBadge}>You</span> : null}
+        </div>
+        <p>@{authorHandle(member.identityId)}</p>
+        <p>{member.title}</p>
+        <span>{member.lastActive}</span>
+      </div>
+      <div className={styles.memberMetaStack}>
+        <span>
+          <IconClock className={styles.icon} aria-hidden="true" />
+          Joined {formatTimestamp(member.joinedAt)}
+        </span>
+        <span>
+          {member.muted ? (
+            <IconBellOff className={styles.icon} aria-hidden="true" />
+          ) : (
+            <IconBell className={styles.icon} aria-hidden="true" />
+          )}
+          {member.muted ? "Muted" : "Audible"}
+        </span>
+        {member.favorite ? (
+          <span>
+            <IconStar className={styles.icon} aria-hidden="true" />
+            Favorite
+          </span>
+        ) : null}
+        {member.unread > 0 ? <strong>{member.unread}</strong> : null}
+      </div>
     </article>
   );
 }
@@ -500,6 +614,15 @@ export default function ServerWorkspacePage() {
     : visibleMessagesForChannel(PREVIEW_MESSAGES, activeChannel?.id ?? null);
   const allVisibleMessages = hasSession && messages.length > 0 ? messages : PREVIEW_MESSAGES;
   const latest = latestMessage(allVisibleMessages);
+  const channelNotificationCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const message of allVisibleMessages) {
+      if (message.mentions.includes(identityId)) {
+        counts.set(message.channel_id, (counts.get(message.channel_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [allVisibleMessages, identityId]);
   const messageById = useMemo(() => {
     const lookup = new Map<string, ServerChannelMessage>();
     for (const message of allVisibleMessages) {
@@ -508,6 +631,30 @@ export default function ServerWorkspacePage() {
     return lookup;
   }, [allVisibleMessages]);
   const mentionIdentityIds = useMemo(() => extractMentionIdentityIds(composer), [composer]);
+  const canManageServer = !hasSession || identityId === "usr-test-alice";
+  const roleGroups = useMemo(
+    () =>
+      PREVIEW_ROLE_SUMMARY.map((role) => ({
+        ...role,
+        description: PREVIEW_ROLE_DESCRIPTIONS[role.label] ?? "Server role",
+        members: PREVIEW_MEMBERS.filter((member) => member.role === role.label),
+      })),
+    [],
+  );
+  const serverTabs = useMemo(
+    () =>
+      [
+        { id: "overview" as const, label: "Overview", icon: IconInfoCircle },
+        { id: "users" as const, label: "Users", icon: IconUsers },
+        { id: "chat" as const, label: "Chat", icon: IconMessageCircle },
+        { id: "voice" as const, label: "Voice", icon: IconVolume },
+        ...(canManageServer ? [{ id: "settings" as const, label: "Settings", icon: IconSettings }] : []),
+      ].map((tab) => ({
+        ...tab,
+        onSelect: () => setView(tab.id),
+      })),
+    [canManageServer],
+  );
 
   function selectChannel(channelId: string): void {
     setActiveChannelId(channelId);
@@ -631,68 +778,12 @@ export default function ServerWorkspacePage() {
 
   return (
     <WorkspaceShell
-      activeTabId="server"
+      activeTabId={view}
       subtitle={`${visibleServer.name} server view`}
-      tabs={[{ id: "server", label: visibleServer.name, icon: IconServer2 }]}
+      tabs={serverTabs}
       title={visibleServer.name}
     >
       <section className={styles.serverPage}>
-        <header className={styles.serverHero}>
-          <ServerIcon name={visibleServer.name} />
-          <div className={styles.serverHeroText}>
-            <p className={styles.serverSectionLabel}>Server</p>
-            <h2 className={styles.serverTitle}>{visibleServer.name}</h2>
-            <p className={styles.serverMeta}>
-              Shared seeded validation space for server channels, replies, mentions, and unread state.
-            </p>
-            <div className={styles.serverStatusRow} aria-label="Server status">
-              <span className={styles.statusBadge}>
-                <IconStar className={styles.icon} aria-hidden="true" />
-                {visibleServer.favorite ? "Favorite" : "Standard"}
-              </span>
-              <span className={styles.statusBadge}>
-                {visibleServer.muted ? (
-                  <IconBellOff className={styles.icon} aria-hidden="true" />
-                ) : (
-                  <IconBell className={styles.icon} aria-hidden="true" />
-                )}
-                {visibleServer.muted ? "Muted" : "Audible"}
-              </span>
-              <span className={styles.statusBadge}>{visibleServer.unread} unread</span>
-            </div>
-          </div>
-          <Link className={styles.backButton} href="/servers">
-            <IconArrowLeft className={styles.icon} aria-hidden="true" />
-            Servers
-          </Link>
-        </header>
-
-        <div className={styles.serverViewBar} role="group" aria-label="Server views">
-          <button
-            aria-pressed={view === "overview"}
-            className={`${styles.viewButton} ${view === "overview" ? styles.viewButtonActive : ""}`}
-            onClick={() => setView("overview")}
-            type="button"
-          >
-            Overview
-          </button>
-          <button
-            aria-pressed={view === "chat"}
-            className={`${styles.viewButton} ${view === "chat" ? styles.viewButtonActive : ""}`}
-            onClick={() => setView("chat")}
-            type="button"
-          >
-            Chat
-          </button>
-        </div>
-
-        {!hasSession ? (
-          <div className={styles.serverNotice}>
-            <IconInfoCircle className={styles.icon} aria-hidden="true" />
-            <span>Activate a local testing profile to load live server data. Showing seeded Atlas preview data.</span>
-          </div>
-        ) : null}
-
         {workspaceState === "loading" ? <p className={styles.state}>Loading server...</p> : null}
         {workspaceState === "error" ? <p className={styles.state}>Could not load this server.</p> : null}
         {statusMessage ? (
@@ -703,53 +794,202 @@ export default function ServerWorkspacePage() {
         ) : null}
 
         {view === "overview" ? (
-          <section className={styles.overviewGrid} aria-label="Server overview">
-            <article className={styles.overviewPanel}>
-              <div className={styles.panelHeader}>
-                <h3>Channels</h3>
-                <span>{visibleChannels.length}</span>
-              </div>
-              <div className={styles.channelStack}>
-                {visibleChannels.map((channel) => (
-                  <ChannelButton
-                    active={channel.id === activeChannel?.id}
-                    channel={channel}
-                    key={channel.id}
-                    onSelect={selectChannel}
-                  />
-                ))}
-              </div>
-            </article>
-
-            <article className={styles.overviewPanel}>
-              <div className={styles.panelHeader}>
-                <h3>Latest activity</h3>
-                {latest ? <span>{formatTimestamp(latest.created_at)}</span> : null}
-              </div>
-              {latest ? (
-                <div className={styles.activityPreview}>
-                  <div className={styles.messageAvatar}>{initials(authorLabel(latest.author_id))}</div>
-                  <div>
-                    <p className={styles.messageAuthor}>{authorLabel(latest.author_id)}</p>
-                    <p className={styles.messageContent}>{latest.content}</p>
-                  </div>
+          <section className={styles.overviewStack} aria-label="Server overview">
+            <header className={styles.serverHero}>
+              <ServerIcon name={visibleServer.name} />
+              <div className={styles.serverHeroText}>
+                <p className={styles.serverSectionLabel}>Server</p>
+                <h2 className={styles.serverTitle}>{visibleServer.name}</h2>
+                <p className={styles.serverMeta}>
+                  Shared seeded validation space for server channels, replies, mentions, and unread state.
+                </p>
+                <div className={styles.serverStatusRow} aria-label="Server status">
+                  <span className={styles.statusBadge}>
+                    <IconStar className={styles.icon} aria-hidden="true" />
+                    {visibleServer.favorite ? "Favorite" : "Standard"}
+                  </span>
+                  <span className={styles.statusBadge}>
+                    {visibleServer.muted ? (
+                      <IconBellOff className={styles.icon} aria-hidden="true" />
+                    ) : (
+                      <IconBell className={styles.icon} aria-hidden="true" />
+                    )}
+                    {visibleServer.muted ? "Muted" : "Audible"}
+                  </span>
+                  <span className={styles.statusBadge}>{visibleServer.unread} unread</span>
                 </div>
-              ) : (
-                <p className={styles.meta}>No channel activity yet.</p>
-              )}
-            </article>
-
-            <article className={styles.overviewPanel}>
-              <div className={styles.panelHeader}>
-                <h3>Validation focus</h3>
               </div>
-              <p className={styles.meta}>
-                The server-chat fixture exercises two channels, three member identities, mentions, replies,
-                unread count, favorite state, and muted state.
-              </p>
-            </article>
+              <Link className={styles.backButton} href="/servers">
+                <IconArrowLeft className={styles.icon} aria-hidden="true" />
+                Servers
+              </Link>
+            </header>
+
+            {!hasSession ? (
+              <div className={styles.serverNotice}>
+                <IconInfoCircle className={styles.icon} aria-hidden="true" />
+                <span>Activate a local testing profile to load live server data. Showing seeded Atlas preview data.</span>
+              </div>
+            ) : null}
+
+            <div className={styles.overviewFeatureGrid}>
+              <article className={`${styles.overviewPanel} ${styles.markdownPanel}`}>
+                <div className={styles.panelHeader}>
+                  <h3>About this server</h3>
+                  <span>server.md</span>
+                </div>
+                <div className={styles.markdownPreview}>
+                  <h4>Atlas validation space</h4>
+                  <p>
+                    Atlas is the seeded server for reviewing shared channels, mentions, replies, roles, and voice
+                    workspace behavior before the live server surface is widened.
+                  </p>
+                  <ul>
+                    <li>
+                      <strong>#general</strong> keeps the default conversation and mention checks.
+                    </li>
+                    <li>
+                      <strong>#ops-lab</strong> tracks workspace, moderation, and voice follow-up notes.
+                    </li>
+                  </ul>
+                  <blockquote>Today: validate the server workspace layout and tab model.</blockquote>
+                </div>
+              </article>
+
+              <div className={styles.overviewRail}>
+                <article className={styles.overviewPanel}>
+                  <div className={styles.panelHeader}>
+                    <h3>Pinned announcement</h3>
+                  </div>
+                  <p className={styles.meta}>
+                    Review the server tabs first, then use #ops-lab for notes about voice, settings, and role grouping.
+                  </p>
+                </article>
+
+                <article className={styles.overviewPanel}>
+                  <div className={styles.panelHeader}>
+                    <h3>Roles</h3>
+                    <span>{PREVIEW_ROLE_SUMMARY.length}</span>
+                  </div>
+                  <div className={styles.roleSummaryList}>
+                    {PREVIEW_ROLE_SUMMARY.map((role) => (
+                      <div className={styles.roleSummaryItem} key={role.label}>
+                        <span>{role.label}</span>
+                        <strong>{role.names}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <section className={styles.overviewGrid} aria-label="Server summary">
+              <article className={styles.overviewPanel}>
+                <div className={styles.panelHeader}>
+                  <h3>Channels</h3>
+                  <span>{visibleChannels.length}</span>
+                </div>
+                <div className={styles.channelStack}>
+                  {visibleChannels.map((channel) => (
+                    <ChannelButton
+                      active={channel.id === activeChannel?.id}
+                      channel={channel}
+                      key={channel.id}
+                      notificationCount={channelNotificationCounts.get(channel.id) ?? 0}
+                      onSelect={selectChannel}
+                    />
+                  ))}
+                </div>
+              </article>
+
+              <article className={styles.overviewPanel}>
+                <div className={styles.panelHeader}>
+                  <h3>Latest activity</h3>
+                  {latest ? <span>{formatTimestamp(latest.created_at)}</span> : null}
+                </div>
+                {latest ? (
+                  <div className={styles.activityPreview}>
+                    <div className={styles.messageAvatar}>{initials(authorLabel(latest.author_id))}</div>
+                    <div>
+                      <p className={styles.messageAuthor}>{authorLabel(latest.author_id)}</p>
+                      <p className={styles.messageContent}>{latest.content}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className={styles.meta}>No channel activity yet.</p>
+                )}
+              </article>
+
+              <article className={styles.overviewPanel}>
+                <div className={styles.panelHeader}>
+                  <h3>Rules</h3>
+                  <span>{PREVIEW_RULES.length}</span>
+                </div>
+                <ul className={styles.overviewList}>
+                  {PREVIEW_RULES.map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
+              </article>
+            </section>
           </section>
-        ) : (
+        ) : view === "users" ? (
+          <section className={styles.usersView} aria-label="Server users">
+            <header className={styles.usersHeader}>
+              <div>
+                <p className={styles.serverSectionLabel}>Members</p>
+                <h2>Server users</h2>
+                <p className={styles.serverMeta}>
+                  Seeded server-chat memberships grouped by role, with profile, presence, and per-member server state.
+                </p>
+              </div>
+              <div className={styles.usersStats} aria-label="Member summary">
+                <span>
+                  <IconUsers className={styles.icon} aria-hidden="true" />
+                  {PREVIEW_MEMBERS.length} members
+                </span>
+                <span>
+                  <IconShieldCheck className={styles.icon} aria-hidden="true" />
+                  {roleGroups.length} roles
+                </span>
+                <span>
+                  <IconCircleCheck className={styles.icon} aria-hidden="true" />
+                  {PREVIEW_MEMBERS.filter((member) => member.presence === "online").length} online
+                </span>
+              </div>
+            </header>
+
+            {!hasSession ? (
+              <div className={styles.serverNotice}>
+                <IconInfoCircle className={styles.icon} aria-hidden="true" />
+                <span>Showing seeded Atlas membership data until a local testing profile loads live server state.</span>
+              </div>
+            ) : null}
+
+            <div className={styles.roleGroups}>
+              {roleGroups.map((group) => (
+                <section className={styles.roleGroup} key={group.label} aria-label={`${group.label} members`}>
+                  <div className={styles.roleGroupHeader}>
+                    <div>
+                      <h3>{group.label}</h3>
+                      <p>{group.description}</p>
+                    </div>
+                    <span>{group.members.length}</span>
+                  </div>
+                  <div className={styles.memberList}>
+                    {group.members.map((member) => (
+                      <MemberCard
+                        current={member.identityId === identityId}
+                        key={member.identityId}
+                        member={member}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        ) : view === "chat" ? (
           <section className={styles.chatGrid} aria-label="Server chat">
             <aside className={styles.chatChannelRail} aria-label="Channels">
               <div className={styles.panelHeader}>
@@ -761,6 +1001,7 @@ export default function ServerWorkspacePage() {
                     active={channel.id === activeChannel?.id}
                     channel={channel}
                     key={channel.id}
+                    notificationCount={channelNotificationCounts.get(channel.id) ?? 0}
                     onSelect={selectChannel}
                   />
                 ))}
@@ -776,7 +1017,7 @@ export default function ServerWorkspacePage() {
                     {activeChannel?.name ?? "No channel"}
                   </h3>
                   <p className={styles.serverMeta}>
-                    {activeChannel ? `${activeChannel.kind} channel - latest seq ${activeChannel.last_message_seq}` : ""}
+                    {activeChannel ? `${activeChannel.kind} channel` : ""}
                   </p>
                 </div>
                 <button
@@ -871,6 +1112,46 @@ export default function ServerWorkspacePage() {
                   Activate a local testing profile to send messages.
                 </div>
               )}
+            </article>
+          </section>
+        ) : view === "voice" ? (
+          <section className={styles.chatGrid} aria-label="Server voice">
+            <aside className={styles.chatChannelRail} aria-label="Voice channels">
+              <div className={styles.panelHeader}>
+                <h3>Voice channels</h3>
+              </div>
+              <div className={styles.channelStack}>
+                <button className={styles.channelButton} type="button">
+                  <IconVolume className={styles.icon} aria-hidden="true" />
+                  <span>Lobby</span>
+                </button>
+                <button className={styles.channelButton} type="button">
+                  <IconVolume className={styles.icon} aria-hidden="true" />
+                  <span>Ops room</span>
+                </button>
+              </div>
+            </aside>
+
+            <article className={styles.chatPanel}>
+              <header className={styles.chatHeader}>
+                <div>
+                  <p className={styles.serverSectionLabel}>Voice</p>
+                  <h3>
+                    <IconVolume className={styles.icon} aria-hidden="true" />
+                    Lobby
+                  </h3>
+                  <p className={styles.serverMeta}>No active speakers in the seeded preview.</p>
+                </div>
+              </header>
+            </article>
+          </section>
+        ) : (
+          <section className={styles.overviewGrid} aria-label="Server settings">
+            <article className={styles.overviewPanel}>
+              <div className={styles.panelHeader}>
+                <h3>Server settings</h3>
+              </div>
+              <p className={styles.meta}>Atlas Test Server</p>
             </article>
           </section>
         )}

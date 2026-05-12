@@ -514,16 +514,33 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  appearance: none;
   border: 1px solid rgba(177, 205, 231, 0.72);
   border-bottom: 0;
   border-radius: 12px 12px 0 0;
   background: rgba(238, 247, 255, 0.78);
   box-shadow: none;
   color: #294a69;
+  cursor: default;
+  font-family: inherit;
   padding: 9px 13px 10px;
   white-space: nowrap;
   font-size: 0.82rem;
   line-height: 1;
+}
+
+button.tab {
+  cursor: pointer;
+}
+
+button.tab:hover {
+  background: rgba(247, 251, 255, 0.94);
+  color: #173f61;
+}
+
+button.tab:focus-visible {
+  outline: 2px solid #23689a;
+  outline-offset: 2px;
 }
 
 .tabActive {

@@ -57,6 +57,7 @@ type TabItem = {
   id: string;
   label: string;
   icon?: typeof IconServer2;
+  onSelect?: () => void;
 };
 
 const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
@@ -383,12 +384,25 @@ export function WorkspaceShell({
             <div className={styles.tabs}>
               {tabs.map((tab) => {
                 const TabIcon = tab.icon;
+                const tabClassName = `${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`;
+
+                if (tab.onSelect) {
+                  return (
+                    <button
+                      aria-pressed={tab.id === activeTabId}
+                      className={tabClassName}
+                      key={tab.id}
+                      onClick={tab.onSelect}
+                      type="button"
+                    >
+                      {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
+                      <span className={styles.tabLabel}>{tab.label}</span>
+                    </button>
+                  );
+                }
 
                 return (
-                  <div
-                    className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`}
-                    key={tab.id}
-                  >
+                  <div className={tabClassName} key={tab.id}>
                     {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
                     <span className={styles.tabLabel}>{tab.label}</span>
                   </div>
