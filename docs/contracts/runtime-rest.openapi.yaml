@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: HexRelay Runtime REST API
-  version: 0.1.0
+  version: unversioned
   description: |
     Current runtime REST contract authority.
     This artifact defines currently implemented REST behavior and must be
@@ -17,12 +17,15 @@ info:
     structured allow/deny/failure logs for node-owner debugging without changing
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
-    adapter boundary without changing REST route or payload contracts. DM delivery
-    uses server-node P2P E2EE ciphertext envelopes plus minimal delivery
-    metadata; runtime contracts must not expose node-bypassing DM bootstrap or
-    plaintext relay behavior. App-to-node dedicated-server administration starts
-    with a public node connection descriptor plus an authenticated capabilities
-    endpoint; admin/owner status is returned only after normal session auth.
+    adapter boundary without changing REST route or payload contracts.
+    Server-channel realtime dispatch records internal accepted-summary telemetry
+    for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
+    preserving the existing REST success payloads. DM delivery uses server-node
+    P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
+    contracts must not expose node-bypassing DM bootstrap or plaintext relay
+    behavior. App-to-node dedicated-server administration starts with a public
+    node connection descriptor plus an authenticated capabilities endpoint;
+    admin/owner status is returned only after normal session auth.
 servers:
   - url: https://api.hexrelay.local
 paths:
@@ -1569,6 +1572,8 @@ paths:
                   value:
                     code: internal_token_invalid
                     message: DM envelope ack requires a valid internal token
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /internal/dm/envelopes/forward:
@@ -1703,6 +1708,8 @@ paths:
                   value:
                     code: fanout_message_id_conflict
                     message: message_id already exists for an accepted DM
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /discovery/users:
@@ -2042,6 +2049,8 @@ paths:
                     message: message_id already exists for an accepted DM
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/fanout/catch-up:
@@ -2051,6 +2060,9 @@ paths:
         Profile-device convergence replay for server-node P2P E2EE DM
         envelopes. Canonical accepted DM history and delivery metadata persist
         when configured storage is available without exposing plaintext content.
+        Catch-up throttling is identity-scoped across profile devices, while
+        retention cleanup runs only after the requested active profile-device
+        secret is validated.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -2128,6 +2140,8 @@ paths:
                     message: cursor is beyond the current delivery tail
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /dm/threads:

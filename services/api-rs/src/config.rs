@@ -429,7 +429,8 @@ fn parse_identity_id_csv_env(key: &str) -> Result<Vec<String>, String> {
 }
 
 fn parse_session_signing_keys() -> Result<(String, HashMap<String, String>), String> {
-    let active_key_id = env::var("API_SESSION_SIGNING_KEY_ID").unwrap_or_else(|_| "v1".to_string());
+    let active_key_id =
+        env::var("API_SESSION_SIGNING_KEY_ID").unwrap_or_else(|_| "primary".to_string());
     let keyring_raw = env::var("API_SESSION_SIGNING_KEYS").ok();
 
     let mut keys = HashMap::new();
@@ -1393,9 +1394,9 @@ mod tests {
                 ("API_SESSION_COOKIE_SECURE", Some("true")),
                 (
                     "API_SESSION_SIGNING_KEYS",
-                    Some("v1:production-secret-key-1234567890"),
+                    Some("primary:production-secret-key-1234567890"),
                 ),
-                ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
+                ("API_SESSION_SIGNING_KEY_ID", Some("primary")),
                 (
                     "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
                     Some("prod-channel-dispatch-token-1234"),
@@ -1519,9 +1520,9 @@ mod tests {
                 ("API_ENVIRONMENT", Some("production")),
                 (
                     "API_SESSION_SIGNING_KEYS",
-                    Some("v1:production-secret-key-1234567890"),
+                    Some("primary:production-secret-key-1234567890"),
                 ),
-                ("API_SESSION_SIGNING_KEY_ID", Some("v1")),
+                ("API_SESSION_SIGNING_KEY_ID", Some("primary")),
                 ("API_SESSION_COOKIE_SECURE", Some("false")),
                 ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
             ],

@@ -1,13 +1,13 @@
-# HexRelay PRD v1
+# HexRelay PRD
 
 ## Document Metadata
 
-- Doc ID: prd-v1
+- Doc ID: prd
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
 - last_updated: 2026-05-11
-- Source of truth: `docs/product/02-prd-v1.md`
+- Source of truth: `docs/product/02-prd.md`
 
 ## Quick Context
 

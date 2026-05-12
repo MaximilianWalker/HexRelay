@@ -153,7 +153,7 @@ Week 12:
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/08-screen-state-spec.md`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
 - `docs/testing/01-mvp-verification-matrix.md`

@@ -155,5 +155,5 @@ Evidence path baseline:
 - `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/planning/iterations/02-sprint-board.md`
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/testing/01-mvp-verification-matrix.md`

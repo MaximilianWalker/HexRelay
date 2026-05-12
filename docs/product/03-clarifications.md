@@ -37,7 +37,7 @@
 ## Resolved Clarifications
 
 - C-005 (resolved 2026-03-04): Invite scope semantics in MVP are limited to join eligibility only.
-- C-006 (resolved 2026-03-04): MVP Crypto Profile v1 is locked for identity/auth and baseline E2EE execution.
+- C-006 (resolved 2026-03-04): MVP Crypto Profile is locked for identity/auth and baseline E2EE execution.
 - C-007 (resolved 2026-03-04): Iteration 1 identity/invite/auth OpenAPI endpoint baseline is locked before parallel API/web work.
 - C-001 (resolved 2026-03-04): Group DM E2EE is required in MVP.
 - C-002 (resolved 2026-03-04): Discovery abuse baseline is signed registry plus rate limits and denylist support.
@@ -47,7 +47,7 @@
 - C-009 (resolved 2026-03-04): MVP includes dedicated global `Servers` and `Contacts` hub pages with searchable card-oriented browsing.
 - C-010 (resolved 2026-03-04): Server navigation supports both sidebar mode and browser-like topbar tab mode with saved tabs and folders.
 - C-011 (resolved 2026-03-04): Server workspace includes a burger control to shrink/hide server navigation chrome.
-- C-012 (resolved 2026-03-04): Realtime event/signaling contracts are formalized in a versioned AsyncAPI artifact for Iterations 2-3.
+- C-012 (resolved 2026-03-04): Realtime event/signaling contracts are formalized in an AsyncAPI artifact for Iterations 2-3.
 - C-013 (resolved 2026-03-04): KPI/SLO validation uses a fixed test profile (`200 users`, `70/30 WiFi/Fast4G`, latest stable Chrome/Firefox, single-region staging).
 - C-014 (resolved 2026-03-04): Migration conflict precedence uses user-signed profile data as canonical; server-owned security/membership fields remain server-authoritative.
 - C-015 (resolved 2026-03-04; updated 2026-05-08; clarified 2026-05-11): Post-MVP discovery follows a hybrid server-node policy graph roadmap: private/trusted discovery comes first, federation registries remain supported, user-consented node introductions are allowed only by descriptor policy, and decentralized server/node discovery remains optional for signed descriptor lookup only.
@@ -63,9 +63,9 @@
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/04-dependencies-risks.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
-- `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- `docs/contracts/realtime-events.asyncapi.yaml`
 - `docs/planning/kpi-slo-test-profile.md`

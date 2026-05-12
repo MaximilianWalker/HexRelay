@@ -18,9 +18,9 @@ export type WorkspaceTab = {
   updatedAt: string;
 };
 
-const PINNED_TABS_KEY = "hexrelay.workspace-tabs.pinned.v1";
-const SESSION_TABS_KEY = "hexrelay.workspace-tabs.session.v1";
-const ALL_TABS_KEY = "hexrelay.workspace-tabs.all.v1";
+const PINNED_TABS_KEY = "hexrelay.workspace-tabs.pinned";
+const SESSION_TABS_KEY = "hexrelay.workspace-tabs.session";
+const ALL_TABS_KEY = "hexrelay.workspace-tabs.all";
 const TABS_EVENT = "hexrelay-workspace-tabs-changed";
 
 let cachedSnapshotKey = "";

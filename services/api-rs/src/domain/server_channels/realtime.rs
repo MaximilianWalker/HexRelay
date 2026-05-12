@@ -4,7 +4,7 @@ use communication_core::{
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::state::AppState;
 
@@ -78,6 +78,24 @@ struct OwnedChannelMessageDeletedDispatchRequest {
     recipients: Vec<String>,
 }
 
+#[derive(Deserialize)]
+struct ChannelMessageDispatchInternalResponse {
+    summary: ChannelMessageDispatchSummary,
+}
+
+#[derive(Deserialize)]
+struct ChannelMessageDispatchSummary {
+    message_id: String,
+    server_id: String,
+    channel_id: String,
+    target_recipient_count: u32,
+    queued_recipient_ids: Vec<String>,
+    pending_recipient_ids: Vec<String>,
+    no_connection_recipient_ids: Vec<String>,
+    saturated_recipient_ids: Vec<String>,
+    stale_connection_count: u32,
+}
+
 pub struct DispatchChannelMessageCreatedInput<'a> {
     pub server_id: &'a str,
     pub channel_id: &'a str,
@@ -141,7 +159,38 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                 .send()
                 .await
             {
-                Ok(response) if response.status().is_success() => {}
+                Ok(response) if response.status().is_success() => {
+                    match response
+                        .json::<ChannelMessageDispatchInternalResponse>()
+                        .await
+                    {
+                        Ok(report) => {
+                            debug!(
+                                %path,
+                                message_id = %report.summary.message_id,
+                                server_id = %report.summary.server_id,
+                                channel_id = %report.summary.channel_id,
+                                target_recipient_count = report.summary.target_recipient_count,
+                                queued_recipient_count = report.summary.queued_recipient_ids.len(),
+                                pending_recipient_count = report.summary.pending_recipient_ids.len(),
+                                no_connection_recipient_count = report.summary.no_connection_recipient_ids.len(),
+                                saturated_recipient_count = report.summary.saturated_recipient_ids.len(),
+                                stale_connection_count = report.summary.stale_connection_count,
+                                "NodeClientTransport server-channel dispatch accepted by realtime"
+                            );
+                        }
+                        Err(error) => {
+                            warn!(
+                                %path,
+                                %message_id,
+                                %server_id,
+                                %channel_id,
+                                error = %error,
+                                "NodeClientTransport server-channel dispatch summary decode failed"
+                            );
+                        }
+                    }
+                }
                 Ok(response) => {
                     warn!(
                         %path,
@@ -492,5 +541,23 @@ mod tests {
             RealtimeNodeDispatch::from_payload(payload),
             Err(TransportError::SendFailed)
         ));
+    }
+
+    #[test]
+    fn channel_dispatch_summary_response_decodes() {
+        let report: ChannelMessageDispatchInternalResponse = serde_json::from_str(
+            r#"{"status":"accepted","summary":{"message_id":"msg-1","server_id":"server-1","channel_id":"channel-1","target_recipient_count":3,"queued_recipient_ids":["usr-a"],"pending_recipient_ids":["usr-b","usr-c"],"no_connection_recipient_ids":["usr-b"],"saturated_recipient_ids":["usr-c"],"stale_connection_count":1}}"#,
+        )
+        .expect("decode channel dispatch summary");
+
+        assert_eq!(report.summary.message_id, "msg-1");
+        assert_eq!(report.summary.server_id, "server-1");
+        assert_eq!(report.summary.channel_id, "channel-1");
+        assert_eq!(report.summary.target_recipient_count, 3);
+        assert_eq!(report.summary.queued_recipient_ids, vec!["usr-a"]);
+        assert_eq!(report.summary.pending_recipient_ids, vec!["usr-b", "usr-c"]);
+        assert_eq!(report.summary.no_connection_recipient_ids, vec!["usr-b"]);
+        assert_eq!(report.summary.saturated_recipient_ids, vec!["usr-c"]);
+        assert_eq!(report.summary.stale_connection_count, 1);
     }
 }

@@ -6,7 +6,6 @@ use uuid::Uuid;
 #[derive(Deserialize)]
 struct RealtimeInboundEnvelope {
     event_type: String,
-    event_version: u8,
     #[serde(default)]
     correlation_id: Option<String>,
     data: Value,
@@ -44,7 +43,6 @@ struct CallSignalIceCandidateData {
 struct RealtimeOutboundEnvelope<T: Serialize> {
     event_id: String,
     event_type: String,
-    event_version: u8,
     occurred_at: String,
     correlation_id: String,
     producer: String,
@@ -61,7 +59,6 @@ pub fn connection_ready_banner() -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "realtime.connected".to_string(),
-        event_version: 1,
         occurred_at: Utc::now().to_rfc3339(),
         correlation_id: Uuid::new_v4().to_string(),
         producer: "realtime-gateway".to_string(),
@@ -79,10 +76,6 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
             return build_error_event("event_invalid", "invalid event envelope payload");
         }
     };
-
-    if parsed.event_version != 1 {
-        return build_error_event("event_version_unsupported", "event_version must be 1");
-    }
 
     match parsed.event_type.as_str() {
         "call.signal.offer" => match serde_json::from_value::<CallSignalOfferData>(parsed.data) {
@@ -163,7 +156,6 @@ pub fn build_presence_updated_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "presence.updated".to_string(),
-        event_version: 1,
         occurred_at: updated_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-presence".to_string(),
@@ -192,7 +184,6 @@ pub fn build_channel_message_created_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "channel.message.created".to_string(),
-        event_version: 1,
         occurred_at: created_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-channel".to_string(),
@@ -223,7 +214,6 @@ pub fn build_channel_message_updated_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "channel.message.updated".to_string(),
-        event_version: 1,
         occurred_at: edited_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-channel".to_string(),
@@ -254,7 +244,6 @@ pub fn build_channel_message_deleted_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "channel.message.deleted".to_string(),
-        event_version: 1,
         occurred_at: deleted_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-channel".to_string(),
@@ -278,7 +267,6 @@ pub fn build_dm_device_verified_event(device_id: &str, correlation_id: Option<St
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "dm.device.verified".to_string(),
-        event_version: 1,
         occurred_at: verified_at.clone(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-gateway".to_string(),
@@ -310,7 +298,6 @@ pub fn build_dm_envelope_dispatched_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "dm.envelope.dispatched".to_string(),
-        event_version: 1,
         occurred_at: dispatched_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "dm-message-node".to_string(),
@@ -349,7 +336,6 @@ pub fn build_dm_envelope_ack_event(
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "dm.envelope.ack".to_string(),
-        event_version: 1,
         occurred_at: received_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-gateway".to_string(),
@@ -374,7 +360,6 @@ fn build_event<T: Serialize>(event_type: &str, correlation_id: Option<String>, d
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: event_type.to_string(),
-        event_version: 1,
         occurred_at: Utc::now().to_rfc3339(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         producer: "realtime-gateway".to_string(),
@@ -390,7 +375,6 @@ pub(crate) fn build_error_event(code: &str, message: &str) -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
         event_type: "error".to_string(),
-        event_version: 1,
         occurred_at: Utc::now().to_rfc3339(),
         correlation_id: Uuid::new_v4().to_string(),
         producer: "realtime-gateway".to_string(),
@@ -414,7 +398,6 @@ mod tests {
         let payload: Value = serde_json::from_str(&banner).expect("decode banner");
 
         assert_eq!(payload["event_type"], "realtime.connected");
-        assert_eq!(payload["event_version"], 1);
         assert_eq!(payload["producer"], "realtime-gateway");
         assert_eq!(payload["data"]["status"], "ok");
     }
@@ -422,7 +405,7 @@ mod tests {
     #[test]
     fn routes_valid_answer_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.answer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed answer");
@@ -435,7 +418,7 @@ mod tests {
     #[test]
     fn routes_valid_ice_candidate_event() {
         let response = route_inbound_event(
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
             "usr-1",
         );
         let payload: Value = serde_json::from_str(&response).expect("decode routed candidate");
@@ -457,9 +440,9 @@ mod tests {
     #[test]
     fn rejects_cross_identity_recipient_targeting_until_delivery_exists() {
         let payloads = [
-            r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.answer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
-            r#"{"event_type":"call.signal.ice_candidate","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","candidate":"candidate:1"}}"#,
+            r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","candidate":"candidate:1"}}"#,
         ];
 
         for payload in payloads {

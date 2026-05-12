@@ -1,8 +1,8 @@
 asyncapi: 3.0.0
-id: urn:hexrelay:contracts:realtime-events-runtime:v1
+id: urn:hexrelay:contracts:realtime-events-runtime
 info:
   title: HexRelay Realtime Runtime Contract
-  version: 1.0.0
+  version: unversioned
   description: |
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
@@ -41,83 +41,93 @@ info:
     internal dispatch route. Connected recipient profile devices receive
     `dm.envelope.dispatched`; clients ack receipt with `dm.envelope.ack`, which the
     gateway persists through the API internal ack route before echoing a successful ack.
-    When present, late-joining profile devices receive missed supported events before new
-    live transitions only for recipients that had an active profiled connection when the
-    original event was published.
+    The protected internal dispatch route returns a non-public target-device summary
+    to the API bridge with target counts plus queued, pending, no-connection,
+    unverified, saturated, and stale-connection buckets; websocket clients still
+    receive only their own verified-device `dm.envelope.dispatched` payloads.
+    For non-presence replay streams, when present, late-joining profile devices receive
+    missed supported events before new live transitions only for recipients that had an
+    active profiled connection when the original event was published.
+    Per-device replay semantics are domain-specific. Presence replay is
+    persisted for each resolved watcher identity, so a later-active profile
+    device can hydrate missed presence transitions by per-device cursor even
+    when no other local profile device for that watcher was connected at
+    publish time. Presence replay stream keys expire on the same window as
+    presence device cursors.
 defaultContentType: application/json
 channels:
   callSignalOffer:
     address: call.signal.offer
     messages:
-      callSignalOfferV1:
-        $ref: '#/components/messages/CallSignalOfferV1'
+      callSignalOffer:
+        $ref: '#/components/messages/CallSignalOffer'
   callSignalAnswer:
     address: call.signal.answer
     messages:
-      callSignalAnswerV1:
-        $ref: '#/components/messages/CallSignalAnswerV1'
+      callSignalAnswer:
+        $ref: '#/components/messages/CallSignalAnswer'
   callSignalIceCandidate:
     address: call.signal.ice_candidate
     messages:
-      callSignalIceCandidateV1:
-        $ref: '#/components/messages/CallSignalIceCandidateV1'
+      callSignalIceCandidate:
+        $ref: '#/components/messages/CallSignalIceCandidate'
   realtimeConnected:
     address: realtime.connected
     messages:
-      realtimeConnectedV1:
-        $ref: '#/components/messages/RealtimeConnectedV1'
+      realtimeConnected:
+        $ref: '#/components/messages/RealtimeConnected'
   presenceUpdated:
     address: presence.updated
     messages:
-      presenceUpdatedV1:
-        $ref: '#/components/messages/PresenceUpdatedV1'
+      presenceUpdated:
+        $ref: '#/components/messages/PresenceUpdated'
   channelMessageCreated:
     address: channel.message.created
     messages:
-      channelMessageCreatedV1:
-        $ref: '#/components/messages/ChannelMessageCreatedV1'
+      channelMessageCreated:
+        $ref: '#/components/messages/ChannelMessageCreated'
   channelMessageUpdated:
     address: channel.message.updated
     messages:
-      channelMessageUpdatedV1:
-        $ref: '#/components/messages/ChannelMessageUpdatedV1'
+      channelMessageUpdated:
+        $ref: '#/components/messages/ChannelMessageUpdated'
   channelMessageDeleted:
     address: channel.message.deleted
     messages:
-      channelMessageDeletedV1:
-        $ref: '#/components/messages/ChannelMessageDeletedV1'
+      channelMessageDeleted:
+        $ref: '#/components/messages/ChannelMessageDeleted'
   dmEnvelopeDispatched:
     address: dm.envelope.dispatched
     messages:
-      dmEnvelopeDispatchedV1:
-        $ref: '#/components/messages/DmEnvelopeDispatchedV1'
+      dmEnvelopeDispatched:
+        $ref: '#/components/messages/DmEnvelopeDispatched'
   dmDeviceProof:
     address: dm.device.proof
     messages:
-      dmDeviceProofV1:
-        $ref: '#/components/messages/DmDeviceProofV1'
+      dmDeviceProof:
+        $ref: '#/components/messages/DmDeviceProof'
   dmDeviceVerified:
     address: dm.device.verified
     messages:
-      dmDeviceVerifiedV1:
-        $ref: '#/components/messages/DmDeviceVerifiedV1'
+      dmDeviceVerified:
+        $ref: '#/components/messages/DmDeviceVerified'
   dmEnvelopeAck:
     address: dm.envelope.ack
     messages:
-      dmEnvelopeAckV1:
-        $ref: '#/components/messages/DmEnvelopeAckV1'
+      dmEnvelopeAck:
+        $ref: '#/components/messages/DmEnvelopeAck'
   error:
     address: error
     messages:
-      errorV1:
-        $ref: '#/components/messages/ErrorV1'
+      error:
+        $ref: '#/components/messages/Error'
 operations:
   sendCallSignalOffer:
     action: send
     channel:
       $ref: '#/channels/callSignalOffer'
     messages:
-      - $ref: '#/channels/callSignalOffer/messages/callSignalOfferV1'
+      - $ref: '#/channels/callSignalOffer/messages/callSignalOffer'
     x-hexrelay-signaling-semantics:
       requires_session_identity_from_match: true
       supported_targeting:
@@ -131,7 +141,7 @@ operations:
     channel:
       $ref: '#/channels/callSignalAnswer'
     messages:
-      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswerV1'
+      - $ref: '#/channels/callSignalAnswer/messages/callSignalAnswer'
     x-hexrelay-signaling-semantics:
       requires_session_identity_from_match: true
       supported_targeting:
@@ -145,7 +155,7 @@ operations:
     channel:
       $ref: '#/channels/callSignalIceCandidate'
     messages:
-      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidateV1'
+      - $ref: '#/channels/callSignalIceCandidate/messages/callSignalIceCandidate'
     x-hexrelay-signaling-semantics:
       requires_session_identity_from_match: true
       supported_targeting:
@@ -159,43 +169,43 @@ operations:
     channel:
       $ref: '#/channels/realtimeConnected'
     messages:
-      - $ref: '#/channels/realtimeConnected/messages/realtimeConnectedV1'
+      - $ref: '#/channels/realtimeConnected/messages/realtimeConnected'
   receivePresenceUpdated:
     action: receive
     channel:
       $ref: '#/channels/presenceUpdated'
     messages:
-      - $ref: '#/channels/presenceUpdated/messages/presenceUpdatedV1'
+      - $ref: '#/channels/presenceUpdated/messages/presenceUpdated'
   receiveChannelMessageCreated:
     action: receive
     channel:
       $ref: '#/channels/channelMessageCreated'
     messages:
-      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreatedV1'
+      - $ref: '#/channels/channelMessageCreated/messages/channelMessageCreated'
   receiveChannelMessageUpdated:
     action: receive
     channel:
       $ref: '#/channels/channelMessageUpdated'
     messages:
-      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdatedV1'
+      - $ref: '#/channels/channelMessageUpdated/messages/channelMessageUpdated'
   receiveChannelMessageDeleted:
     action: receive
     channel:
       $ref: '#/channels/channelMessageDeleted'
     messages:
-      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeletedV1'
+      - $ref: '#/channels/channelMessageDeleted/messages/channelMessageDeleted'
   receiveDmEnvelopeDispatched:
     action: receive
     channel:
       $ref: '#/channels/dmEnvelopeDispatched'
     messages:
-      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatchedV1'
+      - $ref: '#/channels/dmEnvelopeDispatched/messages/dmEnvelopeDispatched'
   sendDmDeviceProof:
     action: send
     channel:
       $ref: '#/channels/dmDeviceProof'
     messages:
-      - $ref: '#/channels/dmDeviceProof/messages/dmDeviceProofV1'
+      - $ref: '#/channels/dmDeviceProof/messages/dmDeviceProof'
     x-hexrelay-dm-device-proof-semantics:
       requires_session_identity_match: true
       requires_websocket_device_match: true
@@ -211,13 +221,13 @@ operations:
     channel:
       $ref: '#/channels/dmDeviceVerified'
     messages:
-      - $ref: '#/channels/dmDeviceVerified/messages/dmDeviceVerifiedV1'
+      - $ref: '#/channels/dmDeviceVerified/messages/dmDeviceVerified'
   sendDmEnvelopeAck:
     action: send
     channel:
       $ref: '#/channels/dmEnvelopeAck'
     messages:
-      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAckV1'
+      - $ref: '#/channels/dmEnvelopeAck/messages/dmEnvelopeAck'
     x-hexrelay-dm-ack-semantics:
       requires_session_identity_match: true
       requires_websocket_device_match: true
@@ -233,61 +243,60 @@ operations:
     channel:
       $ref: '#/channels/error'
     messages:
-      - $ref: '#/channels/error/messages/errorV1'
+      - $ref: '#/channels/error/messages/error'
 components:
   messages:
-    CallSignalOfferV1:
+    CallSignalOffer:
       payload:
-        $ref: '#/components/schemas/CallSignalOfferEventV1'
-    CallSignalAnswerV1:
+        $ref: '#/components/schemas/CallSignalOfferEvent'
+    CallSignalAnswer:
       payload:
-        $ref: '#/components/schemas/CallSignalAnswerEventV1'
-    CallSignalIceCandidateV1:
+        $ref: '#/components/schemas/CallSignalAnswerEvent'
+    CallSignalIceCandidate:
       payload:
-        $ref: '#/components/schemas/CallSignalIceCandidateEventV1'
-    RealtimeConnectedV1:
+        $ref: '#/components/schemas/CallSignalIceCandidateEvent'
+    RealtimeConnected:
       payload:
-        $ref: '#/components/schemas/RealtimeConnectedEventV1'
-    PresenceUpdatedV1:
+        $ref: '#/components/schemas/RealtimeConnectedEvent'
+    PresenceUpdated:
       payload:
-        $ref: '#/components/schemas/PresenceUpdatedEventV1'
-    ChannelMessageCreatedV1:
+        $ref: '#/components/schemas/PresenceUpdatedEvent'
+    ChannelMessageCreated:
       payload:
-        $ref: '#/components/schemas/ChannelMessageCreatedEventV1'
-    ChannelMessageUpdatedV1:
+        $ref: '#/components/schemas/ChannelMessageCreatedEvent'
+    ChannelMessageUpdated:
       payload:
-        $ref: '#/components/schemas/ChannelMessageUpdatedEventV1'
-    ChannelMessageDeletedV1:
+        $ref: '#/components/schemas/ChannelMessageUpdatedEvent'
+    ChannelMessageDeleted:
       payload:
-        $ref: '#/components/schemas/ChannelMessageDeletedEventV1'
-    DmEnvelopeDispatchedV1:
+        $ref: '#/components/schemas/ChannelMessageDeletedEvent'
+    DmEnvelopeDispatched:
       payload:
-        $ref: '#/components/schemas/DmEnvelopeDispatchedEventV1'
-    DmDeviceProofV1:
+        $ref: '#/components/schemas/DmEnvelopeDispatchedEvent'
+    DmDeviceProof:
       payload:
-        $ref: '#/components/schemas/DmDeviceProofEventV1'
-    DmDeviceVerifiedV1:
+        $ref: '#/components/schemas/DmDeviceProofEvent'
+    DmDeviceVerified:
       payload:
-        $ref: '#/components/schemas/DmDeviceVerifiedEventV1'
-    DmEnvelopeAckV1:
+        $ref: '#/components/schemas/DmDeviceVerifiedEvent'
+    DmEnvelopeAck:
       payload:
-        $ref: '#/components/schemas/DmEnvelopeAckEventV1'
-    ErrorV1:
+        $ref: '#/components/schemas/DmEnvelopeAckEvent'
+    Error:
       payload:
-        $ref: '#/components/schemas/ErrorEventV1'
+        $ref: '#/components/schemas/ErrorEvent'
   schemas:
-    EventEnvelopeV1:
+    EventEnvelope:
       type: object
       additionalProperties: false
-      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      required: [event_id, event_type, occurred_at, correlation_id, producer, data]
       properties:
         event_id: { type: string }
         event_type: { type: string }
-        event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
         producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel, dm-message-node] }
-    CallSignalOfferDataV1:
+    CallSignalOfferData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, sdp_offer]
@@ -296,7 +305,7 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         sdp_offer: { type: string }
-    CallSignalAnswerDataV1:
+    CallSignalAnswerData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, sdp_answer]
@@ -305,7 +314,7 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         sdp_answer: { type: string }
-    CallSignalIceCandidateDataV1:
+    CallSignalIceCandidateData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id, candidate, sdp_mid, sdp_mline_index]
@@ -316,34 +325,34 @@ components:
         candidate: { type: string }
         sdp_mid: { type: string, nullable: true }
         sdp_mline_index: { type: integer, nullable: true }
-    CallSignalOfferEventV1:
+    CallSignalOfferEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.offer }
-            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
-    CallSignalAnswerEventV1:
+            data: { $ref: '#/components/schemas/CallSignalOfferData' }
+    CallSignalAnswerEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.answer }
-            data: { $ref: '#/components/schemas/CallSignalAnswerDataV1' }
-    CallSignalIceCandidateEventV1:
+            data: { $ref: '#/components/schemas/CallSignalAnswerData' }
+    CallSignalIceCandidateEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.ice_candidate }
-            data: { $ref: '#/components/schemas/CallSignalIceCandidateDataV1' }
-    RealtimeConnectedDataV1:
+            data: { $ref: '#/components/schemas/CallSignalIceCandidateData' }
+    RealtimeConnectedData:
       type: object
       additionalProperties: false
       required: [status]
       properties:
         status: { type: string, enum: [ok] }
-    ErrorDataV1:
+    ErrorData:
       type: object
       additionalProperties: false
       required: [code, message]
@@ -358,7 +367,6 @@ components:
             - dev_fault_disconnect
             - dev_fault_drop
             - event_invalid
-            - event_version_unsupported
             - event_identity_mismatch
             - event_device_mismatch
             - event_unsupported
@@ -368,7 +376,7 @@ components:
             - dm_ack_failed
             - dm_device_proof_failed
         message: { type: string }
-    PresenceUpdatedDataV1:
+    PresenceUpdatedData:
       type: object
       additionalProperties: false
       required: [identity_id, status, updated_at, presence_seq]
@@ -379,7 +387,7 @@ components:
         presence_seq:
           type: integer
           minimum: 1
-    ChannelMessageCreatedDataV1:
+    ChannelMessageCreatedData:
       type: object
       additionalProperties: false
       required: [message_id, server_id, channel_id, sender_identity_id, created_at, channel_seq]
@@ -392,7 +400,7 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    ChannelMessageUpdatedDataV1:
+    ChannelMessageUpdatedData:
       type: object
       additionalProperties: false
       required: [message_id, server_id, channel_id, editor_identity_id, edited_at, channel_seq]
@@ -405,7 +413,7 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    ChannelMessageDeletedDataV1:
+    ChannelMessageDeletedData:
       type: object
       additionalProperties: false
       required: [message_id, server_id, channel_id, deleter_identity_id, deleted_at, channel_seq]
@@ -418,7 +426,7 @@ components:
         channel_seq:
           type: integer
           minimum: 1
-    DmEnvelopeDispatchedDataV1:
+    DmEnvelopeDispatchedData:
       type: object
       additionalProperties: false
       required:
@@ -447,7 +455,7 @@ components:
         transport_scope:
           type: string
           enum: [encrypted_envelope_node]
-    DmEnvelopeAckDataV1:
+    DmEnvelopeAckData:
       type: object
       additionalProperties: false
       required:
@@ -470,7 +478,7 @@ components:
           type: string
           enum: [received]
         received_at: { type: string, format: date-time }
-    DmDeviceProofDataV1:
+    DmDeviceProofData:
       type: object
       additionalProperties: false
       required:
@@ -483,7 +491,7 @@ components:
           minLength: 16
           maxLength: 128
           description: Raw profile-device proof sent over the established websocket or native upgrade header; never placed in websocket URLs or echoed in public events.
-    DmDeviceVerifiedDataV1:
+    DmDeviceVerifiedData:
       type: object
       additionalProperties: false
       required:
@@ -492,73 +500,73 @@ components:
       properties:
         device_id: { type: string, minLength: 1, maxLength: 64 }
         verified_at: { type: string, format: date-time }
-    RealtimeConnectedEventV1:
+    RealtimeConnectedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: realtime.connected }
-            data: { $ref: '#/components/schemas/RealtimeConnectedDataV1' }
-    ErrorEventV1:
+            data: { $ref: '#/components/schemas/RealtimeConnectedData' }
+    ErrorEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: error }
-            data: { $ref: '#/components/schemas/ErrorDataV1' }
-    PresenceUpdatedEventV1:
+            data: { $ref: '#/components/schemas/ErrorData' }
+    PresenceUpdatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: presence.updated }
-            data: { $ref: '#/components/schemas/PresenceUpdatedDataV1' }
-    ChannelMessageCreatedEventV1:
+            data: { $ref: '#/components/schemas/PresenceUpdatedData' }
+    ChannelMessageCreatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: channel.message.created }
-            data: { $ref: '#/components/schemas/ChannelMessageCreatedDataV1' }
-    ChannelMessageUpdatedEventV1:
+            data: { $ref: '#/components/schemas/ChannelMessageCreatedData' }
+    ChannelMessageUpdatedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: channel.message.updated }
-            data: { $ref: '#/components/schemas/ChannelMessageUpdatedDataV1' }
-    ChannelMessageDeletedEventV1:
+            data: { $ref: '#/components/schemas/ChannelMessageUpdatedData' }
+    ChannelMessageDeletedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: channel.message.deleted }
-            data: { $ref: '#/components/schemas/ChannelMessageDeletedDataV1' }
-    DmEnvelopeDispatchedEventV1:
+            data: { $ref: '#/components/schemas/ChannelMessageDeletedData' }
+    DmEnvelopeDispatchedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: dm.envelope.dispatched }
-            data: { $ref: '#/components/schemas/DmEnvelopeDispatchedDataV1' }
-    DmDeviceProofEventV1:
+            data: { $ref: '#/components/schemas/DmEnvelopeDispatchedData' }
+    DmDeviceProofEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: dm.device.proof }
-            data: { $ref: '#/components/schemas/DmDeviceProofDataV1' }
-    DmDeviceVerifiedEventV1:
+            data: { $ref: '#/components/schemas/DmDeviceProofData' }
+    DmDeviceVerifiedEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: dm.device.verified }
-            data: { $ref: '#/components/schemas/DmDeviceVerifiedDataV1' }
-    DmEnvelopeAckEventV1:
+            data: { $ref: '#/components/schemas/DmDeviceVerifiedData' }
+    DmEnvelopeAckEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: dm.envelope.ack }
-            data: { $ref: '#/components/schemas/DmEnvelopeAckDataV1' }
+            data: { $ref: '#/components/schemas/DmEnvelopeAckData' }

@@ -12,7 +12,7 @@
 
 - [ ] `docs/README.md` (if routing or ownership changed)
 - [ ] `docs/product/01-mvp-plan.md` (if product intent/constraints changed)
-- [ ] `docs/product/02-prd-v1.md` (if requirements changed)
+- [ ] `docs/product/02-prd.md` (if requirements changed)
 - [ ] `docs/planning/iterations/*.md` (if execution plan changed)
 - [ ] `docs/reference/glossary.md` (if terms changed)
 

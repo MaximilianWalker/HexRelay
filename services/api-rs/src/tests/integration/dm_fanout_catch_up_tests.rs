@@ -388,7 +388,7 @@ async fn dm_envelope_dispatch_ack_persists_through_realtime_websocket() {
 
     let ack_payload = serde_json::json!({
         "event_type": "dm.envelope.ack",
-        "event_version": 1,
+
         "correlation_id": "corr-dm-ack-1",
         "data": {
             "envelope_id": dispatched["data"]["envelope_id"],
@@ -1161,6 +1161,68 @@ async fn fanout_catch_up_blocks_for_inactive_device() {
 
     assert_eq!(payload["status"], "blocked");
     assert_eq!(payload["reason_code"], "fanout_device_inactive");
+}
+
+#[tokio::test]
+async fn fanout_catch_up_rate_limits_per_identity_across_devices() {
+    let mut state = test_state_with_public_identity_registration();
+    state.rate_limits.dm_catch_up_per_window = 1;
+
+    let identity_id = "usr-catch-up-rate";
+    let expires_at = Utc::now() + Duration::hours(1);
+    let session_id = format!("sess-{identity_id}");
+    let token = issue_session_token(
+        &session_id,
+        identity_id,
+        expires_at.timestamp(),
+        &state.active_signing_key_id,
+        state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active signing key for tests"),
+    );
+
+    state
+        .sessions
+        .write()
+        .expect("acquire session write lock")
+        .insert(
+            session_id,
+            SessionRecord {
+                identity_id: identity_id.to_string(),
+                expires_at,
+            },
+        );
+
+    let app = build_app(state);
+    heartbeat_device(&app, &token, "desktop-main", true).await;
+    heartbeat_device(&app, &token, "phone-main", true).await;
+
+    let first = catch_up(&app, &token, "desktop-main").await;
+    assert_eq!(first["status"], "ready");
+
+    let second = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(format!(
+            r#"{{"device_id":"phone-main","device_secret":"{}"}}"#,
+            device_secret("phone-main")
+        )))
+        .expect("build rate-limited catch-up request");
+
+    let response = app
+        .oneshot(second)
+        .await
+        .expect("rate-limited catch-up response");
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read rate-limit body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode rate-limit body");
+    assert_eq!(payload["code"], "rate_limited");
 }
 
 #[tokio::test]

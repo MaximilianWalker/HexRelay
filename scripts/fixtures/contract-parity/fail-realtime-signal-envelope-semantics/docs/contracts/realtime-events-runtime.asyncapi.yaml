@@ -17,22 +17,21 @@ operations:
         - event_unsupported
 components:
   messages:
-    CallSignalOfferV1:
+    CallSignalOffer:
       payload:
-        $ref: '#/components/schemas/CallSignalOfferEventV1'
+        $ref: '#/components/schemas/CallSignalOfferEvent'
   schemas:
-    EventEnvelopeV1:
+    EventEnvelope:
       type: object
       additionalProperties: false
-      required: [event_id, event_type, event_version, occurred_at, correlation_id, producer, data]
+      required: [event_id, event_type, occurred_at, correlation_id, producer, data]
       properties:
         event_id: { type: string }
         event_type: { type: string }
-        event_version: { type: integer, enum: [1] }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
         producer: { type: string, enum: [realtime-gateway] }
-    CallSignalOfferDataV1:
+    CallSignalOfferData:
       type: object
       additionalProperties: false
       required: [call_id, from_identity_id, to_identity_id]
@@ -41,10 +40,10 @@ components:
         from_identity_id: { type: string }
         to_identity_id: { type: string }
         sdp_offer: { type: string }
-    CallSignalOfferEventV1:
+    CallSignalOfferEvent:
       allOf:
-        - $ref: '#/components/schemas/EventEnvelopeV1'
+        - $ref: '#/components/schemas/EventEnvelope'
         - type: object
           properties:
             event_type: { const: call.signal.offer }
-            data: { $ref: '#/components/schemas/CallSignalOfferDataV1' }
+            data: { $ref: '#/components/schemas/CallSignalOfferData' }

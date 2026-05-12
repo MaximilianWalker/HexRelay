@@ -708,15 +708,13 @@ pub async fn run_dm_fanout_catch_up(
 
     let device_id = payload.device_id.trim().to_string();
     let identity_id = auth.identity_id;
-    let catch_up_rate_key = format!("{identity_id}:{device_id}");
     enforce_dm_rate_limit(
         &state,
         DM_RATE_SCOPE_CATCH_UP,
-        &catch_up_rate_key,
+        &identity_id,
         state.rate_limits.dm_catch_up_per_window,
     )
     .await?;
-    apply_dm_delivery_metadata_retention(&state).await?;
 
     let Some(record) = load_dm_profile_device(&state, &identity_id, &device_id).await? else {
         return Ok(Json(DmFanoutCatchUpResponse {
@@ -750,6 +748,8 @@ pub async fn run_dm_fanout_catch_up(
             items: vec![],
         }));
     }
+
+    apply_dm_delivery_metadata_retention(&state).await?;
 
     let last_cursor = if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::get_dm_fanout_device_cursor(pool, &identity_id, &device_id)

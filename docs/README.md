@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-12
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 indexed the T4.1.9 recipient-targeted realtime DM dispatch-summary updates across architecture, product, planning, and verification docs.
+- Latest meaningful change: 2026-05-12 removed project-owned API/realtime versioning artifacts and retired the legacy REST compatibility alias.
 
 ## Purpose
 
@@ -28,13 +28,12 @@
 | Architecture baseline and whole-system runtime design authority | `docs/architecture/01-system-overview.md`, `docs/architecture/02-data-lifecycle-retention-replication.md`, `docs/architecture/04-communication-networking-layer-plan.md`, and relevant `docs/architecture/adr-*.md` | Architecture maintainers | Runtime boundaries, architecture baseline, trust zones, persistence ownership, or accepted design decisions change |
 | Whole-system runtime topology and trust-boundary overview | `docs/architecture/01-system-overview.md` | Architecture maintainers | Runtime topology, component boundaries, trust zones, or whole-system guarantees change |
 | Runtime and deployment modes (desktop local-first + dedicated server) | `docs/architecture/adr-0002-runtime-deployment-modes.md` | Architecture maintainers | Runtime packaging, deployment modes, administration surface, or trust boundary behavior changes |
-| Product requirements and success metrics | `docs/product/02-prd-v1.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
-| Current runtime REST contract baseline | `docs/contracts/runtime-rest-v1.openapi.yaml` | API maintainers | Any implemented REST endpoint, schema, auth behavior, or error change |
-| Runtime REST compatibility alias (legacy filename) | `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml` | API maintainers | Keep for backward compatibility references until deprecation removal |
-| MVP crypto profile contract baseline | `docs/contracts/crypto-profile-v1.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
-| Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
-| Target-state MVP REST contract model | `docs/contracts/mvp-rest-v1.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
-| Target-state realtime event/signaling model | `docs/contracts/realtime-events-v1.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
+| Product requirements and success metrics | `docs/product/02-prd.md` | Product maintainers | Functional/non-functional requirements, user flows, or success metrics change |
+| Current runtime REST contract baseline | `docs/contracts/runtime-rest.openapi.yaml` | API maintainers | Any implemented REST endpoint, schema, auth behavior, or error change |
+| MVP crypto profile contract baseline | `docs/contracts/crypto-profile.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
+| Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
+| Target-state MVP REST contract model | `docs/contracts/mvp-rest.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
+| Target-state realtime event/signaling model | `docs/contracts/realtime-events.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
 | Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs`, `services/*/.env.example`, or runtime env semantics change |
@@ -80,7 +79,7 @@
 ## Lightweight Governance
 
 - If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
-- If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer.
+- If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer, except when the old path itself preserves retired project-owned API/realtime versioning or a legacy internal compatibility alias.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
 
@@ -95,20 +94,19 @@
 
 - `README.md`
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/03-clarifications.md`
 - `docs/product/04-dependencies-risks.md`
 - `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
-- `docs/contracts/runtime-rest-v1.openapi.yaml`
-- `docs/contracts/iteration-01-identity-auth-invites.openapi.yaml`
+- `docs/contracts/runtime-rest.openapi.yaml`
 - `docs/contracts/README.md`
-- `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`
-- `docs/contracts/crypto-profile-v1.md`
-- `docs/contracts/mvp-rest-v1.openapi.yaml`
-- `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- `docs/contracts/realtime-events-runtime.asyncapi.yaml`
+- `docs/contracts/crypto-profile.md`
+- `docs/contracts/mvp-rest.openapi.yaml`
+- `docs/contracts/realtime-events.asyncapi.yaml`
 - `docs/architecture/02-data-lifecycle-retention-replication.md`
 - `docs/architecture/01-system-overview.md`
 - `docs/architecture/03-rust-service-migration-baseline.md`

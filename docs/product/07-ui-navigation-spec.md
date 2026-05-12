@@ -107,5 +107,5 @@
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/planning/iterations/01-sprint-board.md`

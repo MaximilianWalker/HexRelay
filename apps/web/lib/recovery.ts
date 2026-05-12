@@ -1,7 +1,7 @@
 import { readActivePersonaId } from "@/lib/personas";
 import { getPersonaPrivateKey } from "@/lib/sessions";
 
-const RECOVERY_PREFIX = "hexrelay.recovery.phrase.v1";
+const RECOVERY_PREFIX = "hexrelay.recovery.phrase";
 
 const WORD_BANK = [
   "amber",

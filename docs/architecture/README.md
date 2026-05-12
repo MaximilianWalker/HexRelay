@@ -19,7 +19,7 @@
 
 - Use this directory for architecture overviews, specifications, and decision records (ADRs).
 - Keep decisions concise: context, decision, consequences, alternatives.
-- Link accepted decisions back to `docs/product/01-mvp-plan.md` and `docs/product/02-prd-v1.md` when scope is affected.
+- Link accepted decisions back to `docs/product/01-mvp-plan.md` and `docs/product/02-prd.md` when scope is affected.
 
 ## Canonical Overview
 

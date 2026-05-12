@@ -67,7 +67,7 @@
 | `API_REVOKED_STATIC_PEER_INVITE_IDS` | unset | optional | CSV of signed peer-invite IDs refused during `API_STATIC_PEER_INVITES_JSON` validation; use to invalidate compromised or superseded invite envelopes without changing descriptor trust |
 | `API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS` | `86400` | optional | positive integer TTL ceiling applied to configured static peer descriptors |
 | `API_SESSION_SIGNING_KEYS` | unset in code, set in example | required in production | preferred keyring format: `key_id:secret,...` |
-| `API_SESSION_SIGNING_KEY_ID` | `v1` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
+| `API_SESSION_SIGNING_KEY_ID` | `primary` when unset | required with keyring | active signing key id; when using `API_SESSION_SIGNING_KEYS`, the selected id must exist in the keyring |
 | `API_SESSION_SIGNING_KEY` | legacy fallback | avoid in production | local compatibility fallback only |
 | `API_SESSION_COOKIE_SECURE` | `false` | must be `true` | required for production cookies |
 | `API_SESSION_COOKIE_SAME_SITE` | `Lax` | required | `Strict`, `Lax`, or `None`; `None` requires secure cookie |

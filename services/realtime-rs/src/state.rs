@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use communication_core::StaticPeerRegistry;
@@ -39,6 +43,7 @@ pub struct AppState {
     pub dev_faults: Arc<Mutex<DevFaultState>>,
     pub active_connections: Arc<Mutex<HashMap<String, usize>>>,
     pub connection_senders: Arc<Mutex<ConnectionSenderMap>>,
+    pub locally_dispatched_channel_event_ids: Arc<Mutex<VecDeque<String>>>,
     pub validated_session_cache: Arc<Mutex<HashMap<String, CachedSession>>>,
 }
 
@@ -108,6 +113,7 @@ impl AppState {
             dev_faults: Arc::default(),
             active_connections: Arc::new(Mutex::new(HashMap::new())),
             connection_senders: Arc::new(Mutex::new(HashMap::new())),
+            locally_dispatched_channel_event_ids: Arc::default(),
             validated_session_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }

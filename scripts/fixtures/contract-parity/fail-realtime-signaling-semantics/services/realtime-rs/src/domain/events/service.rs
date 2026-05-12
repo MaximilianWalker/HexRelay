@@ -4,7 +4,6 @@ use serde_json::Value;
 #[derive(Deserialize)]
 struct RealtimeInboundEnvelope {
     event_type: String,
-    event_version: u8,
     correlation_id: Option<String>,
     data: Value,
 }
@@ -38,11 +37,6 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         Ok(value) => value,
         Err(_) => return build_error_event("event_invalid", "invalid event envelope payload"),
     };
-
-    if parsed.event_version != 1 {
-        return build_error_event("event_version_unsupported", "event_version must be 1");
-    }
-
     match parsed.event_type.as_str() {
         "call.signal.offer" => match serde_json::from_value::<CallSignalOfferData>(parsed.data) {
             Ok(data) => {

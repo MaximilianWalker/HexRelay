@@ -1,13 +1,13 @@
 export type NavLayout = "sidebar" | "topbar";
 export type TabRestoreMode = "pinned" | "all";
 
-const SIDEBAR_MODE_KEY = "hexrelay.ui.sidebar-mode.v1";
-const NAV_LAYOUT_KEY = "hexrelay.ui.nav-layout.v1";
-const TAB_RESTORE_MODE_KEY = "hexrelay.ui.tab-restore-mode.v1";
-const SOUND_MUTED_KEY = "hexrelay.ui.sound-muted.v1";
-const MICROPHONE_MUTED_KEY = "hexrelay.ui.microphone-muted.v1";
-const PERSONAS_KEY = "hexrelay.personas.v1";
-const ACTIVE_PERSONA_KEY = "hexrelay.active-persona.v1";
+const SIDEBAR_MODE_KEY = "hexrelay.ui.sidebar-mode";
+const NAV_LAYOUT_KEY = "hexrelay.ui.nav-layout";
+const TAB_RESTORE_MODE_KEY = "hexrelay.ui.tab-restore-mode";
+const SOUND_MUTED_KEY = "hexrelay.ui.sound-muted";
+const MICROPHONE_MUTED_KEY = "hexrelay.ui.microphone-muted";
+const PERSONAS_KEY = "hexrelay.personas";
+const ACTIVE_PERSONA_KEY = "hexrelay.active-persona";
 const UI_PREFS_EVENT = "hexrelay-ui-preferences-changed";
 
 let fallbackNavLayout: NavLayout = "sidebar";

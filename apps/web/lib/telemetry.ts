@@ -4,7 +4,7 @@ type TelemetryEvent = {
   payload?: Record<string, string | number | boolean | null>;
 };
 
-const TELEMETRY_KEY = "hexrelay.telemetry.v1";
+const TELEMETRY_KEY = "hexrelay.telemetry";
 
 function safeReadEvents(): TelemetryEvent[] {
   if (typeof window === "undefined") {

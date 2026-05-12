@@ -59,7 +59,7 @@ describe("personas", () => {
       sessionStorage: new MemoryStorage(),
     };
     const windowRef = globalThis.window as { localStorage: MemoryStorage };
-    windowRef.localStorage.setItem("hexrelay.personas.v1", "not-json");
+    windowRef.localStorage.setItem("hexrelay.personas", "not-json");
 
     expect(readPersonas()).toEqual([]);
   });

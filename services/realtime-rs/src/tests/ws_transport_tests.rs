@@ -277,16 +277,16 @@ async fn clear_presence_keys(client: &redis::Client, identity_id: &str) {
         .await
         .expect("open redis connection");
     let _: () = redis::cmd("DEL")
-        .arg(format!("presence:v1:count:{identity_id}"))
-        .arg(format!("presence:v1:seq:{identity_id}"))
-        .arg(format!("presence:v1:snapshot:{identity_id}"))
-        .arg(format!("presence:v1:watcher_stream_head:{identity_id}"))
-        .arg(format!("presence:v1:watcher_stream_log:{identity_id}"))
+        .arg(format!("presence:count:{identity_id}"))
+        .arg(format!("presence:seq:{identity_id}"))
+        .arg(format!("presence:snapshot:{identity_id}"))
+        .arg(format!("presence:watcher_stream_head:{identity_id}"))
+        .arg(format!("presence:watcher_stream_log:{identity_id}"))
         .arg(format!(
-            "presence:v1:watcher_device_cursor:{identity_id}:device-primary"
+            "presence:watcher_device_cursor:{identity_id}:device-primary"
         ))
         .arg(format!(
-            "presence:v1:watcher_device_cursor:{identity_id}:device-late"
+            "presence:watcher_device_cursor:{identity_id}:device-late"
         ))
         .query_async(&mut connection)
         .await
@@ -299,13 +299,13 @@ async fn clear_channel_keys(client: &redis::Client, identity_id: &str) {
         .await
         .expect("open redis connection");
     let _: () = redis::cmd("DEL")
-        .arg(format!("channels:v1:recipient_stream_head:{identity_id}"))
-        .arg(format!("channels:v1:recipient_stream_log:{identity_id}"))
+        .arg(format!("channels:recipient_stream_head:{identity_id}"))
+        .arg(format!("channels:recipient_stream_log:{identity_id}"))
         .arg(format!(
-            "channels:v1:recipient_device_cursor:{identity_id}:device-primary"
+            "channels:recipient_device_cursor:{identity_id}:device-primary"
         ))
         .arg(format!(
-            "channels:v1:recipient_device_cursor:{identity_id}:device-late"
+            "channels:recipient_device_cursor:{identity_id}:device-late"
         ))
         .query_async(&mut connection)
         .await
@@ -381,6 +381,68 @@ async fn recv_presence_event(
         {
             return payload;
         }
+    }
+}
+
+async fn wait_for_presence_replay_event(
+    client: &redis::Client,
+    watcher_identity_id: &str,
+    expected_identity_id: &str,
+    expected_status: &str,
+) -> Value {
+    let replay_log_key = format!("presence:watcher_stream_log:{watcher_identity_id}");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for presence replay wait");
+
+    loop {
+        let values: Vec<String> = redis::cmd("LRANGE")
+            .arg(&replay_log_key)
+            .arg(0)
+            .arg(-1)
+            .query_async(&mut connection)
+            .await
+            .expect("read presence replay log");
+
+        for raw_entry in values {
+            let replay_entry: Value =
+                serde_json::from_str(&raw_entry).expect("decode presence replay entry");
+            let payload_raw = replay_entry["payload"].as_str().expect("payload string");
+            let payload: Value =
+                serde_json::from_str(payload_raw).expect("decode presence replay payload");
+            if payload["event_type"] == "presence.updated"
+                && payload["data"]["identity_id"] == expected_identity_id
+                && payload["data"]["status"] == expected_status
+            {
+                return payload;
+            }
+        }
+
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for presence replay event {expected_identity_id}:{expected_status}"
+        );
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+async fn assert_presence_replay_keys_have_ttl(client: &redis::Client, watcher_identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for presence replay ttl check");
+    for key in [
+        format!("presence:watcher_stream_head:{watcher_identity_id}"),
+        format!("presence:watcher_stream_log:{watcher_identity_id}"),
+    ] {
+        let ttl_seconds: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .expect("read presence replay key ttl");
+        assert!(ttl_seconds > 0, "{key} should have an expiry");
     }
 }
 
@@ -539,7 +601,7 @@ async fn wait_for_channel_replay_event(
     expected_event_type: &str,
     expected_message_id: &str,
 ) -> Value {
-    let replay_log_key = format!("channels:v1:recipient_stream_log:{recipient_identity_id}");
+    let replay_log_key = format!("channels:recipient_stream_log:{recipient_identity_id}");
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
 
     loop {
@@ -1481,6 +1543,105 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
 }
 
 #[tokio::test]
+async fn websocket_presence_hydrates_late_profile_device_without_existing_viewer_connection() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    clear_presence_keys(&redis_client, "usr-late-only-subject").await;
+    clear_presence_keys(&redis_client, "usr-late-only-viewer").await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([
+            (
+                "Bearer subject-token".to_string(),
+                "usr-late-only-subject".to_string(),
+            ),
+            (
+                "Bearer viewer-token".to_string(),
+                "usr-late-only-viewer".to_string(),
+            ),
+        ]),
+        HashMap::from([(
+            "usr-late-only-subject".to_string(),
+            vec!["usr-late-only-viewer".to_string()],
+        )]),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state).await;
+
+    let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
+    let _ = subject_socket.next().await;
+
+    let replayed_online = wait_for_presence_replay_event(
+        &redis_client,
+        "usr-late-only-viewer",
+        "usr-late-only-subject",
+        "online",
+    )
+    .await;
+    let online_seq = replayed_online["data"]["presence_seq"]
+        .as_u64()
+        .expect("online seq");
+    assert_presence_replay_keys_have_ttl(&redis_client, "usr-late-only-viewer").await;
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+
+    let hydrated_online =
+        recv_presence_event(&mut late_device, "usr-late-only-subject", "online").await;
+    assert_eq!(hydrated_online["data"]["presence_seq"], online_seq);
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+
+    let mut reconnected_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = reconnected_late_device.next().await;
+    assert_no_presence_event(
+        &mut reconnected_late_device,
+        "usr-late-only-subject",
+        "online",
+        Duration::from_secs(2),
+    )
+    .await;
+
+    reconnected_late_device
+        .close(None)
+        .await
+        .expect("close reconnected late device");
+    subject_socket
+        .close(None)
+        .await
+        .expect("close subject socket");
+    clear_presence_keys(&redis_client, "usr-late-only-subject").await;
+    clear_presence_keys(&redis_client, "usr-late-only-viewer").await;
+}
+
+#[tokio::test]
 async fn websocket_presence_rehydrates_missed_offline_transition_for_reconnecting_device() {
     let Some(redis_client) = prepared_redis_client().await else {
         return;
@@ -1971,7 +2132,7 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-123","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-123","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -1989,7 +2150,6 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 
     let payload: Value = serde_json::from_str(&text).expect("decode response envelope");
     assert_eq!(payload["event_type"], "call.signal.offer");
-    assert_eq!(payload["event_version"], 1);
     assert_eq!(payload["producer"], "realtime-gateway");
     assert_eq!(payload["correlation_id"], "corr-123");
     assert_eq!(payload["data"]["call_id"], "call-1");
@@ -2017,7 +2177,7 @@ async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists(
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -2041,7 +2201,7 @@ async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists(
 #[test]
 fn returns_error_for_invalid_event_payload() {
     let response = route_inbound_event(
-        r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"x"}}"#,
+        r#"{"event_type":"call.signal.offer","data":{"call_id":"x"}}"#,
         "usr-a",
     );
 
@@ -2051,23 +2211,8 @@ fn returns_error_for_invalid_event_payload() {
 }
 
 #[test]
-fn returns_error_for_unsupported_version() {
-    let response = route_inbound_event(
-        r#"{"event_type":"call.signal.offer","event_version":2,"data":{}}"#,
-        "usr-a",
-    );
-
-    let payload: Value = serde_json::from_str(&response).expect("decode error envelope");
-    assert_eq!(payload["event_type"], "error");
-    assert_eq!(payload["data"]["code"], "event_version_unsupported");
-}
-
-#[test]
 fn returns_error_for_unsupported_event_type() {
-    let response = route_inbound_event(
-        r#"{"event_type":"presence.updated","event_version":1,"data":{}}"#,
-        "usr-a",
-    );
+    let response = route_inbound_event(r#"{"event_type":"presence.updated","data":{}}"#, "usr-a");
 
     let payload: Value = serde_json::from_str(&response).expect("decode error envelope");
     assert_eq!(payload["event_type"], "error");
@@ -2077,7 +2222,7 @@ fn returns_error_for_unsupported_event_type() {
 #[test]
 fn returns_error_for_identity_mismatch() {
     let response = route_inbound_event(
-        r#"{"event_type":"call.signal.offer","event_version":1,"data":{"call_id":"call-1","from_identity_id":"usr-b","to_identity_id":"usr-a","sdp_offer":"v=0\r\n"}}"#,
+        r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-b","to_identity_id":"usr-a","sdp_offer":"v=0\r\n"}}"#,
         "usr-a",
     );
 
@@ -2355,7 +2500,7 @@ async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() 
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
@@ -2364,7 +2509,7 @@ async fn websocket_closes_with_rate_limited_event_when_message_limit_exceeded() 
 
     socket
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","event_version":1,"correlation_id":"corr-2","data":{"call_id":"call-2","from_identity_id":"usr-1","to_identity_id":"usr-c","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-2","data":{"call_id":"call-2","from_identity_id":"usr-1","to_identity_id":"usr-c","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await

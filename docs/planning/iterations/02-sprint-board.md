@@ -106,7 +106,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 ## Entry Criteria
 
 - Iteration 1 exit checklist is complete and OpenAPI/auth baseline is stable.
-- Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime-v1.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events-v1.asyncapi.yaml` (resolved by `C-012`).
+- Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events.asyncapi.yaml` (resolved by `C-012`).
 - Current runtime realtime signaling authority covers authenticated self-targeted websocket envelope validation only; recipient-targeted signaling delivery remains an open readiness `watch`, and cross-identity targeting is currently rejected until realtime routing fanout is implemented.
 - Navigation implementation uses `docs/product/07-ui-navigation-spec.md` as authority.
 
@@ -237,7 +237,7 @@ Week 6:
 
 ## Execution Notes
 
-- Keep event payload contracts versioned.
+- Keep event payload contracts explicit and synchronized with runtime behavior.
 - Record authorization decision logs for node-owner debugging.
 - Server nodes/message nodes in the server-node P2P network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.
@@ -249,14 +249,14 @@ Week 6:
 ## Related Documents
 
 - `docs/product/01-mvp-plan.md`
-- `docs/product/02-prd-v1.md`
+- `docs/product/02-prd.md`
 - `docs/product/07-ui-navigation-spec.md`
 - `docs/product/08-screen-state-spec.md`
 - `docs/product/09-configuration-defaults-register.md`
 - `docs/product/10-infra-free-dm-connectivity-proposals.md`
 - `docs/architecture/04-communication-networking-layer-plan.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
-- `docs/contracts/mvp-rest-v1.openapi.yaml`
-- `docs/contracts/realtime-events-v1.asyncapi.yaml`
+- `docs/contracts/mvp-rest.openapi.yaml`
+- `docs/contracts/realtime-events.asyncapi.yaml`
 - `docs/testing/01-mvp-verification-matrix.md`
 - `docs/reference/glossary.md`

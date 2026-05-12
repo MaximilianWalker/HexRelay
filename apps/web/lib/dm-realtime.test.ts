@@ -46,7 +46,6 @@ class MemoryStorage implements Storage {
 
 const dispatchEvent = {
   event_type: "dm.envelope.dispatched",
-  event_version: 1,
   correlation_id: "corr-1",
   data: {
     envelope_id: "dm-env-1",
@@ -86,7 +85,7 @@ describe("dm realtime helpers", () => {
 
   it("replaces invalid stored device ids", () => {
     const storage = new MemoryStorage();
-    storage.setItem("hexrelay.dm.device-id.v1", "bad/device");
+    storage.setItem("hexrelay.dm.device-id", "bad/device");
 
     const created = getOrCreateDmDeviceId(storage);
 
@@ -103,7 +102,6 @@ describe("dm realtime helpers", () => {
   it("builds device proof events without putting secrets in URLs", () => {
     expect(buildDmDeviceProof("web-main", "secret-web-main", { correlationId: "corr-proof" })).toEqual({
       event_type: "dm.device.proof",
-      event_version: 1,
       correlation_id: "corr-proof",
       data: {
         device_id: "web-main",
@@ -116,14 +114,13 @@ describe("dm realtime helpers", () => {
     const parsed = parseRealtimeEvent(JSON.stringify(dispatchEvent));
 
     expect(isDmEnvelopeDispatchedEvent(parsed)).toBe(true);
-    expect(isDmEnvelopeDispatchedEvent({ ...dispatchEvent, event_version: 2 })).toBe(false);
+    expect(isDmEnvelopeDispatchedEvent({ ...dispatchEvent, event_type: "presence.updated" })).toBe(false);
   });
 
   it("recognizes runtime DM device verification events", () => {
     expect(
       isDmDeviceVerifiedEvent({
         event_type: "dm.device.verified",
-        event_version: 1,
         data: { device_id: "web-main", verified_at: "2026-05-08T15:00:01Z" },
       }),
     ).toBe(true);
@@ -154,7 +151,6 @@ describe("dm realtime helpers", () => {
     ]);
     expect(ack).toEqual({
       event_type: "dm.envelope.ack",
-      event_version: 1,
       correlation_id: "corr-ack",
       data: {
         envelope_id: "dm-env-1",
