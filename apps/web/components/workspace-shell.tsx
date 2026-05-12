@@ -345,7 +345,7 @@ export function WorkspaceShell({
                     <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
                   )}
                 </button>
-                {!tab.pinned && !isServer ? (
+                {!tab.pinned ? (
                   <button
                     aria-label={`Close ${tab.label}`}
                     className={styles.workspaceTabAction}

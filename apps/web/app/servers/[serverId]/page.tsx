@@ -208,6 +208,7 @@ type PreviewMember = (typeof PREVIEW_MEMBERS)[number];
 type PreviewVoiceChannel = (typeof PREVIEW_VOICE_CHANNELS)[number];
 type LoadState = "idle" | "loading" | "ready" | "error";
 type ServerView = "overview" | "users" | "chat" | "voice" | "settings";
+type ChannelMessageCache = Record<string, ServerChannelMessage[]>;
 
 function subscribeBrowserReady(): () => void {
   return () => {};
@@ -324,6 +325,10 @@ function visibleMessagesForChannel(
   }
 
   return messages.filter((message) => message.channel_id === channelId);
+}
+
+function readCachedChannelMessages(cache: ChannelMessageCache, channelId: string | null): ServerChannelMessage[] {
+  return channelId ? (cache[channelId] ?? []) : [];
 }
 
 function ServerIcon({ name }: { name: string }) {
@@ -532,8 +537,8 @@ export default function ServerWorkspacePage() {
   const hasSession = useMemo(() => browserReady && getPersonaSession(identityId) !== null, [browserReady, identityId]);
   const [server, setServer] = useState<ServerSummary | null>(null);
   const [channels, setChannels] = useState<ServerChannelSummary[]>([]);
-  const [activeChannelId, setActiveChannelId] = useState<string | null>(PREVIEW_CHANNELS[0]?.id ?? null);
-  const [messages, setMessages] = useState<ServerChannelMessage[]>([]);
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  const [messagesByChannel, setMessagesByChannel] = useState<ChannelMessageCache>({});
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(
     PREVIEW_VOICE_CHANNELS[0]?.id ?? null,
@@ -554,7 +559,7 @@ export default function ServerWorkspacePage() {
     setStatusMessage(null);
     setServer(null);
     setChannels([]);
-    setMessages([]);
+    setMessagesByChannel({});
     setNextCursor(null);
 
     if (!hasSession || !serverId) {
@@ -566,6 +571,7 @@ export default function ServerWorkspacePage() {
       };
     }
 
+    setActiveChannelId(null);
     setWorkspaceState("loading");
 
     const run = async (): Promise<void> => {
@@ -615,7 +621,15 @@ export default function ServerWorkspacePage() {
   useEffect(() => {
     let active = true;
 
-    setMessages([]);
+    setMessagesByChannel((current) => {
+      if (!activeChannelId || !current[activeChannelId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[activeChannelId];
+      return next;
+    });
     setNextCursor(null);
     setReplyTo(null);
 
@@ -646,7 +660,10 @@ export default function ServerWorkspacePage() {
           return;
         }
 
-        setMessages(mergeMessages([], result.data.items));
+        setMessagesByChannel((current) => ({
+          ...current,
+          [activeChannelId]: mergeMessages([], result.data.items),
+        }));
         setNextCursor(result.data.next_cursor ?? null);
         setMessageState("ready");
       } catch {
@@ -667,15 +684,16 @@ export default function ServerWorkspacePage() {
   }, [activeChannelId, hasSession, serverId]);
 
   const visibleServer = server ?? PREVIEW_SERVER;
-  const visibleChannels = channels.length > 0 ? channels : PREVIEW_CHANNELS;
+  const visibleChannels = hasSession ? channels : PREVIEW_CHANNELS;
   const activeChannel =
     visibleChannels.find((channel) => channel.id === activeChannelId) ?? visibleChannels[0] ?? null;
   const activeVoiceChannel =
     PREVIEW_VOICE_CHANNELS.find((channel) => channel.id === activeVoiceChannelId) ?? PREVIEW_VOICE_CHANNELS[0] ?? null;
+  const cachedMessages = useMemo(() => Object.values(messagesByChannel).flat(), [messagesByChannel]);
   const visibleMessages = hasSession
-    ? visibleMessagesForChannel(messages, activeChannel?.id ?? null)
+    ? readCachedChannelMessages(messagesByChannel, activeChannel?.id ?? null)
     : visibleMessagesForChannel(PREVIEW_MESSAGES, activeChannel?.id ?? null);
-  const allVisibleMessages = hasSession && messages.length > 0 ? messages : PREVIEW_MESSAGES;
+  const allVisibleMessages = hasSession ? cachedMessages : PREVIEW_MESSAGES;
   const channelNotificationCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const message of allVisibleMessages) {
@@ -763,7 +781,10 @@ export default function ServerWorkspacePage() {
         return;
       }
 
-      setMessages(mergeMessages([], result.data.items));
+      setMessagesByChannel((current) => ({
+        ...current,
+        [activeChannel.id]: mergeMessages([], result.data.items),
+      }));
       setNextCursor(result.data.next_cursor ?? null);
       setMessageState("ready");
     } catch {
@@ -794,7 +815,10 @@ export default function ServerWorkspacePage() {
         return;
       }
 
-      setMessages((current) => mergeMessages(current, result.data.items));
+      setMessagesByChannel((current) => ({
+        ...current,
+        [activeChannel.id]: mergeMessages(current[activeChannel.id] ?? [], result.data.items),
+      }));
       setNextCursor(result.data.next_cursor ?? null);
       setOlderState("ready");
     } catch {
@@ -835,7 +859,10 @@ export default function ServerWorkspacePage() {
         return;
       }
 
-      setMessages((current) => mergeMessages(current, [result.data]));
+      setMessagesByChannel((current) => ({
+        ...current,
+        [activeChannel.id]: mergeMessages(current[activeChannel.id] ?? [], [result.data]),
+      }));
       setChannels((current) =>
         current.map((channel) =>
           channel.id === activeChannel.id
