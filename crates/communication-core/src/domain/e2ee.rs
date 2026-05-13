@@ -617,6 +617,9 @@ impl DmOneToOneRotationPlan {
         if current_context.kind != DmSessionKind::OneToOne {
             return Err(DmE2eeError::ContextInvalid);
         }
+        if current_context.participant_identity_ids.len() != 2 {
+            return Err(DmE2eeError::ContextInvalid);
+        }
 
         let first_identity_id = current_context
             .participant_identity_ids
