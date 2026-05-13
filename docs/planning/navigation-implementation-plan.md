@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-13 created the plan-only implementation path for Servers Hub, Contacts Hub, dual server navigation, and mobile navigation.
+- Latest meaningful change: 2026-05-13 tightened the plan-only approval decision record, split rationale, and post-approval slice exit criteria for Servers Hub, Contacts Hub, dual server navigation, and mobile navigation.
 
 ## Approval Boundary
 
@@ -47,6 +47,17 @@ Until that approval exists, allowed work is limited to planning, test/evidence d
 | `T4.6.2` | Contacts Hub | Search/filter/open-DM actions work and state persists per user |
 | `T4.6.3` | Desktop server navigation | Topbar supports open/close/reorder/pin tabs and folder assignment; burger preference persists per device |
 | `T4.6.4` | Mobile navigation | Mobile app shows `Home` / `Servers` / `Contacts` / `Settings` tabs and slide-in workspace drawers per spec |
+
+## Current Plan-Only Split Rationale
+
+The full `T4.6.1` through `T4.6.4` cluster spans four user-facing navigation surfaces and requires explicit approval before any runtime UI implementation. The smallest mergeable prerequisite is therefore this plan-only approval package:
+
+- keep the proposed flow, controls, copy, and behavior in one reviewable authority;
+- define the exact user approvals needed before Web changes begin;
+- split implementation into independently mergeable slices after approval;
+- define validation and evidence expectations before implementation starts.
+
+This PR must not claim any `T4.6.x` runtime acceptance criteria as complete. After approval, the first implementation PR should start with `NAV-01` only unless the approved scope explicitly allows a larger slice.
 
 ## Implementation Principles
 
@@ -202,6 +213,19 @@ The full `T4.6.1` through `T4.6.4` cluster is large enough that implementation s
 
 Each slice should be independently mergeable and should not claim task completion until the associated acceptance criteria and evidence are present.
 
+## Slice Exit Criteria
+
+| Slice | May merge when | Must not claim |
+|---|---|---|
+| `NAV-01` | Route constants, serializable navigation state helpers, and preference persistence helpers have focused web tests | Any visible hub/workspace UI behavior |
+| `NAV-02` | Servers Hub search, filters, pin action wiring, deep-link behavior, responsive layout, and required states pass web validation | Contacts Hub or desktop/mobile navigation completion |
+| `NAV-03` | Contacts Hub search, filters, open-DM behavior, persisted user hub state, and required states pass web validation | Servers Hub, desktop mode, or mobile drawer completion |
+| `NAV-04` | Desktop sidebar/topbar mode switch, tab open/close/reorder/pin/folder behavior, and burger preference persistence pass web validation | Mobile top-level tabs or mobile drawer completion |
+| `NAV-05` | Mobile `Home` / `Servers` / `Contacts` / `Settings` tabs and workspace drawer behavior pass browser screenshot review plus render coverage | Full navigation closeout without evidence artifacts |
+| `NAV-06` | Navigation evidence pack exists with required screenshots, checklist, validators, and provenance, and the sprint board is updated to reflect completed acceptance evidence | New runtime behavior beyond evidence/docs closeout |
+
+Each implementation slice must cite the approved `NAV-APP-*` decisions it uses. Missing approval is a hard stop for that slice.
+
 ## Validation Plan
 
 Before opening each implementation PR after approval:
@@ -237,6 +261,21 @@ These questions must be answered or explicitly accepted as written before UI imp
 | Burger visibility | Should the burger control cycle states in order or open a menu with explicit `expanded`, `collapsed`, and `hidden` choices? |
 | Mobile drawer | Should drawer state reset on navigation, or persist for the current mobile session? |
 | Card/list toggle | Should mobile hubs expose a card/list toggle in MVP, or stay list-first only? |
+
+## Approval Decision Record
+
+Record approval against each decision below before runtime UI work begins. Approval may live in a PR comment, issue comment, or project note, but the first implementation PR must cite the exact approval reference.
+
+| Decision ID | Required approval | Approved value |
+|---|---|---|
+| `NAV-APP-01` | Servers Hub filters, card actions, and state copy | pending |
+| `NAV-APP-02` | Contacts Hub filters, open-DM action, and whether mute/block are available from the hub | pending |
+| `NAV-APP-03` | Topbar tab reorder control model: drag-and-drop, menu/buttons, or both | pending |
+| `NAV-APP-04` | Burger visibility control model: state cycle or explicit menu | pending |
+| `NAV-APP-05` | Mobile workspace drawer persistence: reset on navigation or persist for the mobile session | pending |
+| `NAV-APP-06` | Mobile hub presentation: list-first only or approved card/list toggle | pending |
+
+If any decision is explicitly deferred, implementation for the affected surface must either avoid that behavior or stay plan-only for that slice.
 
 ## Known Limits
 
