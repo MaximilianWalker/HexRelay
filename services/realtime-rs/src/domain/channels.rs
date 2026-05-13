@@ -16,6 +16,7 @@ use crate::domain::replay_store;
 const CHANNEL_EVENTS_CHANNEL: &str = "channels:events";
 const CHANNEL_REPLAY_LOG_MAX_ENTRIES: usize = 256;
 const CHANNEL_DEVICE_CURSOR_TTL_SECONDS: u64 = 86_400;
+const CHANNEL_REPLAY_KEY_TTL_SECONDS: u64 = CHANNEL_DEVICE_CURSOR_TTL_SECONDS;
 const LOCAL_CHANNEL_DISPATCH_EVENT_ID_CACHE_MAX: usize = 4096;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -767,11 +768,15 @@ async fn persist_channel_replay_entries(
     recipients: &[String],
     client_payload: &str,
 ) -> Result<Vec<ChannelRecipientCursor>, redis::RedisError> {
-    replay_store::persist_replay_entries(
+    let retention = replay_store::ReplayRetention::with_key_ttl(
+        CHANNEL_REPLAY_LOG_MAX_ENTRIES,
+        CHANNEL_REPLAY_KEY_TTL_SECONDS,
+    )?;
+    replay_store::persist_replay_entries_with_retention(
         connection,
         recipients,
         client_payload,
-        CHANNEL_REPLAY_LOG_MAX_ENTRIES,
+        retention,
         channel_stream_head_key,
         channel_replay_log_key,
         |recipient_identity_id, cursor| ChannelRecipientCursor {
