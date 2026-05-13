@@ -501,6 +501,7 @@ impl DmClientSession {
         local_identity_id: impl AsRef<str>,
         local_secret: DmEphemeralSecret,
         peer_bootstrap: &DmSessionBootstrap,
+        trusted_peer_identity_public_key: impl AsRef<str>,
     ) -> Result<Self, DmE2eeError> {
         if context.kind != DmSessionKind::OneToOne {
             return Err(DmE2eeError::ContextInvalid);
@@ -519,7 +520,7 @@ impl DmClientSession {
             return Err(DmE2eeError::ContextInvalid);
         }
 
-        peer_bootstrap.verify(&context)?;
+        peer_bootstrap.verify(&context, trusted_peer_identity_public_key)?;
         let key = local_secret
             .derive_one_to_one_session_key(&peer_bootstrap.session_public_key, &context)?;
 
@@ -722,10 +723,21 @@ impl DmSessionBootstrap {
         })
     }
 
-    pub fn verify(&self, context: &DmSessionContext) -> Result<(), DmE2eeError> {
+    pub fn verify(
+        &self,
+        context: &DmSessionContext,
+        trusted_identity_public_key: impl AsRef<str>,
+    ) -> Result<(), DmE2eeError> {
+        let trusted_identity_public_key =
+            normalize_public_key(trusted_identity_public_key.as_ref())?;
+        let bootstrap_identity_public_key = normalize_public_key(&self.identity_public_key)?;
+        if trusted_identity_public_key != bootstrap_identity_public_key {
+            return Err(DmE2eeError::IdentityKeyInvalid);
+        }
+
         verify_dm_session_bootstrap_ed25519(
             &self.identity_id,
-            &self.identity_public_key,
+            &trusted_identity_public_key,
             &self.session_public_key,
             context,
             &self.signature_base64,
