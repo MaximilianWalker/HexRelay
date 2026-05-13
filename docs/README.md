@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded T4.5.4 E2EE group DM ciphertext and missing-key recovery closeout evidence.
+- Latest meaningful change: 2026-05-13 routed recipient-targeted websocket signaling closure across runtime contracts and readiness guidance.
 
 ## Purpose
 

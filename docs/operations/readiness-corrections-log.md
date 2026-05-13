@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-12
+- last_updated: 2026-05-13
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-05-12 removed project-owned API/realtime versioning artifacts and tightened the durable no-versioning rule.
+- Latest meaningful change: 2026-05-13 closed the recipient-targeted websocket signaling delivery watch with runtime fanout coverage.
 
 ## Purpose
 
@@ -35,10 +35,6 @@
   - owner=maintainers
   - decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity
   - exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond inventory matching
-- `realtime-rs`: recipient-targeted websocket signaling delivery is still deferred; validated signaling remains self-targeted loopback only.
-  - owner=realtime-maintainers
-  - decision_trigger=next realtime signaling hardening milestone or a multi-user signaling failure report
-  - exit_criteria=recipient-targeted signaling delivery exists with integration coverage for cross-identity offer/answer/candidate propagation
 - `docs`: reproducibility and CI parity wording should stay stable across repeated readiness passes.
   - owner=maintainers
   - decision_trigger=readiness finding on reproducibility/parity wording reappears
@@ -50,6 +46,7 @@
 
 ## Entries
 
+- 2026-05-13 | `realtime-rs` | Recipient-targeted websocket signaling delivery was still deferred, and validated signaling remained self-targeted loopback only | removed the cross-identity `event_unsupported` guard for authenticated `call.signal.offer` / `answer` / `ice_candidate` payloads, routed valid signaling envelopes to active websocket sessions for the target identity, added websocket integration coverage for cross-identity offer/answer/candidate propagation, and updated the runtime AsyncAPI signaling semantics | `docs/contracts/realtime-events-runtime.asyncapi.yaml`, `docs/contracts/README.md`, `docs/planning/iterations/02-sprint-board.md`, and `docs/operations/contributor-guide.md` now describe recipient-targeted live signaling delivery instead of an open loopback-only watch | `closed`
 - 2026-05-12 | `docs` | Project-owned API/realtime versioning remained in contract artifact filenames, schema aliases, realtime envelope fields, runtime cache keys, signed-token format segments, and browser storage-key suffixes even though the API is internal/local and does not need public version compatibility | renamed contract artifacts to unversioned names, removed realtime envelope-version payload fields and numeric schema suffix aliases, retired the legacy REST compatibility alias, removed runtime cache-key/token/storage version suffixes, and synchronized in-repo consumers, fixtures, docs, and contract parity validators | `AGENTS.md`, contract indexes, runtime contracts, and parity fixtures now require one clean internal API/realtime shape unless a real migration or rollout constraint exists | `closed`
 - 2026-05-11 | `api-rs` | PR review found `/dm/fanout/catch-up` keyed rate limiting by `identity_id:device_id` and ran DB-backed retention cleanup before profile-device existence/secret validation, allowing authenticated users to rotate device ids to bypass the catch-up cap and trigger purge work on rejected requests | changed catch-up rate limiting to key by identity across profile devices, moved retention cleanup after matching active profile-device secret validation, added regression coverage for cross-device limiter sharing, and synchronized runtime/product/architecture docs | catch-up abuse controls now throttle per identity without plaintext inspection, and retention cleanup no longer runs for unknown, invalid-secret, or inactive device requests | `closed`
 - 2026-05-11 | `ci` | PR coverage CI found `outbound_forward_retry_forwards_due_failed_static_peer_record` could scan two outbound-forward records because the DM delivery metadata retention test left a queued outbound-forward fixture in the shared integration database; the retry worker scans globally, so later retry tests could pick up that leftover fixture | cleaned up the retained queued outbound-forward fixture at the end of `dm_delivery_metadata_retention_purges_only_expired_delivery_metadata` while preserving the assertion that queued metadata survives retention pruning | integration fixture cleanup now keeps DM outbound-forward retry coverage isolated from retention-policy fixtures | `closed`

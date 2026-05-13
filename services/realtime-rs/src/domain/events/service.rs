@@ -87,13 +87,6 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
                     );
                 }
 
-                if data.to_identity_id != session_identity_id {
-                    return build_error_event(
-                        "event_unsupported",
-                        "recipient-targeted signaling delivery not implemented",
-                    );
-                }
-
                 build_event("call.signal.offer", parsed.correlation_id, data)
             }
             Err(_) => build_error_event("event_invalid", "invalid call.signal.offer payload"),
@@ -104,13 +97,6 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
                     return build_error_event(
                         "event_identity_mismatch",
                         "from_identity_id does not match authenticated session",
-                    );
-                }
-
-                if data.to_identity_id != session_identity_id {
-                    return build_error_event(
-                        "event_unsupported",
-                        "recipient-targeted signaling delivery not implemented",
                     );
                 }
 
@@ -125,13 +111,6 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
                         return build_error_event(
                             "event_identity_mismatch",
                             "from_identity_id does not match authenticated session",
-                        );
-                    }
-
-                    if data.to_identity_id != session_identity_id {
-                        return build_error_event(
-                            "event_unsupported",
-                            "recipient-targeted signaling delivery not implemented",
                         );
                     }
 
@@ -438,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_cross_identity_recipient_targeting_until_delivery_exists() {
+    fn routes_cross_identity_recipient_targeting() {
         let payloads = [
             r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
             r#"{"event_type":"call.signal.answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
@@ -447,9 +426,10 @@ mod tests {
 
         for payload in payloads {
             let response = route_inbound_event(payload, "usr-1");
-            let envelope: Value = serde_json::from_str(&response).expect("decode error envelope");
-            assert_eq!(envelope["event_type"], "error");
-            assert_eq!(envelope["data"]["code"], "event_unsupported");
+            let envelope: Value = serde_json::from_str(&response).expect("decode event envelope");
+            assert_ne!(envelope["event_type"], "error");
+            assert_eq!(envelope["data"]["from_identity_id"], "usr-1");
+            assert_eq!(envelope["data"]["to_identity_id"], "usr-2");
         }
     }
 }

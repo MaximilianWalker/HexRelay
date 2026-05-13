@@ -9,6 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use futures::{stream::StreamExt, SinkExt};
 use serde::Deserialize;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -317,6 +318,11 @@ async fn handle_inbound_message(
             } else {
                 route_inbound_event(&text, session_identity_id)
             };
+            if let Some(target_identity_id) =
+                signaling_recipient_identity_id(&response, session_identity_id)
+            {
+                dispatch_recipient_signal(state, &target_identity_id, &response).await;
+            }
             let _ = outbound_tx.try_send(response);
             true
         }
@@ -442,6 +448,61 @@ fn connection_ready_banner() -> String {
 
 fn build_error_event(code: &str, message: &str) -> String {
     crate::domain::events::service::build_error_event(code, message)
+}
+
+fn signaling_recipient_identity_id(payload: &str, session_identity_id: &str) -> Option<String> {
+    let envelope: Value = serde_json::from_str(payload).ok()?;
+    match envelope.get("event_type").and_then(Value::as_str)? {
+        "call.signal.offer" | "call.signal.answer" | "call.signal.ice_candidate" => {}
+        _ => return None,
+    }
+
+    let to_identity_id = envelope
+        .get("data")?
+        .get("to_identity_id")?
+        .as_str()?
+        .trim();
+    if to_identity_id.is_empty() || to_identity_id == session_identity_id {
+        return None;
+    }
+
+    Some(to_identity_id.to_owned())
+}
+
+async fn dispatch_recipient_signal(state: &AppState, recipient_identity_id: &str, payload: &str) {
+    let mut guard = state.connection_senders.lock().await;
+    let Some(connections) = guard.get_mut(recipient_identity_id) else {
+        return;
+    };
+
+    let mut stale_connection_ids = Vec::new();
+    let mut queued_count = 0usize;
+    let mut saturated_count = 0usize;
+    for (connection_id, entry) in connections.iter() {
+        match entry.sender.try_send(payload.to_owned()) {
+            Ok(()) => queued_count += 1,
+            Err(mpsc::error::TrySendError::Full(_)) => saturated_count += 1,
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                stale_connection_ids.push(connection_id.clone());
+            }
+        }
+    }
+
+    for connection_id in &stale_connection_ids {
+        connections.remove(connection_id);
+    }
+    if connections.is_empty() {
+        guard.remove(recipient_identity_id);
+    }
+
+    if queued_count == 0 && (saturated_count > 0 || !stale_connection_ids.is_empty()) {
+        warn!(
+            recipient_identity_id = %recipient_identity_id,
+            saturated_count,
+            stale_count = stale_connection_ids.len(),
+            "recipient-targeted signaling could not queue to any active websocket"
+        );
+    }
 }
 
 fn websocket_device_id(headers: &HeaderMap, query: Option<&str>) -> Option<String> {

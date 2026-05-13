@@ -355,6 +355,24 @@ async fn connect_ws_with_token_and_device(
     socket
 }
 
+async fn recv_json_frame(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> Value {
+    let message = socket
+        .next()
+        .await
+        .expect("socket message")
+        .expect("ws frame");
+    let text = match message {
+        WsMessage::Text(value) => value,
+        _ => panic!("expected text frame"),
+    };
+
+    serde_json::from_str(&text).expect("decode websocket payload")
+}
+
 async fn recv_presence_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -2365,46 +2383,53 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 }
 
 #[tokio::test]
-async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists() {
-    let api_base = start_validate_server(ValidateMode::Authorized).await;
+async fn websocket_delivers_cross_identity_call_signals_to_recipient() {
+    let api_base = start_presence_api_stub(
+        HashMap::from([
+            ("Bearer sender-token".to_string(), "usr-1".to_string()),
+            ("Bearer recipient-token".to_string(), "usr-b".to_string()),
+        ]),
+        HashMap::new(),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
     let ws_url = start_ws_server(api_base, 60).await;
 
-    let mut request = ws_url
-        .into_client_request()
-        .expect("build websocket client request");
-    request.headers_mut().insert(
-        "authorization",
-        HeaderValue::from_static("Bearer test-token"),
-    );
-    set_allowed_origin(&mut request);
+    let mut sender = connect_ws_with_token(&ws_url, "sender-token").await;
+    let mut recipient = connect_ws_with_token(&ws_url, "recipient-token").await;
 
-    let (mut socket, _) = connect_async(request)
-        .await
-        .expect("websocket connect response");
+    let _ = sender.next().await;
+    let _ = recipient.next().await;
 
-    let _ = socket.next().await;
+    for (event_type, payload) in [
+        (
+            "call.signal.offer",
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.answer",
+            r#"{"event_type":"call.signal.answer","correlation_id":"corr-answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_answer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.ice_candidate",
+            r#"{"event_type":"call.signal.ice_candidate","correlation_id":"corr-ice","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+        ),
+    ] {
+        sender
+            .send(WsMessage::Text(payload.to_string()))
+            .await
+            .expect("send signaling event");
 
-    socket
-        .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
-                .to_string(),
-        ))
-        .await
-        .expect("send offer event");
+        let sender_payload = recv_json_frame(&mut sender).await;
+        assert_eq!(sender_payload["event_type"], event_type);
+        assert_eq!(sender_payload["producer"], "realtime-gateway");
 
-    let message = socket
-        .next()
-        .await
-        .expect("socket message")
-        .expect("ws frame");
-    let text = match message {
-        WsMessage::Text(value) => value,
-        _ => panic!("expected text frame"),
-    };
-
-    let payload: Value = serde_json::from_str(&text).expect("decode response envelope");
-    assert_eq!(payload["event_type"], "error");
-    assert_eq!(payload["data"]["code"], "event_unsupported");
+        let recipient_payload = recv_json_frame(&mut recipient).await;
+        assert_eq!(recipient_payload["event_type"], event_type);
+        assert_eq!(recipient_payload["producer"], "realtime-gateway");
+        assert_eq!(recipient_payload["data"]["from_identity_id"], "usr-1");
+        assert_eq!(recipient_payload["data"]["to_identity_id"], "usr-b");
+    }
 }
 
 #[test]

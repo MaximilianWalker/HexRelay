@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-13
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-04-10 expanded contract-parity guidance to include the new selected realtime semantic checks while preserving the open broader semantic-depth watch.
+- Latest meaningful change: 2026-05-13 updated open-watch guidance after recipient-targeted websocket signaling delivery landed.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 - Current state includes active implementation across web, API, and realtime services.
 - Primary product runtime target is bundled desktop local-first operation.
 - Dedicated server mode remains a supported path and should be preserved in architecture/API decisions.
-- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include recipient-targeted realtime signaling delivery, broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, and docs-governance/process watches.
+- Before planning against current runtime behavior or calling work `ready`, check open `watch` entries in `docs/operations/readiness-corrections-log.md`; current deferred items include broader semantic contract validation beyond current parity checks, process-local realtime websocket abuse-control deployment sensitivity, and docs-governance/process watches.
 
 ## Local Development Prerequisites
 
