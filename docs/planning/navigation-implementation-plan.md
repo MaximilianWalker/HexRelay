@@ -308,7 +308,7 @@ If any decision is explicitly deferred, implementation for the affected surface 
 | `NAV-APP-05` | `T4.6.4` / `NAV-05` mobile drawer | Mobile workspace drawer behavior | Approved drawer reset or session persistence behavior |
 | `NAV-APP-06` | `T4.6.4` / `NAV-05` mobile hub presentation | Mobile hub presentation and optional toggle | Approved list-first-only or card/list toggle behavior |
 
-`NAV-01` may be approved separately as a no-visible-UI foundation slice. If only `NAV-01` is approved, the implementation PR must stay limited to route constants, serializable state helpers, preference helpers, and tests for those helpers.
+`NAV-01` may be approved separately as a no-visible-UI foundation slice. If only `NAV-01` is approved, the implementation PR must stay limited to route constants, serializable state helpers, preference helpers, shared fixture foundations that do not encode visible UI behavior, and tests for those helpers/fixtures.
 
 ## Approval Response Template
 
