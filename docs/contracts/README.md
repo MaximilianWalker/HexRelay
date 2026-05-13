@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-13 documented recipient-targeted websocket signaling delivery in the runtime AsyncAPI authority.
+- Latest meaningful change: 2026-05-13 documented tracked REST DTO required-field and field-type parity coverage.
 
 ## Purpose
 
@@ -34,12 +34,12 @@
 ## Contract Parity Status
 
 - Contract parity is strong for the current runtime route set, but it is not a full semantic/runtime-proof gate yet.
-- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, tracked REST DTO required-field checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, tracked REST DTO required-field and field-type checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
 - Remaining readiness limitations still include broader request/response/auth-behavior semantics beyond the currently tracked REST/realtime slices; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
 - Resume parity work only when:
   - the open CI semantic-depth watch is being hardened,
   - new runtime routes or DTO families land,
-  - new stable query or success semantics become worth enforcing mechanically,
+  - new stable query, DTO type, or success semantics become worth enforcing mechanically,
   - validator logic gains a genuinely new branch that needs regression coverage.
 
 ## Target-State Model Contracts

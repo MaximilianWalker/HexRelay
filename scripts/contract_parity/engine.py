@@ -152,6 +152,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             r'build_expired_cookie\(\s*csrf_cookie_name\(\)',
         ),
     }
+    TRACKED_REST_SCHEMA_NAMES = {
+        'AuthVerifyRequest',
+        'AuthVerifyResponse',
+        'SessionValidateResponse',
+        'InviteCreateRequest',
+        'InviteCreateResponse',
+        'FriendRequestCreateRequest',
+        'DmFanoutDispatchRequest',
+        'DmFanoutDispatchResponse',
+    }
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
         ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
         ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
@@ -664,17 +674,47 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return structs
 
 
-    def extract_tracked_schema_fields(models_path: pathlib.Path):
-        tracked_schemas = {
-            'AuthVerifyRequest',
-            'AuthVerifyResponse',
-            'SessionValidateResponse',
-            'InviteCreateRequest',
-            'InviteCreateResponse',
-            'FriendRequestCreateRequest',
-            'DmFanoutDispatchRequest',
-            'DmFanoutDispatchResponse',
+    def unwrap_rust_generic(raw_type: str, wrapper: str):
+        raw_type = raw_type.strip()
+        prefix = f'{wrapper}<'
+        if raw_type.startswith(prefix) and raw_type.endswith('>'):
+            return raw_type[len(prefix):-1].strip()
+        return None
+
+
+    def map_rest_schema_type(raw_type: str):
+        required = True
+        inner_type = raw_type.strip()
+        option_inner = unwrap_rust_generic(inner_type, 'Option')
+        if option_inner is not None:
+            required = False
+            inner_type = option_inner
+
+        vec_inner = unwrap_rust_generic(inner_type, 'Vec')
+        if vec_inner is not None:
+            item_details = map_rest_schema_type(vec_inner)
+            return {
+                'required': required,
+                'schema_type': 'array',
+                'item_schema_type': item_details['schema_type'],
+            }
+
+        schema_type = 'object'
+        normalized_type = inner_type.replace('&', '').strip()
+        if normalized_type == 'String' or normalized_type.endswith(' str'):
+            schema_type = 'string'
+        elif normalized_type == 'bool':
+            schema_type = 'boolean'
+        elif normalized_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
+            schema_type = 'integer'
+
+        return {
+            'required': required,
+            'schema_type': schema_type,
         }
+
+
+    def extract_tracked_schema_fields(models_path: pathlib.Path):
         text = models_path.read_text()
         structs = {}
         struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
@@ -682,55 +722,52 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
         for match in struct_pattern.finditer(text):
             name = match.group(1)
-            if name not in tracked_schemas:
+            if name not in TRACKED_REST_SCHEMA_NAMES:
                 continue
             body = match.group(2)
             fields = {}
             for field_name, raw_type in field_pattern.findall(body):
-                option_match = re.fullmatch(r'Option<\s*([^>]+)\s*>', raw_type.strip())
-                fields[field_name] = {
-                    'required': option_match is None,
-                }
+                fields[field_name] = map_rest_schema_type(raw_type.strip())
             structs[name] = fields
 
         return structs
 
 
     def extract_openapi_tracked_schema_fields(contract_path: pathlib.Path):
-        tracked_schemas = {
-            'AuthVerifyRequest',
-            'AuthVerifyResponse',
-            'SessionValidateResponse',
-            'InviteCreateRequest',
-            'InviteCreateResponse',
-            'FriendRequestCreateRequest',
-            'DmFanoutDispatchRequest',
-            'DmFanoutDispatchResponse',
-        }
         lines = contract_path.read_text().splitlines()
         structs = {}
         current_schema = None
         current_required = set()
-        current_properties = set()
+        current_properties = {}
+        current_property = None
+        current_property_items = False
         in_required = False
         in_properties = False
+
+        def build_schema_fields(properties: dict[str, dict[str, object]], required: set[str]):
+            return {
+                field_name: {
+                    **properties.get(field_name, {}),
+                    'required': field_name in required,
+                }
+                for field_name in set(properties) | required
+            }
 
         for line in lines:
             schema_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
             if schema_match:
-                if current_schema in tracked_schemas and current_properties:
-                    structs[current_schema] = {
-                        field_name: {'required': field_name in current_required}
-                        for field_name in current_properties | current_required
-                    }
+                if current_schema in TRACKED_REST_SCHEMA_NAMES and current_properties:
+                    structs[current_schema] = build_schema_fields(current_properties, current_required)
                 current_schema = schema_match.group(1)
                 current_required = set()
-                current_properties = set()
+                current_properties = {}
+                current_property = None
+                current_property_items = False
                 in_required = False
                 in_properties = False
                 continue
 
-            if current_schema not in tracked_schemas:
+            if current_schema not in TRACKED_REST_SCHEMA_NAMES:
                 continue
 
             if re.match(r'^      required:\s*\[(.*)\]\s*$', line):
@@ -753,20 +790,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if re.match(r'^      properties:\s*$', line):
                 in_properties = True
                 in_required = False
+                current_property = None
+                current_property_items = False
                 continue
             if in_properties:
                 property_match = re.match(r'^        ([A-Za-z0-9_]+):\s*$', line)
                 if property_match:
-                    current_properties.add(property_match.group(1))
+                    current_property = property_match.group(1)
+                    current_property_items = False
+                    current_properties.setdefault(current_property, {})
                     continue
+                if current_property:
+                    type_match = re.match(r'^ {10,}type:\s*([A-Za-z0-9_]+)\s*$', line)
+                    if type_match:
+                        if current_property_items:
+                            current_properties[current_property]['item_schema_type'] = type_match.group(1)
+                        else:
+                            current_properties[current_property]['schema_type'] = type_match.group(1)
+                        continue
+                    if re.match(r'^          items:\s*$', line):
+                        current_property_items = True
+                        continue
+                    if not re.match(r'^ {10,}', line):
+                        current_property = None
+                        current_property_items = False
                 if not re.match(r'^          ', line):
                     in_properties = False
+                    current_property = None
+                    current_property_items = False
 
-        if current_schema in tracked_schemas and current_properties:
-            structs[current_schema] = {
-                field_name: {'required': field_name in current_required}
-                for field_name in current_properties | current_required
-            }
+        if current_schema in TRACKED_REST_SCHEMA_NAMES and current_properties:
+            structs[current_schema] = build_schema_fields(current_properties, current_required)
 
         return structs
 
@@ -1512,6 +1566,23 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 errors.append(
                     f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
                 )
+            for field_name, runtime_field in sorted(runtime_schema_fields[runtime['request_body_schema']].items()):
+                documented_field = contract_schema_fields[runtime['request_body_schema']].get(field_name, {})
+                runtime_type = runtime_field.get('schema_type')
+                documented_type = documented_field.get('schema_type')
+                if runtime_type != documented_type:
+                    actual_type = documented_type or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
+                    )
+                    continue
+                runtime_item_type = runtime_field.get('item_schema_type')
+                documented_item_type = documented_field.get('item_schema_type')
+                if runtime_item_type and runtime_item_type != documented_item_type:
+                    actual_item_type = documented_item_type or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                    )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented != runtime['response_body_schema']:
@@ -1526,6 +1597,23 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     errors.append(
                         f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` with required fields [{expected_fields}] at runtime but documents [{documented_fields}] in {contract_path}."
                     )
+                for field_name, runtime_field in sorted(runtime_schema_fields[runtime['response_body_schema']].items()):
+                    documented_field = contract_schema_fields[runtime['response_body_schema']].get(field_name, {})
+                    runtime_type = runtime_field.get('schema_type')
+                    documented_type = documented_field.get('schema_type')
+                    if runtime_type != documented_type:
+                        actual_type = documented_type or '<none>'
+                        errors.append(
+                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
+                        )
+                        continue
+                    runtime_item_type = runtime_field.get('item_schema_type')
+                    documented_item_type = documented_field.get('item_schema_type')
+                    if runtime_item_type and runtime_item_type != documented_item_type:
+                        actual_item_type = documented_item_type or '<none>'
+                        errors.append(
+                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                        )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented is not None:
