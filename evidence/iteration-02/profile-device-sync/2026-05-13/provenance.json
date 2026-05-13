@@ -1,0 +1,7 @@
+{
+  "commit_sha": "7da95a85acc0aa14b43a424904d43ece3ccd3a0d",
+  "generated_at_utc": "2026-05-13T10:11:39Z",
+  "run_id": "hexrelay-autonomous-developer-2026-05-13T10:07:52Z",
+  "artifact": "iteration-02/profile-device-sync/2026-05-13",
+  "purpose": "Evidence closeout for profile-device presence convergence, server-channel convergence, and shared NodeClientTransport adapterization."
+}

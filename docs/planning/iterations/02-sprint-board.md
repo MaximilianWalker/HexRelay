@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed the T4.3.2 backend websocket fanout evidence and split optimistic UI into an approval-pending plan.
+- Latest meaningful change: 2026-05-13 closed the T3.3.2/T4.3.3/T4.3.4 profile-device sync and adapterization evidence after confirming existing runtime coverage.
 
 ## Iteration Scope
 
@@ -52,7 +52,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | E3 / S3.1 | M | API | T3.1.1 | Bootstrap identity material is shared only after acceptance and is blocked on pending/declined states |
 | T3.2.1 | Implement block/mute logic and fanout filters | E3 / S3.2 | M | API | T3.1.1 | Blocked/muted users are excluded from delivery paths as defined |
 | T3.3.1 | Implement presence service with Redis ephemeral state | E3 / S3.3 | L | Realtime | T1.1.2 | Presence transitions propagate within p95 <= 1s and recover correctly after reconnect in integration tests |
-| T3.3.2 | Add profile-device presence convergence and late-device hydration | E3 / S3.3 | M | Realtime/Core | T3.3.1, T4.0.3 | Presence state converges across all active profile devices and hydrates missed transitions on later-active devices |
 | T3.4.1 | Implement global user discovery index and shared-server query | E3 / S3.4 | L | API | T3.1.1 | Discovery returns only permitted profiles, excludes blocked users, and enforces rate-limit/denylist controls in policy tests |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | E4 / S4.1 | M | Core | T3.3.1 | Common communication interface supports DM and `server_channel` modes with deterministic policy routing; envelope delivery extensions land under `T4.1.7` |
 | T4.0.2 | Implement initial node transport adapter boundaries (`NodeClientTransport`) | E4 / S4.1 | L | Core | T4.0.1 | Existing node-client call paths route through adapter interfaces without behavior regression |
@@ -69,8 +68,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
-| T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | E4 / S4.3 | M | Realtime/Core | T4.0.2, T4.3.2 | Server communication is adapterized with no DM policy leakage or regression |
-| T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | E4 / S4.3 | L | Realtime/Core | T4.3.3, T3.3.2 | Server-channel and presence events converge across all profile devices, including devices that reconnect later |
 | T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | E4 / S4.5 | L | Core | T4.1.1 | Peers establish encrypted sessions with verifiable identity keys |
 | T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | E4 / S4.5 | XL | Core | T4.5.1 | 1:1 DM messages are ciphertext envelopes, decrypt correctly on clients only, and catch up when recipient devices are offline |
 | T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | E4 / S4.6 | XL | Core | T4.5.2 | Group session keys update on member add/remove and old members cannot decrypt new traffic |
@@ -143,6 +140,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.4 | Implement contact invite share UX | PR #50 | API client functions, robust link/token parsing, copy-to-clipboard, busy/error states; QR contact-invite sharing is superseded by the later QR-only-for-server-invites scope |
 | T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout and friend request creation; policy tests and OpenAPI updated |
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
+| T3.3.2 | Add profile-device presence convergence and late-device hydration | profile-device sync closeout branch | Realtime websocket tests cover presence fanout to multiple active profile devices, late-device online hydration, missed offline rehydration, per-device cursor dedupe, and no duplicate replay on reconnect. |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` owns the initial shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and envelope-delivery extension is now tracked under `T4.1.7` |
 | T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; node-bypassing DM adapter scope is superseded by the server-node P2P envelope baseline |
@@ -161,6 +159,8 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.2.1 | Implement guild/channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | T4.3.1/T4.4.1 server-channel permission hardening branch | Runtime REST server-channel message routes support list/create/edit/delete, same-channel replies, same-server mentions, pagination, tombstones, and dispatch-safe persistence behavior with contract and integration coverage |
 | T4.3.2 | Add websocket event fanout for server channels | server-channel realtime fanout branches plus reconnect duplicate closeout | API-persisted create/update/delete mutations fan out to authorized active websocket members, preserve FIFO API-to-realtime dispatch order, hydrate late profile devices through channel replay cursors, and assert no duplicate create/update/delete events after reconnect. Optimistic send UI is split to `T4.6.5` and remains blocked pending explicit approval of `docs/product/08-screen-state-spec.md`. |
+| T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | profile-device sync closeout branch | Server-channel API dispatch and realtime presence edge dispatch both route through `communication-core` `NodeClientTransport` helpers with stable provenance logging and no DM policy leakage. |
+| T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | profile-device sync closeout branch | Server-channel and presence websocket tests cover active profile-device fanout, late-device hydration, reconnect cursor dedupe, denied-channel replay exclusion, and missed presence transition replay. |
 | T4.4.1 | Add permission middleware and authorization tests | T4.3.1/T4.4.1 server-channel permission hardening branch | Server/channel authorization now covers unauthenticated, outsider, cross-server path, role read-denial, role send-denial, non-author edit/delete, and removed-member bypass attempts across middleware, handler, and repository tests |
 
 ## In Progress

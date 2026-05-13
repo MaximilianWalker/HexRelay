@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-11 added T4.1.9 verification coverage for recipient-targeted realtime DM dispatch summaries.
+- Latest meaningful change: 2026-05-13 added concrete profile-device sync evidence for presence/server-channel convergence.
 
 ## Requirement to Evidence Matrix
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded T4.3.2 backend websocket fanout closeout and the approval-pending optimistic send UI split.
+- Latest meaningful change: 2026-05-13 recorded profile-device presence/server-channel sync closeout evidence.
 
 ## Purpose
 
