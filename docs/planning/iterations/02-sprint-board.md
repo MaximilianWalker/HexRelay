@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 added T4.1.9 backend realtime dispatch-summary observability for recipient-targeted DM active-device fanout.
+- Latest meaningful change: 2026-05-13 closed T4.0.3 shared provenance and reason-code taxonomy with stable NodeClientTransport dispatch outputs.
 
 ## Iteration Scope
 
@@ -56,7 +56,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.4.1 | Implement global user discovery index and shared-server query | E3 / S3.4 | L | API | T3.1.1 | Discovery returns only permitted profiles, excludes blocked users, and enforces rate-limit/denylist controls in policy tests |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | E4 / S4.1 | M | Core | T3.3.1 | Common communication interface supports DM and `server_channel` modes with deterministic policy routing; envelope delivery extensions land under `T4.1.7` |
 | T4.0.2 | Implement initial node transport adapter boundaries (`NodeClientTransport`) | E4 / S4.1 | L | Core | T4.0.1 | Existing node-client call paths route through adapter interfaces without behavior regression |
-| T4.0.3 | Implement shared session provenance and reason-code taxonomy | E4 / S4.1 | M | Core | T4.0.1 | Both DM and server paths emit stable provenance + reason-code outputs |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers over encrypted-envelope history without server-readable plaintext |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay semantics while allowing encrypted-envelope store-and-forward terminology |
@@ -149,6 +148,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` owns the initial shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and envelope-delivery extension is now tracked under `T4.1.7` |
 | T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; node-bypassing DM adapter scope is superseded by the server-node P2P envelope baseline |
+| T4.0.3 | Implement shared session provenance and reason-code taxonomy | T4.0.3 shared provenance branch | `communication-core` exposes stable snake-case mode/profile/reason-code outputs and provenance-returning dispatch helpers; DM, server-channel, and presence NodeClientTransport dispatch paths now emit shared provenance without changing runtime routes or UX behavior |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without server-readable plaintext; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | dm envelope baseline pivot branch | Direct-only policy is superseded; CI guardrails now target unsafe semantics: server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay behavior |

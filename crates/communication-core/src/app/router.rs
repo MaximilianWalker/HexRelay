@@ -1,7 +1,7 @@
 use crate::app::PolicyEngine;
 use crate::domain::{
-    CommunicationMode, CommunicationReasonCode, ConnectIntent, PolicyContext, PolicyError,
-    SendEnvelope, SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, DispatchOutcome, PolicyContext,
+    PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::NodeClientTransport;
 
@@ -43,6 +43,13 @@ where
     }
 
     pub fn send(&self, envelope: &SendEnvelope) -> Result<(), CommunicationError> {
+        self.send_with_provenance(envelope).map(|_| ())
+    }
+
+    pub fn send_with_provenance(
+        &self,
+        envelope: &SendEnvelope,
+    ) -> Result<DispatchOutcome, CommunicationError> {
         let profile = self.route_profile(envelope.mode, None)?;
 
         match profile {
@@ -53,7 +60,11 @@ where
                     profile,
                 )
             }),
-        }
+        }?;
+
+        Ok(DispatchOutcome {
+            provenance: PolicyEngine::build_provenance(envelope.mode, profile),
+        })
     }
 
     fn route_profile(

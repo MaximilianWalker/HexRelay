@@ -9,8 +9,8 @@ use crate::domain::{
     SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{
-    send_via_node_dispatch, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,
-    TransportError,
+    send_via_node_dispatch, send_via_node_dispatch_with_provenance, DispatchingNodeClientTransport,
+    NodeClientTransport, NodeDispatch, TransportError,
 };
 
 #[derive(Clone)]
@@ -105,6 +105,38 @@ fn routes_dm_envelope_send_through_node_adapter() {
 
     assert_eq!(result, Ok(()));
     assert_eq!(node_send_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn send_with_provenance_returns_stable_server_channel_outcome() {
+    let node_connect_calls = Arc::new(AtomicUsize::new(0));
+    let node_send_calls = Arc::new(AtomicUsize::new(0));
+    let router = CommunicationRouter::new(
+        PolicyContext::default(),
+        RecordingNodeClient {
+            connect_calls: node_connect_calls,
+            send_calls: Arc::clone(&node_send_calls),
+        },
+    );
+
+    let result = router
+        .send_with_provenance(&SendEnvelope {
+            mode: CommunicationMode::ServerChannel,
+            payload: b"server-channel".to_vec(),
+        })
+        .expect("server channel dispatch should route");
+
+    assert_eq!(node_send_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(result.provenance.mode.as_str(), "server_channel");
+    assert_eq!(result.provenance.profile.as_str(), "node_client");
+    assert_eq!(
+        result.provenance.reason_code.as_str(),
+        "server_channel_route_selected"
+    );
+    assert_eq!(
+        result.provenance.policy_assertions,
+        vec!["server_channel_policy_compliant".to_string()]
+    );
 }
 
 #[test]
@@ -229,5 +261,30 @@ fn send_via_node_dispatch_routes_dm_envelope_through_node_client_bootstrap() {
     assert_eq!(
         payloads.lock().expect("acquire payload lock").as_slice(),
         &[b"dm-envelope".to_vec()]
+    );
+}
+
+#[test]
+fn send_via_node_dispatch_with_provenance_returns_presence_outcome() {
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+
+    let result = send_via_node_dispatch_with_provenance(
+        CommunicationMode::Presence,
+        PolicyContext::default(),
+        RecordingDispatch {
+            payloads: Arc::clone(&payloads),
+        },
+        b"presence".to_vec(),
+    )
+    .expect("presence dispatch should route");
+
+    assert_eq!(
+        payloads.lock().expect("acquire payload lock").as_slice(),
+        &[b"presence".to_vec()]
+    );
+    assert_eq!(result.provenance.mode.as_str(), "presence");
+    assert_eq!(
+        result.provenance.reason_code.as_str(),
+        "presence_route_selected"
     );
 }

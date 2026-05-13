@@ -8,10 +8,28 @@ pub enum CommunicationMode {
     Presence,
 }
 
+impl CommunicationMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DmEnvelope => "dm_envelope",
+            Self::ServerChannel => "server_channel",
+            Self::Presence => "presence",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransportProfile {
     NodeClient,
+}
+
+impl TransportProfile {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NodeClient => "node_client",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,6 +58,11 @@ pub struct SessionProvenance {
     pub policy_assertions: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DispatchOutcome {
+    pub provenance: SessionProvenance,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommunicationReasonCode {
@@ -50,6 +73,20 @@ pub enum CommunicationReasonCode {
     TargetProfileMismatch,
     TransportConnectFailed,
     TransportSendFailed,
+}
+
+impl CommunicationReasonCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DmEnvelopeNodeRouteSelected => "dm_envelope_node_route_selected",
+            Self::ServerChannelRouteSelected => "server_channel_route_selected",
+            Self::PresenceRouteSelected => "presence_route_selected",
+            Self::ModeDisabled => "mode_disabled",
+            Self::TargetProfileMismatch => "target_profile_mismatch",
+            Self::TransportConnectFailed => "transport_connect_failed",
+            Self::TransportSendFailed => "transport_send_failed",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

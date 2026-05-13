@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 added recurring quality audit ledgers, linked them from the docs index, and exempted generated ledger edits from docs-index freshness churn.
+- Latest meaningful change: 2026-05-13 refreshed iteration planning after T4.0.3 shared provenance and reason-code taxonomy closeout.
 
 ## Purpose
 

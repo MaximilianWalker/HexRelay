@@ -5,8 +5,9 @@ mod peer_invite;
 mod signature;
 
 pub use communication::{
-    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,
-    PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DispatchOutcome,
+    DmTransportPolicy, PolicyContext, PolicyError, SendEnvelope, SessionProvenance,
+    TransportProfile,
 };
 pub use mesh::{
     CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, PeerRouteKind,
