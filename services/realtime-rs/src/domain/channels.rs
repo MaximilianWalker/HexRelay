@@ -442,9 +442,8 @@ pub async fn publish_channel_message_created(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -553,9 +552,8 @@ pub async fn publish_channel_message_updated(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel update event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -664,9 +662,8 @@ pub async fn publish_channel_message_deleted(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel delete event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -743,24 +740,6 @@ fn normalize_recipients(recipients: &[String]) -> Vec<String> {
         }
     }
     deduped.into_iter().collect()
-}
-
-async fn active_replay_recipients(state: &AppState, recipients: &[String]) -> Vec<String> {
-    let guard = state.connection_senders.lock().await;
-    recipients
-        .iter()
-        .filter(|recipient_identity_id| {
-            guard
-                .get(recipient_identity_id.as_str())
-                .map(|connections| {
-                    connections
-                        .values()
-                        .any(|entry| entry.device_id.as_ref().is_some())
-                })
-                .unwrap_or(false)
-        })
-        .cloned()
-        .collect()
 }
 
 async fn persist_channel_replay_entries(
