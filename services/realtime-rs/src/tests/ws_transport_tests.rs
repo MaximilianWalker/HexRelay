@@ -1517,8 +1517,13 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
     let _ = subject_socket.next().await;
 
-    let online_payload =
-        recv_presence_event(&mut primary_device, "usr-presence-subject", "online").await;
+    let online_payload = wait_for_presence_replay_event(
+        &redis_client,
+        "usr-presence-viewer",
+        "usr-presence-subject",
+        "online",
+    )
+    .await;
     let online_seq = online_payload["data"]["presence_seq"]
         .as_u64()
         .expect("online seq");
@@ -1526,6 +1531,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
+    wait_for_registered_device(&state, "usr-presence-viewer", "device-late").await;
 
     let hydrated_payload =
         recv_presence_event(&mut late_device, "usr-presence-subject", "online").await;
@@ -1535,6 +1541,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
         .close(None)
         .await
         .expect("close subject socket");
+    close_socket_and_wait_for_disconnect(&mut subject_socket).await;
 
     let offline_primary =
         recv_presence_event(&mut primary_device, "usr-presence-subject", "offline").await;
