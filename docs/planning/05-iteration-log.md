@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded T4.5.1 E2EE one-to-one session bootstrap closeout evidence.
+- Latest meaningful change: 2026-05-13 recorded T4.5.3 E2EE group DM session bootstrap and membership key-update closeout evidence.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.5.3 E2EE group DM bootstrap and rekey closeout)
+
+- Area affected: E2EE group DM session bootstrap, membership key updates, crypto conformance coverage, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Added `communication-core` group session bootstrap support that derives usable client sessions only for current group participants.
+  - Tightened group rekey flow so membership-change plans expose added/removed identity sets and reject removed identities before deriving the next client session.
+  - Recorded the previously landed T4.5.2 one-to-one rotation prerequisite and marked `T4.5.2` plus `T4.5.3` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected `T4.5.x` E2EE baseline remains too large for one PR; closing group bootstrap/rekey as a standalone prerequisite leaves only T4.5.4 group payload failure-recovery coverage open.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.5.1 E2EE one-to-one session bootstrap closeout)
 
