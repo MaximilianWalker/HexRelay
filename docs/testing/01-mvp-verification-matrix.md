@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-13 added T4.5.1 E2EE one-to-one session bootstrap evidence.
+- Latest meaningful change: 2026-05-13 added T4.5.3 E2EE group DM session bootstrap and membership key-update evidence.
 
 ## Requirement to Evidence Matrix
 

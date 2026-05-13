@@ -1,14 +1,21 @@
-running 11 tests
-test tests::e2ee_tests::rotation_triggers_at_message_count_or_session_age_boundary ... ok
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src\lib.rs (target\debug\deps\communication_core-3ddb89f6d72e1f73.exe)
+
+running 15 tests
+test tests::e2ee_tests::one_to_one_rotation_plan_rejects_group_context ... ok
 test tests::e2ee_tests::deserialized_context_must_preserve_derived_session_id ... ok
+test tests::e2ee_tests::rotation_triggers_at_message_count_or_session_age_boundary ... ok
+test tests::e2ee_tests::group_session_bootstrap_derives_only_member_sessions ... ok
 test tests::e2ee_tests::group_rekey_plan_creates_new_client_session_for_membership_change ... ok
 test tests::e2ee_tests::group_session_rekey_excludes_removed_member ... ok
-test tests::e2ee_tests::rejects_nonparticipant_bootstrap_and_sender_metadata ... ok
+test tests::e2ee_tests::group_rekey_plan_rejects_one_to_one_context ... ok
 test tests::e2ee_tests::client_session_encrypts_locally_and_reports_rotation_boundary ... ok
+test tests::e2ee_tests::rejects_nonparticipant_bootstrap_and_sender_metadata ... ok
 test tests::e2ee_tests::xchacha_envelopes_reject_tampered_ciphertext_and_metadata ... ok
 test tests::e2ee_tests::verified_one_to_one_bootstrap_rejects_wrong_session_context ... ok
 test tests::e2ee_tests::verified_one_to_one_bootstrap_rejects_untrusted_peer_material ... ok
-test tests::e2ee_tests::verified_one_to_one_bootstrap_builds_matching_client_sessions ... ok
+test tests::e2ee_tests::one_to_one_rotation_plan_rekeys_client_sessions ... ok
 test tests::e2ee_tests::one_to_one_bootstrap_binds_x25519_key_to_identity_signature ... ok
+test tests::e2ee_tests::verified_one_to_one_bootstrap_builds_matching_client_sessions ... ok
 
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 62 filtered out
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 62 filtered out; finished in 0.01s

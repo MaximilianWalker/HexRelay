@@ -369,15 +369,81 @@ impl DmGroupSecret {
         Self { bytes }
     }
 
-    pub fn derive_session_key(
-        &self,
-        context: &DmSessionContext,
-    ) -> Result<DmSessionKey, DmE2eeError> {
+    fn derive_session_key(&self, context: &DmSessionContext) -> Result<DmSessionKey, DmE2eeError> {
         if context.kind != DmSessionKind::Group {
             return Err(DmE2eeError::ContextInvalid);
         }
 
         derive_session_key(&self.bytes, context)
+    }
+
+    pub fn derive_member_session(
+        &self,
+        context: DmSessionContext,
+        local_identity_id: impl AsRef<str>,
+        messages_encrypted: u64,
+    ) -> Result<DmClientSession, DmE2eeError> {
+        ensure_context_contains_identity(&context, local_identity_id.as_ref())?;
+        let key = self.derive_session_key(&context)?;
+
+        DmClientSession::group(context, key, messages_encrypted)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct DmGroupSessionBootstrap {
+    context: DmSessionContext,
+    secret: DmGroupSecret,
+}
+
+impl fmt::Debug for DmGroupSessionBootstrap {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DmGroupSessionBootstrap")
+            .field("context", &self.context)
+            .field("secret", &"<redacted>")
+            .finish()
+    }
+}
+
+impl DmGroupSessionBootstrap {
+    pub fn new(
+        thread_id: impl Into<String>,
+        participant_identity_ids: impl IntoIterator<Item = impl Into<String>>,
+        created_at_epoch_seconds: i64,
+    ) -> Result<Self, DmE2eeError> {
+        let context = DmSessionContext::group(
+            thread_id,
+            participant_identity_ids,
+            0,
+            created_at_epoch_seconds,
+        )?;
+        let secret = DmGroupSecret::generate()?;
+
+        Ok(Self { context, secret })
+    }
+
+    pub fn from_secret(
+        context: DmSessionContext,
+        secret: DmGroupSecret,
+    ) -> Result<Self, DmE2eeError> {
+        if context.kind != DmSessionKind::Group {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        Ok(Self { context, secret })
+    }
+
+    pub fn context(&self) -> &DmSessionContext {
+        &self.context
+    }
+
+    pub fn derive_member_session(
+        &self,
+        local_identity_id: impl AsRef<str>,
+    ) -> Result<DmClientSession, DmE2eeError> {
+        self.secret
+            .derive_member_session(self.context.clone(), local_identity_id, 0)
     }
 }
 
@@ -568,6 +634,18 @@ impl DmClientSession {
         DmOneToOneRotationPlan::new(&self.context, created_at_epoch_seconds)
     }
 
+    pub fn group_rekey_plan(
+        &self,
+        next_participant_identity_ids: impl IntoIterator<Item = impl Into<String>>,
+        created_at_epoch_seconds: i64,
+    ) -> Result<DmGroupRekeyPlan, DmE2eeError> {
+        DmGroupRekeyPlan::new(
+            &self.context,
+            next_participant_identity_ids,
+            created_at_epoch_seconds,
+        )
+    }
+
     pub fn encrypt_outbound(
         &mut self,
         now_epoch_seconds: i64,
@@ -732,12 +810,12 @@ impl DmGroupRekeyPlan {
         &self.removed_identity_ids
     }
 
-    pub fn derive_next_session(
+    pub fn derive_next_member_session(
         &self,
+        local_identity_id: impl AsRef<str>,
         secret: &DmGroupSecret,
     ) -> Result<DmClientSession, DmE2eeError> {
-        let key = secret.derive_session_key(&self.next_context)?;
-        DmClientSession::group(self.next_context.clone(), key, 0)
+        secret.derive_member_session(self.next_context.clone(), local_identity_id, 0)
     }
 }
 
@@ -824,6 +902,22 @@ fn identity_set_difference(left: &[String], right: &[String]) -> Vec<String> {
         .filter(|identity_id| !right.iter().any(|other| other == *identity_id))
         .cloned()
         .collect()
+}
+
+fn ensure_context_contains_identity(
+    context: &DmSessionContext,
+    identity_id: impl AsRef<str>,
+) -> Result<String, DmE2eeError> {
+    let identity_id = normalize_required_id(identity_id.as_ref())?;
+    if !context
+        .participant_identity_ids
+        .iter()
+        .any(|participant| participant == &identity_id)
+    {
+        return Err(DmE2eeError::ContextInvalid);
+    }
+
+    Ok(identity_id)
 }
 
 pub fn sign_dm_session_bootstrap_ed25519_pkcs8(
