@@ -1,6 +1,6 @@
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch,
+    send_via_node_dispatch_with_provenance,
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
@@ -406,7 +406,7 @@ fn dispatch_server_channel_payload(
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
 
-    send_via_node_dispatch(
+    let outcome = send_via_node_dispatch_with_provenance(
         CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
         RealtimeNodeDispatchSender {
@@ -418,10 +418,19 @@ fn dispatch_server_channel_payload(
     )
     .map_err(|error| {
         format!(
-            "dispatch server channel event via NodeClientTransport: {:?}",
-            error.code
+            "dispatch server channel event via NodeClientTransport: {}",
+            error.code.as_str()
         )
-    })
+    })?;
+
+    debug!(
+        mode = outcome.provenance.mode.as_str(),
+        profile = outcome.provenance.profile.as_str(),
+        reason_code = outcome.provenance.reason_code.as_str(),
+        policy_assertions = ?outcome.provenance.policy_assertions,
+        "NodeClientTransport server-channel dispatch provenance emitted"
+    );
+    Ok(())
 }
 
 #[cfg(test)]

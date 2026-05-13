@@ -1,8 +1,8 @@
 use crate::{
     app::{CommunicationError, CommunicationRouter, PolicyEngine},
     domain::{
-        CommunicationMode, ConnectIntent, PolicyContext, SendEnvelope, SessionProvenance,
-        TransportProfile,
+        CommunicationMode, ConnectIntent, DispatchOutcome, PolicyContext, SendEnvelope,
+        SessionProvenance, TransportProfile,
     },
 };
 
@@ -79,4 +79,17 @@ where
 {
     CommunicationRouter::new(policy, DispatchingNodeClientTransport::new(mode, dispatch))
         .send(&SendEnvelope { mode, payload })
+}
+
+pub fn send_via_node_dispatch_with_provenance<D>(
+    mode: CommunicationMode,
+    policy: PolicyContext,
+    dispatch: D,
+    payload: Vec<u8>,
+) -> Result<DispatchOutcome, CommunicationError>
+where
+    D: NodeDispatch,
+{
+    CommunicationRouter::new(policy, DispatchingNodeClientTransport::new(mode, dispatch))
+        .send_with_provenance(&SendEnvelope { mode, payload })
 }

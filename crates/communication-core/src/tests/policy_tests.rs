@@ -5,6 +5,30 @@ use crate::domain::{
 };
 
 #[test]
+fn exposes_stable_mode_profile_and_reason_code_strings() {
+    assert_eq!(CommunicationMode::DmEnvelope.as_str(), "dm_envelope");
+    assert_eq!(CommunicationMode::ServerChannel.as_str(), "server_channel");
+    assert_eq!(CommunicationMode::Presence.as_str(), "presence");
+    assert_eq!(TransportProfile::NodeClient.as_str(), "node_client");
+    assert_eq!(
+        CommunicationReasonCode::DmEnvelopeNodeRouteSelected.as_str(),
+        "dm_envelope_node_route_selected"
+    );
+    assert_eq!(
+        CommunicationReasonCode::ServerChannelRouteSelected.as_str(),
+        "server_channel_route_selected"
+    );
+    assert_eq!(
+        CommunicationReasonCode::PresenceRouteSelected.as_str(),
+        "presence_route_selected"
+    );
+    assert_eq!(
+        CommunicationReasonCode::TransportSendFailed.as_str(),
+        "transport_send_failed"
+    );
+}
+
+#[test]
 fn routes_dm_envelope_to_node_client_profile() {
     let policy = PolicyContext::default();
 

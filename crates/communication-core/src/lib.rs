@@ -17,8 +17,9 @@ pub use domain::{
     StaticPeerRegistryError,
 };
 pub use domain::{
-    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DmTransportPolicy,
-    PolicyContext, PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DispatchOutcome,
+    DmTransportPolicy, PolicyContext, PolicyError, SendEnvelope, SessionProvenance,
+    TransportProfile,
 };
 pub use domain::{
     DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
@@ -28,8 +29,8 @@ pub use domain::{
     RelayPolicy, StoragePolicy,
 };
 pub use transport::{
-    send_via_node_dispatch, DispatchingNodeClientTransport, NodeClientTransport, NodeDispatch,
-    TransportError, UnsupportedNodeClientTransport,
+    send_via_node_dispatch, send_via_node_dispatch_with_provenance, DispatchingNodeClientTransport,
+    NodeClientTransport, NodeDispatch, TransportError, UnsupportedNodeClientTransport,
 };
 
 #[cfg(test)]

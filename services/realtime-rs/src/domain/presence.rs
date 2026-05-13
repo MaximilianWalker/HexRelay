@@ -4,7 +4,7 @@ use crate::state::AppState;
 use chrono::Utc;
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch,
+    send_via_node_dispatch_with_provenance,
     transport::{NodeDispatch, TransportError},
 };
 use futures::StreamExt;
@@ -14,7 +14,7 @@ use tokio::{
     sync::mpsc::Sender,
     time::{sleep, Duration},
 };
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::domain::replay_store;
 
@@ -350,7 +350,7 @@ async fn dispatch_presence_edge(
     let result = if runtime_handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
     {
         tokio::task::spawn_blocking(move || {
-            send_via_node_dispatch(
+            send_via_node_dispatch_with_provenance(
                 CommunicationMode::Presence,
                 communication_core::PolicyContext::default(),
                 dispatch,
@@ -360,7 +360,7 @@ async fn dispatch_presence_edge(
         .await
         .map_err(|error| format!("dispatch presence event join: {error}"))?
     } else {
-        send_via_node_dispatch(
+        send_via_node_dispatch_with_provenance(
             CommunicationMode::Presence,
             communication_core::PolicyContext::default(),
             dispatch,
@@ -368,12 +368,21 @@ async fn dispatch_presence_edge(
         )
     };
 
-    result.map_err(|error| {
+    let outcome = result.map_err(|error| {
         format!(
-            "dispatch presence event via NodeClientTransport: {:?}",
-            error.code
+            "dispatch presence event via NodeClientTransport: {}",
+            error.code.as_str()
         )
-    })
+    })?;
+
+    debug!(
+        mode = outcome.provenance.mode.as_str(),
+        profile = outcome.provenance.profile.as_str(),
+        reason_code = outcome.provenance.reason_code.as_str(),
+        policy_assertions = ?outcome.provenance.policy_assertions,
+        "NodeClientTransport presence dispatch provenance emitted"
+    );
+    Ok(())
 }
 
 async fn publish_presence_edge_direct(
