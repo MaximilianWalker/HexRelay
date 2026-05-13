@@ -561,6 +561,13 @@ impl DmClientSession {
         self.rotation.requires_rotation(now_epoch_seconds)
     }
 
+    pub fn one_to_one_rotation_plan(
+        &self,
+        created_at_epoch_seconds: i64,
+    ) -> Result<DmOneToOneRotationPlan, DmE2eeError> {
+        DmOneToOneRotationPlan::new(&self.context, created_at_epoch_seconds)
+    }
+
     pub fn encrypt_outbound(
         &mut self,
         now_epoch_seconds: i64,
@@ -594,6 +601,70 @@ pub struct DmClientEncryptResult {
     pub envelope: DmCiphertextEnvelope,
     pub messages_encrypted: u64,
     pub rotation_required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DmOneToOneRotationPlan {
+    previous_session_id: String,
+    next_context: DmSessionContext,
+}
+
+impl DmOneToOneRotationPlan {
+    pub fn new(
+        current_context: &DmSessionContext,
+        created_at_epoch_seconds: i64,
+    ) -> Result<Self, DmE2eeError> {
+        if current_context.kind != DmSessionKind::OneToOne {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        let first_identity_id = current_context
+            .participant_identity_ids
+            .first()
+            .ok_or(DmE2eeError::ContextInvalid)?
+            .clone();
+        let second_identity_id = current_context
+            .participant_identity_ids
+            .get(1)
+            .ok_or(DmE2eeError::ContextInvalid)?
+            .clone();
+        let next_context = DmSessionContext::one_to_one(
+            current_context.thread_id.clone(),
+            first_identity_id,
+            second_identity_id,
+            current_context.generation.saturating_add(1),
+            created_at_epoch_seconds,
+        )?;
+
+        Ok(Self {
+            previous_session_id: current_context.session_id.clone(),
+            next_context,
+        })
+    }
+
+    pub fn previous_session_id(&self) -> &str {
+        &self.previous_session_id
+    }
+
+    pub fn next_context(&self) -> &DmSessionContext {
+        &self.next_context
+    }
+
+    pub fn derive_next_session_from_verified_peer_bootstrap(
+        &self,
+        local_identity_id: impl AsRef<str>,
+        local_secret: DmEphemeralSecret,
+        peer_bootstrap: &DmSessionBootstrap,
+        trusted_peer_identity_public_key: impl AsRef<str>,
+    ) -> Result<DmClientSession, DmE2eeError> {
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            self.next_context.clone(),
+            local_identity_id,
+            local_secret,
+            peer_bootstrap,
+            trusted_peer_identity_public_key,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
