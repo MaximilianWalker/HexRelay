@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 routed contract-parity docs for tracked REST DTO field-type coverage and readiness-watch narrowing.
+- Latest meaningful change: 2026-05-13 routed the navigation approval response template and pre-implementation gate hardening for `T4.6.1` through `T4.6.4`.
 
 ## Purpose
 

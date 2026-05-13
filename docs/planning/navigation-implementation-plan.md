@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-13 tightened the plan-only approval decision record, split rationale, and post-approval slice exit criteria for Servers Hub, Contacts Hub, dual server navigation, and mobile navigation.
+- Latest meaningful change: 2026-05-13 added the approval response template and pre-implementation gate checklist for the `T4.6.1` through `T4.6.4` navigation slices.
 
 ## Approval Boundary
 
@@ -276,6 +276,39 @@ Record approval against each decision below before runtime UI work begins. Appro
 | `NAV-APP-06` | Mobile hub presentation: list-first only or approved card/list toggle | pending |
 
 If any decision is explicitly deferred, implementation for the affected surface must either avoid that behavior or stay plan-only for that slice.
+
+## Approval Response Template
+
+Use this template in the approving PR comment, issue comment, or project note. The first runtime UI implementation PR must link to the exact approval reference and copy the approved decision values into its PR body.
+
+```text
+Navigation approval reference:
+- Scope approved: NAV-01 only | NAV-02 | NAV-03 | NAV-04 | NAV-05 | full T4.6.1-T4.6.4 sequence
+- NAV-APP-01 Servers Hub filters/actions/copy: approved as written | approved with changes: <changes> | deferred
+- NAV-APP-02 Contacts Hub filters/actions/copy: approved as written | approved with changes: <changes> | deferred
+- NAV-APP-03 Topbar tab reorder model: drag-and-drop | menu/buttons | both | deferred
+- NAV-APP-04 Burger visibility control model: cycle states | explicit menu | deferred
+- NAV-APP-05 Mobile drawer persistence: reset on navigation | persist for session | deferred
+- NAV-APP-06 Mobile hub presentation: list-first only | card/list toggle | deferred
+- Additional constraints: <any limits, exclusions, or required validation>
+```
+
+Approval can cover one slice at a time. If approval covers only `NAV-01`, runtime work remains limited to shared state, route, preference, and fixture foundations with no visible hub or workspace behavior.
+
+## Pre-Implementation Gate Checklist
+
+Before any runtime UI implementation branch starts, verify all of the following:
+
+| Gate | Required evidence |
+|---|---|
+| Approval reference exists | PR/issue/project note link with non-pending `NAV-APP-*` values for the slice |
+| Scope is slice-bounded | PR body names the exact `NAV-*` slice and the related `T4.6.x` acceptance target |
+| UX copy/control deltas are frozen for the slice | Any changed copy, filters, controls, persistence behavior, or mobile behavior appears in the approval reference |
+| Validation commands are selected | PR body lists the web lint, coverage, build, render/browser, and screenshot checks that apply to the slice |
+| Evidence path is reserved when UI exists | `evidence/iteration-02/navigation/<YYYY-MM-DD>/` path and artifact list are named before screenshot capture |
+| No unapproved adjacent behavior is bundled | PR body explicitly excludes deferred `NAV-APP-*` decisions and unrelated DM/server-channel UX changes |
+
+Missing approval evidence is a hard stop. Do not use a plan-only PR, an implementation-ready task row, or existing partially built web components as implied approval for product UI behavior.
 
 ## Known Limits
 

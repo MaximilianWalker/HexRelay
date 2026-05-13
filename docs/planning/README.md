@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 added the approval-pending navigation implementation plan for `T4.6.1` through `T4.6.4`.
+- Latest meaningful change: 2026-05-13 tightened the navigation approval response template and pre-implementation gate for `T4.6.1` through `T4.6.4`.
 
 - `Status: ready` means this index is the canonical planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before planning against unsettled behavior.
 
