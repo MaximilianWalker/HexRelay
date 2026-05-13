@@ -283,9 +283,9 @@ Use this template in the approving PR comment, issue comment, or project note. T
 
 ```text
 Navigation approval reference:
-- Scope approved: NAV-01 only | NAV-02 | NAV-03 | NAV-04 | NAV-05 | full T4.6.1-T4.6.4 sequence
+- Scope approved: NAV-01 only | NAV-02 | NAV-03 | NAV-04 | NAV-05 | NAV-06 evidence closeout | full T4.6.1-T4.6.4 sequence
 - NAV-APP-01 Servers Hub filters/actions/copy: approved as written | approved with changes: <changes> | deferred
-- NAV-APP-02 Contacts Hub filters/actions/copy: approved as written | approved with changes: <changes> | deferred
+- NAV-APP-02 Contacts Hub filters/actions/copy and hub mute/block availability: approved as written | approved with changes: <changes> | deferred
 - NAV-APP-03 Topbar tab reorder model: drag-and-drop | menu/buttons | both | deferred
 - NAV-APP-04 Burger visibility control model: cycle states | explicit menu | deferred
 - NAV-APP-05 Mobile drawer persistence: reset on navigation | persist for session | deferred
