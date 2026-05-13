@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 routed the approval-pending navigation implementation plan across planning and task authorities.
+- Latest meaningful change: 2026-05-13 routed the approval-pending navigation implementation plan and its approval-decision checklist across planning and task authorities.
 
 ## Purpose
 
