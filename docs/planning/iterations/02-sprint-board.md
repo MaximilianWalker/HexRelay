@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed the T3.3.2/T4.3.3/T4.3.4 profile-device sync and adapterization evidence after confirming existing runtime coverage.
+- Latest meaningful change: 2026-05-13 closed T4.5.1 E2EE one-to-one session bootstrap evidence after confirming and tightening the communication-core crypto coverage.
 
 ## Iteration Scope
 
@@ -68,7 +68,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
-| T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | E4 / S4.5 | L | Core | T4.1.1 | Peers establish encrypted sessions with verifiable identity keys |
 | T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | E4 / S4.5 | XL | Core | T4.5.1 | 1:1 DM messages are ciphertext envelopes, decrypt correctly on clients only, and catch up when recipient devices are offline |
 | T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | E4 / S4.6 | XL | Core | T4.5.2 | Group session keys update on member add/remove and old members cannot decrypt new traffic |
 | T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | E4 / S4.6 | XL | Core | T4.5.3 | Group DM payloads are ciphertext envelopes; rekey and missing-key failures are test-covered without server-side plaintext/key custody |
@@ -162,6 +161,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | profile-device sync closeout branch | Server-channel API dispatch and realtime presence edge dispatch both route through `communication-core` `NodeClientTransport` helpers with stable provenance logging and no DM policy leakage. |
 | T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | profile-device sync closeout branch | Server-channel and presence websocket tests cover active profile-device fanout, late-device hydration, reconnect cursor dedupe, denied-channel replay exclusion, and missed presence transition replay. |
 | T4.4.1 | Add permission middleware and authorization tests | T4.3.1/T4.4.1 server-channel permission hardening branch | Server/channel authorization now covers unauthenticated, outsider, cross-server path, role read-denial, role send-denial, non-author edit/delete, and removed-member bypass attempts across middleware, handler, and repository tests |
+| T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | T4.5.1 session-bootstrap closeout branch | `communication-core` establishes one-to-one E2EE sessions with Ed25519-signed identity bootstrap material, X25519 ephemeral agreement, HKDF-SHA256-derived session keys, trusted-peer identity-key verification, and regressions for forged identity material, tampered signatures, and wrong session contexts. |
 
 ## In Progress
 
@@ -202,7 +202,7 @@ Week 6:
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
 - Finalize T4.4.1
-- T4.5.1 -> T4.5.2 -> T4.5.3 -> T4.5.4
+- T4.5.2 -> T4.5.3 -> T4.5.4; T4.5.1 one-to-one session bootstrap is closed
 - T4.6.1, T4.6.2, T4.6.3, T4.6.4 navigation surfaces and persistence checks
 - Stabilization, load tests for chat fanout, iteration demo
 

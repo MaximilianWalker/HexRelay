@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded profile-device presence/server-channel sync closeout evidence.
+- Latest meaningful change: 2026-05-13 recorded T4.5.1 E2EE one-to-one session bootstrap closeout evidence.
 
 ## Purpose
 
