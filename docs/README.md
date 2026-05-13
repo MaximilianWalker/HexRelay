@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 refreshed runtime REST contract semantics for channel-read-scoped server-channel realtime dispatch.
+- Latest meaningful change: 2026-05-13 refreshed T4.3.2 board status and runtime REST notes for bounded FIFO server-channel dispatch.
 
 ## Purpose
 

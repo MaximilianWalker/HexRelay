@@ -4,6 +4,8 @@ use communication_core::{
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
 use crate::state::AppState;
@@ -11,6 +13,7 @@ use crate::state::AppState;
 const INTERNAL_CHANNEL_MESSAGE_CREATED_PATH: &str = "/internal/channels/messages/created";
 const INTERNAL_CHANNEL_MESSAGE_UPDATED_PATH: &str = "/internal/channels/messages/updated";
 const INTERNAL_CHANNEL_MESSAGE_DELETED_PATH: &str = "/internal/channels/messages/deleted";
+const SERVER_CHANNEL_DISPATCH_QUEUE_CAPACITY: usize = 4096;
 
 #[derive(Serialize)]
 struct ChannelMessageCreatedDispatchRequest<'a> {
@@ -126,8 +129,122 @@ pub struct DispatchChannelMessageDeletedInput<'a> {
     pub recipients: &'a [String],
 }
 
+#[derive(Clone, Default)]
+pub struct ServerChannelDispatchQueue {
+    sender: Arc<Mutex<Option<mpsc::Sender<QueuedChannelDispatch>>>>,
+}
+
+impl ServerChannelDispatchQueue {
+    fn enqueue(&self, dispatch: QueuedChannelDispatch) -> Result<(), TransportError> {
+        let mut guard = self.sender.lock().map_err(|_| TransportError::SendFailed)?;
+
+        let needs_worker = match guard.as_ref() {
+            Some(sender) => sender.is_closed(),
+            None => true,
+        };
+        if needs_worker {
+            let (sender, receiver) = mpsc::channel(SERVER_CHANNEL_DISPATCH_QUEUE_CAPACITY);
+            tokio::runtime::Handle::try_current()
+                .map_err(|_| TransportError::SendFailed)?
+                .spawn(run_ordered_channel_dispatcher(receiver));
+            *guard = Some(sender);
+        }
+
+        guard
+            .as_ref()
+            .ok_or(TransportError::SendFailed)?
+            .try_send(dispatch)
+            .map_err(|_| TransportError::SendFailed)
+    }
+}
+
+struct QueuedChannelDispatch {
+    http_client: reqwest::Client,
+    url: String,
+    path: String,
+    internal_token: String,
+    body: Vec<u8>,
+    message_id: String,
+    server_id: String,
+    channel_id: String,
+}
+
+impl QueuedChannelDispatch {
+    async fn send(self) {
+        match self
+            .http_client
+            .post(&self.url)
+            .header("x-hexrelay-internal-token", &self.internal_token)
+            .header("content-type", "application/json")
+            .body(self.body)
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                match response
+                    .json::<ChannelMessageDispatchInternalResponse>()
+                    .await
+                {
+                    Ok(report) => {
+                        debug!(
+                            path = %self.path,
+                            message_id = %report.summary.message_id,
+                            server_id = %report.summary.server_id,
+                            channel_id = %report.summary.channel_id,
+                            target_recipient_count = report.summary.target_recipient_count,
+                            queued_recipient_count = report.summary.queued_recipient_ids.len(),
+                            pending_recipient_count = report.summary.pending_recipient_ids.len(),
+                            no_connection_recipient_count = report.summary.no_connection_recipient_ids.len(),
+                            saturated_recipient_count = report.summary.saturated_recipient_ids.len(),
+                            stale_connection_count = report.summary.stale_connection_count,
+                            "NodeClientTransport server-channel dispatch accepted by realtime"
+                        );
+                    }
+                    Err(error) => {
+                        warn!(
+                            path = %self.path,
+                            message_id = %self.message_id,
+                            server_id = %self.server_id,
+                            channel_id = %self.channel_id,
+                            error = %error,
+                            "NodeClientTransport server-channel dispatch summary decode failed"
+                        );
+                    }
+                }
+            }
+            Ok(response) => {
+                warn!(
+                    path = %self.path,
+                    message_id = %self.message_id,
+                    server_id = %self.server_id,
+                    channel_id = %self.channel_id,
+                    status = %response.status(),
+                    "NodeClientTransport server-channel dispatch failed"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    path = %self.path,
+                    message_id = %self.message_id,
+                    server_id = %self.server_id,
+                    channel_id = %self.channel_id,
+                    error = %error,
+                    "NodeClientTransport server-channel dispatch errored"
+                );
+            }
+        }
+    }
+}
+
+async fn run_ordered_channel_dispatcher(mut receiver: mpsc::Receiver<QueuedChannelDispatch>) {
+    while let Some(dispatch) = receiver.recv().await {
+        dispatch.send().await;
+    }
+}
+
 #[derive(Clone)]
 struct RealtimeNodeDispatchSender {
+    queue: ServerChannelDispatchQueue,
     http_client: reqwest::Client,
     realtime_base_url: String,
     internal_token: String,
@@ -146,75 +263,16 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
         let message_id = dispatch.message_id().to_string();
         let server_id = dispatch.server_id().to_string();
         let channel_id = dispatch.channel_id().to_string();
-        let internal_token = self.internal_token.clone();
-        let body = dispatch.body().to_vec();
-        let handle =
-            tokio::runtime::Handle::try_current().map_err(|_| TransportError::SendFailed)?;
-        handle.spawn(async move {
-            match http_client
-                .post(url)
-                .header("x-hexrelay-internal-token", internal_token)
-                .header("content-type", "application/json")
-                .body(body)
-                .send()
-                .await
-            {
-                Ok(response) if response.status().is_success() => {
-                    match response
-                        .json::<ChannelMessageDispatchInternalResponse>()
-                        .await
-                    {
-                        Ok(report) => {
-                            debug!(
-                                %path,
-                                message_id = %report.summary.message_id,
-                                server_id = %report.summary.server_id,
-                                channel_id = %report.summary.channel_id,
-                                target_recipient_count = report.summary.target_recipient_count,
-                                queued_recipient_count = report.summary.queued_recipient_ids.len(),
-                                pending_recipient_count = report.summary.pending_recipient_ids.len(),
-                                no_connection_recipient_count = report.summary.no_connection_recipient_ids.len(),
-                                saturated_recipient_count = report.summary.saturated_recipient_ids.len(),
-                                stale_connection_count = report.summary.stale_connection_count,
-                                "NodeClientTransport server-channel dispatch accepted by realtime"
-                            );
-                        }
-                        Err(error) => {
-                            warn!(
-                                %path,
-                                %message_id,
-                                %server_id,
-                                %channel_id,
-                                error = %error,
-                                "NodeClientTransport server-channel dispatch summary decode failed"
-                            );
-                        }
-                    }
-                }
-                Ok(response) => {
-                    warn!(
-                        %path,
-                        %message_id,
-                        %server_id,
-                        %channel_id,
-                        status = %response.status(),
-                        "NodeClientTransport server-channel dispatch failed"
-                    );
-                }
-                Err(error) => {
-                    warn!(
-                        %path,
-                        %message_id,
-                        %server_id,
-                        %channel_id,
-                        error = %error,
-                        "NodeClientTransport server-channel dispatch errored"
-                    );
-                }
-            }
-        });
-
-        Ok(())
+        self.queue.enqueue(QueuedChannelDispatch {
+            http_client,
+            url,
+            path,
+            internal_token: self.internal_token.clone(),
+            body: dispatch.body().to_vec(),
+            message_id,
+            server_id,
+            channel_id,
+        })
     }
 }
 
@@ -410,6 +468,7 @@ fn dispatch_server_channel_payload(
         CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
         RealtimeNodeDispatchSender {
+            queue: state.server_channel_dispatch_queue.clone(),
             http_client: state.http_client.clone(),
             realtime_base_url: state.realtime_base_url.clone(),
             internal_token: state.channel_dispatch_internal_token.clone(),
@@ -436,6 +495,8 @@ fn dispatch_server_channel_payload(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::State as AxumState, routing::post, Json, Router};
+    use tokio::{net::TcpListener, sync::mpsc, time::Duration};
 
     #[test]
     fn dispatch_payload_maps_created_kind_to_internal_path() {
@@ -568,5 +629,101 @@ mod tests {
         assert_eq!(report.summary.no_connection_recipient_ids, vec!["usr-b"]);
         assert_eq!(report.summary.saturated_recipient_ids, vec!["usr-c"]);
         assert_eq!(report.summary.stale_connection_count, 1);
+    }
+
+    #[tokio::test]
+    async fn server_channel_dispatch_queue_sends_events_fifo() {
+        async fn record_created_dispatch(
+            AxumState(sender): AxumState<mpsc::UnboundedSender<String>>,
+            body: String,
+        ) -> Json<serde_json::Value> {
+            let payload: serde_json::Value =
+                serde_json::from_str(&body).expect("decode channel dispatch body");
+            let message_id = payload["message_id"]
+                .as_str()
+                .expect("message id")
+                .to_string();
+            if message_id == "msg-1" {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            sender.send(message_id.clone()).expect("record dispatch");
+
+            Json(serde_json::json!({
+                "status": "accepted",
+                "summary": {
+                    "message_id": message_id,
+                    "server_id": payload["server_id"],
+                    "channel_id": payload["channel_id"],
+                    "target_recipient_count": 1,
+                    "queued_recipient_ids": ["usr-recipient"],
+                    "pending_recipient_ids": [],
+                    "no_connection_recipient_ids": [],
+                    "saturated_recipient_ids": [],
+                    "stale_connection_count": 0
+                }
+            }))
+        }
+
+        let (received_tx, mut received_rx) = mpsc::unbounded_channel();
+        let app = Router::new()
+            .route(
+                INTERNAL_CHANNEL_MESSAGE_CREATED_PATH,
+                post(record_created_dispatch),
+            )
+            .with_state(received_tx);
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("read test listener address");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve test app");
+        });
+
+        let state = AppState {
+            realtime_base_url: format!("http://{address}"),
+            ..AppState::default()
+        };
+        let recipients = vec!["usr-recipient".to_string()];
+
+        dispatch_channel_message_created(
+            &state,
+            DispatchChannelMessageCreatedInput {
+                server_id: "server-1",
+                channel_id: "channel-1",
+                message_id: "msg-1",
+                sender_id: "usr-sender",
+                created_at: "2026-05-13T08:00:00Z",
+                channel_seq: 1,
+                recipients: &recipients,
+            },
+        )
+        .await
+        .expect("enqueue first dispatch");
+        dispatch_channel_message_created(
+            &state,
+            DispatchChannelMessageCreatedInput {
+                server_id: "server-1",
+                channel_id: "channel-1",
+                message_id: "msg-2",
+                sender_id: "usr-sender",
+                created_at: "2026-05-13T08:00:01Z",
+                channel_seq: 2,
+                recipients: &recipients,
+            },
+        )
+        .await
+        .expect("enqueue second dispatch");
+
+        let first = tokio::time::timeout(Duration::from_secs(2), received_rx.recv())
+            .await
+            .expect("first dispatch timeout")
+            .expect("first dispatch recorded");
+        let second = tokio::time::timeout(Duration::from_secs(2), received_rx.recv())
+            .await
+            .expect("second dispatch timeout")
+            .expect("second dispatch recorded");
+
+        assert_eq!(first, "msg-1");
+        assert_eq!(second, "msg-2");
     }
 }

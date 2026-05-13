@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed T4.3.1 server-channel message baseline and T4.4.1 permission bypass coverage.
+- Latest meaningful change: 2026-05-13 started T4.3.2 backend server-channel realtime ordering prerequisite; UX behavior remains gated on explicit approval.
 
 ## Iteration Scope
 
@@ -165,7 +165,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended work is server-channel realtime/profile-device convergence cleanup or live-call recipient-targeted signaling; no UX changes without explicit approval |
+| T4.3.2 | Add websocket event fanout and optimistic UI for server channels | in_progress | Backend prerequisite in flight: serialize API-to-realtime server-channel dispatch so persisted create/update/delete events reach realtime in FIFO order. Optimistic UI remains unimplemented until explicit UX flow/copy/control approval exists. |
 
 ## Suggested Sprint Sequencing
 

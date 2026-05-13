@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-13 documented stable shared NodeClientTransport provenance telemetry in the runtime REST authority.
+- Latest meaningful change: 2026-05-13 documented bounded FIFO server-channel dispatch handoff semantics in the runtime REST authority.
 
 ## Purpose
 

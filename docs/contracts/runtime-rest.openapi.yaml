@@ -25,7 +25,11 @@ info:
     Server-channel realtime dispatch records internal accepted-summary telemetry
     for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
     scoping recipients to effective channel read permission and preserving the
-    existing REST success payloads. DM delivery uses server-node
+    existing REST success payloads. API-to-realtime server-channel dispatch is
+    handed to the internal realtime routes through a bounded per-process FIFO
+    queue so persisted create/update/delete notifications are issued in adapter
+    order; REST success remains non-transactional with downstream realtime
+    delivery and does not guarantee durable retry. DM delivery uses server-node
     P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
     contracts must not expose node-bypassing DM bootstrap or plaintext relay
     behavior. App-to-node dedicated-server administration starts with a public
