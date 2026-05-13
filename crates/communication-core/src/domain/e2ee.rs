@@ -47,6 +47,7 @@ pub enum DmE2eeError {
     SignatureInvalid,
     KeyAgreementInvalid,
     KeyDerivationInvalid,
+    SessionRotationRequired,
     NonceInvalid,
     EnvelopeInvalid,
     EncryptInvalid,
@@ -63,6 +64,7 @@ impl DmE2eeError {
             Self::SignatureInvalid => "signature_invalid",
             Self::KeyAgreementInvalid => "key_agreement_invalid",
             Self::KeyDerivationInvalid => "key_derivation_invalid",
+            Self::SessionRotationRequired => "session_rotation_required",
             Self::NonceInvalid => "nonce_invalid",
             Self::EnvelopeInvalid => "envelope_invalid",
             Self::EncryptInvalid => "encrypt_invalid",
@@ -459,6 +461,181 @@ impl DmSessionKey {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct DmClientSession {
+    context: DmSessionContext,
+    key: DmSessionKey,
+    rotation: DmSessionRotationState,
+}
+
+impl fmt::Debug for DmClientSession {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DmClientSession")
+            .field("context", &self.context)
+            .field("key", &"<redacted>")
+            .field("rotation", &self.rotation)
+            .finish()
+    }
+}
+
+impl DmClientSession {
+    pub fn one_to_one(
+        context: DmSessionContext,
+        key: DmSessionKey,
+        messages_encrypted: u64,
+    ) -> Result<Self, DmE2eeError> {
+        Self::new(DmSessionKind::OneToOne, context, key, messages_encrypted)
+    }
+
+    pub fn group(
+        context: DmSessionContext,
+        key: DmSessionKey,
+        messages_encrypted: u64,
+    ) -> Result<Self, DmE2eeError> {
+        Self::new(DmSessionKind::Group, context, key, messages_encrypted)
+    }
+
+    fn new(
+        expected_kind: DmSessionKind,
+        context: DmSessionContext,
+        key: DmSessionKey,
+        messages_encrypted: u64,
+    ) -> Result<Self, DmE2eeError> {
+        if context.kind != expected_kind {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        let rotation = DmSessionRotationState {
+            created_at_epoch_seconds: context.created_at_epoch_seconds,
+            messages_encrypted,
+        };
+
+        Ok(Self {
+            context,
+            key,
+            rotation,
+        })
+    }
+
+    pub fn context(&self) -> &DmSessionContext {
+        &self.context
+    }
+
+    pub fn messages_encrypted(&self) -> u64 {
+        self.rotation.messages_encrypted
+    }
+
+    pub fn requires_rotation(&self, now_epoch_seconds: i64) -> bool {
+        self.rotation.requires_rotation(now_epoch_seconds)
+    }
+
+    pub fn encrypt_outbound(
+        &mut self,
+        now_epoch_seconds: i64,
+        message_id: impl AsRef<str>,
+        sender_identity_id: impl AsRef<str>,
+        plaintext: &[u8],
+    ) -> Result<DmClientEncryptResult, DmE2eeError> {
+        if self.requires_rotation(now_epoch_seconds) {
+            return Err(DmE2eeError::SessionRotationRequired);
+        }
+
+        let envelope =
+            self.key
+                .encrypt_message(&self.context, message_id, sender_identity_id, plaintext)?;
+        self.rotation.messages_encrypted = self.rotation.messages_encrypted.saturating_add(1);
+
+        Ok(DmClientEncryptResult {
+            envelope,
+            messages_encrypted: self.rotation.messages_encrypted,
+            rotation_required: self.requires_rotation(now_epoch_seconds),
+        })
+    }
+
+    pub fn decrypt_inbound(&self, envelope: &DmCiphertextEnvelope) -> Result<Vec<u8>, DmE2eeError> {
+        self.key.decrypt_message(&self.context, envelope)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DmClientEncryptResult {
+    pub envelope: DmCiphertextEnvelope,
+    pub messages_encrypted: u64,
+    pub rotation_required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DmGroupRekeyPlan {
+    previous_session_id: String,
+    next_context: DmSessionContext,
+    added_identity_ids: Vec<String>,
+    removed_identity_ids: Vec<String>,
+}
+
+impl DmGroupRekeyPlan {
+    pub fn new(
+        current_context: &DmSessionContext,
+        next_participant_identity_ids: impl IntoIterator<Item = impl Into<String>>,
+        created_at_epoch_seconds: i64,
+    ) -> Result<Self, DmE2eeError> {
+        if current_context.kind != DmSessionKind::Group {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        let next_context = DmSessionContext::group(
+            current_context.thread_id.clone(),
+            next_participant_identity_ids,
+            current_context.generation.saturating_add(1),
+            created_at_epoch_seconds,
+        )?;
+
+        if next_context.participant_identity_ids == current_context.participant_identity_ids {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        let added_identity_ids = identity_set_difference(
+            &next_context.participant_identity_ids,
+            &current_context.participant_identity_ids,
+        );
+        let removed_identity_ids = identity_set_difference(
+            &current_context.participant_identity_ids,
+            &next_context.participant_identity_ids,
+        );
+
+        Ok(Self {
+            previous_session_id: current_context.session_id.clone(),
+            next_context,
+            added_identity_ids,
+            removed_identity_ids,
+        })
+    }
+
+    pub fn previous_session_id(&self) -> &str {
+        &self.previous_session_id
+    }
+
+    pub fn next_context(&self) -> &DmSessionContext {
+        &self.next_context
+    }
+
+    pub fn added_identity_ids(&self) -> &[String] {
+        &self.added_identity_ids
+    }
+
+    pub fn removed_identity_ids(&self) -> &[String] {
+        &self.removed_identity_ids
+    }
+
+    pub fn derive_next_session(
+        &self,
+        secret: &DmGroupSecret,
+    ) -> Result<DmClientSession, DmE2eeError> {
+        let key = secret.derive_session_key(&self.next_context)?;
+        DmClientSession::group(self.next_context.clone(), key, 0)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DmCiphertextEnvelope {
     pub session_id: String,
@@ -481,6 +658,13 @@ impl DmSessionRotationState {
             || now_epoch_seconds.saturating_sub(self.created_at_epoch_seconds)
                 >= DM_SESSION_ROTATE_AFTER_SECONDS
     }
+}
+
+fn identity_set_difference(left: &[String], right: &[String]) -> Vec<String> {
+    left.iter()
+        .filter(|identity_id| !right.iter().any(|other| other == *identity_id))
+        .cloned()
+        .collect()
 }
 
 pub fn sign_dm_session_bootstrap_ed25519_pkcs8(
