@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded T4.3.2 backend websocket fanout closeout and optimistic UI approval split.
+- Latest meaningful change: 2026-05-13 recorded profile-device presence/server-channel sync closeout evidence.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T3.3.2/T4.3.3/T4.3.4 profile-device sync closeout)
+
+- Area affected: Presence convergence, server-channel profile-device hydration, shared adapter evidence, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Confirmed presence and server-channel runtime paths already use the shared `NodeClientTransport` adapter/provenance helpers for their current node-client dispatch surfaces.
+  - Confirmed existing websocket regressions cover presence active-device fanout, late-device hydration, missed offline transition replay, server-channel late-device hydration, reconnect dedupe, and read-denied replay exclusion.
+  - Added the missing profile-device sync evidence artifact and marked `T3.3.2`, `T4.3.3`, and `T4.3.4` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected `T4.2-T4.3` cluster spans several already-delivered runtime surfaces. Closing the evidence/status gap is the smallest mergeable prerequisite before selecting later Iteration 2 work.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/profile-device-sync/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.3.2 backend fanout closeout and UX split)
 
