@@ -1,4 +1,5 @@
 mod communication;
+mod e2ee;
 mod mesh;
 mod node;
 mod peer_invite;
@@ -8,6 +9,13 @@ pub use communication::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, ConnectTarget, DispatchOutcome,
     DmTransportPolicy, PolicyContext, PolicyError, SendEnvelope, SessionProvenance,
     TransportProfile,
+};
+pub use e2ee::{
+    ed25519_public_key_base64, sign_dm_session_bootstrap_ed25519_pkcs8,
+    verify_dm_session_bootstrap_ed25519, DmCiphertextEnvelope, DmE2eeError, DmEphemeralPublicKey,
+    DmEphemeralSecret, DmGroupSecret, DmSessionContext, DmSessionKey, DmSessionKind,
+    DmSessionRotationState, DM_SESSION_KEY_BYTES, DM_SESSION_NONCE_BYTES,
+    DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
 };
 pub use mesh::{
     CandidatePeerPolicy, PeerCandidate, PeerCandidateValidationError, PeerRouteKind,
