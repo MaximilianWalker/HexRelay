@@ -566,6 +566,140 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
 }
 
 #[tokio::test]
+async fn channel_role_send_permission_gates_server_channel_message_creation() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let server_id = format!("srv-channel-perm-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-channel-perm-{}", Uuid::new_v4().simple());
+    let reader_id = unique_identity("usr-channel-reader");
+    let poster_id = unique_identity("usr-channel-poster");
+    let reader_role_id = format!("role-reader-{}", Uuid::new_v4().simple());
+    let poster_role_id = format!("role-poster-{}", Uuid::new_v4().simple());
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Permissioned",
+        &channel_id,
+        "general",
+        &[&reader_id, &poster_id],
+        &[],
+    )
+    .await;
+
+    for (role_id, name, rank) in [
+        (&reader_role_id, "reader", 1),
+        (&poster_role_id, "poster", 2),
+    ] {
+        server_channels_repo::insert_server_role(
+            &pool,
+            server_channels_repo::ServerRoleInsertParams {
+                role_id,
+                server_id: &server_id,
+                name,
+                rank,
+            },
+        )
+        .await
+        .expect("insert server role");
+    }
+    for (identity_id, role_id) in [(&reader_id, &reader_role_id), (&poster_id, &poster_role_id)] {
+        server_channels_repo::assign_server_membership_role(
+            &pool,
+            server_channels_repo::ServerMembershipRoleInsertParams {
+                server_id: &server_id,
+                identity_id,
+                role_id,
+            },
+        )
+        .await
+        .expect("assign server role");
+    }
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &reader_role_id,
+            can_read: true,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert reader permission");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &poster_role_id,
+            can_read: true,
+            can_send: true,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert poster permission");
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&reader_id, &poster_id]).await
+    else {
+        return;
+    };
+
+    let reader_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "reader should not send" }).to_string(),
+        ))
+        .expect("build reader create request");
+    let poster_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&poster_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "poster can send" }).to_string(),
+        ))
+        .expect("build poster create request");
+
+    let reader_response = app
+        .clone()
+        .oneshot(reader_request)
+        .await
+        .expect("reader create response");
+    let poster_response = app
+        .oneshot(poster_request)
+        .await
+        .expect("poster create response");
+
+    assert_eq!(reader_response.status(), StatusCode::FORBIDDEN);
+    let reader_body = to_bytes(reader_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader response body");
+    let reader_payload: serde_json::Value =
+        serde_json::from_slice(&reader_body).expect("decode reader response body");
+    assert_eq!(reader_payload["code"], "server_access_denied");
+
+    assert_eq!(poster_response.status(), StatusCode::CREATED);
+    let poster_body = to_bytes(poster_response.into_body(), usize::MAX)
+        .await
+        .expect("read poster response body");
+    let poster_payload: serde_json::Value =
+        serde_json::from_slice(&poster_body).expect("decode poster response body");
+    assert_eq!(poster_payload["author_id"], poster_id);
+    assert_eq!(poster_payload["channel_seq"], 1);
+}
+
+#[tokio::test]
 async fn paginates_server_channel_messages_by_channel_seq_cursor() {
     let Some(pool) = prepared_database_pool().await else {
         return;

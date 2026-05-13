@@ -13,8 +13,8 @@ use crate::{
         DispatchChannelMessageDeletedInput, DispatchChannelMessageUpdatedInput,
     },
     infra::db::repos::server_channels_repo::{
-        self, CreateServerChannelMessageError, SoftDeleteServerChannelMessageError,
-        UpdateServerChannelMessageError,
+        self, CreateServerChannelMessageError, ServerChannelPermission,
+        SoftDeleteServerChannelMessageError, UpdateServerChannelMessageError,
     },
     infra::db::repos::servers_repo,
     models::{
@@ -101,9 +101,13 @@ pub async fn list_server_channels(
         )
     })?;
 
-    let items = server_channels_repo::list_server_channels(pool, &membership.server_id)
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to list server channels"))?;
+    let items = server_channels_repo::list_server_channels_for_identity(
+        pool,
+        &membership.server_id,
+        &membership.identity_id,
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to list server channels"))?;
 
     Ok(Json(ServerChannelListResponse { items }))
 }
@@ -130,6 +134,8 @@ pub async fn create_server_channel_message(
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
     let author_id = channel_membership.identity_id.clone();
+
+    require_channel_send_permission(pool, &server_id, &channel_id, &author_id).await?;
 
     let created_at = current_timestamp();
     let message = server_channels_repo::create_server_channel_message(
@@ -173,6 +179,14 @@ pub async fn edit_server_channel_message(
     })?;
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
+
+    require_channel_send_permission(
+        pool,
+        &server_id,
+        &channel_id,
+        &channel_membership.identity_id,
+    )
+    .await?;
 
     let edited_at = current_timestamp();
     let result = server_channels_repo::update_server_channel_message(
@@ -236,6 +250,14 @@ pub async fn soft_delete_server_channel_message(
     })?;
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
+
+    require_channel_send_permission(
+        pool,
+        &server_id,
+        &channel_id,
+        &channel_membership.identity_id,
+    )
+    .await?;
 
     let deleted_at = current_timestamp();
     let result = server_channels_repo::soft_delete_server_channel_message(
@@ -387,6 +409,56 @@ async fn list_server_event_recipients(
     server_id: &str,
 ) -> Result<Vec<String>, sqlx::Error> {
     servers_repo::list_server_member_identity_ids(pool, server_id).await
+}
+
+async fn require_channel_send_permission(
+    pool: &sqlx::PgPool,
+    server_id: &str,
+    channel_id: &str,
+    identity_id: &str,
+) -> ApiResult<()> {
+    let can_send = server_channels_repo::identity_has_server_channel_permission(
+        pool,
+        server_id,
+        channel_id,
+        identity_id,
+        ServerChannelPermission::Send,
+    )
+    .await
+    .map_err(|error| {
+        warn!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "failure",
+            reason = "server_channel_permission_lookup_failed",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            error = %error,
+            "server channel message permission lookup failed"
+        );
+        internal_error(
+            "storage_unavailable",
+            "failed to verify server channel permission",
+        )
+    })?;
+
+    if !can_send {
+        info!(
+            authorization_scope = "server_channel_message_mutation",
+            decision = "deny",
+            reason = "channel_send_permission_required",
+            identity_id = %identity_id,
+            server_id = %server_id,
+            channel_id = %channel_id,
+            "server channel message mutation denied"
+        );
+        return Err(forbidden(
+            "server_access_denied",
+            "server channel send permission required",
+        ));
+    }
+
+    Ok(())
 }
 
 fn normalize_message_content(value: &str) -> ApiResult<String> {

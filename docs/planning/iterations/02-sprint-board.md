@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed T4.0.3 shared provenance and reason-code taxonomy with stable NodeClientTransport dispatch outputs.
+- Latest meaningful change: 2026-05-13 closed T4.2.1 server role/channel permission schema groundwork with read/send enforcement.
 
 ## Iteration Scope
 
@@ -67,7 +67,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.7 | One accepted ciphertext envelope fanouts to all currently active devices linked to recipient profile |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.8, T4.1.9 | Devices activated after first delivery replay missed ciphertext envelopes and converge deterministically |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
-| T4.2.1 | Implement guild/channel/role schema | E4 / S4.2 | L | API | T4.1.1 | Roles and channel membership constraints are enforced in DB/API |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support read/create with reply and mention metadata in the runtime API baseline; edit/delete/audit-safe realtime follow in subsequent T4.3.x slices |
 | T4.3.2 | Add websocket event fanout and optimistic UI for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
@@ -160,6 +159,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.9 | Implement DM active-device profile fanout semantics | DM fanout/catch-up branches plus current realtime dispatch-summary branch | Accepted ciphertext envelopes fan out to active profile devices through verified-device realtime dispatch; internal summaries now classify target-device outcomes without plaintext/private-key access |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | DM fanout/catch-up branches | Later-active devices replay missed ciphertext envelopes with per-device cursor metadata and dedupe coverage |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | envelope-baseline pivot plus DM transport policy guardrail | Runtime, web, contracts, tests, fixtures, and guardrails reject retired WAN wizard, endpoint-card, and parallel-dial DM surfaces |
+| T4.2.1 | Implement guild/channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
 
 ## In Progress
 

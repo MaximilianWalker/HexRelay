@@ -188,6 +188,160 @@ async fn lists_empty_server_channel_collection_for_member() {
 }
 
 #[tokio::test]
+async fn channel_listing_honors_configured_role_read_permissions() {
+    let member_id = unique_identity("usr-channel-role-reader");
+    let server_id = format!("srv-channel-role-{}", uuid::Uuid::new_v4().simple());
+    let readable_channel_id = format!("chn-readable-{}", uuid::Uuid::new_v4().simple());
+    let hidden_channel_id = format!("chn-hidden-{}", uuid::Uuid::new_v4().simple());
+    let role_id = format!("role-reader-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        &server_id,
+        "Role Filter",
+        &member_id,
+        false,
+        false,
+        0,
+    )
+    .await;
+    for (channel_id, name) in [
+        (&readable_channel_id, "visible"),
+        (&hidden_channel_id, "hidden"),
+    ] {
+        server_channels_repo::insert_server_channel(
+            &pool,
+            server_channels_repo::ServerChannelInsertParams {
+                channel_id,
+                server_id: &server_id,
+                name,
+                kind: "text",
+            },
+        )
+        .await
+        .expect("insert channel");
+    }
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &role_id,
+            server_id: &server_id,
+            name: "reader",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert role");
+    server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_id,
+            identity_id: &member_id,
+            role_id: &role_id,
+        },
+    )
+    .await
+    .expect("assign role");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &readable_channel_id,
+            role_id: &role_id,
+            can_read: true,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert readable channel permission");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &hidden_channel_id,
+            role_id: &role_id,
+            can_read: false,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert hidden channel permission");
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!("/servers/{server_id}/channels"))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build channel list request");
+
+    let response = app.oneshot(request).await.expect("channel list response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read channel list body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
+    let ids = payload["items"]
+        .as_array()
+        .expect("channels array")
+        .iter()
+        .filter_map(|item| item["id"].as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(ids.len(), 1);
+    assert!(ids.contains(readable_channel_id.as_str()));
+    assert!(!ids.contains(hidden_channel_id.as_str()));
+}
+
+#[tokio::test]
+async fn server_role_assignment_is_scoped_to_matching_server_membership() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let member_id = unique_identity("usr-cross-role-member");
+    let server_a = format!("srv-cross-role-a-{}", uuid::Uuid::new_v4().simple());
+    let server_b = format!("srv-cross-role-b-{}", uuid::Uuid::new_v4().simple());
+    let role_b = format!("role-cross-b-{}", uuid::Uuid::new_v4().simple());
+
+    seed_server_membership(&pool, &server_a, "Role A", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, &server_b, "Role B", &member_id, false, false, 0).await;
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &role_b,
+            server_id: &server_b,
+            name: "server-b-role",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert server B role");
+
+    let error = server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_a,
+            identity_id: &member_id,
+            role_id: &role_b,
+        },
+    )
+    .await
+    .expect_err("cross-server role assignment should fail");
+
+    let db_error = error
+        .as_database_error()
+        .expect("cross-server role assignment should return database error");
+    assert_eq!(
+        db_error.constraint(),
+        Some("server_membership_roles_role_fk")
+    );
+}
+
+#[tokio::test]
 async fn rejects_server_channel_message_list_when_channel_belongs_to_different_server() {
     let member_id = unique_identity("usr-cross-server-member");
     let server_a = format!("srv-cross-a-{}", uuid::Uuid::new_v4().simple());

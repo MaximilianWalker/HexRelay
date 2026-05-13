@@ -9,6 +9,28 @@ pub struct ServerChannelInsertParams<'a> {
     pub kind: &'a str,
 }
 
+pub struct ServerRoleInsertParams<'a> {
+    pub role_id: &'a str,
+    pub server_id: &'a str,
+    pub name: &'a str,
+    pub rank: i32,
+}
+
+pub struct ServerMembershipRoleInsertParams<'a> {
+    pub server_id: &'a str,
+    pub identity_id: &'a str,
+    pub role_id: &'a str,
+}
+
+pub struct ServerChannelRolePermissionParams<'a> {
+    pub server_id: &'a str,
+    pub channel_id: &'a str,
+    pub role_id: &'a str,
+    pub can_read: bool,
+    pub can_send: bool,
+    pub can_manage: bool,
+}
+
 pub struct ServerChannelMessageInsertParams<'a> {
     pub message_id: &'a str,
     pub channel_id: &'a str,
@@ -78,6 +100,13 @@ pub enum SoftDeleteServerChannelMessageError {
     Storage(sqlx::Error),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServerChannelPermission {
+    Read,
+    Send,
+    Manage,
+}
+
 impl From<sqlx::Error> for CreateServerChannelMessageError {
     fn from(value: sqlx::Error) -> Self {
         Self::Storage(value)
@@ -114,6 +143,83 @@ pub async fn insert_server_channel(
     .bind(params.server_id)
     .bind(params.name)
     .bind(params.kind)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn insert_server_role(
+    executor: impl Executor<'_, Database = Postgres>,
+    params: ServerRoleInsertParams<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO server_roles (role_id, server_id, name, rank)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (role_id) DO UPDATE
+        SET name = EXCLUDED.name,
+            rank = EXCLUDED.rank
+        ",
+    )
+    .bind(params.role_id)
+    .bind(params.server_id)
+    .bind(params.name)
+    .bind(params.rank)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn assign_server_membership_role(
+    executor: impl Executor<'_, Database = Postgres>,
+    params: ServerMembershipRoleInsertParams<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO server_membership_roles (server_id, identity_id, role_id)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (server_id, identity_id, role_id) DO NOTHING
+        ",
+    )
+    .bind(params.server_id)
+    .bind(params.identity_id)
+    .bind(params.role_id)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn upsert_server_channel_role_permissions(
+    executor: impl Executor<'_, Database = Postgres>,
+    params: ServerChannelRolePermissionParams<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        INSERT INTO server_channel_role_permissions (
+            server_id,
+            channel_id,
+            role_id,
+            can_read,
+            can_send,
+            can_manage
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (server_id, channel_id, role_id) DO UPDATE
+        SET can_read = EXCLUDED.can_read,
+            can_send = EXCLUDED.can_send,
+            can_manage = EXCLUDED.can_manage,
+            updated_at = NOW()
+        ",
+    )
+    .bind(params.server_id)
+    .bind(params.channel_id)
+    .bind(params.role_id)
+    .bind(params.can_read)
+    .bind(params.can_send)
+    .bind(params.can_manage)
     .execute(executor)
     .await?;
 
@@ -239,6 +345,48 @@ pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, 
     .await
 }
 
+pub async fn list_server_channels_for_identity(
+    pool: &PgPool,
+    server_id: &str,
+    identity_id: &str,
+) -> Result<Vec<ServerChannelSummary>, sqlx::Error> {
+    let rows = sqlx::query(
+        "
+        SELECT c.channel_id, c.name, c.kind, c.last_message_seq
+        FROM server_channels c
+        WHERE c.server_id = $1
+          AND (
+              NOT EXISTS (
+                  SELECT 1
+                  FROM server_channel_role_permissions p
+                  WHERE p.server_id = c.server_id
+                    AND p.channel_id = c.channel_id
+              )
+              OR EXISTS (
+                  SELECT 1
+                  FROM server_channel_role_permissions p
+                  INNER JOIN server_membership_roles mr
+                    ON mr.server_id = p.server_id
+                   AND mr.role_id = p.role_id
+                  WHERE p.server_id = c.server_id
+                    AND p.channel_id = c.channel_id
+                    AND mr.identity_id = $2
+                    AND p.can_read = TRUE
+              )
+          )
+        ORDER BY c.created_at ASC, c.channel_id ASC
+        ",
+    )
+    .bind(server_id)
+    .bind(identity_id)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(map_server_channel_summary_row)
+        .collect()
+}
+
 pub async fn list_server_channel_messages(
     pool: &PgPool,
     server_id: &str,
@@ -314,6 +462,61 @@ pub async fn list_server_channel_messages(
         .map(map_server_channel_message_row)
         .collect::<Result<Vec<_>, _>>()
         .map(Some)
+}
+
+pub async fn identity_has_server_channel_permission(
+    pool: &PgPool,
+    server_id: &str,
+    channel_id: &str,
+    identity_id: &str,
+    permission: ServerChannelPermission,
+) -> Result<bool, sqlx::Error> {
+    let permission_name = match permission {
+        ServerChannelPermission::Read => "read",
+        ServerChannelPermission::Send => "send",
+        ServerChannelPermission::Manage => "manage",
+    };
+
+    sqlx::query_scalar::<_, bool>(
+        "
+        WITH permission_state AS (
+            SELECT EXISTS (
+                SELECT 1
+                FROM server_channel_role_permissions
+                WHERE server_id = $1
+                  AND channel_id = $2
+            ) AS configured
+        ),
+        matching_roles AS (
+            SELECT BOOL_OR(
+                CASE $4
+                    WHEN 'read' THEN p.can_read
+                    WHEN 'send' THEN p.can_send
+                    WHEN 'manage' THEN p.can_manage
+                    ELSE FALSE
+                END
+            ) AS allowed
+            FROM server_channel_role_permissions p
+            INNER JOIN server_membership_roles mr
+                ON mr.server_id = p.server_id
+               AND mr.role_id = p.role_id
+            WHERE p.server_id = $1
+              AND p.channel_id = $2
+              AND mr.identity_id = $3
+        )
+        SELECT CASE
+            WHEN NOT permission_state.configured THEN TRUE
+            ELSE COALESCE(matching_roles.allowed, FALSE)
+        END
+        FROM permission_state, matching_roles
+        ",
+    )
+    .bind(server_id)
+    .bind(channel_id)
+    .bind(identity_id)
+    .bind(permission_name)
+    .fetch_one(pool)
+    .await
 }
 
 pub async fn create_server_channel_message(
