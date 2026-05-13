@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 started T4.3.2 backend server-channel realtime ordering prerequisite; UX behavior remains gated on explicit approval.
+- Latest meaningful change: 2026-05-13 closed the T4.3.2 backend websocket fanout evidence and split optimistic UI into an approval-pending plan.
 
 ## Iteration Scope
 
@@ -68,7 +68,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.8, T4.1.9 | Devices activated after first delivery replay missed ciphertext envelopes and converge deterministically |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
-| T4.3.2 | Add websocket event fanout and optimistic UI for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
+| T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
 | T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | E4 / S4.3 | M | Realtime/Core | T4.0.2, T4.3.2 | Server communication is adapterized with no DM policy leakage or regression |
 | T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | E4 / S4.3 | L | Realtime/Core | T4.3.3, T3.3.2 | Server-channel and presence events converge across all profile devices, including devices that reconnect later |
 | T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | E4 / S4.5 | L | Core | T4.1.1 | Peers establish encrypted sessions with verifiable identity keys |
@@ -79,6 +79,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | E4 / S4.1 | L | Web | T3.1.2 | Search/filter/open-DM actions work and state persists per user |
 | T4.6.3 | Implement dual server navigation modes and burger persistence | E4 / S4.2 | L | Web | T4.6.1 | Topbar supports open/close/reorder/pin tabs and folder assignment; burger `expanded/collapsed/hidden` preference persists per device |
 | T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | E4 / S4.2 | M | Web | T4.6.1, T4.6.3 | Mobile app shows `Home/Servers/Contacts/Settings` tabs and slide-in workspace drawers per spec |
+| T4.6.5 | Approve and implement server-channel optimistic send UI | E4 / S4.2 | M | Web | T4.3.2, explicit UX approval | Users can send server-channel messages with approved optimistic pending/sent/failure states and no duplicate websocket rows |
 
 ## Task Touchpoints and Validation Gates
 
@@ -159,13 +160,19 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | envelope-baseline pivot plus DM transport policy guardrail | Runtime, web, contracts, tests, fixtures, and guardrails reject retired WAN wizard, endpoint-card, and parallel-dial DM surfaces |
 | T4.2.1 | Implement guild/channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | T4.3.1/T4.4.1 server-channel permission hardening branch | Runtime REST server-channel message routes support list/create/edit/delete, same-channel replies, same-server mentions, pagination, tombstones, and dispatch-safe persistence behavior with contract and integration coverage |
+| T4.3.2 | Add websocket event fanout for server channels | server-channel realtime fanout branches plus reconnect duplicate closeout | API-persisted create/update/delete mutations fan out to authorized active websocket members, preserve FIFO API-to-realtime dispatch order, hydrate late profile devices through channel replay cursors, and assert no duplicate create/update/delete events after reconnect. Optimistic send UI is split to `T4.6.5` and remains blocked pending explicit approval of `docs/product/08-screen-state-spec.md`. |
 | T4.4.1 | Add permission middleware and authorization tests | T4.3.1/T4.4.1 server-channel permission hardening branch | Server/channel authorization now covers unauthenticated, outsider, cross-server path, role read-denial, role send-denial, non-author edit/delete, and removed-member bypass attempts across middleware, handler, and repository tests |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T4.3.2 | Add websocket event fanout and optimistic UI for server channels | in_progress | Backend prerequisite in flight: serialize API-to-realtime server-channel dispatch so persisted create/update/delete events reach realtime in FIFO order. Optimistic UI remains unimplemented until explicit UX flow/copy/control approval exists. |
+
+## Blocked Follow-Ups
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| T4.6.5 | Approve and implement server-channel optimistic send UI | blocked | Plan-only proposal exists in `docs/product/08-screen-state-spec.md`; implementation must wait for explicit user approval of flow, copy, controls, and behavior. |
 
 ## Suggested Sprint Sequencing
 

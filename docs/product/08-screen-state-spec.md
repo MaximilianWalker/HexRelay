@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/product/08-screen-state-spec.md`
 
 ## Quick Context
 
 - Purpose: define screen-level states so Web/API/Core teams implement the same behavior.
 - Primary edit location: update when a screen flow or failure mode changes.
-- Latest meaningful change: 2026-05-11 preserved the approved DM delivery indicator direction and added the global requirement that future UX changes need explicit user approval.
+- Latest meaningful change: 2026-05-13 added an approval-pending server-channel optimistic send proposal without authorizing UI implementation.
 
 ## Core Screens
 
@@ -47,6 +47,41 @@
 | Attachment Transfer | loading, upload_progress, success, retryable_failure, policy_denied |
 | Migration | export_running, import_running, conflict_review, reconcile_running, completed, failed |
 | Observability/SLO Review | loading, degraded, breached, recovered |
+
+## Server Channel Optimistic Send Proposal
+
+Status: approval_pending. This section is a plan-only proposal for `T4.3.2`; no product UI behavior is approved for implementation until the user explicitly accepts the flow, copy, controls, and behavior below.
+
+Scope: server-channel message create only. Edit and delete actions should stay confirmation-driven until separately approved.
+
+Flow:
+
+1. Pressing send with non-empty content adds a local pending row at the bottom of the active channel and clears the composer.
+2. The pending row shows the exact submitted content, author identity, local timestamp, and `Sending` state.
+3. API success replaces the pending row with the persisted server-channel message returned by the create route.
+4. The websocket `channel.message.created` event is idempotent against the persisted message id; it must not create a duplicate row after API success.
+5. API failure converts the pending row to `Could not send` and keeps the original text available for retry or edit.
+6. Reconnect or refresh reconciles from persisted channel history. Locally pending rows without durable success must not be auto-sent again without an explicit user retry.
+
+Controls:
+
+- Primary send control: existing composer send action.
+- Failed-row controls: `Retry`, `Edit`, `Discard`.
+- Retry resubmits the preserved text once; Edit restores it to the composer; Discard removes only the local failed row.
+
+Copy baseline:
+
+- Pending label: `Sending`
+- Durable success label for assistive text: `Sent`
+- Failure label: `Could not send`
+- Control labels: `Retry`, `Edit`, `Discard`
+
+Behavior constraints:
+
+- Do not expose backend dispatch summaries as user-visible delivery or read state.
+- Do not imply recipient delivery from websocket fanout; server-channel history persistence is the durable truth.
+- Do not add unread/read receipt behavior in this scope.
+- Do not introduce DM transport concepts, endpoint cards, preflight checks, or node-bypassing language.
 
 ## Policy-Driven States
 
