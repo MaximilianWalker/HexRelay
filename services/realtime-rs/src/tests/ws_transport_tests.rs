@@ -446,6 +446,24 @@ async fn assert_presence_replay_keys_have_ttl(client: &redis::Client, watcher_id
     }
 }
 
+async fn assert_channel_replay_keys_have_ttl(client: &redis::Client, recipient_identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for channel replay ttl check");
+    for key in [
+        format!("channels:recipient_stream_head:{recipient_identity_id}"),
+        format!("channels:recipient_stream_log:{recipient_identity_id}"),
+    ] {
+        let ttl_millis: i64 = redis::cmd("PTTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .expect("read channel replay key pttl");
+        assert!(ttl_millis > 0, "{key} should have an expiry");
+    }
+}
+
 async fn close_socket_and_wait_for_disconnect(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -1830,6 +1848,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     assert_eq!(replay_payload["data"]["channel_seq"], 7);
     assert_eq!(replay_payload["data"]["server_id"], "guild-1");
     assert_eq!(replay_payload["data"]["sender_identity_id"], "usr-sender");
+    assert_channel_replay_keys_have_ttl(&redis_client, viewer_identity_id).await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
