@@ -9,7 +9,6 @@ use axum::{
 use chrono::{DateTime, Utc};
 use futures::{stream::StreamExt, SinkExt};
 use serde::Deserialize;
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -69,6 +68,7 @@ pub async fn ws_handler(
         );
     }
 
+    let auth_context = SessionAuthContext::from_headers(&headers);
     let session = match validate_session(&state, &headers).await {
         Some(value) => value,
         None => {
@@ -122,6 +122,7 @@ pub async fn ws_handler(
             connection_id,
             device_id,
             device_secret,
+            auth_context,
         )
     })
 }
@@ -133,6 +134,7 @@ async fn handle_socket(
     connection_id: String,
     device_id: Option<String>,
     initial_device_secret: Option<String>,
+    auth_context: SessionAuthContext,
 ) {
     let (mut sender, mut receiver) = socket.split();
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
@@ -212,6 +214,7 @@ async fn handle_socket(
                         &session_identity_id,
                         &connection_id,
                         device_id.as_deref(),
+                        &auth_context,
                         &outbound_tx,
                         message,
                     )
@@ -230,6 +233,7 @@ async fn handle_socket(
                 &session_identity_id,
                 &connection_id,
                 device_id.as_deref(),
+                &auth_context,
                 &outbound_tx,
                 message,
             )
@@ -260,6 +264,7 @@ async fn handle_inbound_message(
     session_identity_id: &str,
     connection_id: &str,
     device_id: Option<&str>,
+    auth_context: &SessionAuthContext,
     outbound_tx: &mpsc::Sender<String>,
     message: Result<Message, axum::Error>,
 ) -> bool {
@@ -286,7 +291,7 @@ async fn handle_inbound_message(
                 return true;
             }
 
-            let response = if crate::domain::dms::is_dm_device_proof_event(&text) {
+            if crate::domain::dms::is_dm_device_proof_event(&text) {
                 let (response, verified) = crate::domain::dms::handle_dm_device_proof(
                     state,
                     session_identity_id,
@@ -298,7 +303,7 @@ async fn handle_inbound_message(
                     mark_connection_dm_device_verified(state, session_identity_id, connection_id)
                         .await;
                 }
-                response
+                let _ = outbound_tx.try_send(response);
             } else if crate::domain::dms::is_dm_envelope_ack_event(&text) {
                 let dm_device_verified = connection_dm_device_verified(
                     state,
@@ -307,23 +312,49 @@ async fn handle_inbound_message(
                     device_id,
                 )
                 .await;
-                crate::domain::dms::handle_dm_envelope_ack(
+                let response = crate::domain::dms::handle_dm_envelope_ack(
                     state,
                     session_identity_id,
                     device_id,
                     dm_device_verified,
                     &text,
                 )
-                .await
+                .await;
+                let _ = outbound_tx.try_send(response);
             } else {
-                route_inbound_event(&text, session_identity_id)
-            };
-            if let Some(target_identity_id) =
-                signaling_recipient_identity_id(&response, session_identity_id)
-            {
-                dispatch_recipient_signal(state, &target_identity_id, &response).await;
+                let routed =
+                    crate::domain::events::service::route_inbound_event(&text, session_identity_id);
+                if let Some(delivery) = routed.recipient_delivery.as_ref() {
+                    if !signal_target_rate_allowed(
+                        state,
+                        session_identity_id,
+                        &delivery.target_identity_id,
+                        outbound_tx,
+                    ) {
+                        return true;
+                    }
+                    if !signaling_recipient_authorized(
+                        state,
+                        auth_context,
+                        &delivery.target_identity_id,
+                    )
+                    .await
+                    {
+                        let _ = outbound_tx.try_send(build_error_event(
+                            "event_forbidden",
+                            "signaling recipient is not an accepted contact",
+                        ));
+                        return true;
+                    }
+                    dispatch_recipient_signal(
+                        state,
+                        &delivery.target_identity_id,
+                        &delivery.payload,
+                    )
+                    .await;
+                }
+                let _ = outbound_tx.try_send(routed.sender_response);
             }
-            let _ = outbound_tx.try_send(response);
             true
         }
         Ok(Message::Binary(bytes)) => {
@@ -380,6 +411,35 @@ fn message_rate_allowed(
     false
 }
 
+fn signal_target_rate_allowed(
+    state: &AppState,
+    session_identity_id: &str,
+    target_identity_id: &str,
+    outbound_tx: &mpsc::Sender<String>,
+) -> bool {
+    let rate_key = format!("{session_identity_id}->{target_identity_id}");
+    let allowed = state.rate_limiter.allow(
+        "ws_signal_target",
+        &rate_key,
+        state.ws_message_rate_limit,
+        state.ws_message_rate_window_seconds,
+    );
+    if allowed {
+        return true;
+    }
+
+    warn!(
+        identity_id = %session_identity_id,
+        target_identity_id = %target_identity_id,
+        "rejected recipient-targeted signaling due to sender-recipient rate limit"
+    );
+    let _ = outbound_tx.try_send(build_error_event(
+        "event_rate_limited",
+        "too many websocket signaling messages to recipient",
+    ));
+    false
+}
+
 async fn current_dev_fault_config(state: &AppState) -> DevFaultConfig {
     if !state.enable_dev_faults {
         return DevFaultConfig::default();
@@ -422,6 +482,45 @@ fn should_drop_dev_fault(faults: &mut DevFaultState) -> bool {
     true
 }
 
+#[derive(Clone, Default)]
+struct SessionAuthContext {
+    cookie_header: Option<String>,
+    authorization_header: Option<String>,
+}
+
+impl SessionAuthContext {
+    fn from_headers(headers: &HeaderMap) -> Self {
+        Self {
+            cookie_header: headers
+                .get("cookie")
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string),
+            authorization_header: headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string),
+        }
+    }
+
+    fn apply(&self, mut request: reqwest::RequestBuilder) -> Option<reqwest::RequestBuilder> {
+        if let Some(cookie_header) = self.cookie_header.as_deref() {
+            request = request.header("cookie", cookie_header);
+        }
+        if let Some(authorization_header) = self.authorization_header.as_deref() {
+            request = request.header("authorization", authorization_header);
+        }
+        if self.cookie_header.is_none() && self.authorization_header.is_none() {
+            return None;
+        }
+
+        Some(request)
+    }
+}
+
 #[derive(Deserialize)]
 struct SessionValidateResponse {
     #[serde(rename = "session_id")]
@@ -438,8 +537,23 @@ struct ValidatedSession {
     expires_at: DateTime<Utc>,
 }
 
+#[derive(Deserialize)]
+struct ContactListResponse {
+    items: Vec<ContactSummary>,
+}
+
+#[derive(Deserialize)]
+struct ContactSummary {
+    id: String,
+    #[serde(default)]
+    inbound_request: bool,
+    #[serde(default)]
+    pending_request: bool,
+}
+
+#[cfg(test)]
 pub(crate) fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
-    crate::domain::events::service::route_inbound_event(raw, session_identity_id)
+    crate::domain::events::service::route_inbound_event(raw, session_identity_id).sender_response
 }
 
 fn connection_ready_banner() -> String {
@@ -450,29 +564,64 @@ fn build_error_event(code: &str, message: &str) -> String {
     crate::domain::events::service::build_error_event(code, message)
 }
 
-fn signaling_recipient_identity_id(payload: &str, session_identity_id: &str) -> Option<String> {
-    let envelope: Value = serde_json::from_str(payload).ok()?;
-    match envelope.get("event_type").and_then(Value::as_str)? {
-        "call.signal.offer" | "call.signal.answer" | "call.signal.ice_candidate" => {}
-        _ => return None,
-    }
-
-    let to_identity_id = envelope
-        .get("data")?
-        .get("to_identity_id")?
-        .as_str()?
-        .trim();
-    if to_identity_id.is_empty() || to_identity_id == session_identity_id {
-        return None;
-    }
-
-    Some(to_identity_id.to_owned())
+#[derive(Debug, Default, PartialEq, Eq)]
+struct SignalDispatchSummary {
+    queued_count: usize,
+    saturated_count: usize,
+    stale_count: usize,
+    no_connection: bool,
 }
 
-async fn dispatch_recipient_signal(state: &AppState, recipient_identity_id: &str, payload: &str) {
+async fn signaling_recipient_authorized(
+    state: &AppState,
+    auth_context: &SessionAuthContext,
+    target_identity_id: &str,
+) -> bool {
+    let url = format!("{}/contacts", state.api_base_url.trim_end_matches('/'));
+    let Some(request) = auth_context.apply(state.http_client.get(url)) else {
+        return false;
+    };
+
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            warn!(error = %error, "signaling contact authorization request failed");
+            return false;
+        }
+    };
+
+    if !response.status().is_success() {
+        warn!(
+            status = %response.status(),
+            "signaling contact authorization returned non-success status"
+        );
+        return false;
+    }
+
+    let contacts = match response.json::<ContactListResponse>().await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(error = %error, "signaling contact authorization payload decode failed");
+            return false;
+        }
+    };
+
+    contacts.items.into_iter().any(|contact| {
+        contact.id == target_identity_id && !contact.inbound_request && !contact.pending_request
+    })
+}
+
+async fn dispatch_recipient_signal(
+    state: &AppState,
+    recipient_identity_id: &str,
+    payload: &str,
+) -> SignalDispatchSummary {
     let mut guard = state.connection_senders.lock().await;
     let Some(connections) = guard.get_mut(recipient_identity_id) else {
-        return;
+        return SignalDispatchSummary {
+            no_connection: true,
+            ..SignalDispatchSummary::default()
+        };
     };
 
     let mut stale_connection_ids = Vec::new();
@@ -502,6 +651,13 @@ async fn dispatch_recipient_signal(state: &AppState, recipient_identity_id: &str
             stale_count = stale_connection_ids.len(),
             "recipient-targeted signaling could not queue to any active websocket"
         );
+    }
+
+    SignalDispatchSummary {
+        queued_count,
+        saturated_count,
+        stale_count: stale_connection_ids.len(),
+        no_connection: false,
     }
 }
 
@@ -941,13 +1097,36 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, release_connection_slot_after_failed_upgrade,
-        should_drop_dev_fault, stable_hash, websocket_device_id, websocket_device_secret,
+        cache_validated_session, dispatch_recipient_signal,
+        release_connection_slot_after_failed_upgrade, should_drop_dev_fault, stable_hash,
+        websocket_device_id, websocket_device_secret, SignalDispatchSummary,
     };
-    use crate::state::{AppState, DevFaultConfig, DevFaultState};
+    use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
     use axum::http::{HeaderMap, HeaderValue};
     use chrono::{Duration as ChronoDuration, Utc};
+    use std::collections::HashMap;
+    use tokio::sync::mpsc;
     use tokio::time::{sleep, Duration};
+
+    fn test_state() -> AppState {
+        AppState::new(
+            "http://127.0.0.1:1".to_string(),
+            vec!["http://localhost:3002".to_string()],
+            "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+            "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+            None,
+            false,
+            60,
+            60,
+            16384,
+            120,
+            60,
+            3,
+            30,
+            10000,
+        )
+        .expect("build state")
+    }
 
     #[test]
     fn stable_hash_is_deterministic_across_processes() {
@@ -1133,5 +1312,137 @@ mod tests {
         release_connection_slot_after_failed_upgrade(state.clone(), "usr-1".to_string()).await;
 
         assert!(state.active_connections.lock().await.get("usr-1").is_none());
+    }
+
+    #[tokio::test]
+    async fn dispatch_recipient_signal_queues_to_all_active_connections() {
+        let state = test_state();
+        let (first_tx, mut first_rx) = mpsc::channel::<String>(1);
+        let (second_tx, mut second_rx) = mpsc::channel::<String>(1);
+        state.connection_senders.lock().await.insert(
+            "usr-recipient".to_string(),
+            HashMap::from([
+                (
+                    "conn-1".to_string(),
+                    ConnectionSenderEntry {
+                        sender: first_tx,
+                        device_id: None,
+                        dm_device_verified: false,
+                    },
+                ),
+                (
+                    "conn-2".to_string(),
+                    ConnectionSenderEntry {
+                        sender: second_tx,
+                        device_id: None,
+                        dm_device_verified: false,
+                    },
+                ),
+            ]),
+        );
+
+        let summary = dispatch_recipient_signal(&state, "usr-recipient", "signal-payload").await;
+
+        assert_eq!(
+            summary,
+            SignalDispatchSummary {
+                queued_count: 2,
+                saturated_count: 0,
+                stale_count: 0,
+                no_connection: false,
+            }
+        );
+        assert_eq!(first_rx.recv().await.as_deref(), Some("signal-payload"));
+        assert_eq!(second_rx.recv().await.as_deref(), Some("signal-payload"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_recipient_signal_reports_offline_recipient() {
+        let state = test_state();
+
+        let summary = dispatch_recipient_signal(&state, "usr-recipient", "signal-payload").await;
+
+        assert_eq!(
+            summary,
+            SignalDispatchSummary {
+                no_connection: true,
+                ..SignalDispatchSummary::default()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_recipient_signal_keeps_full_connections_registered() {
+        let state = test_state();
+        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        full_tx
+            .try_send("seed".to_string())
+            .expect("fill recipient queue");
+        state.connection_senders.lock().await.insert(
+            "usr-recipient".to_string(),
+            HashMap::from([(
+                "conn-full".to_string(),
+                ConnectionSenderEntry {
+                    sender: full_tx,
+                    device_id: None,
+                    dm_device_verified: false,
+                },
+            )]),
+        );
+
+        let summary = dispatch_recipient_signal(&state, "usr-recipient", "signal-payload").await;
+
+        assert_eq!(
+            summary,
+            SignalDispatchSummary {
+                queued_count: 0,
+                saturated_count: 1,
+                stale_count: 0,
+                no_connection: false,
+            }
+        );
+        assert!(state
+            .connection_senders
+            .lock()
+            .await
+            .get("usr-recipient")
+            .and_then(|connections| connections.get("conn-full"))
+            .is_some());
+        assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_recipient_signal_removes_stale_connection() {
+        let state = test_state();
+        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
+        drop(stale_rx);
+        state.connection_senders.lock().await.insert(
+            "usr-recipient".to_string(),
+            HashMap::from([(
+                "conn-stale".to_string(),
+                ConnectionSenderEntry {
+                    sender: stale_tx,
+                    device_id: None,
+                    dm_device_verified: false,
+                },
+            )]),
+        );
+
+        let summary = dispatch_recipient_signal(&state, "usr-recipient", "signal-payload").await;
+
+        assert_eq!(
+            summary,
+            SignalDispatchSummary {
+                queued_count: 0,
+                saturated_count: 0,
+                stale_count: 1,
+                no_connection: false,
+            }
+        );
+        assert!(!state
+            .connection_senders
+            .lock()
+            .await
+            .contains_key("usr-recipient"));
     }
 }

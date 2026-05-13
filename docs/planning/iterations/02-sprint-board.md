@@ -97,7 +97,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 - Iteration 1 exit checklist is complete and OpenAPI/auth baseline is stable.
 - Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events.asyncapi.yaml` (resolved by `C-012`).
-- Current runtime realtime signaling authority covers authenticated sender validation plus recipient-targeted live websocket delivery for cross-identity offer/answer/candidate propagation; signaling delivery is not durable/offline-queued.
+- Current runtime realtime signaling authority covers authenticated sender validation plus accepted-contact recipient-targeted live websocket delivery for cross-identity offer/answer/candidate propagation; signaling delivery is not durable/offline-queued.
 - Navigation implementation uses `docs/product/07-ui-navigation-spec.md` as authority.
 
 ## Exit Evidence
@@ -221,7 +221,7 @@ Week 6:
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
 - Broad multi-device DM convergence must operate over accepted ciphertext envelopes plus minimal replay metadata under the message-node delivery design.
 - Durable DM history and replay metadata must preserve client-only plaintext/private-key boundaries; any future storage expansion must keep ciphertext-only server behavior.
-- Recipient-targeted realtime signaling is live websocket routing for call offer/answer/candidate payloads; it is separate from DM convergence, presence discovery, durable/offline queueing, and payload delivery semantics.
+- Recipient-targeted realtime signaling is accepted-contact live websocket routing for call offer/answer/candidate payloads; it is separate from DM convergence, presence discovery, durable/offline queueing, and payload delivery semantics.
 - DM/group DM and guild channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.
 - Permission enforcement is server-authoritative and test-covered.

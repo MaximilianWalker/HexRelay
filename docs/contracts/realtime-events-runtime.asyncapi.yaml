@@ -7,9 +7,14 @@ info:
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
     Current signaling operations support authenticated sender validation plus
-    recipient-targeted live delivery to active websocket sessions for the
-    target identity. Sender-visible success remains a realtime-gateway envelope
-    echo, and signaling delivery is not durable/offline-queued.
+    recipient-targeted live delivery to active websocket sessions for an accepted
+    contact target identity. Sender-visible success remains a realtime-gateway
+    envelope echo, recipient-bound peer signals use `producer:
+    realtime-signaling`, and signaling delivery is not durable/offline-queued.
+    Recipient-targeted signaling fails closed with `event_forbidden` when the
+    target is not an accepted contact, and uses a sender/recipient limiter that
+    reports `event_rate_limited` independently from the general inbound message
+    limiter.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
@@ -290,7 +295,7 @@ components:
         event_type: { type: string }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway, realtime-presence, realtime-channel, dm-message-node] }
+        producer: { type: string, enum: [realtime-gateway, realtime-signaling, realtime-presence, realtime-channel, dm-message-node] }
     CallSignalOfferData:
       type: object
       additionalProperties: false
@@ -363,6 +368,7 @@ components:
             - dev_fault_drop
             - event_invalid
             - event_identity_mismatch
+            - event_forbidden
             - event_device_mismatch
             - event_unsupported
             - event_serialize_failed

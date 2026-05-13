@@ -27,7 +27,7 @@
 - Runtime REST dispatch paths that cross the shared `NodeClientTransport` boundary emit stable snake-case provenance mode/profile/reason-code telemetry without changing REST payload schemas.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Spec-required OpenAPI/AsyncAPI `info.version` fields use `unversioned` and must not be treated as compatibility or rollout signals.
-- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling now supports authenticated recipient-targeted live delivery to active websocket sessions, while DM ciphertext envelopes support recipient-device dispatch and ack over realtime.
+- Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling now supports authenticated recipient-targeted live delivery to active websocket sessions for accepted contacts, while DM ciphertext envelopes support recipient-device dispatch and ack over realtime.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime.asyncapi.yaml`
 - Crypto profile baseline: `docs/contracts/crypto-profile.md`
 
