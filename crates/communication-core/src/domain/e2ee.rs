@@ -496,6 +496,36 @@ impl DmClientSession {
         Self::new(DmSessionKind::Group, context, key, messages_encrypted)
     }
 
+    pub fn one_to_one_from_verified_peer_bootstrap(
+        context: DmSessionContext,
+        local_identity_id: impl AsRef<str>,
+        local_secret: DmEphemeralSecret,
+        peer_bootstrap: &DmSessionBootstrap,
+    ) -> Result<Self, DmE2eeError> {
+        if context.kind != DmSessionKind::OneToOne {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        let local_identity_id = normalize_required_id(local_identity_id.as_ref())?;
+        let peer_identity_id = normalize_required_id(&peer_bootstrap.identity_id)?;
+        if local_identity_id == peer_identity_id {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+        if !context
+            .participant_identity_ids
+            .iter()
+            .any(|participant| participant == &local_identity_id)
+        {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        peer_bootstrap.verify(&context)?;
+        let key = local_secret
+            .derive_one_to_one_session_key(&peer_bootstrap.session_public_key, &context)?;
+
+        Self::one_to_one(context, key, 0)
+    }
+
     fn new(
         expected_kind: DmSessionKind,
         context: DmSessionContext,
@@ -657,6 +687,49 @@ impl DmSessionRotationState {
         self.messages_encrypted >= DM_SESSION_ROTATE_AFTER_MESSAGES
             || now_epoch_seconds.saturating_sub(self.created_at_epoch_seconds)
                 >= DM_SESSION_ROTATE_AFTER_SECONDS
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DmSessionBootstrap {
+    pub identity_id: String,
+    pub identity_public_key: String,
+    pub session_public_key: DmEphemeralPublicKey,
+    pub signature_base64: String,
+}
+
+impl DmSessionBootstrap {
+    pub fn sign_ed25519_pkcs8(
+        identity_id: impl AsRef<str>,
+        identity_private_key_pkcs8: &[u8],
+        session_public_key: DmEphemeralPublicKey,
+        context: &DmSessionContext,
+    ) -> Result<Self, DmE2eeError> {
+        let identity_id = normalize_required_id(identity_id.as_ref())?;
+        let identity_public_key = ed25519_public_key_base64(identity_private_key_pkcs8)?;
+        let signature_base64 = sign_dm_session_bootstrap_ed25519_pkcs8(
+            &identity_id,
+            identity_private_key_pkcs8,
+            &session_public_key,
+            context,
+        )?;
+
+        Ok(Self {
+            identity_id,
+            identity_public_key,
+            session_public_key,
+            signature_base64,
+        })
+    }
+
+    pub fn verify(&self, context: &DmSessionContext) -> Result<(), DmE2eeError> {
+        verify_dm_session_bootstrap_ed25519(
+            &self.identity_id,
+            &self.identity_public_key,
+            &self.session_public_key,
+            context,
+            &self.signature_base64,
+        )
     }
 }
 
