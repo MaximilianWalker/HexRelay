@@ -321,6 +321,21 @@ async fn server_role_assignment_is_scoped_to_matching_server_membership() {
     .await
     .expect("insert server B role");
 
+    let duplicate_role_error = server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &role_b,
+            server_id: &server_a,
+            name: "mis-scoped-role",
+            rank: 2,
+        },
+    )
+    .await
+    .expect_err("role_id reuse across servers should fail");
+    assert!(duplicate_role_error
+        .to_string()
+        .contains("role_id already belongs to a different server"));
+
     let error = server_channels_repo::assign_server_membership_role(
         &pool,
         server_channels_repo::ServerMembershipRoleInsertParams {

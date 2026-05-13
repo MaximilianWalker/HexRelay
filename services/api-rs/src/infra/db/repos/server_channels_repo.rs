@@ -153,13 +153,14 @@ pub async fn insert_server_role(
     executor: impl Executor<'_, Database = Postgres>,
     params: ServerRoleInsertParams<'_>,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
+    let result = sqlx::query(
         "
         INSERT INTO server_roles (role_id, server_id, name, rank)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (role_id) DO UPDATE
         SET name = EXCLUDED.name,
             rank = EXCLUDED.rank
+        WHERE server_roles.server_id = EXCLUDED.server_id
         ",
     )
     .bind(params.role_id)
@@ -168,6 +169,12 @@ pub async fn insert_server_role(
     .bind(params.rank)
     .execute(executor)
     .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(sqlx::Error::Protocol(
+            "role_id already belongs to a different server".into(),
+        ));
+    }
 
     Ok(())
 }

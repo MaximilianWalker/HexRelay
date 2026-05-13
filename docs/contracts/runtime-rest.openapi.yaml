@@ -901,11 +901,6 @@ paths:
                   value:
                     code: server_access_denied
                     message: server membership required
-                channelReadDenied:
-                  summary: Caller lacks channel read permission
-                  value:
-                    code: server_access_denied
-                    message: server channel membership required
         '500':
           $ref: '#/components/responses/InternalServerError'
   /servers/{server_id}/channels:
@@ -1025,6 +1020,11 @@ paths:
                   value:
                     code: server_access_denied
                     message: server membership required
+                channelReadDenied:
+                  summary: Caller lacks channel read permission
+                  value:
+                    code: server_access_denied
+                    message: server channel membership required
         '404':
           description: Channel not found
           content:
