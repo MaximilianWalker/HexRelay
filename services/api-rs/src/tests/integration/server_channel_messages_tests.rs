@@ -1623,7 +1623,9 @@ async fn assert_no_channel_event(
         while let Some(message) = socket.next().await {
             let message = match message {
                 Ok(value) => value,
-                Err(_) => return,
+                Err(error) => {
+                    panic!("websocket read failed during channel absence assertion: {error}")
+                }
             };
             let text = match message {
                 WsMessage::Text(value) => value,
@@ -1638,6 +1640,44 @@ async fn assert_no_channel_event(
             {
                 panic!(
                     "unexpected channel event for event_type={expected_event_type} message_id={expected_message_id}: {text}"
+                );
+            }
+        }
+    })
+    .await;
+
+    if let Ok(()) = wait_result {
+        panic!("socket closed before channel absence assertion completed");
+    }
+}
+
+async fn assert_no_channel_events_for_message(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_event_types: &[&str],
+    expected_message_id: &str,
+    timeout: std::time::Duration,
+) {
+    let wait_result = tokio::time::timeout(timeout, async {
+        while let Some(message) = socket.next().await {
+            let message = match message {
+                Ok(value) => value,
+                Err(_) => return,
+            };
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            let event_type = payload["event_type"].as_str().unwrap_or_default();
+            let message_id = payload["data"]["message_id"].as_str().unwrap_or_default();
+            if expected_event_types.contains(&event_type) && message_id == expected_message_id {
+                panic!(
+                    "unexpected channel event for event_type={event_type} message_id={expected_message_id}: {text}"
                 );
             }
         }
@@ -1986,9 +2026,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let mut late_device_reconnect =
         connect_ws_with_token_and_device(&ws_url, &member_token, "device-late").await;
     let _ = late_device_reconnect.next().await;
-    assert_no_channel_event(
+    assert_no_channel_events_for_message(
         &mut late_device_reconnect,
-        "channel.message.created",
+        &[
+            "channel.message.created",
+            "channel.message.updated",
+            "channel.message.deleted",
+        ],
         &message_id,
         std::time::Duration::from_millis(500),
     )
@@ -1998,9 +2042,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         connect_ws_with_token_and_device(&ws_url, &read_denied_token, "device-read-denied-late")
             .await;
     let _ = late_read_denied_device.next().await;
-    assert_no_channel_event(
+    assert_no_channel_events_for_message(
         &mut late_read_denied_device,
-        "channel.message.created",
+        &[
+            "channel.message.created",
+            "channel.message.updated",
+            "channel.message.deleted",
+        ],
         &message_id,
         std::time::Duration::from_millis(500),
     )

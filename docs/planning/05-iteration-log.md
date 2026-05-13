@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded T4.3.1/T4.4.1 server-channel message and permission closeout.
+- Latest meaningful change: 2026-05-13 recorded T4.3.2 backend websocket fanout closeout and optimistic UI approval split.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.3.2 backend fanout closeout and UX split)
+
+- Area affected: Server-channel realtime fanout, reconnect duplicate coverage, Iteration 2 planning status, and UX approval planning.
+- Change summary:
+  - Strengthened the server-channel websocket integration test so reconnect assertions reject duplicate create, update, or delete events for the same message.
+  - Marked the backend `T4.3.2` websocket fanout acceptance evidence done on the Iteration 2 board.
+  - Split server-channel optimistic send UI into `T4.6.5` with a plan-only proposal in the screen/state spec.
+- Rationale:
+  - The selected task combined backend realtime reliability with UX behavior. Backend acceptance criteria can close now, while optimistic UI implementation remains blocked by the repository-wide explicit UX approval policy.
+- Linked docs updated:
+  - `docs/product/08-screen-state-spec.md`
+  - `docs/product/README.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.3.1/T4.4.1 server-channel message and permission closeout)
 
