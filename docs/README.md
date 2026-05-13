@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 refreshed contracts and iteration planning after T4.2.1 server role/channel permission schema closeout.
+- Latest meaningful change: 2026-05-13 refreshed iteration planning after T4.3.1/T4.4.1 server-channel message and permission closeout.
 
 ## Purpose
 

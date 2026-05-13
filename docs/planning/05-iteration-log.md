@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-11 recorded T4.1.9 recipient-targeted realtime DM dispatch-summary implementation details.
+- Latest meaningful change: 2026-05-13 recorded T4.3.1/T4.4.1 server-channel message and permission closeout.
 
 ## Purpose
 
@@ -29,6 +29,21 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.3.1/T4.4.1 server-channel message and permission closeout)
+
+- Area affected: Server-channel REST messaging, permission bypass coverage, and Iteration 2 planning status.
+- Change summary:
+  - Confirmed the runtime already exposes server-channel message list/create/edit/delete routes with reply and mention metadata, pagination, tombstones, contract coverage, and integration tests.
+  - Added focused API regression coverage proving configured role read denial blocks channel history, and configured no-send roles cannot create, edit, or delete server-channel messages even when the message author is otherwise valid.
+  - Marked `T4.3.1` and `T4.4.1` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected parent cluster spans API schema, realtime fanout, adapterization, convergence, and permission middleware. Closing the message/permission prerequisite first keeps the PR mergeable while removing stale board state that caused the selector to re-open delivered backend work.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-11 (T4.1.9 DM realtime dispatch summaries)
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded T4.0.3 shared provenance and reason-code taxonomy closeout.
+- Latest meaningful change: 2026-05-13 recorded T4.3.1/T4.4.1 server-channel message and permission closeout.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 

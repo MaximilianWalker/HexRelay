@@ -566,7 +566,7 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
 }
 
 #[tokio::test]
-async fn channel_role_send_permission_gates_server_channel_message_creation() {
+async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
@@ -576,6 +576,7 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
     let poster_id = unique_identity("usr-channel-poster");
     let reader_role_id = format!("role-reader-{}", Uuid::new_v4().simple());
     let poster_role_id = format!("role-poster-{}", Uuid::new_v4().simple());
+    let reader_message_id = format!("scm-reader-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
@@ -642,6 +643,23 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
     )
     .await
     .expect("insert poster permission");
+    server_channels_repo::insert_server_channel_message(
+        &pool,
+        server_channels_repo::ServerChannelMessageInsertParams {
+            message_id: &reader_message_id,
+            channel_id: &channel_id,
+            author_id: &reader_id,
+            channel_seq: 1,
+            content: "reader historical message",
+            reply_to_message_id: None,
+            created_at: "2026-05-13T06:00:00Z",
+            edited_at: None,
+            deleted_at: None,
+        },
+        &[],
+    )
+    .await
+    .expect("insert reader-authored message");
 
     let Some((app, tokens, _)) = app_with_database_and_sessions(&[&reader_id, &poster_id]).await
     else {
@@ -659,6 +677,29 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
             serde_json::json!({ "content": "reader should not send" }).to_string(),
         ))
         .expect("build reader create request");
+    let reader_edit_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages/{reader_message_id}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "content": "reader should not edit",
+                "mention_identity_ids": []
+            })
+            .to_string(),
+        ))
+        .expect("build reader edit request");
+    let reader_delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages/{reader_message_id}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .body(Body::empty())
+        .expect("build reader delete request");
     let poster_request = Request::builder()
         .method("POST")
         .uri(format!(
@@ -676,6 +717,16 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
         .oneshot(reader_request)
         .await
         .expect("reader create response");
+    let reader_edit_response = app
+        .clone()
+        .oneshot(reader_edit_request)
+        .await
+        .expect("reader edit response");
+    let reader_delete_response = app
+        .clone()
+        .oneshot(reader_delete_request)
+        .await
+        .expect("reader delete response");
     let poster_response = app
         .oneshot(poster_request)
         .await
@@ -688,6 +739,20 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
     let reader_payload: serde_json::Value =
         serde_json::from_slice(&reader_body).expect("decode reader response body");
     assert_eq!(reader_payload["code"], "server_access_denied");
+    assert_eq!(reader_edit_response.status(), StatusCode::FORBIDDEN);
+    let reader_edit_body = to_bytes(reader_edit_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader edit response body");
+    let reader_edit_payload: serde_json::Value =
+        serde_json::from_slice(&reader_edit_body).expect("decode reader edit response body");
+    assert_eq!(reader_edit_payload["code"], "server_access_denied");
+    assert_eq!(reader_delete_response.status(), StatusCode::FORBIDDEN);
+    let reader_delete_body = to_bytes(reader_delete_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader delete response body");
+    let reader_delete_payload: serde_json::Value =
+        serde_json::from_slice(&reader_delete_body).expect("decode reader delete response body");
+    assert_eq!(reader_delete_payload["code"], "server_access_denied");
 
     assert_eq!(poster_response.status(), StatusCode::CREATED);
     let poster_body = to_bytes(poster_response.into_body(), usize::MAX)
@@ -696,7 +761,84 @@ async fn channel_role_send_permission_gates_server_channel_message_creation() {
     let poster_payload: serde_json::Value =
         serde_json::from_slice(&poster_body).expect("decode poster response body");
     assert_eq!(poster_payload["author_id"], poster_id);
-    assert_eq!(poster_payload["channel_seq"], 1);
+    assert_eq!(poster_payload["channel_seq"], 2);
+}
+
+#[tokio::test]
+async fn channel_role_read_permission_gates_server_channel_message_listing() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let server_id = format!("srv-channel-read-denied-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-channel-read-denied-{}", Uuid::new_v4().simple());
+    let member_id = unique_identity("usr-channel-read-denied");
+    let role_id = format!("role-read-denied-{}", Uuid::new_v4().simple());
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Read Denied",
+        &channel_id,
+        "restricted",
+        &[&member_id],
+        &[],
+    )
+    .await;
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &role_id,
+            server_id: &server_id,
+            name: "no-read",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert no-read role");
+    server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_id,
+            identity_id: &member_id,
+            role_id: &role_id,
+        },
+    )
+    .await
+    .expect("assign no-read role");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &role_id,
+            can_read: false,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert no-read permission");
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages?limit=2"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build read-denied list request");
+
+    let response = app.oneshot(request).await.expect("read-denied response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read read-denied response body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode read-denied response body");
+    assert_eq!(payload["code"], "server_access_denied");
 }
 
 #[tokio::test]
