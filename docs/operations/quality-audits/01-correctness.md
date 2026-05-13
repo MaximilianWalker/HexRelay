@@ -4,7 +4,7 @@
 
 - topic_id: 01-correctness
 - topic: Correctness
-- last_audited: 2026-05-12T19:49:14Z
+- last_audited: 2026-05-13T02:57:40Z
 - source_of_truth: `docs/operations/quality-audits/01-correctness.md`
 
 ## Investigation Focus

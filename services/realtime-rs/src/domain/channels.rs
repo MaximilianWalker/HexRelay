@@ -491,6 +491,8 @@ pub async fn publish_channel_message_created(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel event: {error}"));
     }
 
@@ -601,6 +603,8 @@ pub async fn publish_channel_message_updated(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel update event: {error}"));
     }
 
@@ -711,6 +715,8 @@ pub async fn publish_channel_message_deleted(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel delete event: {error}"));
     }
 
@@ -764,6 +770,58 @@ async fn persist_channel_replay_entries(
         },
     )
     .await
+}
+
+async fn remove_persisted_channel_replay_entries(
+    client: &redis::Client,
+    recipient_cursors: &[ChannelRecipientCursor],
+    client_payload: &str,
+) {
+    if recipient_cursors.is_empty() {
+        return;
+    }
+
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(error = %error, "failed to open Redis connection for channel replay rollback");
+            return;
+        }
+    };
+
+    let mut pipe = redis::pipe();
+    let mut rollback_count = 0_u32;
+    for cursor in recipient_cursors {
+        let replay_entry = match serde_json::to_string(&replay_store::ReplayEntry {
+            cursor: cursor.cursor,
+            payload: client_payload.to_string(),
+        }) {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(
+                    recipient_identity_id = %cursor.recipient_identity_id,
+                    error = %error,
+                    "failed to encode channel replay rollback entry"
+                );
+                continue;
+            }
+        };
+
+        pipe.cmd("LREM")
+            .arg(channel_replay_log_key(&cursor.recipient_identity_id))
+            .arg(1)
+            .arg(replay_entry)
+            .ignore();
+        rollback_count += 1;
+    }
+
+    if rollback_count == 0 {
+        return;
+    }
+
+    if let Err(error) = pipe.query_async::<()>(&mut connection).await {
+        warn!(error = %error, "failed to roll back channel replay entries after publish failure");
+    }
 }
 
 fn channel_stream_head_key(identity_id: &str) -> String {
