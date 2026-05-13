@@ -319,8 +319,9 @@ fn client_session_encrypts_locally_and_reports_rotation_boundary() {
         plaintext
     );
 
-    let serialized_envelope = serde_json::to_string(&encrypted).expect("serialize envelope");
-    assert!(!serialized_envelope.contains("client-only plaintext"));
+    let serialized_encrypt_result =
+        serde_json::to_string(&encrypted).expect("serialize encrypt result");
+    assert!(!serialized_encrypt_result.contains("client-only plaintext"));
     assert!(format!("{alice_session:?}").contains("<redacted>"));
     assert_eq!(
         alice_session.encrypt_outbound(1_001, "msg-client-2", "usr-alice", b"stale key"),
