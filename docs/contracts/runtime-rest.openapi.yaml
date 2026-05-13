@@ -938,7 +938,7 @@ paths:
   /servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages for an authorized member
-      description: Returns persisted server-channel messages only when the authenticated identity has membership in the requested server and the requested `channel_id` belongs to that same server. Requests for unknown channel ids return `404 channel_not_found`, while cross-server path mismatches fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
+      description: Returns persisted server-channel messages only when the authenticated identity has membership in the requested server and the requested `channel_id` belongs to that same server. Authentication and requested-server membership are verified before channel existence is evaluated, so unauthenticated requests return `401 session_invalid` without exposing channel-id existence. Authenticated member requests for unknown channel ids return `404 channel_not_found`, while cross-server path mismatches fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1036,8 +1036,12 @@ paths:
         Persists a new server-channel message for an authenticated server member
         when the requested `channel_id` belongs to the same server identified by
         the route, optionally linking a same-channel reply target and persisted
-        mention identities. Cross-server path mismatches fail with deterministic
-        `403 server_access_denied`. Successful writes best-effort fan out
+        mention identities. Authentication and requested-server membership are
+        verified before channel existence is evaluated, so unauthenticated
+        requests return `401 session_invalid` without exposing channel-id
+        existence. Authenticated member requests for unknown channel ids return
+        `404 channel_not_found`, while cross-server path mismatches fail with
+        deterministic `403 server_access_denied`. Successful writes best-effort fan out
         `channel.message.created` over realtime delivery to current server
         members, routed through the shared `NodeClientTransport` adapter path
         using borrowed request serialization on the API side. REST success is
@@ -1161,7 +1165,11 @@ paths:
         Updates the message content and replacement mention set for an existing
         server-channel message when the authenticated identity is both a member
         of the server, the requested `channel_id` belongs to that same server,
-        and the caller is the original message author. Cross-server path
+        and the caller is the original message author. Authentication and
+        requested-server membership are verified before channel existence is
+        evaluated, so unauthenticated requests return `401 session_invalid`
+        without exposing channel-id existence. Authenticated member requests for
+        unknown channel ids return `404 channel_not_found`, while cross-server path
         mismatches fail with deterministic `403 server_access_denied`.
         Successful non-noop edits best-effort fan out `channel.message.updated`
         over realtime delivery to current server members, routed through the
@@ -1310,7 +1318,11 @@ paths:
       description: >-
         Soft-deletes a server-channel message when the authenticated identity is
         both a member of the server, the requested `channel_id` belongs to that
-        same server, and the caller is the original author. Cross-server path
+        same server, and the caller is the original author. Authentication and
+        requested-server membership are verified before channel existence is
+        evaluated, so unauthenticated requests return `401 session_invalid`
+        without exposing channel-id existence. Authenticated member requests for
+        unknown channel ids return `404 channel_not_found`, while cross-server path
         mismatches fail with deterministic `403 server_access_denied`.
         First-time deletes best-effort fan out `channel.message.deleted` over
         realtime delivery to current server members, routed through the shared

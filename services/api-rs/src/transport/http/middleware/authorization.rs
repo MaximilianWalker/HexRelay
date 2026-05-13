@@ -159,6 +159,7 @@ where
             )
         })?;
 
+        let membership = AuthorizedServerMembership::from_request_parts(parts, state).await?;
         let app_state = AppState::from_ref(state);
         let pool = app_state.db_pool.as_ref().ok_or_else(|| {
             internal_error(
@@ -174,6 +175,7 @@ where
                     authorization_scope = "server_channel",
                     decision = "failure",
                     reason = "channel_existence_lookup_failed",
+                    identity_id = %membership.identity_id,
                     server_id = %server_id,
                     channel_id = %channel_id,
                     error = %error,
@@ -187,6 +189,7 @@ where
                 authorization_scope = "server_channel",
                 decision = "deny",
                 reason = "channel_not_found",
+                identity_id = %membership.identity_id,
                 server_id = %server_id,
                 channel_id = %channel_id,
                 "server channel authorization denied"
@@ -195,8 +198,6 @@ where
                 ServerChannelAuthorizationFailure::ChannelNotFound,
             ));
         }
-
-        let membership = AuthorizedServerMembership::from_request_parts(parts, state).await?;
 
         let channel_exists =
             server_channels_repo::server_channel_exists(pool, &membership.server_id, &channel_id)
