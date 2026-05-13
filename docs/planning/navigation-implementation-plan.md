@@ -85,7 +85,7 @@ Copy baseline:
 
 | State | Proposed copy |
 |---|---|
-| Empty | `No servers yet` |
+| Empty | `No servers yet. Join or create a server to get started` |
 | Search no results | `No servers match your search` |
 | Permission denied | `You do not have access to this server` |
 | Error | `Servers could not load` |
@@ -114,7 +114,7 @@ Copy baseline:
 
 | State | Proposed copy |
 |---|---|
-| Empty | `No contacts yet` |
+| Empty | `No contacts yet. Add a friend or redeem a contact invite` |
 | Search no results | `No contacts match your search` |
 | Pending request | `Request pending` |
 | Inbound request | `Respond to request` |
@@ -209,7 +209,7 @@ Before opening each implementation PR after approval:
 - run `npm --prefix apps/web run lint`;
 - run `npm --prefix apps/web run test:coverage`;
 - run `npm --prefix apps/web run build`;
-- run the automation diff-scope validator with `--allow-ux-implementation` only if the approval is cited in the PR body;
+- cite the explicit UX approval in the PR body, as required by `AGENTS.md` and `docs/product/08-screen-state-spec.md`;
 - collect desktop and mobile screenshots/checklist evidence under `evidence/iteration-02/navigation/<YYYY-MM-DD>/` once the UI behavior exists.
 
 For this plan-only PR, validation is limited to docs freshness and plan-only diff scope checks.
