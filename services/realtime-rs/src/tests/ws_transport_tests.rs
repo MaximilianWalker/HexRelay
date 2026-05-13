@@ -71,6 +71,12 @@ struct PresenceApiStubState {
     watcher_token: String,
 }
 
+#[derive(Clone)]
+struct SignalingApiStubState {
+    sessions: Arc<RwLock<HashMap<String, String>>>,
+    contacts: Arc<RwLock<HashMap<String, Vec<String>>>>,
+}
+
 async fn start_validate_server(mode: ValidateMode) -> String {
     async fn validate_endpoint(
         State(mode): State<ValidateMode>,
@@ -120,6 +126,102 @@ async fn start_validate_server(mode: ValidateMode) -> String {
     let address = listener.local_addr().expect("read listener address");
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("serve test API");
+    });
+
+    format!("http://{}", address)
+}
+
+async fn start_signaling_api_stub(
+    sessions: HashMap<String, String>,
+    contacts: HashMap<String, Vec<String>>,
+) -> String {
+    async fn validate_endpoint(
+        State(state): State<SignalingApiStubState>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<ValidatePayload>) {
+        let identity_id = authorization_identity(&state.sessions, &headers).await;
+        match identity_id {
+            Some(identity_id) => (
+                StatusCode::OK,
+                Json(ValidatePayload {
+                    session_id: format!("sess-{identity_id}"),
+                    identity_id,
+                    expires_at: "2030-01-01T00:00:00Z".to_string(),
+                }),
+            ),
+            None => (
+                StatusCode::UNAUTHORIZED,
+                Json(ValidatePayload {
+                    session_id: String::new(),
+                    identity_id: String::new(),
+                    expires_at: String::new(),
+                }),
+            ),
+        }
+    }
+
+    async fn contacts_endpoint(
+        State(state): State<SignalingApiStubState>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<Value>) {
+        let Some(identity_id) = authorization_identity(&state.sessions, &headers).await else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "items": [] })),
+            );
+        };
+
+        let contacts = state
+            .contacts
+            .read()
+            .await
+            .get(&identity_id)
+            .cloned()
+            .unwrap_or_default();
+        let items = contacts
+            .into_iter()
+            .map(|id| {
+                serde_json::json!({
+                    "id": id,
+                    "name": id,
+                    "status": "online",
+                    "unread": 0,
+                    "favorite": false,
+                    "inbound_request": false,
+                    "pending_request": false
+                })
+            })
+            .collect::<Vec<_>>();
+
+        (StatusCode::OK, Json(serde_json::json!({ "items": items })))
+    }
+
+    async fn authorization_identity(
+        sessions: &Arc<RwLock<HashMap<String, String>>>,
+        headers: &HeaderMap,
+    ) -> Option<String> {
+        let authorization = headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())?;
+        sessions.read().await.get(authorization).cloned()
+    }
+
+    let state = SignalingApiStubState {
+        sessions: Arc::new(RwLock::new(sessions)),
+        contacts: Arc::new(RwLock::new(contacts)),
+    };
+    let app = Router::new()
+        .route("/auth/sessions/validate", get(validate_endpoint))
+        .route("/contacts", get(contacts_endpoint))
+        .with_state(state);
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind signaling stub listener");
+    let address = listener.local_addr().expect("read signaling stub address");
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("serve signaling stub API");
     });
 
     format!("http://{}", address)
@@ -353,6 +455,24 @@ async fn connect_ws_with_token_and_device(
         .await
         .expect("websocket connect response");
     socket
+}
+
+async fn recv_json_frame(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> Value {
+    let message = socket
+        .next()
+        .await
+        .expect("socket message")
+        .expect("ws frame");
+    let text = match message {
+        WsMessage::Text(value) => value,
+        _ => panic!("expected text frame"),
+    };
+
+    serde_json::from_str(&text).expect("decode websocket payload")
 }
 
 async fn recv_presence_event(
@@ -2365,46 +2485,94 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 }
 
 #[tokio::test]
-async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists() {
-    let api_base = start_validate_server(ValidateMode::Authorized).await;
+async fn websocket_delivers_cross_identity_call_signals_to_recipient() {
+    let api_base = start_signaling_api_stub(
+        HashMap::from([
+            ("Bearer sender-token".to_string(), "usr-1".to_string()),
+            ("Bearer recipient-token".to_string(), "usr-b".to_string()),
+        ]),
+        HashMap::from([("usr-1".to_string(), vec!["usr-b".to_string()])]),
+    )
+    .await;
     let ws_url = start_ws_server(api_base, 60).await;
 
-    let mut request = ws_url
-        .into_client_request()
-        .expect("build websocket client request");
-    request.headers_mut().insert(
-        "authorization",
-        HeaderValue::from_static("Bearer test-token"),
-    );
-    set_allowed_origin(&mut request);
+    let mut sender = connect_ws_with_token(&ws_url, "sender-token").await;
+    let mut recipient_one = connect_ws_with_token(&ws_url, "recipient-token").await;
+    let mut recipient_two = connect_ws_with_token(&ws_url, "recipient-token").await;
 
-    let (mut socket, _) = connect_async(request)
-        .await
-        .expect("websocket connect response");
+    let _ = sender.next().await;
+    let _ = recipient_one.next().await;
+    let _ = recipient_two.next().await;
 
-    let _ = socket.next().await;
+    for (event_type, payload) in [
+        (
+            "call.signal.offer",
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.answer",
+            r#"{"event_type":"call.signal.answer","correlation_id":"corr-answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_answer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.ice_candidate",
+            r#"{"event_type":"call.signal.ice_candidate","correlation_id":"corr-ice","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+        ),
+    ] {
+        sender
+            .send(WsMessage::Text(payload.to_string()))
+            .await
+            .expect("send signaling event");
 
-    socket
+        let sender_payload = recv_json_frame(&mut sender).await;
+        assert_eq!(sender_payload["event_type"], event_type);
+        assert_eq!(sender_payload["producer"], "realtime-gateway");
+
+        let recipient_payloads = [
+            recv_json_frame(&mut recipient_one).await,
+            recv_json_frame(&mut recipient_two).await,
+        ];
+        for recipient_payload in recipient_payloads {
+            assert_eq!(recipient_payload["event_type"], event_type);
+            assert_eq!(recipient_payload["producer"], "realtime-signaling");
+            assert_eq!(recipient_payload["data"]["from_identity_id"], "usr-1");
+            assert_eq!(recipient_payload["data"]["to_identity_id"], "usr-b");
+        }
+    }
+}
+
+#[tokio::test]
+async fn websocket_rejects_cross_identity_call_signal_without_contact_authority() {
+    let api_base = start_signaling_api_stub(
+        HashMap::from([
+            ("Bearer sender-token".to_string(), "usr-1".to_string()),
+            ("Bearer recipient-token".to_string(), "usr-b".to_string()),
+        ]),
+        HashMap::new(),
+    )
+    .await;
+    let ws_url = start_ws_server(api_base, 60).await;
+
+    let mut sender = connect_ws_with_token(&ws_url, "sender-token").await;
+    let mut recipient = connect_ws_with_token(&ws_url, "recipient-token").await;
+
+    let _ = sender.next().await;
+    let _ = recipient.next().await;
+
+    sender
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
-        .expect("send offer event");
+        .expect("send unauthorized signaling event");
 
-    let message = socket
-        .next()
-        .await
-        .expect("socket message")
-        .expect("ws frame");
-    let text = match message {
-        WsMessage::Text(value) => value,
-        _ => panic!("expected text frame"),
-    };
+    let sender_payload = recv_json_frame(&mut sender).await;
+    assert_eq!(sender_payload["event_type"], "error");
+    assert_eq!(sender_payload["data"]["code"], "event_forbidden");
 
-    let payload: Value = serde_json::from_str(&text).expect("decode response envelope");
-    assert_eq!(payload["event_type"], "error");
-    assert_eq!(payload["data"]["code"], "event_unsupported");
+    let no_recipient_frame =
+        tokio::time::timeout(Duration::from_millis(250), recipient.next()).await;
+    assert!(no_recipient_frame.is_err());
 }
 
 #[test]
