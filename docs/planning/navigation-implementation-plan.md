@@ -6,14 +6,14 @@
 - Owner: Web and delivery maintainers
 - Status: approval_pending
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-14
 - Source of truth: `docs/planning/navigation-implementation-plan.md`
 
 ## Quick Context
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-13 added the approval response template and pre-implementation gate checklist for the `T4.6.1` through `T4.6.4` navigation slices.
+- Latest meaningful change: 2026-05-14 tightened the plan-only approval scope, approval-to-slice mapping, and runtime implementation hard stops for the `T4.6.1` through `T4.6.4` navigation slices.
 
 ## Approval Boundary
 
@@ -58,6 +58,26 @@ The full `T4.6.1` through `T4.6.4` cluster spans four user-facing navigation sur
 - define validation and evidence expectations before implementation starts.
 
 This PR must not claim any `T4.6.x` runtime acceptance criteria as complete. After approval, the first implementation PR should start with `NAV-01` only unless the approved scope explicitly allows a larger slice.
+
+## Plan-Only Change Scope
+
+Plan-only navigation PRs may refine only approval, sequencing, validation, evidence, and documentation freshness for `T4.6.1` through `T4.6.4`.
+
+Allowed plan-only changes:
+
+- clarify proposed flows, controls, copy, persistence choices, and approval questions;
+- map pending approval decisions to the first implementation slice that needs them;
+- refine validation commands, screenshot/checklist evidence, and PR-body requirements;
+- update docs indexes and planning references that point at this approval package.
+
+Disallowed without explicit UX approval:
+
+- editing `apps/web` runtime UI, route behavior, storage helpers, fixtures consumed by visible UI, or browser tests that encode new UX behavior;
+- changing API/realtime contracts to support navigation behavior;
+- adding evidence that claims `T4.6.1` through `T4.6.4` runtime acceptance criteria are met;
+- treating this plan, sprint-board task selection, or an automated PR merge as approval for any user-visible flow, copy, control, or behavior.
+
+Plan-only PRs may merge before UX approval because they do not change product behavior. The next runtime PR must cite the exact approval reference and approved `NAV-APP-*` values it implements.
 
 ## Implementation Principles
 
@@ -277,6 +297,19 @@ Record approval against each decision below before runtime UI work begins. Appro
 
 If any decision is explicitly deferred, implementation for the affected surface must either avoid that behavior or stay plan-only for that slice.
 
+## Approval-To-Slice Map
+
+| Approval decision | Blocks task/slice | First eligible implementation PR after approval | Required approval evidence |
+|---|---|---|---|
+| `NAV-APP-01` | `T4.6.1` / `NAV-02` Servers Hub | Servers Hub data/render/action implementation | Approved filters, card actions, and state copy |
+| `NAV-APP-02` | `T4.6.2` / `NAV-03` Contacts Hub | Contacts Hub data/render/action implementation | Approved filters, open-DM action, copy, and mute/block availability |
+| `NAV-APP-03` | `T4.6.3` / `NAV-04` topbar tabs | Desktop topbar tab state and controls | Approved reorder interaction model |
+| `NAV-APP-04` | `T4.6.3` / `NAV-04` burger persistence | Desktop navigation visibility control | Approved state-cycle or explicit-menu behavior |
+| `NAV-APP-05` | `T4.6.4` / `NAV-05` mobile drawer | Mobile workspace drawer behavior | Approved drawer reset or session persistence behavior |
+| `NAV-APP-06` | `T4.6.4` / `NAV-05` mobile hub presentation | Mobile hub presentation and optional toggle | Approved list-first-only or card/list toggle behavior |
+
+`NAV-01` may be approved separately as a no-visible-UI foundation slice. If only `NAV-01` is approved, the implementation PR must stay limited to route constants, serializable state helpers, preference helpers, shared fixture foundations that do not encode visible UI behavior, and tests for those helpers/fixtures.
+
 ## Approval Response Template
 
 Use this template in the approving PR comment, issue comment, or project note. The first runtime UI implementation PR must link to the exact approval reference and copy the approved decision values into its PR body.
@@ -309,6 +342,16 @@ Before any runtime UI implementation branch starts, verify all of the following:
 | No unapproved adjacent behavior is bundled | PR body explicitly excludes deferred `NAV-APP-*` decisions and unrelated DM/server-channel UX changes |
 
 Missing approval evidence is a hard stop. Do not use a plan-only PR, an implementation-ready task row, or existing partially built web components as implied approval for product UI behavior.
+
+## Runtime Implementation Hard Stops
+
+Stop and keep the work plan-only when any of these conditions apply:
+
+- the slice has no approval reference with non-pending `NAV-APP-*` values;
+- the approval reference changes copy, controls, or behavior but the PR body does not quote the approved value set;
+- the implementation attempts to include a later `NAV-*` slice whose approval is missing or deferred;
+- the slice needs a new backend/API field or contract that is not already approved and scoped in the implementation PR;
+- validation evidence would require claiming a `T4.6.x` acceptance criterion before the corresponding runtime behavior and screenshots/checklists exist.
 
 ## Known Limits
 
