@@ -11,7 +11,7 @@ use ring::{
     rand::{SecureRandom, SystemRandom},
     signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519},
 };
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 
 const BOOTSTRAP_SIGNING_DOMAIN: &str = "hexrelay.dm_e2ee_bootstrap";
@@ -71,7 +71,7 @@ impl DmE2eeError {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub struct DmSessionContext {
     kind: DmSessionKind,
     thread_id: String,
@@ -79,6 +79,39 @@ pub struct DmSessionContext {
     generation: u64,
     created_at_epoch_seconds: i64,
     session_id: String,
+}
+
+impl<'de> Deserialize<'de> for DmSessionContext {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawContext {
+            kind: DmSessionKind,
+            thread_id: String,
+            participant_identity_ids: Vec<String>,
+            generation: u64,
+            created_at_epoch_seconds: i64,
+            session_id: String,
+        }
+
+        let raw = RawContext::deserialize(deserializer)?;
+        let context = DmSessionContext::new(
+            raw.kind,
+            raw.thread_id,
+            raw.participant_identity_ids,
+            raw.generation,
+            raw.created_at_epoch_seconds,
+        )
+        .map_err(|error| de::Error::custom(error.code()))?;
+
+        if context.session_id != raw.session_id {
+            return Err(de::Error::custom(DmE2eeError::ContextInvalid.code()));
+        }
+
+        Ok(context)
+    }
 }
 
 impl fmt::Debug for DmSessionContext {
@@ -210,19 +243,27 @@ impl DmSessionContext {
         message_id: &str,
         sender_identity_id: &str,
     ) -> Result<Vec<u8>, DmE2eeError> {
+        let message_id = normalize_envelope_field(message_id)?;
+        let sender_identity_id = normalize_envelope_field(sender_identity_id)?;
+
+        if !self
+            .participant_identity_ids
+            .iter()
+            .any(|participant| participant == &sender_identity_id)
+        {
+            return Err(DmE2eeError::EnvelopeInvalid);
+        }
+
         let mut fields = BTreeMap::new();
         fields.insert("domain", json!(MESSAGE_AAD_DOMAIN));
         fields.insert("generation", json!(self.generation));
         fields.insert("kind", json!(self.kind.as_str()));
-        fields.insert("message_id", json!(normalize_required_id(message_id)?));
+        fields.insert("message_id", json!(message_id));
         fields.insert(
             "participant_identity_ids",
             json!(self.participant_identity_ids),
         );
-        fields.insert(
-            "sender_identity_id",
-            json!(normalize_required_id(sender_identity_id)?),
-        );
+        fields.insert("sender_identity_id", json!(sender_identity_id));
         fields.insert("session_id", json!(self.session_id));
         fields.insert("thread_id", json!(self.thread_id));
 
@@ -360,14 +401,14 @@ impl DmSessionKey {
         sender_identity_id: impl AsRef<str>,
         plaintext: &[u8],
     ) -> Result<DmCiphertextEnvelope, DmE2eeError> {
-        let message_id = normalize_required_id(message_id.as_ref())?;
-        let sender_identity_id = normalize_required_id(sender_identity_id.as_ref())?;
+        let message_id = normalize_envelope_field(message_id.as_ref())?;
+        let sender_identity_id = normalize_envelope_field(sender_identity_id.as_ref())?;
+        let aad = context.message_aad(&message_id, &sender_identity_id)?;
         let mut nonce = [0_u8; DM_SESSION_NONCE_BYTES];
         SystemRandom::new()
             .fill(&mut nonce)
             .map_err(|_| DmE2eeError::NonceInvalid)?;
 
-        let aad = context.message_aad(&message_id, &sender_identity_id)?;
         let cipher = XChaCha20Poly1305::new(Key::from_slice(&self.bytes));
         let ciphertext = cipher
             .encrypt(
@@ -471,7 +512,7 @@ pub fn verify_dm_session_bootstrap_ed25519(
 ) -> Result<(), DmE2eeError> {
     let identity_public_key = normalize_public_key(identity_public_key.as_ref())?;
     let signature: [u8; 64] =
-        decode_fixed_base64(signature_base64.as_ref()).ok_or(DmE2eeError::SignatureInvalid)?;
+        decode_fixed_encoding(signature_base64.as_ref()).ok_or(DmE2eeError::SignatureInvalid)?;
     let payload = canonical_bootstrap_payload(
         identity_id.as_ref(),
         &identity_public_key,
@@ -560,8 +601,17 @@ fn canonical_bootstrap_payload(
     context: &DmSessionContext,
 ) -> Result<Vec<u8>, DmE2eeError> {
     let mut fields = BTreeMap::new();
+    let identity_id = normalize_required_id(identity_id)?;
+    if !context
+        .participant_identity_ids
+        .iter()
+        .any(|participant| participant == &identity_id)
+    {
+        return Err(DmE2eeError::ContextInvalid);
+    }
+
     fields.insert("domain", json!(BOOTSTRAP_SIGNING_DOMAIN));
-    fields.insert("identity_id", json!(normalize_required_id(identity_id)?));
+    fields.insert("identity_id", json!(identity_id));
     fields.insert(
         "identity_public_key",
         json!(normalize_public_key(identity_public_key)?),
@@ -600,6 +650,15 @@ fn normalize_required_id(value: impl AsRef<str>) -> Result<String, DmE2eeError> 
     Ok(trimmed.to_string())
 }
 
+fn normalize_envelope_field(value: &str) -> Result<String, DmE2eeError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(DmE2eeError::EnvelopeInvalid);
+    }
+
+    Ok(trimmed.to_string())
+}
+
 fn normalize_public_key(value: &str) -> Result<String, DmE2eeError> {
     let trimmed = value.trim();
     let decoded = decode_public_key(trimmed).map_err(|_| DmE2eeError::IdentityKeyInvalid)?;
@@ -608,16 +667,31 @@ fn normalize_public_key(value: &str) -> Result<String, DmE2eeError> {
 }
 
 fn decode_public_key(value: &str) -> Result<[u8; 32], DmE2eeError> {
-    if value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit()) {
-        return fixed_array(&hex::decode(value).map_err(|_| DmE2eeError::IdentityKeyInvalid)?)
-            .ok_or(DmE2eeError::IdentityKeyInvalid);
+    decode_fixed_encoding(value).ok_or(DmE2eeError::IdentityKeyInvalid)
+}
+
+fn decode_fixed_encoding<const N: usize>(value: &str) -> Option<[u8; N]> {
+    let trimmed = value.trim();
+
+    if trimmed.len() == N * 2
+        && trimmed
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return fixed_array(&hex::decode(trimmed).ok()?);
     }
 
-    decode_fixed_base64(value).ok_or(DmE2eeError::IdentityKeyInvalid)
+    decode_fixed_base64(trimmed)
 }
 
 fn decode_fixed_base64<const N: usize>(value: &str) -> Option<[u8; N]> {
-    let decoded = BASE64.decode(value.trim().as_bytes()).ok()?;
+    let trimmed = value.trim();
+    let max_encoded_len = N.div_ceil(3) * 4;
+    if trimmed.len() > max_encoded_len {
+        return None;
+    }
+
+    let decoded = BASE64.decode(trimmed.as_bytes()).ok()?;
     fixed_array(&decoded)
 }
 

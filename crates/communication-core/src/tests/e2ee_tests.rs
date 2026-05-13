@@ -80,6 +80,21 @@ fn one_to_one_bootstrap_binds_x25519_key_to_identity_signature() {
         ),
         Ok(())
     );
+    let alice_signature_hex = hex::encode(
+        BASE64
+            .decode(alice_signature.as_bytes())
+            .expect("decode alice signature"),
+    );
+    assert_eq!(
+        verify_dm_session_bootstrap_ed25519(
+            "usr-alice",
+            &alice_identity_public_key,
+            &alice_public_key,
+            &context,
+            &alice_signature_hex,
+        ),
+        Ok(())
+    );
 
     let tampered_public_key = DmEphemeralPublicKey::from_bytes([7_u8; DM_SESSION_KEY_BYTES]);
     assert_eq!(
@@ -118,6 +133,47 @@ fn one_to_one_bootstrap_binds_x25519_key_to_identity_signature() {
 }
 
 #[test]
+fn rejects_nonparticipant_bootstrap_and_sender_metadata() {
+    let outsider_identity_key = generated_identity_key();
+    let outsider_identity_public_key = ed25519_public_key_base64(&outsider_identity_key)
+        .expect("derive outsider identity public key");
+    let (_outsider_secret, outsider_public_key) =
+        DmEphemeralSecret::generate().expect("generate outsider key");
+    let (alice_secret, _alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice key");
+    let context = DmSessionContext::one_to_one("dm-thread-3", "usr-alice", "usr-bob", 0, 1_000)
+        .expect("build context");
+
+    assert_eq!(
+        sign_dm_session_bootstrap_ed25519_pkcs8(
+            "usr-mallory",
+            &outsider_identity_key,
+            &outsider_public_key,
+            &context,
+        ),
+        Err(DmE2eeError::ContextInvalid)
+    );
+    assert_eq!(
+        verify_dm_session_bootstrap_ed25519(
+            "usr-mallory",
+            &outsider_identity_public_key,
+            &outsider_public_key,
+            &context,
+            BASE64.encode([9_u8; 64]),
+        ),
+        Err(DmE2eeError::ContextInvalid)
+    );
+
+    let alice_key = alice_secret
+        .derive_one_to_one_session_key(&outsider_public_key, &context)
+        .expect("derive alice key for metadata validation");
+    assert_eq!(
+        alice_key.encrypt_message(&context, "msg-3", "usr-mallory", b"forged sender"),
+        Err(DmE2eeError::EnvelopeInvalid)
+    );
+}
+
+#[test]
 fn xchacha_envelopes_reject_tampered_ciphertext_and_metadata() {
     let (alice_secret, alice_public_key) =
         DmEphemeralSecret::generate().expect("generate alice key");
@@ -147,6 +203,23 @@ fn xchacha_envelopes_reject_tampered_ciphertext_and_metadata() {
         bob_key.decrypt_message(&context, &tampered_metadata),
         Err(DmE2eeError::DecryptInvalid)
     );
+}
+
+#[test]
+fn deserialized_context_must_preserve_derived_session_id() {
+    let context = DmSessionContext::group(
+        "group-thread-2",
+        ["usr-alice", "usr-bob", "usr-cara"],
+        0,
+        1_000,
+    )
+    .expect("build context");
+    let mut value = serde_json::to_value(&context).expect("serialize context");
+    value["session_id"] = serde_json::Value::String("forged-session-id".to_string());
+
+    let result = serde_json::from_value::<DmSessionContext>(value);
+
+    assert!(result.is_err());
 }
 
 #[test]
