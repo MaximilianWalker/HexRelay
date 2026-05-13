@@ -345,6 +345,55 @@ fn verified_one_to_one_bootstrap_rejects_untrusted_peer_material() {
 }
 
 #[test]
+fn verified_one_to_one_bootstrap_rejects_wrong_session_context() {
+    let alice_identity_key = generated_identity_key();
+    let alice_identity_public_key =
+        ed25519_public_key_base64(&alice_identity_key).expect("derive alice identity public key");
+    let (_alice_secret, alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice x25519 key");
+    let (bob_secret, _bob_public_key) =
+        DmEphemeralSecret::generate().expect("generate bob x25519 key");
+    let context = DmSessionContext::one_to_one("dm-thread-a", "usr-alice", "usr-bob", 0, 1_000)
+        .expect("build original context");
+    let different_thread_context =
+        DmSessionContext::one_to_one("dm-thread-b", "usr-alice", "usr-bob", 0, 1_000)
+            .expect("build different thread context");
+    let next_generation_context =
+        DmSessionContext::one_to_one("dm-thread-a", "usr-alice", "usr-bob", 1, 1_100)
+            .expect("build next generation context");
+    let alice_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-alice",
+        &alice_identity_key,
+        alice_public_key,
+        &context,
+    )
+    .expect("sign alice bootstrap");
+
+    assert_eq!(
+        alice_bootstrap.verify(&context, &alice_identity_public_key),
+        Ok(())
+    );
+    assert_eq!(
+        alice_bootstrap.verify(&different_thread_context, &alice_identity_public_key),
+        Err(DmE2eeError::SignatureInvalid)
+    );
+    assert_eq!(
+        alice_bootstrap.verify(&next_generation_context, &alice_identity_public_key),
+        Err(DmE2eeError::SignatureInvalid)
+    );
+    assert_eq!(
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            different_thread_context,
+            "usr-bob",
+            bob_secret,
+            &alice_bootstrap,
+            &alice_identity_public_key,
+        ),
+        Err(DmE2eeError::SignatureInvalid)
+    );
+}
+
+#[test]
 fn xchacha_envelopes_reject_tampered_ciphertext_and_metadata() {
     let (alice_secret, alice_public_key) =
         DmEphemeralSecret::generate().expect("generate alice key");

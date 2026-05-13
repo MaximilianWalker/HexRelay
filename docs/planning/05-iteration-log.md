@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded profile-device presence/server-channel sync closeout evidence.
+- Latest meaningful change: 2026-05-13 recorded T4.5.1 E2EE one-to-one session bootstrap closeout evidence.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.5.1 E2EE one-to-one session bootstrap closeout)
+
+- Area affected: E2EE one-to-one DM session bootstrap, crypto conformance coverage, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Confirmed `communication-core` already establishes one-to-one E2EE sessions from Ed25519-signed identity bootstrap material and X25519 ephemeral agreement.
+  - Added a regression proving signed bootstrap material is bound to the exact session context, including thread and generation, before client session derivation.
+  - Marked `T4.5.1` done on the Iteration 2 sprint board and added the corresponding messaging E2EE evidence artifact.
+- Rationale:
+  - The selected `T4.5.x` E2EE baseline is too large for one PR; closing the one-to-one session-bootstrap prerequisite first keeps the change mergeable while leaving 1:1 payload rotation/catch-up and group E2EE work to T4.5.2-T4.5.4.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T3.3.2/T4.3.3/T4.3.4 profile-device sync closeout)
 

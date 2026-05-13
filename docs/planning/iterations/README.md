@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded profile-device presence/server-channel sync closeout for T3.3.2/T4.3.3/T4.3.4.
+- Latest meaningful change: 2026-05-13 recorded T4.5.1 E2EE one-to-one session bootstrap closeout evidence.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 
