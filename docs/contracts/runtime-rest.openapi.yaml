@@ -24,7 +24,8 @@ info:
     fields to REST request or response bodies.
     Server-channel realtime dispatch records internal accepted-summary telemetry
     for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
-    preserving the existing REST success payloads. DM delivery uses server-node
+    scoping recipients to effective channel read permission and preserving the
+    existing REST success payloads. DM delivery uses server-node
     P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
     contracts must not expose node-bypassing DM bootstrap or plaintext relay
     behavior. App-to-node dedicated-server administration starts with a public
@@ -1053,10 +1054,11 @@ paths:
         existence. Authenticated member requests for unknown channel ids return
         `404 channel_not_found`, while cross-server path mismatches or configured
         channel permission denial fail with
-        deterministic `403 server_access_denied`. Successful writes best-effort fan out
-        `channel.message.created` over realtime delivery to current server
-        members, routed through the shared `NodeClientTransport` adapter path
-        using borrowed request serialization on the API side. REST success is
+        deterministic `403 server_access_denied`. Successful writes best-effort
+        fan out `channel.message.created` over realtime delivery to current
+        channel-read-authorized server members, routed through the shared
+        `NodeClientTransport` adapter path using borrowed request serialization
+        on the API side. REST success is
         not transactional with downstream realtime delivery: dispatch happens
         after persistence, downstream failures are logged, and no durable retry
         is guaranteed by this endpoint. Cookie-authenticated requests require a
@@ -1191,8 +1193,9 @@ paths:
         mismatches or configured channel permission denial fail with deterministic
         `403 server_access_denied`.
         Successful non-noop edits best-effort fan out `channel.message.updated`
-        over realtime delivery to current server members, routed through the
-        shared `NodeClientTransport` adapter path. REST success is not
+        over realtime delivery to current channel-read-authorized server
+        members, routed through the shared `NodeClientTransport` adapter path.
+        REST success is not
         transactional with downstream realtime delivery: dispatch happens after
         persistence, downstream failures are logged, and no durable retry is
         guaranteed by this endpoint. Deleted messages cannot be edited.
@@ -1351,8 +1354,9 @@ paths:
         mismatches or configured channel permission denial fail with deterministic
         `403 server_access_denied`.
         First-time deletes best-effort fan out `channel.message.deleted` over
-        realtime delivery to current server members, routed through the shared
-        `NodeClientTransport` adapter path, while repeated deletes remain
+        realtime delivery to current channel-read-authorized server members,
+        routed through the shared `NodeClientTransport` adapter path, while
+        repeated deletes remain
         idempotent without duplicate fanout. REST success is not transactional
         with downstream realtime delivery: dispatch happens after persistence,
         downstream failures are logged, and no durable retry is guaranteed by

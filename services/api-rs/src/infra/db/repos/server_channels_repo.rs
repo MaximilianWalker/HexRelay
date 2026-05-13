@@ -526,6 +526,50 @@ pub async fn identity_has_server_channel_permission(
     .await
 }
 
+pub async fn list_server_channel_event_recipient_identity_ids(
+    pool: &PgPool,
+    server_id: &str,
+    channel_id: &str,
+) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "
+        SELECT m.identity_id
+        FROM server_memberships m
+        WHERE m.server_id = $1
+          AND EXISTS (
+              SELECT 1
+              FROM server_channels c
+              WHERE c.server_id = $1
+                AND c.channel_id = $2
+          )
+          AND (
+              NOT EXISTS (
+                  SELECT 1
+                  FROM server_channel_role_permissions p
+                  WHERE p.server_id = $1
+                    AND p.channel_id = $2
+              )
+              OR EXISTS (
+                  SELECT 1
+                  FROM server_channel_role_permissions p
+                  INNER JOIN server_membership_roles mr
+                    ON mr.server_id = p.server_id
+                   AND mr.role_id = p.role_id
+                  WHERE p.server_id = $1
+                    AND p.channel_id = $2
+                    AND mr.identity_id = m.identity_id
+                    AND p.can_read = TRUE
+              )
+          )
+        ORDER BY m.identity_id ASC
+        ",
+    )
+    .bind(server_id)
+    .bind(channel_id)
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn create_server_channel_message(
     pool: &PgPool,
     params: CreateServerChannelMessageParams,
