@@ -48,6 +48,7 @@ pub enum DmE2eeError {
     KeyAgreementInvalid,
     KeyDerivationInvalid,
     SessionRotationRequired,
+    SessionKeyMissing,
     NonceInvalid,
     EnvelopeInvalid,
     EncryptInvalid,
@@ -65,6 +66,7 @@ impl DmE2eeError {
             Self::KeyAgreementInvalid => "key_agreement_invalid",
             Self::KeyDerivationInvalid => "key_derivation_invalid",
             Self::SessionRotationRequired => "session_rotation_required",
+            Self::SessionKeyMissing => "session_key_missing",
             Self::NonceInvalid => "nonce_invalid",
             Self::EnvelopeInvalid => "envelope_invalid",
             Self::EncryptInvalid => "encrypt_invalid",
@@ -671,6 +673,66 @@ impl DmClientSession {
 
     pub fn decrypt_inbound(&self, envelope: &DmCiphertextEnvelope) -> Result<Vec<u8>, DmE2eeError> {
         self.key.decrypt_message(&self.context, envelope)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct DmGroupSessionRing {
+    sessions_by_id: BTreeMap<String, DmClientSession>,
+}
+
+impl fmt::Debug for DmGroupSessionRing {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DmGroupSessionRing")
+            .field(
+                "session_ids",
+                &self.sessions_by_id.keys().collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+impl DmGroupSessionRing {
+    pub fn new(sessions: impl IntoIterator<Item = DmClientSession>) -> Result<Self, DmE2eeError> {
+        let mut ring = Self::empty();
+        for session in sessions {
+            ring.insert(session)?;
+        }
+
+        Ok(ring)
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            sessions_by_id: BTreeMap::new(),
+        }
+    }
+
+    pub fn insert(
+        &mut self,
+        session: DmClientSession,
+    ) -> Result<Option<DmClientSession>, DmE2eeError> {
+        if session.context.kind != DmSessionKind::Group {
+            return Err(DmE2eeError::ContextInvalid);
+        }
+
+        Ok(self
+            .sessions_by_id
+            .insert(session.context.session_id.clone(), session))
+    }
+
+    pub fn contains_session_id(&self, session_id: impl AsRef<str>) -> bool {
+        self.sessions_by_id.contains_key(session_id.as_ref())
+    }
+
+    pub fn decrypt_inbound(&self, envelope: &DmCiphertextEnvelope) -> Result<Vec<u8>, DmE2eeError> {
+        let session = self
+            .sessions_by_id
+            .get(&envelope.session_id)
+            .ok_or(DmE2eeError::SessionKeyMissing)?;
+
+        session.decrypt_inbound(envelope)
     }
 }
 

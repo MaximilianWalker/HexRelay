@@ -6,14 +6,14 @@
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/product/04-dependencies-risks.md`
 
 ## Quick Context
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-05-11 recorded T4.1.9 DM active-device realtime dispatch-summary mitigation evidence.
+- Latest meaningful change: 2026-05-13 recorded T4.5.4 group DM E2EE ciphertext and missing-key recovery mitigation evidence.
 
 ## Purpose
 
@@ -41,7 +41,7 @@
 |---|---|---|---|---|---|
 | R-001 | Scope creep in decentralization scope | high | medium | Keep MVP to federation-lite signed registry discovery plus explicit server-node policy boundaries; defer Kademlia/HyParView/Plumtree until public opt-in networks need them | Product |
 | R-002 | Voice/screen-share connection failure across NAT-restricted network conditions | high | high | Enforce Iteration 3 TURN/NAT constrained-network profile (`NAT-01`..`NAT-04`), keep relay fallback success thresholds, and block iteration sign-off until profile passes | Realtime |
-| R-003 | E2EE implementation complexity delays messaging roadmap | high | medium | Keep 1:1 and group DM E2EE in MVP scope; reduce risk by phased delivery (1:1 baseline then group rollout in Iteration 2 with explicit test gates) | API |
+| R-003 | E2EE implementation complexity delays messaging roadmap | high | low | Keep 1:1 and group DM E2EE in MVP scope; current Iteration 2 evidence covers 1:1 bootstrap/rotation, group bootstrap/rekey, group ciphertext encrypt/decrypt, and missing-key recovery paths with explicit test gates | API |
 | R-004 | Migration bundle integrity or restore mismatch | high | low | Versioned schemas, signed+encrypted bundles, deterministic reconcile checks, and user-signed profile precedence policy | API/Core |
 | R-005 | Invite token leakage or replay | medium | medium | Hashed token storage, revoke support, one-time/TTL options for restricted servers, and monitoring for long-lived multi-use token abuse | API |
 | R-006 | Key loss causing account lockout | medium | medium | Recovery phrase/device-link flow plus encrypted backup export | Product |
@@ -54,7 +54,7 @@
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-05-11 (added T4.1.9 backend mitigation evidence for active-device realtime target summaries while preserving ack-backed final delivery).
+- Last reviewed: 2026-05-13 (added T4.5.4 group DM E2EE ciphertext and missing-key recovery mitigation evidence while preserving client-only plaintext/private-key boundaries).
 
 ## Risk to Task Mitigation Matrix
 

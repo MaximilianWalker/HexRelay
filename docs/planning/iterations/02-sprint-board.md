@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed T4.5.3 group DM session bootstrap and membership key-update evidence after the T4.5.2 one-to-one rotation prerequisite landed.
+- Latest meaningful change: 2026-05-13 closed T4.5.4 group DM ciphertext encrypt/decrypt and missing-key recovery evidence.
 
 ## Iteration Scope
 
@@ -68,7 +68,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
-| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | E4 / S4.6 | XL | Core | T4.5.3 | Group DM payloads are ciphertext envelopes; rekey and missing-key failures are test-covered without server-side plaintext/key custody |
 | T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | E4 / S4.2 | L | Web | T4.2.2 | Search/filter/pin actions work and deep-link into server workspace |
 | T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | E4 / S4.1 | L | Web | T3.1.2 | Search/filter/open-DM actions work and state persists per user |
 | T4.6.3 | Implement dual server navigation modes and burger persistence | E4 / S4.2 | L | Web | T4.6.1 | Topbar supports open/close/reorder/pin tabs and folder assignment; burger `expanded/collapsed/hidden` preference persists per device |
@@ -162,6 +161,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | T4.5.1 session-bootstrap closeout branch | `communication-core` establishes one-to-one E2EE sessions with Ed25519-signed identity bootstrap material, X25519 ephemeral agreement, HKDF-SHA256-derived session keys, trusted-peer identity-key verification, and regressions for forged identity material, tampered signatures, and wrong session contexts. |
 | T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | T4.5.2 rotation planning branch | `communication-core` encrypts/decrypts client-only one-to-one ciphertext envelopes, reports rotation boundaries, derives rotated one-to-one sessions from newly signed peer bootstrap material, rejects old-session decrypt for rotated traffic, rejects group-context rotation, and serializes encrypted results without plaintext. Offline catch-up evidence remains covered by the encrypted-envelope delivery/catch-up task set. |
 | T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | T4.5.3 group bootstrap/rekey branch | `communication-core` creates member-scoped group session bootstraps, derives group sessions only for current participants, creates membership-change rekey plans with added/removed identity sets, rejects removed identities before deriving new sessions, and proves old group sessions cannot decrypt post-rekey traffic. |
+| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | T4.5.4 missing-key recovery branch | `communication-core` group sessions encrypt/decrypt XChaCha20-Poly1305 ciphertext envelopes, serialize encrypted results without plaintext, reject one-to-one sessions in the group session ring, return `session_key_missing` for post-rekey envelopes before the next group key arrives, and decrypt successfully after the rekeyed member session is inserted. |
 
 ## In Progress
 
@@ -202,7 +202,6 @@ Week 6:
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
 - Finalize T4.4.1
-- T4.5.4 group DM encrypt/decrypt failure recovery remains open after T4.5.1-T4.5.3 closed the one-to-one bootstrap, one-to-one rotation, and group bootstrap/rekey prerequisites
 - T4.6.1, T4.6.2, T4.6.3, T4.6.4 navigation surfaces and persistence checks
 - Stabilization, load tests for chat fanout, iteration demo
 
