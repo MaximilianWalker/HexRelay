@@ -16,7 +16,7 @@ docs_changes="$(git diff --name-only "${base_sha}" "${head_sha}" -- \
   'docs/**/*.yml' \
   'docs/**/*.json')"
 
-canonical_changes="$(printf '%s\n' "${docs_changes}" | grep -Ev '^$|^docs/README\.md$|^docs/operations/quality-audits/' || true)"
+canonical_changes="$(printf '%s\n' "${docs_changes}" | grep -Ev '^$|^docs/README\.md$|^docs/operations/quality-audits/[0-9][0-9]-[^/]+\.md$' || true)"
 
 if [ -z "${canonical_changes}" ]; then
   echo "[docs-index-freshness] No canonical docs changes detected"
