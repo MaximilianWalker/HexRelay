@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 closed recipient-targeted websocket signaling readiness watch with cross-identity offer/answer/candidate delivery coverage.
+- Latest meaningful change: 2026-05-13 added the approval-pending `T4.6.1` through `T4.6.4` navigation implementation plan.
 
 ## Iteration Scope
 
@@ -245,6 +245,7 @@ Week 6:
 ## Execution Notes
 
 - Keep event payload contracts explicit and synchronized with runtime behavior.
+- `T4.6.1` through `T4.6.4` implementation sequencing and the approval package live in `docs/planning/navigation-implementation-plan.md`; runtime UI work remains blocked until explicit user approval of flow, copy, controls, and behavior.
 - Record authorization decision logs for node-owner debugging.
 - Server nodes/message nodes in the server-node P2P network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.
