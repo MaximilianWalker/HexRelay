@@ -442,9 +442,8 @@ pub async fn publish_channel_message_created(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -492,6 +491,8 @@ pub async fn publish_channel_message_created(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel event: {error}"));
     }
 
@@ -553,9 +554,8 @@ pub async fn publish_channel_message_updated(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel update event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -603,6 +603,8 @@ pub async fn publish_channel_message_updated(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel update event: {error}"));
     }
 
@@ -664,9 +666,8 @@ pub async fn publish_channel_message_deleted(
     );
     let client_event: serde_json::Value = serde_json::from_str(&client_payload)
         .map_err(|error| format!("decode channel delete event: {error}"))?;
-    let replay_recipients = active_replay_recipients(state, &recipients).await;
     let recipient_cursors =
-        persist_channel_replay_entries(&mut connection, &replay_recipients, &client_payload)
+        persist_channel_replay_entries(&mut connection, &recipients, &client_payload)
             .await
             .map_err(|error| format!("persist channel replay entries: {error}"))?;
 
@@ -714,6 +715,8 @@ pub async fn publish_channel_message_deleted(
         .await;
     if let Err(error) = publish_result {
         forget_locally_dispatched_channel_event(state, &event_id).await;
+        remove_persisted_channel_replay_entries(client, &event.recipient_cursors, &client_payload)
+            .await;
         return Err(format!("publish channel delete event: {error}"));
     }
 
@@ -745,24 +748,6 @@ fn normalize_recipients(recipients: &[String]) -> Vec<String> {
     deduped.into_iter().collect()
 }
 
-async fn active_replay_recipients(state: &AppState, recipients: &[String]) -> Vec<String> {
-    let guard = state.connection_senders.lock().await;
-    recipients
-        .iter()
-        .filter(|recipient_identity_id| {
-            guard
-                .get(recipient_identity_id.as_str())
-                .map(|connections| {
-                    connections
-                        .values()
-                        .any(|entry| entry.device_id.as_ref().is_some())
-                })
-                .unwrap_or(false)
-        })
-        .cloned()
-        .collect()
-}
-
 async fn persist_channel_replay_entries(
     connection: &mut redis::aio::MultiplexedConnection,
     recipients: &[String],
@@ -785,6 +770,58 @@ async fn persist_channel_replay_entries(
         },
     )
     .await
+}
+
+async fn remove_persisted_channel_replay_entries(
+    client: &redis::Client,
+    recipient_cursors: &[ChannelRecipientCursor],
+    client_payload: &str,
+) {
+    if recipient_cursors.is_empty() {
+        return;
+    }
+
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(error = %error, "failed to open Redis connection for channel replay rollback");
+            return;
+        }
+    };
+
+    let mut pipe = redis::pipe();
+    let mut rollback_count = 0_u32;
+    for cursor in recipient_cursors {
+        let replay_entry = match serde_json::to_string(&replay_store::ReplayEntry {
+            cursor: cursor.cursor,
+            payload: client_payload.to_string(),
+        }) {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(
+                    recipient_identity_id = %cursor.recipient_identity_id,
+                    error = %error,
+                    "failed to encode channel replay rollback entry"
+                );
+                continue;
+            }
+        };
+
+        pipe.cmd("LREM")
+            .arg(channel_replay_log_key(&cursor.recipient_identity_id))
+            .arg(1)
+            .arg(replay_entry)
+            .ignore();
+        rollback_count += 1;
+    }
+
+    if rollback_count == 0 {
+        return;
+    }
+
+    if let Err(error) = pipe.query_async::<()>(&mut connection).await {
+        warn!(error = %error, "failed to roll back channel replay entries after publish failure");
+    }
 }
 
 fn channel_stream_head_key(identity_id: &str) -> String {

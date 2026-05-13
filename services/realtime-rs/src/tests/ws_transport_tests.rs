@@ -1896,6 +1896,189 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
 }
 
 #[tokio::test]
+async fn websocket_channel_events_hydrate_late_device_without_prior_active_connection() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    let viewer_identity_id = "usr-channel-no-active-viewer";
+
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([(
+            "Bearer viewer-token".to_string(),
+            viewer_identity_id.to_string(),
+        )]),
+        HashMap::new(),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state.clone()).await;
+
+    let created_summary = publish_channel_message_created(
+        &state,
+        PublishChannelMessageCreatedInput {
+            message_id: "msg-no-active-1".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            sender_id: "usr-sender".to_string(),
+            created_at: Some("2026-03-23T06:00:00Z".to_string()),
+            channel_seq: 10,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message created");
+    assert_eq!(
+        created_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let updated_summary = publish_channel_message_updated(
+        &state,
+        PublishChannelMessageUpdatedInput {
+            message_id: "msg-no-active-2".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            editor_id: "usr-editor".to_string(),
+            edited_at: Some("2026-03-23T06:05:00Z".to_string()),
+            channel_seq: 11,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message updated");
+    assert_eq!(
+        updated_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let deleted_summary = publish_channel_message_deleted(
+        &state,
+        PublishChannelMessageDeletedInput {
+            message_id: "msg-no-active-3".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            deleted_by: "usr-moderator".to_string(),
+            deleted_at: Some("2026-03-23T06:10:00Z".to_string()),
+            channel_seq: 12,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message deleted");
+    assert_eq!(
+        deleted_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let created_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.created",
+        "msg-no-active-1",
+    )
+    .await;
+    assert_eq!(created_replay_payload["data"]["channel_seq"], 10);
+    let updated_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.updated",
+        "msg-no-active-2",
+    )
+    .await;
+    assert_eq!(updated_replay_payload["data"]["channel_seq"], 11);
+    let deleted_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.deleted",
+        "msg-no-active-3",
+    )
+    .await;
+    assert_eq!(deleted_replay_payload["data"]["channel_seq"], 12);
+    assert_channel_replay_keys_have_ttl(&redis_client, viewer_identity_id).await;
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
+
+    let hydrated_created = recv_channel_event(
+        &mut late_device,
+        "channel.message.created",
+        "msg-no-active-1",
+    )
+    .await;
+    assert_eq!(
+        hydrated_created["data"]["channel_seq"],
+        created_replay_payload["data"]["channel_seq"]
+    );
+    let hydrated_updated = recv_channel_event(
+        &mut late_device,
+        "channel.message.updated",
+        "msg-no-active-2",
+    )
+    .await;
+    assert_eq!(
+        hydrated_updated["data"]["channel_seq"],
+        updated_replay_payload["data"]["channel_seq"]
+    );
+    let hydrated_deleted = recv_channel_event(
+        &mut late_device,
+        "channel.message.deleted",
+        "msg-no-active-3",
+    )
+    .await;
+    assert_eq!(
+        hydrated_deleted["data"]["channel_seq"],
+        deleted_replay_payload["data"]["channel_seq"]
+    );
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+    drop(late_device);
+
+    let mut second_reconnect_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = second_reconnect_late_device.next().await;
+    assert_no_channel_event(
+        &mut second_reconnect_late_device,
+        "channel.message.created",
+        "msg-no-active-1",
+        Duration::from_secs(2),
+    )
+    .await;
+
+    second_reconnect_late_device
+        .close(None)
+        .await
+        .expect("close second reconnected late device");
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+}
+
+#[tokio::test]
 async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     let Some(redis_client) = prepared_redis_client().await else {
         return;
