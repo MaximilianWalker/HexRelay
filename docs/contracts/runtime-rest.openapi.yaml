@@ -18,6 +18,10 @@ info:
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
     adapter boundary without changing REST route or payload contracts.
+    Shared NodeClientTransport dispatch paths emit stable provenance telemetry
+    with snake-case mode/profile/reason-code values (`dm_envelope_node_route_selected`,
+    `server_channel_route_selected`, `presence_route_selected`) without adding
+    fields to REST request or response bodies.
     Server-channel realtime dispatch records internal accepted-summary telemetry
     for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
     preserving the existing REST success payloads. DM delivery uses server-node

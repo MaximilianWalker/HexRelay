@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-12
+- last_updated: 2026-05-13
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-12 removed project-owned API/realtime versioning artifacts and retired the legacy REST compatibility alias.
+- Latest meaningful change: 2026-05-13 documented stable shared NodeClientTransport provenance telemetry in the runtime REST authority.
 
 ## Purpose
 
@@ -24,6 +24,7 @@
 - REST runtime baseline: `docs/contracts/runtime-rest.openapi.yaml`
 - Runtime REST node-administration bootstrap uses `GET /node/connection` for public endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity owner/admin capability reporting.
 - Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, durable explicit static-peer destination node forwarding, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
+- Runtime REST dispatch paths that cross the shared `NodeClientTransport` boundary emit stable snake-case provenance mode/profile/reason-code telemetry without changing REST payload schemas.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Spec-required OpenAPI/AsyncAPI `info.version` fields use `unversioned` and must not be treated as compatibility or rollout signals.
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling remains self-targeted loopback only, while DM ciphertext envelopes now support recipient-device dispatch and ack over realtime.
