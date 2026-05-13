@@ -122,6 +122,12 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> RoutedInboun
                         "from_identity_id does not match authenticated session",
                     ));
                 }
+                if signal_target_invalid(&data.to_identity_id) {
+                    return RoutedInboundEvent::sender_only(build_error_event(
+                        "event_invalid",
+                        "invalid call.signal.offer target identity",
+                    ));
+                }
 
                 let recipient_delivery = signal_recipient_delivery(
                     "call.signal.offer",
@@ -143,6 +149,12 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> RoutedInboun
                     return RoutedInboundEvent::sender_only(build_error_event(
                         "event_identity_mismatch",
                         "from_identity_id does not match authenticated session",
+                    ));
+                }
+                if signal_target_invalid(&data.to_identity_id) {
+                    return RoutedInboundEvent::sender_only(build_error_event(
+                        "event_invalid",
+                        "invalid call.signal.answer target identity",
                     ));
                 }
 
@@ -170,6 +182,12 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> RoutedInboun
                             "from_identity_id does not match authenticated session",
                         ));
                     }
+                    if signal_target_invalid(&data.to_identity_id) {
+                        return RoutedInboundEvent::sender_only(build_error_event(
+                            "event_invalid",
+                            "invalid call.signal.ice_candidate target identity",
+                        ));
+                    }
 
                     let recipient_delivery = signal_recipient_delivery(
                         "call.signal.ice_candidate",
@@ -192,6 +210,11 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> RoutedInboun
             "unsupported realtime event_type",
         )),
     }
+}
+
+fn signal_target_invalid(to_identity_id: &str) -> bool {
+    let trimmed = to_identity_id.trim();
+    trimmed.is_empty() || trimmed != to_identity_id
 }
 
 fn signal_recipient_delivery<T: Serialize>(
@@ -562,6 +585,24 @@ mod tests {
                 recipient_envelope["correlation_id"],
                 sender_envelope["correlation_id"]
             );
+        }
+    }
+
+    #[test]
+    fn rejects_blank_or_padded_signal_targets() {
+        let payloads = [
+            r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"","sdp_offer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":" usr-2 ","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"   ","candidate":"candidate:1"}}"#,
+        ];
+
+        for payload in payloads {
+            let response = route_inbound_event(payload, "usr-1");
+            let envelope: Value =
+                serde_json::from_str(&response.sender_response).expect("decode error envelope");
+            assert_eq!(envelope["event_type"], "error");
+            assert_eq!(envelope["data"]["code"], "event_invalid");
+            assert!(response.recipient_delivery.is_none());
         }
     }
 }
