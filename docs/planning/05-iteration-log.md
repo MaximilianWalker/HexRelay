@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 added the approval-pending `T4.6.1` through `T4.6.4` navigation implementation plan.
+- Latest meaningful change: 2026-05-13 tightened the `T4.6.1` through `T4.6.4` navigation approval response and pre-implementation gate package.
 
 ## Purpose
 
@@ -29,6 +29,21 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.6 navigation approval gate hardening)
+
+- Area affected: Servers Hub, Contacts Hub, desktop dual-mode server navigation, mobile navigation, and approval-gated Web implementation planning.
+- Change summary:
+  - Added an approval response template with explicit `NAV-APP-*` decision values for the runtime UI implementation PRs to cite.
+  - Added a pre-implementation gate checklist covering approval evidence, slice scope, validation commands, evidence path reservation, and exclusion of unapproved adjacent UX behavior.
+  - Kept the selected `T4.6.1` through `T4.6.4` cluster plan-only; no runtime UI behavior is approved or implemented by this change.
+- Rationale:
+  - The existing navigation plan described the pending decisions, but future automation and contributors still needed one copy-pasteable approval format and a deterministic start gate before any Web slice begins.
+- Linked docs updated:
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.6 navigation plan-only approval package)
 
