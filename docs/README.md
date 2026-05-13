@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-12
+- last_updated: 2026-05-13
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-12 added recurring quality audit ledgers and exempted their generated ledger edits from docs-index freshness churn.
+- Latest meaningful change: 2026-05-13 synchronized server-channel authorization contract wording after auth-before-channel-lookup hardening.
 
 ## Purpose
 

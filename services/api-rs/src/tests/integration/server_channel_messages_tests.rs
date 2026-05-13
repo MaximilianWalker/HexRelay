@@ -157,6 +157,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
         return;
     };
     let fixture = seed_server_channel_fixture(&pool).await;
+    let missing_channel_id = format!("chn-unauth-missing-{}", Uuid::new_v4().simple());
     let Some((app, _, _)) = app_with_database_and_sessions(&[&fixture.member_id]).await else {
         return;
     };
@@ -169,6 +170,14 @@ async fn rejects_server_channel_message_routes_without_authentication() {
         ))
         .body(Body::empty())
         .expect("build unauthenticated list request");
+    let missing_list_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/servers/{}/channels/{}/messages?limit=2",
+            fixture.server_id, missing_channel_id
+        ))
+        .body(Body::empty())
+        .expect("build unauthenticated missing-channel list request");
     let create_request = Request::builder()
         .method("POST")
         .uri(format!(
@@ -210,6 +219,11 @@ async fn rejects_server_channel_message_routes_without_authentication() {
         .oneshot(create_request)
         .await
         .expect("create response");
+    let missing_list_response = app
+        .clone()
+        .oneshot(missing_list_request)
+        .await
+        .expect("missing-channel list response");
     let edit_response = app
         .clone()
         .oneshot(edit_request)
@@ -220,6 +234,7 @@ async fn rejects_server_channel_message_routes_without_authentication() {
     for response in [
         list_response,
         create_response,
+        missing_list_response,
         edit_response,
         delete_response,
     ] {

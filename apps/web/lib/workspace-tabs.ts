@@ -12,6 +12,8 @@ export type WorkspaceTab = {
   kind: WorkspaceTabKind;
   href: string;
   label: string;
+  imageLabel?: string;
+  unread?: number;
   pinned: boolean;
   updatedAt: string;
 };
