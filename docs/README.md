@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 routed recipient-targeted websocket signaling closure across runtime contracts and readiness guidance.
+- Latest meaningful change: 2026-05-13 routed the approval-pending navigation implementation plan across planning and task authorities.
 
 ## Purpose
 
@@ -35,6 +35,7 @@
 | Target-state MVP REST contract model | `docs/contracts/mvp-rest.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
 | Target-state realtime event/signaling model | `docs/contracts/realtime-events.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
+| Navigation implementation planning and approval package | `docs/planning/navigation-implementation-plan.md` | Web and delivery maintainers | `T4.6.1`-`T4.6.4` sequencing, task slicing, approval package, or navigation evidence plan changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
 | Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs`, `services/*/.env.example`, or runtime env semantics change |
 | Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
@@ -125,6 +126,7 @@
 - `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/local-runtime-testing-plan.md`
+- `docs/planning/navigation-implementation-plan.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`
 - `docs/testing/crypto-conformance-checklist.md`

@@ -13,7 +13,7 @@
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-13 added T4.5.4 E2EE group DM ciphertext and missing-key recovery evidence.
+- Latest meaningful change: 2026-05-13 linked navigation evidence expectations to the approval-pending navigation implementation plan.
 
 ## Requirement to Evidence Matrix
 
@@ -37,6 +37,8 @@ Observability evidence format template: `docs/testing/observability-evidence-tem
 Local runtime testing evidence authority: `docs/planning/local-runtime-testing-plan.md`.
 
 Operational local runtime evidence commands: `docs/operations/local-runtime-testing-quickstart.md`.
+
+Navigation implementation and evidence planning authority: `docs/planning/navigation-implementation-plan.md`.
 
 Runtime/network smoke evidence files:
 
@@ -76,4 +78,5 @@ For durable evidence, place these raw smoke files under `outputs/` beside the re
 - `docs/planning/05-iteration-log.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/local-runtime-testing-plan.md`
+- `docs/planning/navigation-implementation-plan.md`
 - `docs/operations/local-runtime-testing-quickstart.md`

@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded T4.5.4 E2EE group DM ciphertext and missing-key recovery closeout evidence.
+- Latest meaningful change: 2026-05-13 added the approval-pending `T4.6.1` through `T4.6.4` navigation implementation plan.
 
 ## Purpose
 
@@ -29,6 +29,23 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.6 navigation plan-only approval package)
+
+- Area affected: Servers Hub, Contacts Hub, desktop dual-mode server navigation, mobile navigation, and Iteration 2 planning status.
+- Change summary:
+  - Added `docs/planning/navigation-implementation-plan.md` as the approval-pending implementation plan and evidence authority for `T4.6.1` through `T4.6.4`.
+  - Mapped the plan to the existing navigation spec, screen/state spec, configuration defaults, sprint-board acceptance criteria, and verification matrix.
+  - Kept all runtime UI implementation blocked until explicit user approval of flow, copy, controls, and behavior.
+- Rationale:
+  - The selected navigation cluster is UX-facing and cannot be implemented under the repository UX approval gate, so the smallest mergeable prerequisite is a plan-only PR that defines the approval package and future implementation slices.
+- Linked docs updated:
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/README.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.5.4 E2EE group DM ciphertext and recovery closeout)
 
