@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 refreshed contracts and iteration planning after T4.0.3 shared provenance and reason-code taxonomy closeout.
+- Latest meaningful change: 2026-05-13 refreshed contracts and iteration planning after T4.2.1 server role/channel permission schema closeout.
 
 ## Purpose
 

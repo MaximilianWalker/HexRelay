@@ -100,6 +100,10 @@ const MIGRATIONS: &[Migration] = &[
         "0024_dm_delivery_metadata_retention_indexes",
         include_str!("../migrations/0024_dm_delivery_metadata_retention_indexes.sql"),
     ),
+    (
+        "0025_server_roles_and_channel_permissions",
+        include_str!("../migrations/0025_server_roles_and_channel_permissions.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
