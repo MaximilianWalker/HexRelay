@@ -4,8 +4,9 @@ use ring::{rand::SystemRandom, signature::Ed25519KeyPair};
 use crate::domain::{
     ed25519_public_key_base64, sign_dm_session_bootstrap_ed25519_pkcs8,
     verify_dm_session_bootstrap_ed25519, DmClientSession, DmE2eeError, DmEphemeralPublicKey,
-    DmEphemeralSecret, DmGroupRekeyPlan, DmGroupSecret, DmSessionContext, DmSessionRotationState,
-    DM_SESSION_KEY_BYTES, DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
+    DmEphemeralSecret, DmGroupRekeyPlan, DmGroupSecret, DmSessionBootstrap, DmSessionContext,
+    DmSessionRotationState, DM_SESSION_KEY_BYTES, DM_SESSION_ROTATE_AFTER_MESSAGES,
+    DM_SESSION_ROTATE_AFTER_SECONDS,
 };
 
 fn generated_identity_key() -> Vec<u8> {
@@ -170,6 +171,176 @@ fn rejects_nonparticipant_bootstrap_and_sender_metadata() {
     assert_eq!(
         alice_key.encrypt_message(&context, "msg-3", "usr-mallory", b"forged sender"),
         Err(DmE2eeError::EnvelopeInvalid)
+    );
+}
+
+#[test]
+fn verified_one_to_one_bootstrap_builds_matching_client_sessions() {
+    let alice_identity_key = generated_identity_key();
+    let alice_identity_public_key =
+        ed25519_public_key_base64(&alice_identity_key).expect("derive alice identity public key");
+    let bob_identity_key = generated_identity_key();
+    let bob_identity_public_key =
+        ed25519_public_key_base64(&bob_identity_key).expect("derive bob identity public key");
+    let (alice_secret, alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice x25519 key");
+    let (bob_secret, bob_public_key) =
+        DmEphemeralSecret::generate().expect("generate bob x25519 key");
+    let context =
+        DmSessionContext::one_to_one("dm-thread-verified", "usr-alice", "usr-bob", 0, 1_000)
+            .expect("build context");
+
+    let alice_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-alice",
+        &alice_identity_key,
+        alice_public_key,
+        &context,
+    )
+    .expect("sign alice bootstrap");
+    let bob_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-bob",
+        &bob_identity_key,
+        bob_public_key,
+        &context,
+    )
+    .expect("sign bob bootstrap");
+
+    assert_eq!(
+        alice_bootstrap.verify(&context, &alice_identity_public_key),
+        Ok(())
+    );
+    assert_eq!(
+        bob_bootstrap.verify(&context, &bob_identity_public_key),
+        Ok(())
+    );
+
+    let mut alice_session = DmClientSession::one_to_one_from_verified_peer_bootstrap(
+        context.clone(),
+        "usr-alice",
+        alice_secret,
+        &bob_bootstrap,
+        &bob_identity_public_key,
+    )
+    .expect("derive alice session");
+    let bob_session = DmClientSession::one_to_one_from_verified_peer_bootstrap(
+        context,
+        "usr-bob",
+        bob_secret,
+        &alice_bootstrap,
+        &alice_identity_public_key,
+    )
+    .expect("derive bob session");
+    let plaintext = b"verified bootstrap plaintext";
+    let encrypted = alice_session
+        .encrypt_outbound(1_000, "msg-verified-bootstrap", "usr-alice", plaintext)
+        .expect("encrypt verified payload");
+    let serialized_bootstrap =
+        serde_json::to_string(&alice_bootstrap).expect("serialize bootstrap");
+
+    assert_eq!(
+        bob_session
+            .decrypt_inbound(&encrypted.envelope)
+            .expect("decrypt verified payload"),
+        plaintext
+    );
+    assert!(!serialized_bootstrap.contains("verified bootstrap plaintext"));
+}
+
+#[test]
+fn verified_one_to_one_bootstrap_rejects_untrusted_peer_material() {
+    let alice_identity_key = generated_identity_key();
+    let alice_identity_public_key =
+        ed25519_public_key_base64(&alice_identity_key).expect("derive alice identity public key");
+    let bob_identity_key = generated_identity_key();
+    let bob_identity_public_key =
+        ed25519_public_key_base64(&bob_identity_key).expect("derive bob identity public key");
+    let mallory_identity_key = generated_identity_key();
+    let (alice_secret, alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice x25519 key");
+    let (_bob_secret, bob_public_key) =
+        DmEphemeralSecret::generate().expect("generate bob x25519 key");
+    let (mallory_secret, _mallory_public_key) =
+        DmEphemeralSecret::generate().expect("generate mallory x25519 key");
+    let (forged_secret, forged_public_key) =
+        DmEphemeralSecret::generate().expect("generate forged x25519 key");
+    let context =
+        DmSessionContext::one_to_one("dm-thread-reject", "usr-alice", "usr-bob", 0, 1_000)
+            .expect("build context");
+    let group_context = DmSessionContext::group(
+        "group-thread-reject",
+        ["usr-alice", "usr-bob", "usr-cara"],
+        0,
+        1_000,
+    )
+    .expect("build group context");
+
+    let alice_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-alice",
+        &alice_identity_key,
+        alice_public_key,
+        &context,
+    )
+    .expect("sign alice bootstrap");
+    let bob_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-bob",
+        &bob_identity_key,
+        bob_public_key,
+        &context,
+    )
+    .expect("sign bob bootstrap");
+
+    assert_eq!(
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            context.clone(),
+            "usr-alice",
+            alice_secret,
+            &alice_bootstrap,
+            &alice_identity_public_key,
+        ),
+        Err(DmE2eeError::ContextInvalid)
+    );
+
+    let forged_bob_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-bob",
+        &mallory_identity_key,
+        forged_public_key,
+        &context,
+    )
+    .expect("sign forged bob bootstrap");
+    assert_eq!(
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            context.clone(),
+            "usr-alice",
+            forged_secret,
+            &forged_bob_bootstrap,
+            &bob_identity_public_key,
+        ),
+        Err(DmE2eeError::IdentityKeyInvalid)
+    );
+
+    let mut tampered_bootstrap = bob_bootstrap.clone();
+    tampered_bootstrap.signature_base64 = BASE64.encode([3_u8; 64]);
+    assert_eq!(
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            context,
+            "usr-alice",
+            mallory_secret,
+            &tampered_bootstrap,
+            &bob_identity_public_key,
+        ),
+        Err(DmE2eeError::SignatureInvalid)
+    );
+    assert_eq!(
+        DmClientSession::one_to_one_from_verified_peer_bootstrap(
+            group_context,
+            "usr-alice",
+            DmEphemeralSecret::generate()
+                .expect("generate extra x25519 key")
+                .0,
+            &bob_bootstrap,
+            &bob_identity_public_key,
+        ),
+        Err(DmE2eeError::ContextInvalid)
     );
 }
 
