@@ -455,12 +455,12 @@ async fn assert_channel_replay_keys_have_ttl(client: &redis::Client, recipient_i
         format!("channels:recipient_stream_head:{recipient_identity_id}"),
         format!("channels:recipient_stream_log:{recipient_identity_id}"),
     ] {
-        let ttl_seconds: i64 = redis::cmd("TTL")
+        let ttl_millis: i64 = redis::cmd("PTTL")
             .arg(&key)
             .query_async(&mut connection)
             .await
-            .expect("read channel replay key ttl");
-        assert!(ttl_seconds > 0, "{key} should have an expiry");
+            .expect("read channel replay key pttl");
+        assert!(ttl_millis > 0, "{key} should have an expiry");
     }
 }
 
