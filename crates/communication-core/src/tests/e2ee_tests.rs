@@ -349,8 +349,10 @@ fn verified_one_to_one_bootstrap_rejects_wrong_session_context() {
     let alice_identity_key = generated_identity_key();
     let alice_identity_public_key =
         ed25519_public_key_base64(&alice_identity_key).expect("derive alice identity public key");
-    let (alice_secret, alice_public_key) =
+    let (_alice_secret, alice_public_key) =
         DmEphemeralSecret::generate().expect("generate alice x25519 key");
+    let (bob_secret, _bob_public_key) =
+        DmEphemeralSecret::generate().expect("generate bob x25519 key");
     let context = DmSessionContext::one_to_one("dm-thread-a", "usr-alice", "usr-bob", 0, 1_000)
         .expect("build original context");
     let different_thread_context =
@@ -383,7 +385,7 @@ fn verified_one_to_one_bootstrap_rejects_wrong_session_context() {
         DmClientSession::one_to_one_from_verified_peer_bootstrap(
             different_thread_context,
             "usr-bob",
-            alice_secret,
+            bob_secret,
             &alice_bootstrap,
             &alice_identity_public_key,
         ),
