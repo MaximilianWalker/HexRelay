@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-14
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 routed the navigation approval response template and pre-implementation gate hardening for `T4.6.1` through `T4.6.4`.
+- Latest meaningful change: 2026-05-14 routed the tightened navigation plan-only scope, approval-to-slice mapping, and runtime implementation hard stops for `T4.6.1` through `T4.6.4`.
 
 ## Purpose
 
