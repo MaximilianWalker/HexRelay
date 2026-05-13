@@ -1662,7 +1662,10 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let channel_id = format!("chn-fanout-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-fanout-member");
     let teammate_id = unique_identity("usr-fanout-teammate");
+    let read_denied_id = unique_identity("usr-fanout-read-denied");
     let outsider_id = unique_identity("usr-fanout-outsider");
+    let reader_role_id = format!("role-fanout-reader-{}", Uuid::new_v4().simple());
+    let denied_role_id = format!("role-fanout-denied-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
@@ -1670,10 +1673,80 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         "Fanout",
         &channel_id,
         "general",
-        &[&member_id, &teammate_id],
+        &[&member_id, &teammate_id, &read_denied_id],
         &[],
     )
     .await;
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &reader_role_id,
+            server_id: &server_id,
+            name: "Reader",
+            rank: 10,
+        },
+    )
+    .await
+    .expect("insert reader role");
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &denied_role_id,
+            server_id: &server_id,
+            name: "No Channel Read",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert read-denied role");
+    for identity_id in [&member_id, &teammate_id] {
+        server_channels_repo::assign_server_membership_role(
+            &pool,
+            server_channels_repo::ServerMembershipRoleInsertParams {
+                server_id: &server_id,
+                identity_id,
+                role_id: &reader_role_id,
+            },
+        )
+        .await
+        .expect("assign reader role");
+    }
+    server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_id,
+            identity_id: &read_denied_id,
+            role_id: &denied_role_id,
+        },
+    )
+    .await
+    .expect("assign read-denied role");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &reader_role_id,
+            can_read: true,
+            can_send: true,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("allow reader role channel access");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &denied_role_id,
+            can_read: false,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("deny read-denied role channel access");
     ensure_db_identity_key(&pool, &outsider_id).await;
 
     let realtime_listener = TcpListener::bind("127.0.0.1:0")
@@ -1690,6 +1763,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let member_token = issue_db_session_cookie(&pool, &api_state, &member_id).await;
     let teammate_token = issue_db_session_cookie(&pool, &api_state, &teammate_id).await;
+    let read_denied_token = issue_db_session_cookie(&pool, &api_state, &read_denied_id).await;
     let outsider_token = issue_db_session_cookie(&pool, &api_state, &outsider_id).await;
 
     let api_base_url = start_api_http_server(api_state.clone()).await;
@@ -1729,9 +1803,11 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let mut member_socket =
         connect_ws_with_token_and_device(&ws_url, &member_token, "device-primary").await;
     let mut teammate_socket = connect_ws_with_token(&ws_url, &teammate_token).await;
+    let mut read_denied_socket = connect_ws_with_token(&ws_url, &read_denied_token).await;
     let mut outsider_socket = connect_ws_with_token(&ws_url, &outsider_token).await;
     let _ = member_socket.next().await;
     let _ = teammate_socket.next().await;
+    let _ = read_denied_socket.next().await;
     let _ = outsider_socket.next().await;
 
     let client = reqwest::Client::new();
@@ -1761,6 +1837,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     assert_eq!(member_created["data"]["channel_id"], channel_id);
     assert_eq!(teammate_created["data"]["channel_seq"], 1);
     assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.created",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.created",
         &message_id,
@@ -1788,6 +1871,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         recv_channel_event(&mut teammate_socket, "channel.message.updated", &message_id).await;
     assert_eq!(member_updated["data"]["channel_seq"], 1);
     assert_eq!(teammate_updated["data"]["channel_id"], channel_id);
+    assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.updated",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
     assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.updated",
@@ -1841,6 +1931,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     assert_eq!(member_deleted["data"]["channel_seq"], 1);
     assert_eq!(teammate_deleted["data"]["channel_id"], channel_id);
     assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.deleted",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.deleted",
         &message_id,
@@ -1891,6 +1988,18 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let _ = late_device_reconnect.next().await;
     assert_no_channel_event(
         &mut late_device_reconnect,
+        "channel.message.created",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let mut late_read_denied_device =
+        connect_ws_with_token_and_device(&ws_url, &read_denied_token, "device-read-denied-late")
+            .await;
+    let _ = late_read_denied_device.next().await;
+    assert_no_channel_event(
+        &mut late_read_denied_device,
         "channel.message.created",
         &message_id,
         std::time::Duration::from_millis(500),

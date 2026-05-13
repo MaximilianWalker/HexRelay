@@ -16,7 +16,6 @@ use crate::{
         self, CreateServerChannelMessageError, ServerChannelPermission,
         SoftDeleteServerChannelMessageError, UpdateServerChannelMessageError,
     },
-    infra::db::repos::servers_repo,
     models::{
         ApiError, ServerChannelListResponse, ServerChannelMessage,
         ServerChannelMessageCreateRequest, ServerChannelMessageEditRequest,
@@ -306,7 +305,8 @@ async fn notify_channel_message_created(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id).await {
+    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
+    {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -338,7 +338,8 @@ async fn notify_channel_message_updated(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id).await {
+    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
+    {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -374,7 +375,8 @@ async fn notify_channel_message_deleted(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id).await {
+    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
+    {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -407,8 +409,12 @@ async fn notify_channel_message_deleted(
 async fn list_server_event_recipients(
     pool: &sqlx::PgPool,
     server_id: &str,
+    channel_id: &str,
 ) -> Result<Vec<String>, sqlx::Error> {
-    servers_repo::list_server_member_identity_ids(pool, server_id).await
+    server_channels_repo::list_server_channel_event_recipient_identity_ids(
+        pool, server_id, channel_id,
+    )
+    .await
 }
 
 async fn require_channel_send_permission(
