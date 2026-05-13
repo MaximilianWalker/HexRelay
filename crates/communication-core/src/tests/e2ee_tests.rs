@@ -550,6 +550,135 @@ fn client_session_encrypts_locally_and_reports_rotation_boundary() {
 }
 
 #[test]
+fn one_to_one_rotation_plan_rekeys_client_sessions() {
+    let alice_identity_key = generated_identity_key();
+    let alice_identity_public_key =
+        ed25519_public_key_base64(&alice_identity_key).expect("derive alice identity public key");
+    let bob_identity_key = generated_identity_key();
+    let bob_identity_public_key =
+        ed25519_public_key_base64(&bob_identity_key).expect("derive bob identity public key");
+    let (alice_initial_secret, alice_initial_public_key) =
+        DmEphemeralSecret::generate().expect("generate initial alice x25519 key");
+    let (bob_initial_secret, bob_initial_public_key) =
+        DmEphemeralSecret::generate().expect("generate initial bob x25519 key");
+    let initial_context =
+        DmSessionContext::one_to_one("dm-thread-rotate", "usr-alice", "usr-bob", 0, 1_000)
+            .expect("build initial context");
+    let alice_initial_key = alice_initial_secret
+        .derive_one_to_one_session_key(&bob_initial_public_key, &initial_context)
+        .expect("derive initial alice key");
+    let bob_initial_key = bob_initial_secret
+        .derive_one_to_one_session_key(&alice_initial_public_key, &initial_context)
+        .expect("derive initial bob key");
+    let alice_initial_session = DmClientSession::one_to_one(
+        initial_context.clone(),
+        alice_initial_key,
+        DM_SESSION_ROTATE_AFTER_MESSAGES,
+    )
+    .expect("build initial alice session");
+    let bob_initial_session =
+        DmClientSession::one_to_one(initial_context.clone(), bob_initial_key, 0)
+            .expect("build initial bob session");
+
+    assert!(alice_initial_session.requires_rotation(1_100));
+
+    let rotation_plan = alice_initial_session
+        .one_to_one_rotation_plan(1_100)
+        .expect("build one-to-one rotation plan");
+    assert_eq!(
+        rotation_plan.previous_session_id(),
+        initial_context.session_id()
+    );
+    assert_ne!(
+        rotation_plan.next_context().session_id(),
+        initial_context.session_id()
+    );
+    assert_eq!(rotation_plan.next_context().generation(), 1);
+    assert_eq!(
+        rotation_plan.next_context().participant_identity_ids(),
+        ["usr-alice".to_string(), "usr-bob".to_string()]
+    );
+
+    let (alice_next_secret, alice_next_public_key) =
+        DmEphemeralSecret::generate().expect("generate next alice x25519 key");
+    let (bob_next_secret, bob_next_public_key) =
+        DmEphemeralSecret::generate().expect("generate next bob x25519 key");
+    let alice_next_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-alice",
+        &alice_identity_key,
+        alice_next_public_key,
+        rotation_plan.next_context(),
+    )
+    .expect("sign rotated alice bootstrap");
+    let bob_next_bootstrap = DmSessionBootstrap::sign_ed25519_pkcs8(
+        "usr-bob",
+        &bob_identity_key,
+        bob_next_public_key,
+        rotation_plan.next_context(),
+    )
+    .expect("sign rotated bob bootstrap");
+
+    let mut alice_next_session = rotation_plan
+        .derive_next_session_from_verified_peer_bootstrap(
+            "usr-alice",
+            alice_next_secret,
+            &bob_next_bootstrap,
+            &bob_identity_public_key,
+        )
+        .expect("derive rotated alice session");
+    let bob_next_session = rotation_plan
+        .derive_next_session_from_verified_peer_bootstrap(
+            "usr-bob",
+            bob_next_secret,
+            &alice_next_bootstrap,
+            &alice_identity_public_key,
+        )
+        .expect("derive rotated bob session");
+    let plaintext = b"rotated client-only plaintext";
+    let encrypted = alice_next_session
+        .encrypt_outbound(1_100, "msg-rotated-1", "usr-alice", plaintext)
+        .expect("encrypt rotated payload");
+
+    assert_eq!(
+        bob_next_session
+            .decrypt_inbound(&encrypted.envelope)
+            .expect("decrypt rotated payload"),
+        plaintext
+    );
+    assert_eq!(
+        bob_initial_session.decrypt_inbound(&encrypted.envelope),
+        Err(DmE2eeError::EnvelopeInvalid)
+    );
+    assert_eq!(encrypted.messages_encrypted, 1);
+    assert!(!encrypted.rotation_required);
+
+    let serialized_encrypt_result =
+        serde_json::to_string(&encrypted).expect("serialize rotated encrypt result");
+    assert!(!serialized_encrypt_result.contains("rotated client-only plaintext"));
+}
+
+#[test]
+fn one_to_one_rotation_plan_rejects_group_context() {
+    let group_context = DmSessionContext::group(
+        "group-thread-no-one-to-one-rotation",
+        ["usr-alice", "usr-bob", "usr-cara"],
+        0,
+        1_000,
+    )
+    .expect("build group context");
+    let group_key = DmGroupSecret::from_bytes([33_u8; DM_SESSION_KEY_BYTES])
+        .derive_session_key(&group_context)
+        .expect("derive group key");
+    let group_session =
+        DmClientSession::group(group_context, group_key, 0).expect("build group session");
+
+    assert_eq!(
+        group_session.one_to_one_rotation_plan(1_100),
+        Err(DmE2eeError::ContextInvalid)
+    );
+}
+
+#[test]
 fn group_rekey_plan_creates_new_client_session_for_membership_change() {
     let initial_context = DmSessionContext::group(
         "group-thread-3",
