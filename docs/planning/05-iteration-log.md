@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 recorded T4.5.3 E2EE group DM session bootstrap and membership key-update closeout evidence.
+- Latest meaningful change: 2026-05-13 recorded T4.5.4 E2EE group DM ciphertext and missing-key recovery closeout evidence.
 
 ## Purpose
 
@@ -29,6 +29,24 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.5.4 E2EE group DM ciphertext and recovery closeout)
+
+- Area affected: E2EE group DM encrypt/decrypt, missing-key recovery coverage, crypto conformance evidence, and Iteration 2 planning status.
+- Change summary:
+  - Added a `communication-core` group session ring that decrypts only with matching group session ids and returns `session_key_missing` when a post-rekey envelope arrives before the next member session key.
+  - Added regressions proving group DM payloads are ciphertext envelopes, encrypted results do not serialize plaintext, one-to-one sessions are rejected from the group session ring, and decrypt succeeds after the rekeyed member session is inserted.
+  - Marked `T4.5.4` done on the Iteration 2 sprint board.
+- Rationale:
+  - The missing-key path was the smallest remaining mergeable prerequisite after the T4.5.1-T4.5.3 bootstrap, one-to-one rotation, and group rekey work had already landed.
+- Linked docs updated:
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.5.3 E2EE group DM bootstrap and rekey closeout)
 

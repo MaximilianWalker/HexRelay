@@ -1,7 +1,7 @@
 {
-  "commit_sha": "91e87a996f218da16df9d347eb626363b07bf05c",
-  "generated_at_utc": "2026-05-13T16:25:55Z",
-  "run_id": "hexrelay-autonomous-developer-2026-05-13T16:16:50Z",
+  "commit_sha": "pending-local-commit",
+  "generated_at_utc": "2026-05-13T17:22:06Z",
+  "run_id": "hexrelay-autonomous-developer-2026-05-13T17:17:18Z",
   "artifact": "iteration-02/messaging-e2ee/2026-05-13",
-  "purpose": "Evidence closeout for T4.5.1-T4.5.3 E2EE one-to-one bootstrap, rotation, and group bootstrap/rekey."
+  "purpose": "Evidence closeout for T4.5.1-T4.5.4 E2EE one-to-one bootstrap, rotation, group bootstrap/rekey, and missing-key recovery."
 }

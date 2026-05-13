@@ -5,8 +5,8 @@ use crate::domain::{
     ed25519_public_key_base64, sign_dm_session_bootstrap_ed25519_pkcs8,
     verify_dm_session_bootstrap_ed25519, DmClientSession, DmE2eeError, DmEphemeralPublicKey,
     DmEphemeralSecret, DmGroupRekeyPlan, DmGroupSecret, DmGroupSessionBootstrap,
-    DmSessionBootstrap, DmSessionContext, DmSessionRotationState, DM_SESSION_KEY_BYTES,
-    DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
+    DmGroupSessionRing, DmSessionBootstrap, DmSessionContext, DmSessionRotationState,
+    DM_SESSION_KEY_BYTES, DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
 };
 
 fn generated_identity_key() -> Vec<u8> {
@@ -796,6 +796,85 @@ fn group_rekey_plan_creates_new_client_session_for_membership_change() {
             ["usr-cara", "usr-bob", "usr-alice"],
             1_100,
         ),
+        Err(DmE2eeError::ContextInvalid)
+    );
+}
+
+#[test]
+fn group_session_ring_recovers_after_missing_rekey_key_arrives() {
+    let initial_context = DmSessionContext::group(
+        "group-thread-recovery",
+        ["usr-alice", "usr-bob", "usr-cara"],
+        0,
+        1_000,
+    )
+    .expect("build initial context");
+    let initial_secret = DmGroupSecret::from_bytes([55_u8; DM_SESSION_KEY_BYTES]);
+    let initial_alice_session = initial_secret
+        .derive_member_session(initial_context.clone(), "usr-alice", 0)
+        .expect("derive initial alice session");
+    let initial_bob_session = initial_secret
+        .derive_member_session(initial_context, "usr-bob", 0)
+        .expect("derive initial bob session");
+    let rekey_plan = initial_bob_session
+        .group_rekey_plan(["usr-alice", "usr-cara", "usr-dina"], 1_100)
+        .expect("build rekey plan");
+    let next_secret = DmGroupSecret::from_bytes([66_u8; DM_SESSION_KEY_BYTES]);
+    let mut dina_session = rekey_plan
+        .derive_next_member_session("usr-dina", &next_secret)
+        .expect("derive dina session");
+    let alice_next_session = rekey_plan
+        .derive_next_member_session("usr-alice", &next_secret)
+        .expect("derive alice next session");
+    let encrypted = dina_session
+        .encrypt_outbound(
+            1_100,
+            "msg-group-recovery",
+            "usr-dina",
+            b"group missing-key recovery plaintext",
+        )
+        .expect("encrypt post-rekey payload");
+    let mut ring =
+        DmGroupSessionRing::new([initial_alice_session]).expect("build initial group session ring");
+
+    assert_eq!(
+        ring.decrypt_inbound(&encrypted.envelope),
+        Err(DmE2eeError::SessionKeyMissing)
+    );
+    assert_eq!(DmE2eeError::SessionKeyMissing.code(), "session_key_missing");
+
+    ring.insert(alice_next_session)
+        .expect("insert recovered group session");
+
+    assert!(ring.contains_session_id(encrypted.envelope.session_id.as_str()));
+    assert_eq!(
+        ring.decrypt_inbound(&encrypted.envelope)
+            .expect("decrypt after recovered key arrives"),
+        b"group missing-key recovery plaintext"
+    );
+    let serialized_encrypt_result =
+        serde_json::to_string(&encrypted).expect("serialize group encrypt result");
+    assert!(!serialized_encrypt_result.contains("group missing-key recovery plaintext"));
+    assert!(format!("{ring:?}").contains("session_ids"));
+    assert!(!format!("{ring:?}").contains("missing-key recovery plaintext"));
+}
+
+#[test]
+fn group_session_ring_rejects_one_to_one_sessions() {
+    let (alice_secret, _alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice key");
+    let (_bob_secret, bob_public_key) = DmEphemeralSecret::generate().expect("generate bob key");
+    let context =
+        DmSessionContext::one_to_one("dm-thread-ring-reject", "usr-alice", "usr-bob", 0, 1_000)
+            .expect("build one-to-one context");
+    let alice_key = alice_secret
+        .derive_one_to_one_session_key(&bob_public_key, &context)
+        .expect("derive alice key");
+    let alice_session =
+        DmClientSession::one_to_one(context, alice_key, 0).expect("build one-to-one session");
+
+    assert_eq!(
+        DmGroupSessionRing::new([alice_session]),
         Err(DmE2eeError::ContextInvalid)
     );
 }
