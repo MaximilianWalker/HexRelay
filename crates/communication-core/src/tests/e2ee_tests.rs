@@ -3,9 +3,9 @@ use ring::{rand::SystemRandom, signature::Ed25519KeyPair};
 
 use crate::domain::{
     ed25519_public_key_base64, sign_dm_session_bootstrap_ed25519_pkcs8,
-    verify_dm_session_bootstrap_ed25519, DmE2eeError, DmEphemeralPublicKey, DmEphemeralSecret,
-    DmGroupSecret, DmSessionContext, DmSessionRotationState, DM_SESSION_KEY_BYTES,
-    DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
+    verify_dm_session_bootstrap_ed25519, DmClientSession, DmE2eeError, DmEphemeralPublicKey,
+    DmEphemeralSecret, DmGroupRekeyPlan, DmGroupSecret, DmSessionContext, DmSessionRotationState,
+    DM_SESSION_KEY_BYTES, DM_SESSION_ROTATE_AFTER_MESSAGES, DM_SESSION_ROTATE_AFTER_SECONDS,
 };
 
 fn generated_identity_key() -> Vec<u8> {
@@ -276,6 +276,122 @@ fn group_session_rekey_excludes_removed_member() {
     assert_eq!(
         initial_key.decrypt_message(&rekeyed_context, &rekeyed_envelope),
         Err(DmE2eeError::DecryptInvalid)
+    );
+}
+
+#[test]
+fn client_session_encrypts_locally_and_reports_rotation_boundary() {
+    let (alice_secret, alice_public_key) =
+        DmEphemeralSecret::generate().expect("generate alice key");
+    let (bob_secret, bob_public_key) = DmEphemeralSecret::generate().expect("generate bob key");
+    let context = DmSessionContext::one_to_one("dm-thread-4", "usr-alice", "usr-bob", 0, 1_000)
+        .expect("build context");
+    let alice_key = alice_secret
+        .derive_one_to_one_session_key(&bob_public_key, &context)
+        .expect("derive alice key");
+    let bob_key = bob_secret
+        .derive_one_to_one_session_key(&alice_public_key, &context)
+        .expect("derive bob key");
+    let mut alice_session = DmClientSession::one_to_one(
+        context.clone(),
+        alice_key,
+        DM_SESSION_ROTATE_AFTER_MESSAGES - 1,
+    )
+    .expect("build alice client session");
+    let bob_session =
+        DmClientSession::one_to_one(context, bob_key, 0).expect("build bob client session");
+    let plaintext = b"client-only plaintext";
+
+    let encrypted = alice_session
+        .encrypt_outbound(1_000, "msg-client-1", "usr-alice", plaintext)
+        .expect("encrypt client payload");
+
+    assert_eq!(
+        encrypted.messages_encrypted,
+        DM_SESSION_ROTATE_AFTER_MESSAGES
+    );
+    assert!(encrypted.rotation_required);
+    assert!(alice_session.requires_rotation(1_000));
+    assert_eq!(
+        bob_session
+            .decrypt_inbound(&encrypted.envelope)
+            .expect("decrypt client payload"),
+        plaintext
+    );
+
+    let serialized_encrypt_result =
+        serde_json::to_string(&encrypted).expect("serialize encrypt result");
+    assert!(!serialized_encrypt_result.contains("client-only plaintext"));
+    assert!(format!("{alice_session:?}").contains("<redacted>"));
+    assert_eq!(
+        alice_session.encrypt_outbound(1_001, "msg-client-2", "usr-alice", b"stale key"),
+        Err(DmE2eeError::SessionRotationRequired)
+    );
+}
+
+#[test]
+fn group_rekey_plan_creates_new_client_session_for_membership_change() {
+    let initial_context = DmSessionContext::group(
+        "group-thread-3",
+        ["usr-alice", "usr-bob", "usr-cara"],
+        0,
+        1_000,
+    )
+    .expect("build initial context");
+    let initial_key = DmGroupSecret::from_bytes([11_u8; DM_SESSION_KEY_BYTES])
+        .derive_session_key(&initial_context)
+        .expect("derive initial key");
+    let initial_session =
+        DmClientSession::group(initial_context.clone(), initial_key, 0).expect("build session");
+
+    let rekey_plan = DmGroupRekeyPlan::new(&initial_context, ["usr-dina", "usr-alice"], 1_100)
+        .expect("build rekey plan");
+
+    assert_eq!(
+        rekey_plan.previous_session_id(),
+        initial_context.session_id()
+    );
+    assert_eq!(rekey_plan.next_context().generation(), 1);
+    assert_eq!(
+        rekey_plan.next_context().participant_identity_ids(),
+        ["usr-alice".to_string(), "usr-dina".to_string()]
+    );
+    assert_eq!(rekey_plan.added_identity_ids(), ["usr-dina".to_string()]);
+    assert_eq!(
+        rekey_plan.removed_identity_ids(),
+        ["usr-bob".to_string(), "usr-cara".to_string()]
+    );
+
+    let rekeyed_secret = DmGroupSecret::from_bytes([22_u8; DM_SESSION_KEY_BYTES]);
+    let mut rekeyed_session = rekey_plan
+        .derive_next_session(&rekeyed_secret)
+        .expect("derive rekeyed session");
+    let encrypted = rekeyed_session
+        .encrypt_outbound(
+            1_100,
+            "msg-group-3",
+            "usr-dina",
+            b"post-rekey group payload",
+        )
+        .expect("encrypt rekeyed payload");
+
+    assert_eq!(
+        rekeyed_session
+            .decrypt_inbound(&encrypted.envelope)
+            .expect("decrypt rekeyed payload"),
+        b"post-rekey group payload"
+    );
+    assert_eq!(
+        initial_session.decrypt_inbound(&encrypted.envelope),
+        Err(DmE2eeError::EnvelopeInvalid)
+    );
+    assert_eq!(
+        DmGroupRekeyPlan::new(
+            &initial_context,
+            ["usr-cara", "usr-bob", "usr-alice"],
+            1_100,
+        ),
+        Err(DmE2eeError::ContextInvalid)
     );
 }
 
