@@ -77,7 +77,8 @@ pub fn send_via_node_dispatch<D>(
 where
     D: NodeDispatch,
 {
-    send_via_node_dispatch_with_provenance(mode, policy, dispatch, payload).map(|_| ())
+    CommunicationRouter::new(policy, DispatchingNodeClientTransport::new(mode, dispatch))
+        .send(&SendEnvelope { mode, payload })
 }
 
 pub fn send_via_node_dispatch_with_provenance<D>(

@@ -4,7 +4,7 @@ use communication_core::{
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
@@ -267,7 +267,7 @@ pub async fn dispatch_dm_envelope(
         )
     })?;
 
-    info!(
+    debug!(
         mode = outcome.provenance.mode.as_str(),
         profile = outcome.provenance.profile.as_str(),
         reason_code = outcome.provenance.reason_code.as_str(),
