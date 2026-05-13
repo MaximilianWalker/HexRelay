@@ -167,6 +167,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
+| None | - | - | - |
 
 ## Blocked Follow-Ups
 

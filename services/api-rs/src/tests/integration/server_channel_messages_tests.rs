@@ -1623,7 +1623,9 @@ async fn assert_no_channel_event(
         while let Some(message) = socket.next().await {
             let message = match message {
                 Ok(value) => value,
-                Err(_) => return,
+                Err(error) => {
+                    panic!("websocket read failed during channel absence assertion: {error}")
+                }
             };
             let text = match message {
                 WsMessage::Text(value) => value,
