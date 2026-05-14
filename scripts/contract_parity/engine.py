@@ -1841,6 +1841,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if contract['security_schemes']:
                 documented = ', '.join(sorted(contract['security_schemes']))
                 errors.append(f"::error::{method} {path} uses internal-token auth at runtime and should not declare session security schemes [{documented}] in {contract_path}.")
+        if not runtime['has_auth'] and not runtime['has_internal_auth'] and contract['security_schemes']:
+            documented = ', '.join(sorted(contract['security_schemes']))
+            errors.append(f"::error::{method} {path} documents security schemes [{documented}] but runtime does not require session or internal-token auth in {contract_path}.")
         if runtime['has_401'] and not contract['has_401']:
             if runtime['has_auth']:
                 errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
