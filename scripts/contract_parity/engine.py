@@ -167,6 +167,28 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'DmFanoutCatchUpItem',
         'DmFanoutCatchUpResponse',
     }
+    TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS = {
+        'InviteCreateRequest': {
+            'max_uses': {'minimum': 1},
+        },
+        'DmFanoutDispatchRequest': {
+            'message_id': {'min_length': 1, 'max_length': 128},
+            'ciphertext': {'min_length': 1, 'max_length': 8192},
+            'source_device_id': {'min_length': 1, 'max_length': 64},
+            'destination_node_id': {'min_length': 1, 'max_length': 128},
+        },
+        'DmFanoutCatchUpRequest': {
+            'device_id': {'min_length': 1, 'max_length': 64},
+            'device_secret': {'min_length': 16, 'max_length': 128},
+            'limit': {'minimum': 1, 'maximum': 100},
+        },
+    }
+    REST_SCHEMA_CONSTRAINT_LABELS = (
+        ('min_length', 'minLength'),
+        ('max_length', 'maxLength'),
+        ('minimum', 'minimum'),
+        ('maximum', 'maximum'),
+    )
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
         ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
         ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
@@ -828,6 +850,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             fields = {}
             for field_name, raw_type in field_pattern.findall(body):
                 fields[field_name] = map_rest_schema_type(raw_type.strip())
+            for field_name, constraints in TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name].update(constraints)
             structs[name] = fields
 
         return structs
@@ -914,6 +939,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     if nullable_match:
                         current_properties[current_property]['nullable'] = nullable_match.group(2) == 'true'
                         current_property_items = False
+                        continue
+                    constraint_match = re.match(r'^( {10})(minLength|maxLength|minimum|maximum):\s*(\d+)\s*$', line)
+                    if constraint_match and not current_property_items:
+                        constraint_key = {
+                            'minLength': 'min_length',
+                            'maxLength': 'max_length',
+                            'minimum': 'minimum',
+                            'maximum': 'maximum',
+                        }[constraint_match.group(2)]
+                        current_properties[current_property][constraint_key] = int(constraint_match.group(3))
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
@@ -1825,6 +1860,22 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 errors.append(
                     f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` nullable `{format_bool(runtime_nullable)}` at runtime but documents `{format_bool(documented_nullable)}` in {contract_path}."
                 )
+                continue
+
+            constraint_mismatch = False
+            for constraint_key, label in REST_SCHEMA_CONSTRAINT_LABELS:
+                runtime_constraint = runtime_field.get(constraint_key)
+                if runtime_constraint is None:
+                    continue
+                documented_constraint = documented_field.get(constraint_key)
+                if runtime_constraint != documented_constraint:
+                    actual_constraint = documented_constraint if documented_constraint is not None else '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` {label} `{runtime_constraint}` at runtime but documents `{actual_constraint}` in {contract_path}."
+                    )
+                    constraint_mismatch = True
+                    break
+            if constraint_mismatch:
                 continue
 
             runtime_ref = runtime_field.get('schema_ref')
