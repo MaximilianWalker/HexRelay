@@ -883,24 +883,31 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     current_properties.setdefault(current_property, {})
                     continue
                 if current_property:
-                    type_match = re.match(r'^ {10,}type:\s*([A-Za-z0-9_]+)\s*$', line)
+                    type_match = re.match(r'^( {10}| {12})type:\s*([A-Za-z0-9_]+)\s*$', line)
                     if type_match:
-                        if current_property_items:
-                            current_properties[current_property]['item_schema_type'] = type_match.group(1)
-                        else:
-                            current_properties[current_property]['schema_type'] = type_match.group(1)
+                        indent = len(type_match.group(1))
+                        if current_property_items and indent == 12:
+                            current_properties[current_property]['item_schema_type'] = type_match.group(2)
+                        elif not current_property_items and indent == 10:
+                            current_properties[current_property]['schema_type'] = type_match.group(2)
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
                         continue
-                    schema_ref_match = re.match(r"^ {10,}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+                    if re.match(r'^ {10,}properties:\s*$', line):
+                        current_property = None
+                        current_property_items = False
+                        continue
+                    schema_ref_match = re.match(r"^( {10}| {12})\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
                     if schema_ref_match:
-                        if current_property_items:
+                        indent = len(schema_ref_match.group(1))
+                        schema_name = schema_ref_match.group(2)
+                        if current_property_items and indent == 12:
                             current_properties[current_property]['item_schema_type'] = 'object'
-                            current_properties[current_property]['item_schema_ref'] = schema_ref_match.group(1)
-                        else:
+                            current_properties[current_property]['item_schema_ref'] = schema_name
+                        elif not current_property_items and indent == 10:
                             current_properties[current_property]['schema_type'] = 'object'
-                            current_properties[current_property]['schema_ref'] = schema_ref_match.group(1)
+                            current_properties[current_property]['schema_ref'] = schema_name
                         continue
                     if not re.match(r'^ {10,}', line):
                         current_property = None
@@ -1653,6 +1660,80 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     errors = []
 
+    def compare_tracked_rest_schema(schema_name, relation, method, path, seen=None):
+        if schema_name not in runtime_schema_fields or schema_name not in contract_schema_fields:
+            return
+        if seen is None:
+            seen = set()
+        if schema_name in seen:
+            return
+        seen = seen | {schema_name}
+
+        runtime_fields = runtime_schema_fields[schema_name]
+        documented_fields = contract_schema_fields[schema_name]
+        runtime_required = {name for name, field in runtime_fields.items() if field['required']}
+        documented_required = {name for name, field in documented_fields.items() if field['required']}
+        if runtime_required != documented_required:
+            documented = ', '.join(sorted(documented_required)) or '<none>'
+            expected = ', '.join(sorted(runtime_required)) or '<none>'
+            errors.append(
+                f"::error::{method} {path} {relation} `{schema_name}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
+            )
+
+        for field_name, runtime_field in sorted(runtime_fields.items()):
+            documented_field = documented_fields.get(field_name, {})
+            runtime_type = runtime_field.get('schema_type')
+            documented_type = documented_field.get('schema_type')
+            if runtime_type != documented_type:
+                actual_type = documented_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
+                )
+                continue
+
+            runtime_ref = runtime_field.get('schema_ref')
+            documented_ref = documented_field.get('schema_ref')
+            if runtime_ref and runtime_ref != documented_ref:
+                actual_ref = documented_ref or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
+                )
+                continue
+            if runtime_ref:
+                compare_tracked_rest_schema(
+                    runtime_ref,
+                    f"{relation} `{schema_name}` field `{field_name}` references schema",
+                    method,
+                    path,
+                    seen,
+                )
+
+            runtime_item_type = runtime_field.get('item_schema_type')
+            documented_item_type = documented_field.get('item_schema_type')
+            if runtime_item_type and runtime_item_type != documented_item_type:
+                actual_item_type = documented_item_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                )
+                continue
+
+            runtime_item_ref = runtime_field.get('item_schema_ref')
+            documented_item_ref = documented_field.get('item_schema_ref')
+            if runtime_item_ref and runtime_item_ref != documented_item_ref:
+                actual_item_ref = documented_item_ref or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
+                )
+                continue
+            if runtime_item_ref:
+                compare_tracked_rest_schema(
+                    runtime_item_ref,
+                    f"{relation} `{schema_name}` field `{field_name}` array items reference schema",
+                    method,
+                    path,
+                    seen,
+                )
+
     for key, runtime in sorted(runtime_semantics.items()):
         method, path = key
         contract = contract_semantics.get(key)
@@ -1688,95 +1769,24 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
-        if runtime['request_body_schema'] in runtime_schema_fields and runtime['request_body_schema'] in contract_schema_fields:
-            runtime_required = {name for name, field in runtime_schema_fields[runtime['request_body_schema']].items() if field['required']}
-            documented_required = {name for name, field in contract_schema_fields[runtime['request_body_schema']].items() if field['required']}
-            if runtime_required != documented_required:
-                documented = ', '.join(sorted(documented_required)) or '<none>'
-                expected = ', '.join(sorted(runtime_required)) or '<none>'
-                errors.append(
-                    f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
-                )
-            for field_name, runtime_field in sorted(runtime_schema_fields[runtime['request_body_schema']].items()):
-                documented_field = contract_schema_fields[runtime['request_body_schema']].get(field_name, {})
-                runtime_type = runtime_field.get('schema_type')
-                documented_type = documented_field.get('schema_type')
-                if runtime_type != documented_type:
-                    actual_type = documented_type or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
-                    )
-                    continue
-                runtime_ref = runtime_field.get('schema_ref')
-                documented_ref = documented_field.get('schema_ref')
-                if runtime_ref and runtime_ref != documented_ref:
-                    actual_ref = documented_ref or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
-                    )
-                    continue
-                runtime_item_type = runtime_field.get('item_schema_type')
-                documented_item_type = documented_field.get('item_schema_type')
-                if runtime_item_type and runtime_item_type != documented_item_type:
-                    actual_item_type = documented_item_type or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
-                    )
-                    continue
-                runtime_item_ref = runtime_field.get('item_schema_ref')
-                documented_item_ref = documented_field.get('item_schema_ref')
-                if runtime_item_ref and runtime_item_ref != documented_item_ref:
-                    actual_item_ref = documented_item_ref or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
-                    )
+        compare_tracked_rest_schema(
+            runtime['request_body_schema'],
+            'uses request schema',
+            method,
+            path,
+        )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented != runtime['response_body_schema']:
                 actual = documented or '<none>'
                 errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
-            elif runtime['response_body_schema'] in runtime_schema_fields and runtime['response_body_schema'] in contract_schema_fields:
-                runtime_required = {name for name, field in runtime_schema_fields[runtime['response_body_schema']].items() if field['required']}
-                documented_required = {name for name, field in contract_schema_fields[runtime['response_body_schema']].items() if field['required']}
-                if runtime_required != documented_required:
-                    documented_fields = ', '.join(sorted(documented_required)) or '<none>'
-                    expected_fields = ', '.join(sorted(runtime_required)) or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` with required fields [{expected_fields}] at runtime but documents [{documented_fields}] in {contract_path}."
-                    )
-                for field_name, runtime_field in sorted(runtime_schema_fields[runtime['response_body_schema']].items()):
-                    documented_field = contract_schema_fields[runtime['response_body_schema']].get(field_name, {})
-                    runtime_type = runtime_field.get('schema_type')
-                    documented_type = documented_field.get('schema_type')
-                    if runtime_type != documented_type:
-                        actual_type = documented_type or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
-                        )
-                        continue
-                    runtime_ref = runtime_field.get('schema_ref')
-                    documented_ref = documented_field.get('schema_ref')
-                    if runtime_ref and runtime_ref != documented_ref:
-                        actual_ref = documented_ref or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
-                        )
-                        continue
-                    runtime_item_type = runtime_field.get('item_schema_type')
-                    documented_item_type = documented_field.get('item_schema_type')
-                    if runtime_item_type and runtime_item_type != documented_item_type:
-                        actual_item_type = documented_item_type or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
-                        )
-                        continue
-                    runtime_item_ref = runtime_field.get('item_schema_ref')
-                    documented_item_ref = documented_field.get('item_schema_ref')
-                    if runtime_item_ref and runtime_item_ref != documented_item_ref:
-                        actual_item_ref = documented_item_ref or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
-                        )
+            else:
+                compare_tracked_rest_schema(
+                    runtime['response_body_schema'],
+                    'returns schema',
+                    method,
+                    path,
+                )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented is not None:
