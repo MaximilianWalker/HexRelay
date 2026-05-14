@@ -179,6 +179,166 @@ PY
   trap - RETURN
 }
 
+run_query_parameter_pattern_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - \
+    "$temp_repo/services/api-rs/src/app/router.rs" \
+    "$temp_repo/services/api-rs/src/models.rs" \
+    "$temp_repo/services/api-rs/src/transport/http/handlers/friends.rs" \
+    "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" \
+    "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+router_path = pathlib.Path(sys.argv[1])
+models_path = pathlib.Path(sys.argv[2])
+handler_path = pathlib.Path(sys.argv[3])
+contract_path = pathlib.Path(sys.argv[4])
+mutation_name = sys.argv[5]
+
+if mutation_name != "fail-query-parameter-pattern":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+router_text = router_path.read_text()
+old_router = '        .route("/dm/threads", get(list_dm_threads));'
+new_router = '''        .route("/dm/threads", get(list_dm_threads))
+        .route("/friends/requests", get(list_friend_requests));'''
+if old_router not in router_text:
+    raise SystemExit("fixture router mutation target not found")
+router_path.write_text(router_text.replace(old_router, new_router, 1))
+
+models_path.write_text(models_path.read_text() + '''
+
+pub struct FriendRequestListQuery {
+    pub identity_id: String,
+    pub direction: Option<String>,
+}
+
+pub struct FriendRequestPage {
+    pub items: Vec<String>,
+}
+''')
+
+handler_text = handler_path.read_text()
+old_import = 'models::{DmThreadListQuery, DmThreadPage, FriendRequestAcceptRequest, FriendRequestRecord},'
+new_import = 'models::{DmThreadListQuery, DmThreadPage, FriendRequestAcceptRequest, FriendRequestListQuery, FriendRequestPage, FriendRequestRecord},'
+if old_import not in handler_text:
+    raise SystemExit("fixture handler import mutation target not found")
+handler_text = handler_text.replace(old_import, new_import, 1)
+handler_text += '''
+
+pub async fn list_friend_requests(
+    State(_state): State<AppState>,
+    _auth: AuthSession,
+    Query(query): Query<FriendRequestListQuery>,
+) -> ApiResult<Json<FriendRequestPage>> {
+    if false {
+        return Err(bad_request(
+            "identity_invalid",
+            "identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
+    }
+    let _identity_id = query.identity_id;
+    let _direction = query.direction;
+    Ok(Json(FriendRequestPage { items: vec![] }))
+}
+'''
+handler_path.write_text(handler_text)
+
+contract_text = contract_path.read_text()
+insert_before = '  /dm/threads:\n'
+friend_route = '''  /friends/requests:
+    get:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: identity_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum: [inbound, outbound]
+      responses:
+        '200':
+          description: Friend request page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestPage'
+        '400':
+          description: Invalid friend request query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: identity_id must be 3-64 chars using letters, numbers, _ or -
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: identity_id must match authenticated session
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+'''
+if insert_before not in contract_text:
+    raise SystemExit("fixture contract mutation target not found")
+contract_text = contract_text.replace(insert_before, friend_route + insert_before, 1)
+contract_text = contract_text.replace(
+    '    DmThreadPage:\n      type: object\n',
+    '    DmThreadPage:\n      type: object\n    FriendRequestPage:\n      type: object\n',
+    1,
+)
+contract_path.write_text(contract_text)
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
 run_path_parameter_format_fixture pass-path-parameter-format 0
@@ -208,6 +368,7 @@ run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON su
 run_path_parameter_format_fixture fail-path-parameter-format 1 'uses path parameter `request_id` with format `uuid` at runtime but documents `<none>`'
 run_fixture fail-path-parameter-semantics 1 'uses path parameter `request_id` as type `string` at runtime but documents `integer`'
 run_fixture fail-public-auth-security 1 'GET /health documents security schemes [BearerAuth, CookieAuth] but runtime does not require session or internal-token auth'
+run_query_parameter_pattern_fixture fail-query-parameter-pattern 1 'uses query parameter `identity_id` with pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-request-body-required 1 "requestBody is not marked required"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"

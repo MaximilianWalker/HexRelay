@@ -2375,6 +2375,7 @@ paths:
           description: Must match the authenticated session identity; provided explicitly for request/response parity with storage-backed query validation.
           schema:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
         - in: query
           name: direction
           schema:
