@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented routed REST request-body requiredness contract-parity coverage for inline and component-referenced bodies.
+- Latest meaningful change: 2026-05-14 documented tracked REST DTO nullable-field contract-parity coverage.
 
 ## Purpose
 
