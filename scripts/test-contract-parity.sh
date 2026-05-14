@@ -45,6 +45,7 @@ run_fixture() {
 
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_fixture pass-request-body-component 0
 run_fixture pass-request-schema-alias 0
 run_fixture pass-response-schema-alias 0
 run_fixture pass-session-auth-security 0
