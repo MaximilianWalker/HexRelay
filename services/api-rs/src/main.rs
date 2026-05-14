@@ -1,6 +1,9 @@
 use api_rs::{
     app::{build_app, ApiConfig, AppState},
     db::connect_and_prepare,
+    domain::dm::outbound_forwarding::{
+        spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
+    },
 };
 use std::env;
 use tracing::{error, info};
@@ -65,6 +68,10 @@ async fn main() {
     .with_dm_retention(config.dm_retention.clone())
     .with_db_pool(db_pool);
 
+    let mut dm_outbound_forward_retry_worker = spawn_dm_outbound_forward_retry_worker(
+        state.clone(),
+        DmOutboundForwardRetryWorkerConfig::default(),
+    );
     let app = build_app(state);
     let addr = config.bind_addr;
     info!(%addr, "starting api service");
@@ -77,13 +84,29 @@ async fn main() {
         }
     };
 
-    if let Err(err) = axum::serve(
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-    )
-    .await
-    {
-        error!(error = %err, "api runtime exited with server error");
-        std::process::exit(1);
+    );
+
+    tokio::select! {
+        result = server => {
+            dm_outbound_forward_retry_worker.abort();
+            if let Err(err) = result {
+                error!(error = %err, "api runtime exited with server error");
+                std::process::exit(1);
+            }
+        }
+        result = &mut dm_outbound_forward_retry_worker => {
+            match result {
+                Ok(()) => {
+                    error!("api runtime exited because dm outbound forward retry worker stopped unexpectedly");
+                }
+                Err(err) => {
+                    error!(error = %err, "api runtime exited because dm outbound forward retry worker failed");
+                }
+            }
+            std::process::exit(1);
+        }
     }
 }

@@ -2013,6 +2013,11 @@ paths:
         delivery is evaluated. When `destination_node_id` points at a configured
         static peer, the envelope is authenticated and forwarded server-node to
         server-node; the destination node performs local recipient acceptance.
+        Failed static-peer handoff attempts are durably recorded with bounded
+        retry metadata and driven by the API runtime retry worker when local
+        static-peer forwarding prerequisites are configured, until the handoff
+        succeeds, reaches a terminal policy/auth error, or exhausts the retry
+        attempt limit.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -2035,7 +2040,9 @@ paths:
             success means the origin node durably recorded the outbound
             forwarding attempt and handed the encrypted envelope to the
             destination server node; it does not imply final recipient-device
-            delivery.
+            delivery. Previously failed static-peer handoff attempts are retried
+            asynchronously by the API runtime worker from the durable outbound
+            forwarding log when local forwarding prerequisites are configured.
           content:
             application/json:
               schema:
@@ -3376,7 +3383,7 @@ components:
         delivery_state:
           type: string
           enum: [pending_delivery, forwarded, rejected]
-          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; recipient-device delivery remains ack-backed and destination-owned.
+          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; retry-scheduled failures are driven asynchronously from the durable outbound forwarding log, and recipient-device delivery remains ack-backed and destination-owned.
         reachability_state:
           type: string
           enum: [unreachable, blocked, unknown]
