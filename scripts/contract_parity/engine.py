@@ -784,7 +784,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             schema_type = 'boolean'
         elif normalized_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
             schema_type = 'integer'
-        else:
+        elif normalized_type.split('::')[-1] in TRACKED_REST_SCHEMA_NAMES:
             schema_ref = normalized_type.split('::')[-1]
 
         details = {
