@@ -515,8 +515,242 @@ PY
   trap - RETURN
 }
 
+run_dm_mark_read_schema_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-session-auth-security"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - \
+    "$temp_repo/services/api-rs/src/app/router.rs" \
+    "$temp_repo/services/api-rs/src/models.rs" \
+    "$temp_repo/services/api-rs/src/transport/http/handlers/dm.rs" \
+    "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" \
+    "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+router_path = pathlib.Path(sys.argv[1])
+models_path = pathlib.Path(sys.argv[2])
+handler_path = pathlib.Path(sys.argv[3])
+contract_path = pathlib.Path(sys.argv[4])
+mutation_name = sys.argv[5]
+
+router_text = router_path.read_text()
+old_router = 'Router::new().route("/dm/threads", get(list_dm_threads));'
+new_router = '''Router::new()
+        .route("/dm/threads", get(list_dm_threads))
+        .route("/dm/threads/:thread_id/read", post(mark_dm_thread_read));'''
+if old_router not in router_text:
+    raise SystemExit("fixture router mutation target not found")
+router_path.write_text(router_text.replace(old_router, new_router, 1))
+
+models_path.write_text(models_path.read_text() + '''
+
+pub struct DmThreadMarkReadRequest {
+    pub last_read_seq: u64,
+}
+
+pub struct DmThreadMarkReadResponse {
+    pub thread_id: String,
+    pub last_read_seq: u64,
+    pub unread: u32,
+}
+''')
+
+handler_text = handler_path.read_text()
+handler_text = handler_text.replace(
+    'use axum::{extract::{Query, State}, Json};',
+    'use axum::{extract::{Path, Query, State}, http::StatusCode, Json};',
+    1,
+)
+handler_text = handler_text.replace(
+    'models::{DmThreadListQuery, DmThreadPage},',
+    'models::{DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse, DmThreadPage},',
+    1,
+)
+handler_text += '''
+
+pub async fn mark_dm_thread_read(
+    State(_state): State<AppState>,
+    _auth: AuthSession,
+    Path(thread_id): Path<String>,
+    Json(payload): Json<DmThreadMarkReadRequest>,
+) -> ApiResult<Json<DmThreadMarkReadResponse>> {
+    if payload.last_read_seq == u64::MAX {
+        return Err(bad_request(
+            "last_read_seq_invalid",
+            "last_read_seq is outside the known thread sequence range",
+        ));
+    }
+    if false {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(crate::shared::errors::ApiError {
+                code: "thread_not_found",
+                message: "thread was not found for this identity",
+            }),
+        ));
+    }
+    Ok(Json(DmThreadMarkReadResponse {
+        thread_id,
+        last_read_seq: payload.last_read_seq,
+        unread: 0,
+    }))
+}
+'''
+handler_path.write_text(handler_text)
+
+contract_text = contract_path.read_text()
+route_insert = '''  /dm/threads/{thread_id}/read:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: thread_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmThreadMarkReadRequest'
+      responses:
+        '200':
+          description: Updated read position
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadMarkReadResponse'
+        '400':
+          description: Invalid read position
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                lastReadSeqInvalid:
+                  value:
+                    code: last_read_seq_invalid
+                    message: last_read_seq is outside the known thread sequence range
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                threadNotFound:
+                  value:
+                    code: thread_not_found
+                    message: thread was not found for this identity
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+'''
+if 'components:\n' not in contract_text:
+    raise SystemExit("fixture contract components target not found")
+contract_text = contract_text.replace('components:\n', route_insert + 'components:\n', 1)
+schema_insert = '''    DmThreadMarkReadRequest:
+      type: object
+      required: [last_read_seq]
+      properties:
+        last_read_seq:
+          type: integer
+          minimum: 0
+    DmThreadMarkReadResponse:
+      type: object
+      required: [thread_id, last_read_seq, unread]
+      properties:
+        thread_id:
+          type: string
+        last_read_seq:
+          type: integer
+          minimum: 0
+        unread:
+          type: integer
+          minimum: 0
+'''
+if '    ApiError:\n' not in contract_text:
+    raise SystemExit("fixture contract schema target not found")
+contract_text = contract_text.replace('    ApiError:\n', schema_insert + '    ApiError:\n', 1)
+contract_text = contract_text.replace(
+    '            - storage_unavailable',
+    '            - storage_unavailable\n            - last_read_seq_invalid\n            - thread_not_found',
+    1,
+)
+
+if mutation_name == "fail-dm-mark-read-scalar-bounds":
+    old = '''        last_read_seq:
+          type: integer
+          minimum: 0'''
+    new = '''        last_read_seq:
+          type: integer'''
+    if old not in contract_text:
+        raise SystemExit("fixture contract scalar-bound mutation target not found")
+    contract_text = contract_text.replace(old, new, 1)
+elif mutation_name == "fail-dm-mark-read-response-last-read-scalar-bound":
+    old = '''        last_read_seq:
+          type: integer
+          minimum: 0'''
+    new = '''        last_read_seq:
+          type: integer'''
+    if contract_text.count(old) < 2:
+        raise SystemExit("fixture response last_read_seq scalar-bound mutation target not found")
+    before, separator, after = contract_text.partition(old)
+    contract_text = before + separator + after.replace(old, new, 1)
+elif mutation_name == "fail-dm-mark-read-response-unread-scalar-bound":
+    old = '''        unread:
+          type: integer
+          minimum: 0'''
+    new = '''        unread:
+          type: integer'''
+    if old not in contract_text:
+        raise SystemExit("fixture response unread scalar-bound mutation target not found")
+    contract_text = contract_text.replace(old, new, 1)
+elif mutation_name != "pass-dm-mark-read-scalar-bounds":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+contract_path.write_text(contract_text)
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_dm_mark_read_schema_fixture pass-dm-mark-read-scalar-bounds 0
 run_path_parameter_format_fixture pass-path-parameter-format 0
 run_response_header_schema_type_fixture pass-response-header-schema-ref 0
 run_fixture pass-request-body-component 0
@@ -551,6 +785,9 @@ run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-array-item-ref 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items as schema `DmFanoutCatchUpItem` at runtime but documents `FriendRequestPage`'
+run_dm_mark_read_schema_fixture fail-dm-mark-read-scalar-bounds 1 'uses request schema `DmThreadMarkReadRequest` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
+run_dm_mark_read_schema_fixture fail-dm-mark-read-response-last-read-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
+run_dm_mark_read_schema_fixture fail-dm-mark-read-response-unread-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `unread` minimum `0` at runtime but documents `<none>`'
 run_server_channel_request_schema_fixture fail-rest-schema-array-item-pattern 1 'uses request schema `ServerChannelMessageCreateRequest` field `mention_identity_ids` array items pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-date-time-format 1 'returns schema `AuthVerifyResponse` field `expires_at` format `date-time` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-nullable-field 1 'uses request schema `DmFanoutCatchUpRequest` field `cursor` nullable `true` at runtime but documents `false`'
