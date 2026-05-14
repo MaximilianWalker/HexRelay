@@ -229,6 +229,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'created_at': 'date-time',
         },
     }
+    TRACKED_REST_SCHEMA_FIELD_PATTERNS = {
+        'AuthVerifyRequest': {
+            'identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+        },
+        'FriendRequestCreateRequest': {
+            'requester_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+            'target_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+        },
+        'DmFanoutDispatchRequest': {
+            'recipient_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+        },
+        'DmFanoutCatchUpRequest': {
+            'device_secret': r'^[A-Za-z0-9_-]{16,128}$',
+        },
+    }
     REST_SCHEMA_CONSTRAINT_LABELS = (
         ('min_length', 'minLength'),
         ('max_length', 'maxLength'),
@@ -905,6 +920,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             for field_name, schema_format in TRACKED_REST_SCHEMA_FIELD_FORMATS.get(name, {}).items():
                 if field_name in fields:
                     fields[field_name]['format'] = schema_format
+            for field_name, pattern in TRACKED_REST_SCHEMA_FIELD_PATTERNS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['pattern'] = pattern
             structs[name] = fields
 
         return structs
@@ -1008,6 +1026,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     format_match = re.match(r'^( {10})format:\s*([A-Za-z0-9_.:-]+)\s*$', line)
                     if format_match and not current_property_items:
                         current_properties[current_property]['format'] = format_match.group(2)
+                        continue
+                    pattern_match = re.match(r'^( {10})pattern:\s*(.+?)\s*$', line)
+                    if pattern_match and not current_property_items:
+                        pattern_value = pattern_match.group(2).strip()
+                        if (
+                            len(pattern_value) >= 2
+                            and pattern_value[0] == pattern_value[-1]
+                            and pattern_value[0] in {"'", '"'}
+                        ):
+                            pattern_value = pattern_value[1:-1]
+                        current_properties[current_property]['pattern'] = pattern_value
                         continue
                     nullable_match = re.match(r'^( {10})nullable:\s*(true|false)\s*$', line)
                     if nullable_match:
@@ -1957,6 +1986,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     actual_format = documented_format or '<none>'
                     errors.append(
                         f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` format `{runtime_format}` at runtime but documents `{actual_format}` in {contract_path}."
+                    )
+                    continue
+
+            runtime_pattern = runtime_field.get('pattern')
+            if runtime_pattern:
+                documented_pattern = documented_field.get('pattern')
+                if runtime_pattern != documented_pattern:
+                    actual_pattern = documented_pattern or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` pattern `{runtime_pattern}` at runtime but documents `{actual_pattern}` in {contract_path}."
                     )
                     continue
 
