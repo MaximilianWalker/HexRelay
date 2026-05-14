@@ -1,4 +1,4 @@
-use axum::{body::Bytes, extract::{Path, Query, State}, http::{HeaderMap, StatusCode}, Json};
+use axum::{extract::{Path, Query, State}, http::{HeaderMap, StatusCode}, Json};
 
 use crate::{
     models::{DmThreadListQuery, DmThreadPage, FriendRequestAcceptRequest, FriendRequestRecord},
@@ -41,11 +41,4 @@ pub async fn list_dm_threads(
         return Err(bad_request("cursor_invalid", "unknown dm thread cursor"));
     }
     Ok(Json(DmThreadPage { items: vec![], next_cursor: None }))
-}
-
-pub async fn forward_raw_body(
-    State(_state): State<AppState>,
-    _body: Bytes,
-) -> ApiResult<Json<FriendRequestRecord>> {
-    Ok(Json(FriendRequestRecord { id: "raw_1".to_string() }))
 }

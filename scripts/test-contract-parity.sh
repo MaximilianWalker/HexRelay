@@ -91,6 +91,7 @@ run_fixture fail-session-auth-401 1 "missing a 401 response"
 run_fixture fail-session-auth-security 1 "documents security schemes [CookieAuth] instead of [BearerAuth, CookieAuth]"
 run_fixture fail-session-auth-500 1 "missing a 500 response"
 run_fixture fail-success-content 1 "documents no success schema"
+run_fixture fail-unexpected-request-body 1 "documents a requestBody but runtime handler has no request-body extractor"
 run_fixture fail-missing-example 1 "thread_not_found"
 
 printf '[contract-parity-test] Fixture regressions passed\n'
