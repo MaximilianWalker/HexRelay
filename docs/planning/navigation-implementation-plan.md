@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-14 tightened the plan-only approval scope, approval-to-slice mapping, and runtime implementation hard stops for the `T4.6.1` through `T4.6.4` navigation slices.
+- Latest meaningful change: 2026-05-14 aligned the sprint-board status contract so `T4.6.1` through `T4.6.4` remain blocked until explicit UX approval exists.
 
 ## Approval Boundary
 
@@ -47,6 +47,14 @@ Until that approval exists, allowed work is limited to planning, test/evidence d
 | `T4.6.2` | Contacts Hub | Search/filter/open-DM actions work and state persists per user |
 | `T4.6.3` | Desktop server navigation | Topbar supports open/close/reorder/pin tabs and folder assignment; burger preference persists per device |
 | `T4.6.4` | Mobile navigation | Mobile app shows `Home` / `Servers` / `Contacts` / `Settings` tabs and slide-in workspace drawers per spec |
+
+## Sprint-Board Status Contract
+
+Until an approval reference with non-pending `NAV-APP-*` values exists, `T4.6.1` through `T4.6.4` must remain blocked follow-ups in `docs/planning/iterations/02-sprint-board.md`.
+
+Move only the approved implementation slice back into active sprint-board execution when its approval exists, using the canonical `Approval-To-Slice Map` below for the decision-to-task mapping.
+
+Do not mark any `T4.6.x` task done until the associated runtime behavior, validation, screenshots/checklists, and evidence pack exist.
 
 ## Current Plan-Only Split Rationale
 

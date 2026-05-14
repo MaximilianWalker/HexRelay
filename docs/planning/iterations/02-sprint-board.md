@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-14
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 added the approval-pending `T4.6.1` through `T4.6.4` navigation implementation plan.
+- Latest meaningful change: 2026-05-14 moved `T4.6.1` through `T4.6.4` to blocked follow-ups pending explicit UX approval.
 
 ## Iteration Scope
 
@@ -68,10 +68,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
 | T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
-| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | E4 / S4.2 | L | Web | T4.2.2 | Search/filter/pin actions work and deep-link into server workspace |
-| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | E4 / S4.1 | L | Web | T3.1.2 | Search/filter/open-DM actions work and state persists per user |
-| T4.6.3 | Implement dual server navigation modes and burger persistence | E4 / S4.2 | L | Web | T4.6.1 | Topbar supports open/close/reorder/pin tabs and folder assignment; burger `expanded/collapsed/hidden` preference persists per device |
-| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | E4 / S4.2 | M | Web | T4.6.1, T4.6.3 | Mobile app shows `Home/Servers/Contacts/Settings` tabs and slide-in workspace drawers per spec |
 | T4.6.5 | Approve and implement server-channel optimistic send UI | E4 / S4.2 | M | Web | T4.3.2, explicit UX approval | Users can send server-channel messages with approved optimistic pending/sent/failure states and no duplicate websocket rows |
 
 ## Task Touchpoints and Validation Gates
@@ -173,6 +169,10 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
+| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-01` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-02` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.3 | Implement dual server navigation modes and burger persistence | blocked | Runtime UI work requires explicit approval for `NAV-APP-03` and `NAV-APP-04` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | blocked | Runtime UI work requires explicit approval for `NAV-APP-05` and `NAV-APP-06` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
 | T4.6.5 | Approve and implement server-channel optimistic send UI | blocked | Plan-only proposal exists in `docs/product/08-screen-state-spec.md`; implementation must wait for explicit user approval of flow, copy, controls, and behavior. |
 
 ## Suggested Sprint Sequencing
@@ -202,7 +202,7 @@ Week 6:
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
 - Finalize T4.4.1
-- T4.6.1, T4.6.2, T4.6.3, T4.6.4 navigation surfaces and persistence checks
+- After explicit approval, resume T4.6.1, T4.6.2, T4.6.3, and T4.6.4 navigation surfaces and persistence checks from the blocked follow-ups.
 - Stabilization, load tests for chat fanout, iteration demo
 
 ## Iteration 2 Exit Checklist
@@ -245,7 +245,7 @@ Week 6:
 ## Execution Notes
 
 - Keep event payload contracts explicit and synchronized with runtime behavior.
-- `T4.6.1` through `T4.6.4` implementation sequencing and the approval package live in `docs/planning/navigation-implementation-plan.md`; runtime UI work remains blocked until explicit user approval of flow, copy, controls, and behavior.
+- `T4.6.1` through `T4.6.4` implementation sequencing and the approval package live in `docs/planning/navigation-implementation-plan.md`; keep those tasks in blocked follow-ups until explicit user approval of flow, copy, controls, and behavior exists.
 - Record authorization decision logs for node-owner debugging.
 - Server nodes/message nodes in the server-node P2P network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.
