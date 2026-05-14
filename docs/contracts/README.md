@@ -13,7 +13,7 @@
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-14 documented public-route auth absence parity for REST contract checks.
+- Latest meaningful change: 2026-05-14 documented internal-token request-header requiredness/type parity for REST contract checks.
 
 ## Purpose
 
@@ -34,7 +34,7 @@
 ## Contract Parity Status
 
 - Contract parity is strong for the current runtime route set, but it is not a full semantic/runtime-proof gate yet.
-- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, public-route auth absence checks, routed REST path-parameter requiredness and schema-type checks, routed REST request-body presence and requiredness checks for `Json<...>` extractors including inline and component-referenced bodies, tracked REST DTO required-field, nullable-field, field-type, nested array item-schema, and referenced item-field checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
+- The current route set is covered across high-signal request/response inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, public-route auth absence checks, internal-token request-header requiredness and schema-type checks, routed REST path-parameter requiredness and schema-type checks, routed REST request-body presence and requiredness checks for `Json<...>` extractors including inline and component-referenced bodies, tracked REST DTO required-field, nullable-field, field-type, nested array item-schema, and referenced item-field checks, selected receive-side realtime envelope semantics, selected send-side signaling auth/targeting semantics, current send-side signaling success-envelope semantics, shared realtime error-envelope semantics, route-scoped error examples, query semantics, success-content documentation, and validator regression fixtures.
 - Remaining readiness limitations still include broader request/response/auth-behavior semantics beyond the currently tracked REST/realtime slices; treat open `watch` entries in `docs/operations/readiness-corrections-log.md` as the source of truth for those gaps.
 - Resume parity work only when:
   - the open CI semantic-depth watch is being hardened,

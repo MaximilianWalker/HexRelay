@@ -131,6 +131,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'x-hexrelay-internal-token': {
             'runtime_marker': '.get("x-hexrelay-internal-token")',
             'contract_parameter': 'x-hexrelay-internal-token',
+            'required': True,
+            'schema_type': 'string',
         },
     }
     TRACKED_RESPONSE_HEADERS = {
@@ -601,6 +603,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if has_header_map and rule['runtime_marker'] in body:
                 headers.add(header_name)
         return headers
+
+
+    def build_runtime_request_header_details(headers: set[str]):
+        details = {}
+        for rule in TRACKED_REQUEST_HEADERS.values():
+            header_name = rule['contract_parameter']
+            if header_name in headers:
+                details[header_name] = {
+                    'required': bool(rule.get('required', False)),
+                    'schema_type': rule.get('schema_type'),
+                }
+        return details
 
 
     def extract_runtime_response_headers(body: str):
@@ -1180,6 +1194,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         handler_id, function_semantics, local_lookup
                     ),
                     'request_headers': handler_semantics.get('request_headers', set()),
+                    'request_header_details': build_runtime_request_header_details(
+                        handler_semantics.get('request_headers', set())
+                    ),
                     'response_headers': infer_response_headers(
                         handler_id, function_semantics, local_lookup
                     ),
@@ -1290,6 +1307,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_parameter_name = None
         current_path_schema_parameter = None
         current_query_schema_parameter = None
+        current_header_schema_parameter = None
         in_request_body = False
         in_request_body_json = False
         in_request_body_schema = False
@@ -1359,6 +1377,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 in_request_body = False
                 in_request_body_json = False
                 in_request_body_schema = False
@@ -1382,6 +1401,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 in_request_body = False
                 in_request_body_json = False
                 in_request_body_schema = False
@@ -1406,6 +1426,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'request_body_schema': None,
                     'response_schemas': {},
                     'request_headers': set(),
+                    'request_header_details': {},
                     'response_headers': {},
                     'response_cookie_actions': {},
                     'error_example_codes': {},
@@ -1470,6 +1491,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_path_schema_parameter = None
             if current_query_schema_parameter and not re.match(r'^            ', line):
                 current_query_schema_parameter = None
+            if current_header_schema_parameter and not re.match(r'^            ', line):
+                current_header_schema_parameter = None
             if in_error_example_value and not re.match(r'^ {18,}', line):
                 in_error_example_value = False
             if in_error_examples and not re.match(r'^ {16,}', line):
@@ -1541,6 +1564,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
 
             parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
             if parameter_match:
@@ -1548,6 +1572,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 continue
 
             other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
@@ -1556,6 +1581,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 continue
 
             parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_-]+)\s*$', line)
@@ -1586,7 +1612,15 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     )
                 continue
             if parameter_name_match and current_parameter_in == 'header':
-                semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
+                current_parameter_name = parameter_name_match.group(1)
+                semantics[(current_method, current_path)]['request_headers'].add(current_parameter_name)
+                semantics[(current_method, current_path)]['request_header_details'].setdefault(
+                    current_parameter_name,
+                    {
+                        'required': False,
+                        'schema_type': None,
+                    },
+                )
                 continue
 
             if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          required: true\s*$', line):
@@ -1595,11 +1629,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          required: true\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
                 continue
+            if current_parameter_in == 'header' and current_parameter_name and re.match(r'^          required: true\s*$', line):
+                semantics[(current_method, current_path)]['request_header_details'][current_parameter_name]['required'] = True
+                continue
             if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          schema:\s*$', line):
                 current_path_schema_parameter = current_parameter_name
                 continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          schema:\s*$', line):
                 current_query_schema_parameter = current_parameter_name
+                continue
+            if current_parameter_in == 'header' and current_parameter_name and re.match(r'^          schema:\s*$', line):
+                current_header_schema_parameter = current_parameter_name
                 continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          x-hexrelay-query-semantics:\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = True
@@ -1638,6 +1678,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 maximum_match = re.match(r'^            maximum: (\d+)\s*$', line)
                 if maximum_match:
                     semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
+                    continue
+            if current_header_schema_parameter:
+                type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
+                if type_match:
+                    semantics[(current_method, current_path)]['request_header_details'][current_header_schema_parameter]['schema_type'] = type_match.group(1)
                     continue
 
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
@@ -1894,6 +1939,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_request_headers = sorted(runtime['request_headers'] - contract['request_headers'])
         for header_name in missing_request_headers:
             errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but is missing it from {contract_path}.")
+        for header_name, runtime_header in sorted(runtime['request_header_details'].items()):
+            contract_header = contract['request_header_details'].get(header_name)
+            if contract_header is None:
+                continue
+            if runtime_header.get('required') and not contract_header.get('required'):
+                errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but it is not marked required in {contract_path}.")
+            runtime_type = runtime_header.get('schema_type')
+            documented_type = contract_header.get('schema_type')
+            if runtime_type and not documented_type:
+                errors.append(f"::error::{method} {path} uses request header `{header_name}` as type `{runtime_type}` at runtime but does not document a header schema type in {contract_path}.")
+            elif runtime_type and documented_type and runtime_type != documented_type:
+                errors.append(f"::error::{method} {path} uses request header `{header_name}` as type `{runtime_type}` at runtime but documents `{documented_type}` in {contract_path}.")
         if runtime['success_status']:
             missing_response_headers = sorted(
                 runtime['response_headers'] - contract['response_headers'].get(runtime['success_status'], set())
