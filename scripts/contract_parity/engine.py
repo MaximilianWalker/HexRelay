@@ -1214,8 +1214,63 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return semantics
 
 
+    def extract_component_request_bodies(lines: list[str]) -> dict[str, dict[str, object]]:
+        components: dict[str, dict[str, object]] = {}
+        in_request_bodies = False
+        current_component = None
+        in_request_body_json = False
+        in_request_body_schema = False
+
+        for line in lines:
+            if not in_request_bodies:
+                if re.match(r'^  requestBodies:\s*$', line):
+                    in_request_bodies = True
+                continue
+
+            if re.match(r'^  [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                break
+
+            request_body_component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if request_body_component_match:
+                current_component = request_body_component_match.group(1)
+                components[current_component] = {
+                    'required': False,
+                    'schema': None,
+                }
+                in_request_body_json = False
+                in_request_body_schema = False
+                continue
+
+            if current_component and re.match(r'^      required:\s+true\s*$', line):
+                components[current_component]['required'] = True
+                continue
+            if current_component and re.match(r'^      content:\s*$', line):
+                continue
+            if current_component and re.match(r'^        application/json:\s*$', line):
+                in_request_body_json = True
+                in_request_body_schema = False
+                continue
+            if current_component and in_request_body_json and re.match(r'^          schema:\s*$', line):
+                in_request_body_schema = True
+                continue
+
+            request_schema_match = re.match(r"^            \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if current_component and in_request_body_schema and request_schema_match:
+                components[current_component]['schema'] = request_schema_match.group(1)
+                continue
+
+            if in_request_body_schema and not re.match(r'^ {12,}', line):
+                in_request_body_schema = False
+            if in_request_body_json and not re.match(r'^ {8,}', line):
+                in_request_body_json = False
+                in_request_body_schema = False
+
+        return components
+
+
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
+        request_body_components = extract_component_request_bodies(lines)
         response_components = {}
         semantics = {}
         in_paths = False
@@ -1337,6 +1392,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_500': False,
                     'has_csrf': False,
                     'has_request_body': False,
+                    'request_body_required': False,
                     'request_body_schema': None,
                     'response_schemas': {},
                     'request_headers': set(),
@@ -1429,6 +1485,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_request_body_json = False
                 in_request_body_schema = False
                 continue
+            if in_request_body and re.match(r'^        required:\s+true\s*$', line):
+                semantics[(current_method, current_path)]['request_body_required'] = True
+                continue
             if in_request_body and re.match(r'^          application/json:\s*$', line):
                 in_request_body_json = True
                 in_request_body_schema = False
@@ -1439,6 +1498,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             request_schema_match = re.match(r"^              \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
             if in_request_body_schema and request_schema_match:
                 semantics[(current_method, current_path)]['request_body_schema'] = request_schema_match.group(1)
+                continue
+            request_body_component_ref_match = re.match(r"^        \$ref: '#/components/requestBodies/([A-Za-z0-9_]+)'\s*$", line)
+            if in_request_body and request_body_component_ref_match:
+                component_name = request_body_component_ref_match.group(1)
+                component = request_body_components.get(component_name, {})
+                semantics[(current_method, current_path)]['request_body_required'] = bool(
+                    component.get('required')
+                )
+                component_schema = component.get('schema')
+                if component_schema:
+                    semantics[(current_method, current_path)]['request_body_schema'] = component_schema
                 continue
 
             if "#/components/parameters/CsrfTokenHeader" in line:
@@ -1766,6 +1836,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
         if runtime['has_json_body'] and not contract['has_request_body']:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+        if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
+            errors.append(f"::error::{method} {path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}.")
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")

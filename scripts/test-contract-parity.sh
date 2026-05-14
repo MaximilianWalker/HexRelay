@@ -45,6 +45,7 @@ run_fixture() {
 
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_fixture pass-request-body-component 0
 run_fixture pass-request-schema-alias 0
 run_fixture pass-response-schema-alias 0
 run_fixture pass-session-auth-security 0
@@ -65,6 +66,7 @@ run_fixture fail-missing-request-body 1 "missing requestBody"
 run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missing a 500 response"
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
 run_fixture fail-path-parameter-semantics 1 'uses path parameter `request_id` as type `string` at runtime but documents `integer`'
+run_fixture fail-request-body-required 1 "requestBody is not marked required"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
