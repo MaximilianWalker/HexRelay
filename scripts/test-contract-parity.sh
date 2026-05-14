@@ -139,8 +139,17 @@ handler_path.write_text(handler_text.replace(old_handler, new_handler, 1))
 
 if mutation_name == "pass-path-parameter-format":
     contract_text = contract_path.read_text()
-    old_contract = "            type: string"
-    new_contract = "            type: string\n            format: uuid"
+    old_contract = """        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string"""
+    new_contract = """        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+            format: uuid"""
     if old_contract not in contract_text:
         raise SystemExit("fixture contract mutation target not found")
     contract_path.write_text(contract_text.replace(old_contract, new_contract, 1))
