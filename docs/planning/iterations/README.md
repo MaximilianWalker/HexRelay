@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-14
 - Source of truth: `docs/planning/iterations/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 recorded T4.5.4 E2EE group DM ciphertext and missing-key recovery closeout evidence.
+- Latest meaningful change: 2026-05-14 recorded that `T4.6.1` through `T4.6.4` are blocked pending explicit UX approval before runtime implementation.
 
 - `Status: ready` means this index is the canonical iteration-planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before treating open capability areas as settled.
 

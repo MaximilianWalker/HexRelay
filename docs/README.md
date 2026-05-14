@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 routed the tightened navigation plan-only scope, approval-to-slice mapping, and runtime implementation hard stops for `T4.6.1` through `T4.6.4`.
+- Latest meaningful change: 2026-05-14 routed the sprint-board status contract that keeps `T4.6.1` through `T4.6.4` blocked until explicit UX approval exists.
 
 ## Purpose
 
