@@ -115,6 +115,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
     TRACKED_ERROR_SCHEMA_STATUSES = {'400', '401', '403', '404', '409', '429', '500'}
     API_ERROR_SCHEMA_NAME = 'ApiError'
+    API_ERROR_REQUIRED_FIELDS = {'code', 'message'}
+    API_ERROR_FIELD_TYPES = {
+        'code': 'string',
+        'message': 'string',
+    }
     CSRF_HEADER_NAME = 'x-csrf-token'
     CSRF_HEADER_SCHEMA_TYPE = 'string'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
@@ -1578,6 +1583,78 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return schema_types
 
 
+    def extract_api_error_schema_shape(lines: list[str]) -> dict[str, object]:
+        shape = {
+            'present': False,
+            'schema_type': None,
+            'required': set(),
+            'field_types': {},
+        }
+        in_schema = False
+        in_required = False
+        in_properties = False
+        current_property = None
+
+        for line in lines:
+            if not in_schema:
+                if re.match(rf'^\s{{4}}{API_ERROR_SCHEMA_NAME}:\s*$', line):
+                    in_schema = True
+                    shape['present'] = True
+                continue
+
+            if re.match(r'^\s{4}[A-Za-z].*:\s*$', line):
+                break
+
+            schema_type_match = re.match(r'^\s{6}type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if schema_type_match and not in_properties:
+                shape['schema_type'] = schema_type_match.group(1)
+                continue
+
+            inline_required_match = re.match(r'^\s{6}required:\s*\[(.*)\]\s*$', line)
+            if inline_required_match:
+                shape['required'] = {
+                    item.strip()
+                    for item in inline_required_match.group(1).split(',')
+                    if item.strip()
+                }
+                in_required = False
+                continue
+
+            if re.match(r'^\s{6}required:\s*$', line):
+                in_required = True
+                in_properties = False
+                current_property = None
+                continue
+
+            if in_required:
+                required_item_match = re.match(r'^\s{8}-\s+([A-Za-z0-9_]+)\s*$', line)
+                if required_item_match:
+                    shape['required'].add(required_item_match.group(1))
+                    continue
+                if not re.match(r'^\s{8}', line):
+                    in_required = False
+
+            if re.match(r'^\s{6}properties:\s*$', line):
+                in_properties = True
+                in_required = False
+                current_property = None
+                continue
+
+            if in_properties:
+                property_match = re.match(r'^\s{8}([A-Za-z0-9_]+):\s*$', line)
+                if property_match:
+                    current_property = property_match.group(1)
+                    shape['field_types'].setdefault(current_property, None)
+                    continue
+
+                property_type_match = re.match(r'^\s{10}type:\s+([A-Za-z0-9_]+)\s*$', line)
+                if current_property and property_type_match:
+                    shape['field_types'][current_property] = property_type_match.group(1)
+                    continue
+
+        return shape
+
+
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
         request_body_components = extract_component_request_bodies(lines)
@@ -2140,12 +2217,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
 
     contract_path = pathlib.Path(contract_path_str)
+    contract_lines = contract_path.read_text().splitlines()
     router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
     handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
     models_path = pathlib.Path('services/api-rs/src/models.rs')
     query_struct_fields = extract_query_struct_fields(models_path)
     runtime_schema_fields = extract_tracked_schema_fields(models_path)
     contract_schema_fields = extract_openapi_tracked_schema_fields(contract_path)
+    api_error_schema_shape = extract_api_error_schema_shape(contract_lines)
 
     function_semantics, route_handler_lookup, local_lookup = extract_function_blocks(handler_paths)
     runtime_semantics = extract_runtime_semantics(
@@ -2157,6 +2236,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def format_bool(value):
         return 'true' if value else 'false'
+
+    requires_api_error_schema = api_error_schema_shape['present'] or any(
+        runtime['error_statuses'] & TRACKED_ERROR_SCHEMA_STATUSES
+        for runtime in runtime_semantics.values()
+    )
+    if requires_api_error_schema and not api_error_schema_shape['present']:
+        errors.append(f"::error::{contract_path} is missing the shared `{API_ERROR_SCHEMA_NAME}` schema.")
+    elif api_error_schema_shape['present']:
+        documented_schema_type = api_error_schema_shape.get('schema_type')
+        if documented_schema_type != 'object':
+            actual = documented_schema_type or '<none>'
+            errors.append(
+                f"::error::{contract_path} documents `{API_ERROR_SCHEMA_NAME}` as type `{actual}` instead of `object`."
+            )
+
+        documented_required = api_error_schema_shape.get('required', set())
+        if documented_required != API_ERROR_REQUIRED_FIELDS:
+            expected = ', '.join(sorted(API_ERROR_REQUIRED_FIELDS))
+            documented = ', '.join(sorted(documented_required)) or '<none>'
+            errors.append(
+                f"::error::{contract_path} `{API_ERROR_SCHEMA_NAME}` must require fields [{expected}] but documents [{documented}]."
+            )
+
+        documented_field_types = api_error_schema_shape.get('field_types', {})
+        for field_name, expected_type in sorted(API_ERROR_FIELD_TYPES.items()):
+            documented_type = documented_field_types.get(field_name)
+            if documented_type != expected_type:
+                actual = documented_type or '<none>'
+                errors.append(
+                    f"::error::{contract_path} `{API_ERROR_SCHEMA_NAME}` field `{field_name}` must be type `{expected_type}` but documents `{actual}`."
+                )
 
     def compare_tracked_rest_schema(schema_name, relation, method, path, seen=None):
         if schema_name not in runtime_schema_fields or schema_name not in contract_schema_fields:

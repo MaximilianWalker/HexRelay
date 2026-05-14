@@ -90,6 +90,7 @@ components:
   schemas:
     ApiError:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
@@ -100,6 +101,8 @@ components:
             - server_access_denied
             - channel_not_found
             - storage_unavailable
+        message:
+          type: string
     ServerChannelMessageCreateRequest:
       type: object
     ServerChannelMessage:

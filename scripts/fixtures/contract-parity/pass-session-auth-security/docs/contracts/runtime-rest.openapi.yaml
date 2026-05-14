@@ -51,11 +51,14 @@ components:
   schemas:
     ApiError:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
           enum:
             - cursor_invalid
             - storage_unavailable
+        message:
+          type: string
     DmThreadPage:
       type: object
