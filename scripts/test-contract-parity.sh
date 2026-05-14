@@ -58,6 +58,7 @@ run_fixture fail-fanout-example 1 "fanout_invalid"
 run_fixture fail-helper-auth-401 1 "can return HTTP 401 at runtime via direct unauthorized emitters or local failure helpers"
 run_fixture fail-internal-auth-401 1 "requires internal-token auth at runtime but is missing a 401 response"
 run_fixture fail-internal-auth-header 1 "x-hexrelay-internal-token"
+run_fixture fail-internal-auth-header-semantics 1 'requires request header `x-hexrelay-internal-token` at runtime but it is not marked required'
 run_fixture fail-internal-auth-security 1 "should not declare session security schemes"
 run_fixture fail-internal-auth-example 1 "internal_token_invalid"
 run_fixture fail-invite-create-example 1 "invite_invalid"
