@@ -52,12 +52,7 @@ Until that approval exists, allowed work is limited to planning, test/evidence d
 
 Until an approval reference with non-pending `NAV-APP-*` values exists, `T4.6.1` through `T4.6.4` must remain blocked follow-ups in `docs/planning/iterations/02-sprint-board.md`.
 
-Move only the approved implementation slice back into active sprint-board execution when its approval exists:
-
-- `NAV-APP-01` for `T4.6.1` / `NAV-02`;
-- `NAV-APP-02` for `T4.6.2` / `NAV-03`;
-- `NAV-APP-03` and `NAV-APP-04` for `T4.6.3` / `NAV-04`;
-- `NAV-APP-05` and `NAV-APP-06` for `T4.6.4` / `NAV-05`.
+Move only the approved implementation slice back into active sprint-board execution when its approval exists, using the canonical `Approval-To-Slice Map` below for the decision-to-task mapping.
 
 Do not mark any `T4.6.x` task done until the associated runtime behavior, validation, screenshots/checklists, and evidence pack exist.
 
