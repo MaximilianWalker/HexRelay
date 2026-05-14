@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented tracked REST DTO scalar-bound contract-parity coverage.
+- Latest meaningful change: 2026-05-14 documented selected tracked REST DTO enum-domain contract-parity coverage.
 
 ## Purpose
 

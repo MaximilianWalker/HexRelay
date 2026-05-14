@@ -75,6 +75,7 @@ run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyReque
 run_fixture fail-rest-schema-array-item-ref 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items as schema `DmFanoutCatchUpItem` at runtime but documents `FriendRequestPage`'
 run_fixture fail-rest-schema-nullable-field 1 'uses request schema `DmFanoutCatchUpRequest` field `cursor` nullable `true` at runtime but documents `false`'
 run_fixture fail-rest-schema-scalar-bounds 1 'uses request schema `DmFanoutCatchUpRequest` field `limit` maximum `100` at runtime but documents `50`'
+run_fixture fail-rest-schema-enum-domain 1 'returns schema `DmFanoutCatchUpResponse` field `status` enum [blocked, ready] at runtime but documents [ready]'
 run_fixture fail-rest-schema-nested-item-field-type 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items reference schema `DmFanoutCatchUpItem` field `ciphertext` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-required-fields 1 'uses request schema `AuthVerifyRequest` with required fields [challenge_id, identity_id, signature] at runtime but documents [challenge_id, identity_id]'
 run_fixture fail-realtime-error-envelope-semantics 1 'Realtime runtime event `error` uses data fields [code, message] but documents [code]'
