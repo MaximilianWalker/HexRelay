@@ -161,6 +161,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'FriendRequestCreateRequest',
         'DmFanoutDispatchRequest',
         'DmFanoutDispatchResponse',
+        'DmFanoutCatchUpRequest',
+        'DmFanoutCatchUpItem',
+        'DmFanoutCatchUpResponse',
     }
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
         ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
@@ -763,13 +766,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         vec_inner = unwrap_rust_generic(inner_type, 'Vec')
         if vec_inner is not None:
             item_details = map_rest_schema_type(vec_inner)
-            return {
+            details = {
                 'required': required,
                 'schema_type': 'array',
                 'item_schema_type': item_details['schema_type'],
             }
+            if item_details.get('schema_ref'):
+                details['item_schema_ref'] = item_details['schema_ref']
+            return details
 
         schema_type = 'object'
+        schema_ref = None
         normalized_type = inner_type.replace('&', '').strip()
         if normalized_type == 'String' or normalized_type.endswith(' str'):
             schema_type = 'string'
@@ -777,11 +784,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             schema_type = 'boolean'
         elif normalized_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
             schema_type = 'integer'
+        else:
+            schema_ref = normalized_type.split('::')[-1]
 
-        return {
+        details = {
             'required': required,
             'schema_type': schema_type,
         }
+        if schema_ref:
+            details['schema_ref'] = schema_ref
+        return details
 
 
     def extract_tracked_schema_fields(models_path: pathlib.Path):
@@ -880,6 +892,15 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
+                        continue
+                    schema_ref_match = re.match(r"^ {10,}\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+                    if schema_ref_match:
+                        if current_property_items:
+                            current_properties[current_property]['item_schema_type'] = 'object'
+                            current_properties[current_property]['item_schema_ref'] = schema_ref_match.group(1)
+                        else:
+                            current_properties[current_property]['schema_type'] = 'object'
+                            current_properties[current_property]['schema_ref'] = schema_ref_match.group(1)
                         continue
                     if not re.match(r'^ {10,}', line):
                         current_property = None
@@ -1686,12 +1707,28 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
                     )
                     continue
+                runtime_ref = runtime_field.get('schema_ref')
+                documented_ref = documented_field.get('schema_ref')
+                if runtime_ref and runtime_ref != documented_ref:
+                    actual_ref = documented_ref or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
+                    )
+                    continue
                 runtime_item_type = runtime_field.get('item_schema_type')
                 documented_item_type = documented_field.get('item_schema_type')
                 if runtime_item_type and runtime_item_type != documented_item_type:
                     actual_item_type = documented_item_type or '<none>'
                     errors.append(
                         f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                    )
+                    continue
+                runtime_item_ref = runtime_field.get('item_schema_ref')
+                documented_item_ref = documented_field.get('item_schema_ref')
+                if runtime_item_ref and runtime_item_ref != documented_item_ref:
+                    actual_item_ref = documented_item_ref or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
                     )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
@@ -1717,12 +1754,28 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
                         )
                         continue
+                    runtime_ref = runtime_field.get('schema_ref')
+                    documented_ref = documented_field.get('schema_ref')
+                    if runtime_ref and runtime_ref != documented_ref:
+                        actual_ref = documented_ref or '<none>'
+                        errors.append(
+                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
+                        )
+                        continue
                     runtime_item_type = runtime_field.get('item_schema_type')
                     documented_item_type = documented_field.get('item_schema_type')
                     if runtime_item_type and runtime_item_type != documented_item_type:
                         actual_item_type = documented_item_type or '<none>'
                         errors.append(
                             f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                        )
+                        continue
+                    runtime_item_ref = runtime_field.get('item_schema_ref')
+                    documented_item_ref = documented_field.get('item_schema_ref')
+                    if runtime_item_ref and runtime_item_ref != documented_item_ref:
+                        actual_item_ref = documented_item_ref or '<none>'
+                        errors.append(
+                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
                         )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
