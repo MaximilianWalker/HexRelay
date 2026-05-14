@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-11 recorded T4.1.9 recipient-targeted realtime DM dispatch-summary implementation details.
+- Latest meaningful change: 2026-05-13 tightened the `T4.6.1` through `T4.6.4` navigation approval response and pre-implementation gate package.
 
 ## Purpose
 
@@ -29,6 +29,139 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-13 (T4.6 navigation approval gate hardening)
+
+- Area affected: Servers Hub, Contacts Hub, desktop dual-mode server navigation, mobile navigation, and approval-gated Web implementation planning.
+- Change summary:
+  - Added an approval response template with explicit `NAV-APP-*` decision values for the runtime UI implementation PRs to cite.
+  - Added a pre-implementation gate checklist covering approval evidence, slice scope, validation commands, evidence path reservation, and exclusion of unapproved adjacent UX behavior.
+  - Kept the selected `T4.6.1` through `T4.6.4` cluster plan-only; no runtime UI behavior is approved or implemented by this change.
+- Rationale:
+  - The existing navigation plan described the pending decisions, but future automation and contributors still needed one copy-pasteable approval format and a deterministic start gate before any Web slice begins.
+- Linked docs updated:
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.6 navigation plan-only approval package)
+
+- Area affected: Servers Hub, Contacts Hub, desktop dual-mode server navigation, mobile navigation, and Iteration 2 planning status.
+- Change summary:
+  - Added `docs/planning/navigation-implementation-plan.md` as the approval-pending implementation plan and evidence authority for `T4.6.1` through `T4.6.4`.
+  - Mapped the plan to the existing navigation spec, screen/state spec, configuration defaults, sprint-board acceptance criteria, and verification matrix.
+  - Kept all runtime UI implementation blocked until explicit user approval of flow, copy, controls, and behavior.
+- Rationale:
+  - The selected navigation cluster is UX-facing and cannot be implemented under the repository UX approval gate, so the smallest mergeable prerequisite is a plan-only PR that defines the approval package and future implementation slices.
+- Linked docs updated:
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/README.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.5.4 E2EE group DM ciphertext and recovery closeout)
+
+- Area affected: E2EE group DM encrypt/decrypt, missing-key recovery coverage, crypto conformance evidence, and Iteration 2 planning status.
+- Change summary:
+  - Added a `communication-core` group session ring that decrypts only with matching group session ids and returns `session_key_missing` when a post-rekey envelope arrives before the next member session key.
+  - Added regressions proving group DM payloads are ciphertext envelopes, encrypted results do not serialize plaintext, one-to-one sessions are rejected from the group session ring, and decrypt succeeds after the rekeyed member session is inserted.
+  - Marked `T4.5.4` done on the Iteration 2 sprint board.
+- Rationale:
+  - The missing-key path was the smallest remaining mergeable prerequisite after the T4.5.1-T4.5.3 bootstrap, one-to-one rotation, and group rekey work had already landed.
+- Linked docs updated:
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.5.3 E2EE group DM bootstrap and rekey closeout)
+
+- Area affected: E2EE group DM session bootstrap, membership key updates, crypto conformance coverage, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Added `communication-core` group session bootstrap support that derives usable client sessions only for current group participants.
+  - Tightened group rekey flow so membership-change plans expose added/removed identity sets and reject removed identities before deriving the next client session.
+  - Recorded the previously landed T4.5.2 one-to-one rotation prerequisite and marked `T4.5.2` plus `T4.5.3` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected `T4.5.x` E2EE baseline remains too large for one PR; closing group bootstrap/rekey as a standalone prerequisite leaves only T4.5.4 group payload failure-recovery coverage open.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.5.1 E2EE one-to-one session bootstrap closeout)
+
+- Area affected: E2EE one-to-one DM session bootstrap, crypto conformance coverage, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Confirmed `communication-core` already establishes one-to-one E2EE sessions from Ed25519-signed identity bootstrap material and X25519 ephemeral agreement.
+  - Added a regression proving signed bootstrap material is bound to the exact session context, including thread and generation, before client session derivation.
+  - Marked `T4.5.1` done on the Iteration 2 sprint board and added the corresponding messaging E2EE evidence artifact.
+- Rationale:
+  - The selected `T4.5.x` E2EE baseline is too large for one PR; closing the one-to-one session-bootstrap prerequisite first keeps the change mergeable while leaving 1:1 payload rotation/catch-up and group E2EE work to T4.5.2-T4.5.4.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/messaging-e2ee/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T3.3.2/T4.3.3/T4.3.4 profile-device sync closeout)
+
+- Area affected: Presence convergence, server-channel profile-device hydration, shared adapter evidence, Iteration 2 planning status, and verification evidence.
+- Change summary:
+  - Confirmed presence and server-channel runtime paths already use the shared `NodeClientTransport` adapter/provenance helpers for their current node-client dispatch surfaces.
+  - Confirmed existing websocket regressions cover presence active-device fanout, late-device hydration, missed offline transition replay, server-channel late-device hydration, reconnect dedupe, and read-denied replay exclusion.
+  - Added the missing profile-device sync evidence artifact and marked `T3.3.2`, `T4.3.3`, and `T4.3.4` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected `T4.2-T4.3` cluster spans several already-delivered runtime surfaces. Closing the evidence/status gap is the smallest mergeable prerequisite before selecting later Iteration 2 work.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/testing/01-mvp-verification-matrix.md`
+  - `evidence/iteration-02/profile-device-sync/2026-05-13/`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.3.2 backend fanout closeout and UX split)
+
+- Area affected: Server-channel realtime fanout, reconnect duplicate coverage, Iteration 2 planning status, and UX approval planning.
+- Change summary:
+  - Strengthened the server-channel websocket integration test so reconnect assertions reject duplicate create, update, or delete events for the same message.
+  - Marked the backend `T4.3.2` websocket fanout acceptance evidence done on the Iteration 2 board.
+  - Split server-channel optimistic send UI into `T4.6.5` with a plan-only proposal in the screen/state spec.
+- Rationale:
+  - The selected task combined backend realtime reliability with UX behavior. Backend acceptance criteria can close now, while optimistic UI implementation remains blocked by the repository-wide explicit UX approval policy.
+- Linked docs updated:
+  - `docs/product/08-screen-state-spec.md`
+  - `docs/product/README.md`
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
+
+### 2026-05-13 (T4.3.1/T4.4.1 server-channel message and permission closeout)
+
+- Area affected: Server-channel REST messaging, permission bypass coverage, and Iteration 2 planning status.
+- Change summary:
+  - Confirmed the runtime already exposes server-channel message list/create/edit/delete routes with reply and mention metadata, pagination, tombstones, contract coverage, and integration tests.
+  - Added focused API regression coverage proving configured role read denial blocks channel history, and configured no-send roles cannot create, edit, or delete server-channel messages even when the message author is otherwise valid.
+  - Marked `T4.3.1` and `T4.4.1` done on the Iteration 2 sprint board.
+- Rationale:
+  - The selected parent cluster spans API schema, realtime fanout, adapterization, convergence, and permission middleware. Closing the message/permission prerequisite first keeps the PR mergeable while removing stale board state that caused the selector to re-open delivered backend work.
+- Linked docs updated:
+  - `docs/planning/iterations/02-sprint-board.md`
+  - `docs/planning/iterations/README.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-11 (T4.1.9 DM realtime dispatch summaries)
 

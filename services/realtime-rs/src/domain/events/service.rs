@@ -11,7 +11,7 @@ struct RealtimeInboundEnvelope {
     data: Value,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct CallSignalOfferData {
     call_id: String,
     from_identity_id: String,
@@ -19,7 +19,7 @@ struct CallSignalOfferData {
     sdp_offer: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct CallSignalAnswerData {
     call_id: String,
     from_identity_id: String,
@@ -27,7 +27,7 @@ struct CallSignalAnswerData {
     sdp_answer: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct CallSignalIceCandidateData {
     call_id: String,
     from_identity_id: String,
@@ -55,6 +55,39 @@ struct RealtimeErrorData {
     message: String,
 }
 
+pub struct SignalRecipientDelivery {
+    pub target_identity_id: String,
+    pub payload: String,
+}
+
+pub struct RoutedInboundEvent {
+    pub sender_response: String,
+    pub recipient_delivery: Option<SignalRecipientDelivery>,
+}
+
+impl RoutedInboundEvent {
+    fn sender_only(sender_response: String) -> Self {
+        Self {
+            sender_response,
+            recipient_delivery: None,
+        }
+    }
+
+    fn with_recipient(
+        sender_response: String,
+        target_identity_id: String,
+        recipient_payload: String,
+    ) -> Self {
+        Self {
+            sender_response,
+            recipient_delivery: Some(SignalRecipientDelivery {
+                target_identity_id,
+                payload: recipient_payload,
+            }),
+        }
+    }
+}
+
 pub fn connection_ready_banner() -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
@@ -69,11 +102,14 @@ pub fn connection_ready_banner() -> String {
         .unwrap_or_else(|_| "{\"event_type\":\"realtime.connected\"}".to_string())
 }
 
-pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
+pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> RoutedInboundEvent {
     let parsed = match serde_json::from_str::<RealtimeInboundEnvelope>(raw) {
         Ok(value) => value,
         Err(_) => {
-            return build_error_event("event_invalid", "invalid event envelope payload");
+            return RoutedInboundEvent::sender_only(build_error_event(
+                "event_invalid",
+                "invalid event envelope payload",
+            ));
         }
     };
 
@@ -81,68 +117,133 @@ pub fn route_inbound_event(raw: &str, session_identity_id: &str) -> String {
         "call.signal.offer" => match serde_json::from_value::<CallSignalOfferData>(parsed.data) {
             Ok(data) => {
                 if data.from_identity_id != session_identity_id {
-                    return build_error_event(
+                    return RoutedInboundEvent::sender_only(build_error_event(
                         "event_identity_mismatch",
                         "from_identity_id does not match authenticated session",
-                    );
+                    ));
+                }
+                if signal_target_invalid(&data.to_identity_id) {
+                    return RoutedInboundEvent::sender_only(build_error_event(
+                        "event_invalid",
+                        "invalid call.signal.offer target identity",
+                    ));
                 }
 
-                if data.to_identity_id != session_identity_id {
-                    return build_error_event(
-                        "event_unsupported",
-                        "recipient-targeted signaling delivery not implemented",
-                    );
-                }
-
-                build_event("call.signal.offer", parsed.correlation_id, data)
+                let recipient_delivery = signal_recipient_delivery(
+                    "call.signal.offer",
+                    session_identity_id,
+                    &data.to_identity_id,
+                    data.clone(),
+                );
+                let sender_response = build_event("call.signal.offer", parsed.correlation_id, data);
+                merge_recipient_delivery(sender_response, recipient_delivery)
             }
-            Err(_) => build_error_event("event_invalid", "invalid call.signal.offer payload"),
+            Err(_) => RoutedInboundEvent::sender_only(build_error_event(
+                "event_invalid",
+                "invalid call.signal.offer payload",
+            )),
         },
         "call.signal.answer" => match serde_json::from_value::<CallSignalAnswerData>(parsed.data) {
             Ok(data) => {
                 if data.from_identity_id != session_identity_id {
-                    return build_error_event(
+                    return RoutedInboundEvent::sender_only(build_error_event(
                         "event_identity_mismatch",
                         "from_identity_id does not match authenticated session",
-                    );
+                    ));
+                }
+                if signal_target_invalid(&data.to_identity_id) {
+                    return RoutedInboundEvent::sender_only(build_error_event(
+                        "event_invalid",
+                        "invalid call.signal.answer target identity",
+                    ));
                 }
 
-                if data.to_identity_id != session_identity_id {
-                    return build_error_event(
-                        "event_unsupported",
-                        "recipient-targeted signaling delivery not implemented",
-                    );
-                }
-
-                build_event("call.signal.answer", parsed.correlation_id, data)
+                let recipient_delivery = signal_recipient_delivery(
+                    "call.signal.answer",
+                    session_identity_id,
+                    &data.to_identity_id,
+                    data.clone(),
+                );
+                let sender_response =
+                    build_event("call.signal.answer", parsed.correlation_id, data);
+                merge_recipient_delivery(sender_response, recipient_delivery)
             }
-            Err(_) => build_error_event("event_invalid", "invalid call.signal.answer payload"),
+            Err(_) => RoutedInboundEvent::sender_only(build_error_event(
+                "event_invalid",
+                "invalid call.signal.answer payload",
+            )),
         },
         "call.signal.ice_candidate" => {
             match serde_json::from_value::<CallSignalIceCandidateData>(parsed.data) {
                 Ok(data) => {
                     if data.from_identity_id != session_identity_id {
-                        return build_error_event(
+                        return RoutedInboundEvent::sender_only(build_error_event(
                             "event_identity_mismatch",
                             "from_identity_id does not match authenticated session",
-                        );
+                        ));
+                    }
+                    if signal_target_invalid(&data.to_identity_id) {
+                        return RoutedInboundEvent::sender_only(build_error_event(
+                            "event_invalid",
+                            "invalid call.signal.ice_candidate target identity",
+                        ));
                     }
 
-                    if data.to_identity_id != session_identity_id {
-                        return build_error_event(
-                            "event_unsupported",
-                            "recipient-targeted signaling delivery not implemented",
-                        );
-                    }
-
-                    build_event("call.signal.ice_candidate", parsed.correlation_id, data)
+                    let recipient_delivery = signal_recipient_delivery(
+                        "call.signal.ice_candidate",
+                        session_identity_id,
+                        &data.to_identity_id,
+                        data.clone(),
+                    );
+                    let sender_response =
+                        build_event("call.signal.ice_candidate", parsed.correlation_id, data);
+                    merge_recipient_delivery(sender_response, recipient_delivery)
                 }
-                Err(_) => {
-                    build_error_event("event_invalid", "invalid call.signal.ice_candidate payload")
-                }
+                Err(_) => RoutedInboundEvent::sender_only(build_error_event(
+                    "event_invalid",
+                    "invalid call.signal.ice_candidate payload",
+                )),
             }
         }
-        _ => build_error_event("event_unsupported", "unsupported realtime event_type"),
+        _ => RoutedInboundEvent::sender_only(build_error_event(
+            "event_unsupported",
+            "unsupported realtime event_type",
+        )),
+    }
+}
+
+fn signal_target_invalid(to_identity_id: &str) -> bool {
+    let trimmed = to_identity_id.trim();
+    trimmed.is_empty() || trimmed != to_identity_id
+}
+
+fn signal_recipient_delivery<T: Serialize>(
+    event_type: &str,
+    session_identity_id: &str,
+    to_identity_id: &str,
+    data: T,
+) -> Option<SignalRecipientDelivery> {
+    if to_identity_id == session_identity_id {
+        return None;
+    }
+
+    Some(SignalRecipientDelivery {
+        target_identity_id: to_identity_id.to_string(),
+        payload: build_recipient_signal_event(event_type, data),
+    })
+}
+
+fn merge_recipient_delivery(
+    sender_response: String,
+    recipient_delivery: Option<SignalRecipientDelivery>,
+) -> RoutedInboundEvent {
+    match recipient_delivery {
+        Some(delivery) => RoutedInboundEvent::with_recipient(
+            sender_response,
+            delivery.target_identity_id,
+            delivery.payload,
+        ),
+        None => RoutedInboundEvent::sender_only(sender_response),
     }
 }
 
@@ -371,6 +472,21 @@ fn build_event<T: Serialize>(event_type: &str, correlation_id: Option<String>, d
     })
 }
 
+fn build_recipient_signal_event<T: Serialize>(event_type: &str, data: T) -> String {
+    let envelope = RealtimeOutboundEnvelope {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: event_type.to_string(),
+        occurred_at: Utc::now().to_rfc3339(),
+        correlation_id: Uuid::new_v4().to_string(),
+        producer: "realtime-signaling".to_string(),
+        data,
+    };
+
+    serde_json::to_string(&envelope).unwrap_or_else(|_| {
+        build_error_event("event_serialize_failed", "failed to serialize event")
+    })
+}
+
 pub(crate) fn build_error_event(code: &str, message: &str) -> String {
     let envelope = RealtimeOutboundEnvelope {
         event_id: Uuid::new_v4().to_string(),
@@ -408,11 +524,13 @@ mod tests {
             r#"{"event_type":"call.signal.answer","correlation_id":"corr-1","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","sdp_answer":"v=0\r\n"}}"#,
             "usr-1",
         );
-        let payload: Value = serde_json::from_str(&response).expect("decode routed answer");
+        let payload: Value =
+            serde_json::from_str(&response.sender_response).expect("decode routed answer");
 
         assert_eq!(payload["event_type"], "call.signal.answer");
         assert_eq!(payload["correlation_id"], "corr-1");
         assert_eq!(payload["data"]["call_id"], "call-1");
+        assert!(response.recipient_delivery.is_none());
     }
 
     #[test]
@@ -421,10 +539,12 @@ mod tests {
             r#"{"event_type":"call.signal.ice_candidate","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-1","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
             "usr-1",
         );
-        let payload: Value = serde_json::from_str(&response).expect("decode routed candidate");
+        let payload: Value =
+            serde_json::from_str(&response.sender_response).expect("decode routed candidate");
 
         assert_eq!(payload["event_type"], "call.signal.ice_candidate");
         assert_eq!(payload["data"]["candidate"], "candidate:1");
+        assert!(response.recipient_delivery.is_none());
     }
 
     #[test]
@@ -438,7 +558,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_cross_identity_recipient_targeting_until_delivery_exists() {
+    fn routes_cross_identity_recipient_targeting() {
         let payloads = [
             r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_offer":"v=0\r\n"}}"#,
             r#"{"event_type":"call.signal.answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-2","sdp_answer":"v=0\r\n"}}"#,
@@ -447,9 +567,42 @@ mod tests {
 
         for payload in payloads {
             let response = route_inbound_event(payload, "usr-1");
-            let envelope: Value = serde_json::from_str(&response).expect("decode error envelope");
+            let sender_envelope: Value =
+                serde_json::from_str(&response.sender_response).expect("decode sender envelope");
+            assert_ne!(sender_envelope["event_type"], "error");
+            assert_eq!(sender_envelope["data"]["from_identity_id"], "usr-1");
+            assert_eq!(sender_envelope["data"]["to_identity_id"], "usr-2");
+
+            let delivery = response
+                .recipient_delivery
+                .expect("cross-identity signal should have recipient delivery");
+            assert_eq!(delivery.target_identity_id, "usr-2");
+            let recipient_envelope: Value =
+                serde_json::from_str(&delivery.payload).expect("decode recipient envelope");
+            assert_eq!(recipient_envelope["producer"], "realtime-signaling");
+            assert_ne!(recipient_envelope["event_id"], sender_envelope["event_id"]);
+            assert_ne!(
+                recipient_envelope["correlation_id"],
+                sender_envelope["correlation_id"]
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_blank_or_padded_signal_targets() {
+        let payloads = [
+            r#"{"event_type":"call.signal.offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"","sdp_offer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":" usr-2 ","sdp_answer":"v=0\r\n"}}"#,
+            r#"{"event_type":"call.signal.ice_candidate","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"   ","candidate":"candidate:1"}}"#,
+        ];
+
+        for payload in payloads {
+            let response = route_inbound_event(payload, "usr-1");
+            let envelope: Value =
+                serde_json::from_str(&response.sender_response).expect("decode error envelope");
             assert_eq!(envelope["event_type"], "error");
-            assert_eq!(envelope["data"]["code"], "event_unsupported");
+            assert_eq!(envelope["data"]["code"], "event_invalid");
+            assert!(response.recipient_delivery.is_none());
         }
     }
 }

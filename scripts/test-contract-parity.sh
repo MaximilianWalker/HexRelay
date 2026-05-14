@@ -66,6 +66,7 @@ run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missin
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
+run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-required-fields 1 'uses request schema `AuthVerifyRequest` with required fields [challenge_id, identity_id, signature] at runtime but documents [challenge_id, identity_id]'
 run_fixture fail-realtime-error-envelope-semantics 1 'Realtime runtime event `error` uses data fields [code, message] but documents [code]'
 run_fixture fail-realtime-envelope-semantics 1 'Realtime runtime event `realtime.connected` uses data fields [state] but documents [status]'

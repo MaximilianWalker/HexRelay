@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-13
 - Source of truth: `docs/product/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 aligned product docs with the dynamic server-node policy graph, opt-in discovery/relay model, user-consented node introductions, app-mediated dedicated-server administration, and the global UX approval gate.
+- Latest meaningful change: 2026-05-13 added the approval-pending server-channel optimistic send proposal to the screen/state authority.
 
 ## Contents
 

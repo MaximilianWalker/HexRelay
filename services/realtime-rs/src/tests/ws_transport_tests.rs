@@ -71,6 +71,12 @@ struct PresenceApiStubState {
     watcher_token: String,
 }
 
+#[derive(Clone)]
+struct SignalingApiStubState {
+    sessions: Arc<RwLock<HashMap<String, String>>>,
+    contacts: Arc<RwLock<HashMap<String, Vec<String>>>>,
+}
+
 async fn start_validate_server(mode: ValidateMode) -> String {
     async fn validate_endpoint(
         State(mode): State<ValidateMode>,
@@ -120,6 +126,102 @@ async fn start_validate_server(mode: ValidateMode) -> String {
     let address = listener.local_addr().expect("read listener address");
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("serve test API");
+    });
+
+    format!("http://{}", address)
+}
+
+async fn start_signaling_api_stub(
+    sessions: HashMap<String, String>,
+    contacts: HashMap<String, Vec<String>>,
+) -> String {
+    async fn validate_endpoint(
+        State(state): State<SignalingApiStubState>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<ValidatePayload>) {
+        let identity_id = authorization_identity(&state.sessions, &headers).await;
+        match identity_id {
+            Some(identity_id) => (
+                StatusCode::OK,
+                Json(ValidatePayload {
+                    session_id: format!("sess-{identity_id}"),
+                    identity_id,
+                    expires_at: "2030-01-01T00:00:00Z".to_string(),
+                }),
+            ),
+            None => (
+                StatusCode::UNAUTHORIZED,
+                Json(ValidatePayload {
+                    session_id: String::new(),
+                    identity_id: String::new(),
+                    expires_at: String::new(),
+                }),
+            ),
+        }
+    }
+
+    async fn contacts_endpoint(
+        State(state): State<SignalingApiStubState>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<Value>) {
+        let Some(identity_id) = authorization_identity(&state.sessions, &headers).await else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "items": [] })),
+            );
+        };
+
+        let contacts = state
+            .contacts
+            .read()
+            .await
+            .get(&identity_id)
+            .cloned()
+            .unwrap_or_default();
+        let items = contacts
+            .into_iter()
+            .map(|id| {
+                serde_json::json!({
+                    "id": id,
+                    "name": id,
+                    "status": "online",
+                    "unread": 0,
+                    "favorite": false,
+                    "inbound_request": false,
+                    "pending_request": false
+                })
+            })
+            .collect::<Vec<_>>();
+
+        (StatusCode::OK, Json(serde_json::json!({ "items": items })))
+    }
+
+    async fn authorization_identity(
+        sessions: &Arc<RwLock<HashMap<String, String>>>,
+        headers: &HeaderMap,
+    ) -> Option<String> {
+        let authorization = headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())?;
+        sessions.read().await.get(authorization).cloned()
+    }
+
+    let state = SignalingApiStubState {
+        sessions: Arc::new(RwLock::new(sessions)),
+        contacts: Arc::new(RwLock::new(contacts)),
+    };
+    let app = Router::new()
+        .route("/auth/sessions/validate", get(validate_endpoint))
+        .route("/contacts", get(contacts_endpoint))
+        .with_state(state);
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind signaling stub listener");
+    let address = listener.local_addr().expect("read signaling stub address");
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("serve signaling stub API");
     });
 
     format!("http://{}", address)
@@ -355,6 +457,24 @@ async fn connect_ws_with_token_and_device(
     socket
 }
 
+async fn recv_json_frame(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> Value {
+    let message = socket
+        .next()
+        .await
+        .expect("socket message")
+        .expect("ws frame");
+    let text = match message {
+        WsMessage::Text(value) => value,
+        _ => panic!("expected text frame"),
+    };
+
+    serde_json::from_str(&text).expect("decode websocket payload")
+}
+
 async fn recv_presence_event(
     socket: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -443,6 +563,24 @@ async fn assert_presence_replay_keys_have_ttl(client: &redis::Client, watcher_id
             .await
             .expect("read presence replay key ttl");
         assert!(ttl_seconds > 0, "{key} should have an expiry");
+    }
+}
+
+async fn assert_channel_replay_keys_have_ttl(client: &redis::Client, recipient_identity_id: &str) {
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .expect("open redis connection for channel replay ttl check");
+    for key in [
+        format!("channels:recipient_stream_head:{recipient_identity_id}"),
+        format!("channels:recipient_stream_log:{recipient_identity_id}"),
+    ] {
+        let ttl_millis: i64 = redis::cmd("PTTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .expect("read channel replay key pttl");
+        assert!(ttl_millis > 0, "{key} should have an expiry");
     }
 }
 
@@ -1499,8 +1637,13 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut subject_socket = connect_ws_with_token(&ws_url, "subject-token").await;
     let _ = subject_socket.next().await;
 
-    let online_payload =
-        recv_presence_event(&mut primary_device, "usr-presence-subject", "online").await;
+    let online_payload = wait_for_presence_replay_event(
+        &redis_client,
+        "usr-presence-viewer",
+        "usr-presence-subject",
+        "online",
+    )
+    .await;
     let online_seq = online_payload["data"]["presence_seq"]
         .as_u64()
         .expect("online seq");
@@ -1508,6 +1651,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
     let _ = late_device.next().await;
+    wait_for_registered_device(&state, "usr-presence-viewer", "device-late").await;
 
     let hydrated_payload =
         recv_presence_event(&mut late_device, "usr-presence-subject", "online").await;
@@ -1517,6 +1661,7 @@ async fn websocket_presence_hydrates_late_profile_device_and_converges_live() {
         .close(None)
         .await
         .expect("close subject socket");
+    close_socket_and_wait_for_disconnect(&mut subject_socket).await;
 
     let offline_primary =
         recv_presence_event(&mut primary_device, "usr-presence-subject", "offline").await;
@@ -1830,6 +1975,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     assert_eq!(replay_payload["data"]["channel_seq"], 7);
     assert_eq!(replay_payload["data"]["server_id"], "guild-1");
     assert_eq!(replay_payload["data"]["sender_identity_id"], "usr-sender");
+    assert_channel_replay_keys_have_ttl(&redis_client, viewer_identity_id).await;
 
     let mut late_device =
         connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
@@ -1869,6 +2015,189 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         .close(None)
         .await
         .expect("close primary device");
+    second_reconnect_late_device
+        .close(None)
+        .await
+        .expect("close second reconnected late device");
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+}
+
+#[tokio::test]
+async fn websocket_channel_events_hydrate_late_device_without_prior_active_connection() {
+    let Some(redis_client) = prepared_redis_client().await else {
+        return;
+    };
+
+    let viewer_identity_id = "usr-channel-no-active-viewer";
+
+    clear_channel_keys(&redis_client, viewer_identity_id).await;
+
+    let api_base = start_presence_api_stub(
+        HashMap::from([(
+            "Bearer viewer-token".to_string(),
+            viewer_identity_id.to_string(),
+        )]),
+        HashMap::new(),
+        "hexrelay-dev-presence-watcher-token-change-me",
+    )
+    .await;
+
+    let state = AppState::new(
+        api_base,
+        test_allowed_origins(),
+        "hexrelay-dev-channel-dispatch-token-change-me".to_string(),
+        "hexrelay-dev-presence-watcher-token-change-me".to_string(),
+        Some(redis_client.clone()),
+        false,
+        60,
+        60,
+        16384,
+        120,
+        60,
+        3,
+        0,
+        10000,
+    )
+    .expect("build app state");
+    let ws_url = start_ws_server_with_state(state.clone()).await;
+
+    let created_summary = publish_channel_message_created(
+        &state,
+        PublishChannelMessageCreatedInput {
+            message_id: "msg-no-active-1".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            sender_id: "usr-sender".to_string(),
+            created_at: Some("2026-03-23T06:00:00Z".to_string()),
+            channel_seq: 10,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message created");
+    assert_eq!(
+        created_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let updated_summary = publish_channel_message_updated(
+        &state,
+        PublishChannelMessageUpdatedInput {
+            message_id: "msg-no-active-2".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            editor_id: "usr-editor".to_string(),
+            edited_at: Some("2026-03-23T06:05:00Z".to_string()),
+            channel_seq: 11,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message updated");
+    assert_eq!(
+        updated_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let deleted_summary = publish_channel_message_deleted(
+        &state,
+        PublishChannelMessageDeletedInput {
+            message_id: "msg-no-active-3".to_string(),
+            guild_id: "guild-1".to_string(),
+            channel_id: "channel-1".to_string(),
+            deleted_by: "usr-moderator".to_string(),
+            deleted_at: Some("2026-03-23T06:10:00Z".to_string()),
+            channel_seq: 12,
+            recipients: vec![viewer_identity_id.to_string()],
+        },
+    )
+    .await
+    .expect("publish channel message deleted");
+    assert_eq!(
+        deleted_summary.no_connection_recipient_ids,
+        vec![viewer_identity_id.to_string()]
+    );
+
+    let created_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.created",
+        "msg-no-active-1",
+    )
+    .await;
+    assert_eq!(created_replay_payload["data"]["channel_seq"], 10);
+    let updated_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.updated",
+        "msg-no-active-2",
+    )
+    .await;
+    assert_eq!(updated_replay_payload["data"]["channel_seq"], 11);
+    let deleted_replay_payload = wait_for_channel_replay_event(
+        &redis_client,
+        viewer_identity_id,
+        "channel.message.deleted",
+        "msg-no-active-3",
+    )
+    .await;
+    assert_eq!(deleted_replay_payload["data"]["channel_seq"], 12);
+    assert_channel_replay_keys_have_ttl(&redis_client, viewer_identity_id).await;
+
+    let mut late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = late_device.next().await;
+    wait_for_registered_device(&state, viewer_identity_id, "device-late").await;
+
+    let hydrated_created = recv_channel_event(
+        &mut late_device,
+        "channel.message.created",
+        "msg-no-active-1",
+    )
+    .await;
+    assert_eq!(
+        hydrated_created["data"]["channel_seq"],
+        created_replay_payload["data"]["channel_seq"]
+    );
+    let hydrated_updated = recv_channel_event(
+        &mut late_device,
+        "channel.message.updated",
+        "msg-no-active-2",
+    )
+    .await;
+    assert_eq!(
+        hydrated_updated["data"]["channel_seq"],
+        updated_replay_payload["data"]["channel_seq"]
+    );
+    let hydrated_deleted = recv_channel_event(
+        &mut late_device,
+        "channel.message.deleted",
+        "msg-no-active-3",
+    )
+    .await;
+    assert_eq!(
+        hydrated_deleted["data"]["channel_seq"],
+        deleted_replay_payload["data"]["channel_seq"]
+    );
+
+    late_device
+        .close(None)
+        .await
+        .expect("close late device before reconnect");
+    close_socket_and_wait_for_disconnect(&mut late_device).await;
+    drop(late_device);
+
+    let mut second_reconnect_late_device =
+        connect_ws_with_token_and_device(&ws_url, "viewer-token", "device-late").await;
+    let _ = second_reconnect_late_device.next().await;
+    assert_no_channel_event(
+        &mut second_reconnect_late_device,
+        "channel.message.created",
+        "msg-no-active-1",
+        Duration::from_secs(2),
+    )
+    .await;
+
     second_reconnect_late_device
         .close(None)
         .await
@@ -2156,46 +2485,94 @@ async fn websocket_replies_with_valid_event_envelope_for_self_targeted_call_sign
 }
 
 #[tokio::test]
-async fn websocket_rejects_cross_identity_call_signal_offer_until_fanout_exists() {
-    let api_base = start_validate_server(ValidateMode::Authorized).await;
+async fn websocket_delivers_cross_identity_call_signals_to_recipient() {
+    let api_base = start_signaling_api_stub(
+        HashMap::from([
+            ("Bearer sender-token".to_string(), "usr-1".to_string()),
+            ("Bearer recipient-token".to_string(), "usr-b".to_string()),
+        ]),
+        HashMap::from([("usr-1".to_string(), vec!["usr-b".to_string()])]),
+    )
+    .await;
     let ws_url = start_ws_server(api_base, 60).await;
 
-    let mut request = ws_url
-        .into_client_request()
-        .expect("build websocket client request");
-    request.headers_mut().insert(
-        "authorization",
-        HeaderValue::from_static("Bearer test-token"),
-    );
-    set_allowed_origin(&mut request);
+    let mut sender = connect_ws_with_token(&ws_url, "sender-token").await;
+    let mut recipient_one = connect_ws_with_token(&ws_url, "recipient-token").await;
+    let mut recipient_two = connect_ws_with_token(&ws_url, "recipient-token").await;
 
-    let (mut socket, _) = connect_async(request)
-        .await
-        .expect("websocket connect response");
+    let _ = sender.next().await;
+    let _ = recipient_one.next().await;
+    let _ = recipient_two.next().await;
 
-    let _ = socket.next().await;
+    for (event_type, payload) in [
+        (
+            "call.signal.offer",
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.answer",
+            r#"{"event_type":"call.signal.answer","correlation_id":"corr-answer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_answer":"v=0\r\n"}}"#,
+        ),
+        (
+            "call.signal.ice_candidate",
+            r#"{"event_type":"call.signal.ice_candidate","correlation_id":"corr-ice","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","candidate":"candidate:1","sdp_mid":"0","sdp_mline_index":0}}"#,
+        ),
+    ] {
+        sender
+            .send(WsMessage::Text(payload.to_string()))
+            .await
+            .expect("send signaling event");
 
-    socket
+        let sender_payload = recv_json_frame(&mut sender).await;
+        assert_eq!(sender_payload["event_type"], event_type);
+        assert_eq!(sender_payload["producer"], "realtime-gateway");
+
+        let recipient_payloads = [
+            recv_json_frame(&mut recipient_one).await,
+            recv_json_frame(&mut recipient_two).await,
+        ];
+        for recipient_payload in recipient_payloads {
+            assert_eq!(recipient_payload["event_type"], event_type);
+            assert_eq!(recipient_payload["producer"], "realtime-signaling");
+            assert_eq!(recipient_payload["data"]["from_identity_id"], "usr-1");
+            assert_eq!(recipient_payload["data"]["to_identity_id"], "usr-b");
+        }
+    }
+}
+
+#[tokio::test]
+async fn websocket_rejects_cross_identity_call_signal_without_contact_authority() {
+    let api_base = start_signaling_api_stub(
+        HashMap::from([
+            ("Bearer sender-token".to_string(), "usr-1".to_string()),
+            ("Bearer recipient-token".to_string(), "usr-b".to_string()),
+        ]),
+        HashMap::new(),
+    )
+    .await;
+    let ws_url = start_ws_server(api_base, 60).await;
+
+    let mut sender = connect_ws_with_token(&ws_url, "sender-token").await;
+    let mut recipient = connect_ws_with_token(&ws_url, "recipient-token").await;
+
+    let _ = sender.next().await;
+    let _ = recipient.next().await;
+
+    sender
         .send(WsMessage::Text(
-            r#"{"event_type":"call.signal.offer","correlation_id":"corr-unsupported","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
+            r#"{"event_type":"call.signal.offer","correlation_id":"corr-offer","data":{"call_id":"call-1","from_identity_id":"usr-1","to_identity_id":"usr-b","sdp_offer":"v=0\r\n"}}"#
                 .to_string(),
         ))
         .await
-        .expect("send offer event");
+        .expect("send unauthorized signaling event");
 
-    let message = socket
-        .next()
-        .await
-        .expect("socket message")
-        .expect("ws frame");
-    let text = match message {
-        WsMessage::Text(value) => value,
-        _ => panic!("expected text frame"),
-    };
+    let sender_payload = recv_json_frame(&mut sender).await;
+    assert_eq!(sender_payload["event_type"], "error");
+    assert_eq!(sender_payload["data"]["code"], "event_forbidden");
 
-    let payload: Value = serde_json::from_str(&text).expect("decode response envelope");
-    assert_eq!(payload["event_type"], "error");
-    assert_eq!(payload["data"]["code"], "event_unsupported");
+    let no_recipient_frame =
+        tokio::time::timeout(Duration::from_millis(250), recipient.next()).await;
+    assert!(no_recipient_frame.is_err());
 }
 
 #[test]

@@ -566,6 +566,282 @@ async fn rejects_server_channel_message_mutation_routes_for_outsiders() {
 }
 
 #[tokio::test]
+async fn channel_role_send_permission_gates_server_channel_message_mutations() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let server_id = format!("srv-channel-perm-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-channel-perm-{}", Uuid::new_v4().simple());
+    let reader_id = unique_identity("usr-channel-reader");
+    let poster_id = unique_identity("usr-channel-poster");
+    let reader_role_id = format!("role-reader-{}", Uuid::new_v4().simple());
+    let poster_role_id = format!("role-poster-{}", Uuid::new_v4().simple());
+    let reader_message_id = format!("scm-reader-{}", Uuid::new_v4().simple());
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Permissioned",
+        &channel_id,
+        "general",
+        &[&reader_id, &poster_id],
+        &[],
+    )
+    .await;
+
+    for (role_id, name, rank) in [
+        (&reader_role_id, "reader", 1),
+        (&poster_role_id, "poster", 2),
+    ] {
+        server_channels_repo::insert_server_role(
+            &pool,
+            server_channels_repo::ServerRoleInsertParams {
+                role_id,
+                server_id: &server_id,
+                name,
+                rank,
+            },
+        )
+        .await
+        .expect("insert server role");
+    }
+    for (identity_id, role_id) in [(&reader_id, &reader_role_id), (&poster_id, &poster_role_id)] {
+        server_channels_repo::assign_server_membership_role(
+            &pool,
+            server_channels_repo::ServerMembershipRoleInsertParams {
+                server_id: &server_id,
+                identity_id,
+                role_id,
+            },
+        )
+        .await
+        .expect("assign server role");
+    }
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &reader_role_id,
+            can_read: true,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert reader permission");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &poster_role_id,
+            can_read: true,
+            can_send: true,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert poster permission");
+    server_channels_repo::insert_server_channel_message(
+        &pool,
+        server_channels_repo::ServerChannelMessageInsertParams {
+            message_id: &reader_message_id,
+            channel_id: &channel_id,
+            author_id: &reader_id,
+            channel_seq: 1,
+            content: "reader historical message",
+            reply_to_message_id: None,
+            created_at: "2026-05-13T06:00:00Z",
+            edited_at: None,
+            deleted_at: None,
+        },
+        &[],
+    )
+    .await
+    .expect("insert reader-authored message");
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&reader_id, &poster_id]).await
+    else {
+        return;
+    };
+
+    let reader_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "reader should not send" }).to_string(),
+        ))
+        .expect("build reader create request");
+    let reader_edit_request = Request::builder()
+        .method("PATCH")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages/{reader_message_id}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "content": "reader should not edit",
+                "mention_identity_ids": []
+            })
+            .to_string(),
+        ))
+        .expect("build reader edit request");
+    let reader_delete_request = Request::builder()
+        .method("DELETE")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages/{reader_message_id}"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&reader_id]))
+        .body(Body::empty())
+        .expect("build reader delete request");
+    let poster_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&poster_id]))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "content": "poster can send" }).to_string(),
+        ))
+        .expect("build poster create request");
+
+    let reader_response = app
+        .clone()
+        .oneshot(reader_request)
+        .await
+        .expect("reader create response");
+    let reader_edit_response = app
+        .clone()
+        .oneshot(reader_edit_request)
+        .await
+        .expect("reader edit response");
+    let reader_delete_response = app
+        .clone()
+        .oneshot(reader_delete_request)
+        .await
+        .expect("reader delete response");
+    let poster_response = app
+        .oneshot(poster_request)
+        .await
+        .expect("poster create response");
+
+    assert_eq!(reader_response.status(), StatusCode::FORBIDDEN);
+    let reader_body = to_bytes(reader_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader response body");
+    let reader_payload: serde_json::Value =
+        serde_json::from_slice(&reader_body).expect("decode reader response body");
+    assert_eq!(reader_payload["code"], "server_access_denied");
+    assert_eq!(reader_edit_response.status(), StatusCode::FORBIDDEN);
+    let reader_edit_body = to_bytes(reader_edit_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader edit response body");
+    let reader_edit_payload: serde_json::Value =
+        serde_json::from_slice(&reader_edit_body).expect("decode reader edit response body");
+    assert_eq!(reader_edit_payload["code"], "server_access_denied");
+    assert_eq!(reader_delete_response.status(), StatusCode::FORBIDDEN);
+    let reader_delete_body = to_bytes(reader_delete_response.into_body(), usize::MAX)
+        .await
+        .expect("read reader delete response body");
+    let reader_delete_payload: serde_json::Value =
+        serde_json::from_slice(&reader_delete_body).expect("decode reader delete response body");
+    assert_eq!(reader_delete_payload["code"], "server_access_denied");
+
+    assert_eq!(poster_response.status(), StatusCode::CREATED);
+    let poster_body = to_bytes(poster_response.into_body(), usize::MAX)
+        .await
+        .expect("read poster response body");
+    let poster_payload: serde_json::Value =
+        serde_json::from_slice(&poster_body).expect("decode poster response body");
+    assert_eq!(poster_payload["author_id"], poster_id);
+    assert_eq!(poster_payload["channel_seq"], 2);
+}
+
+#[tokio::test]
+async fn channel_role_read_permission_gates_server_channel_message_listing() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let server_id = format!("srv-channel-read-denied-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-channel-read-denied-{}", Uuid::new_v4().simple());
+    let member_id = unique_identity("usr-channel-read-denied");
+    let role_id = format!("role-read-denied-{}", Uuid::new_v4().simple());
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Read Denied",
+        &channel_id,
+        "restricted",
+        &[&member_id],
+        &[],
+    )
+    .await;
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &role_id,
+            server_id: &server_id,
+            name: "no-read",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert no-read role");
+    server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_id,
+            identity_id: &member_id,
+            role_id: &role_id,
+        },
+    )
+    .await
+    .expect("assign no-read role");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &role_id,
+            can_read: false,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("insert no-read permission");
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages?limit=2"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build read-denied list request");
+
+    let response = app.oneshot(request).await.expect("read-denied response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read read-denied response body");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("decode read-denied response body");
+    assert_eq!(payload["code"], "server_access_denied");
+}
+
+#[tokio::test]
 async fn paginates_server_channel_messages_by_channel_seq_cursor() {
     let Some(pool) = prepared_database_pool().await else {
         return;
@@ -1347,7 +1623,9 @@ async fn assert_no_channel_event(
         while let Some(message) = socket.next().await {
             let message = match message {
                 Ok(value) => value,
-                Err(_) => return,
+                Err(error) => {
+                    panic!("websocket read failed during channel absence assertion: {error}")
+                }
             };
             let text = match message {
                 WsMessage::Text(value) => value,
@@ -1373,6 +1651,44 @@ async fn assert_no_channel_event(
     }
 }
 
+async fn assert_no_channel_events_for_message(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    expected_event_types: &[&str],
+    expected_message_id: &str,
+    timeout: std::time::Duration,
+) {
+    let wait_result = tokio::time::timeout(timeout, async {
+        while let Some(message) = socket.next().await {
+            let message = match message {
+                Ok(value) => value,
+                Err(_) => return,
+            };
+            let text = match message {
+                WsMessage::Text(value) => value,
+                _ => continue,
+            };
+            let payload: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            let event_type = payload["event_type"].as_str().unwrap_or_default();
+            let message_id = payload["data"]["message_id"].as_str().unwrap_or_default();
+            if expected_event_types.contains(&event_type) && message_id == expected_message_id {
+                panic!(
+                    "unexpected channel event for event_type={event_type} message_id={expected_message_id}: {text}"
+                );
+            }
+        }
+    })
+    .await;
+
+    if let Ok(()) = wait_result {
+        panic!("socket closed before channel absence assertion completed");
+    }
+}
+
 #[tokio::test]
 async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let Some(pool) = prepared_database_pool().await else {
@@ -1386,7 +1702,10 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let channel_id = format!("chn-fanout-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-fanout-member");
     let teammate_id = unique_identity("usr-fanout-teammate");
+    let read_denied_id = unique_identity("usr-fanout-read-denied");
     let outsider_id = unique_identity("usr-fanout-outsider");
+    let reader_role_id = format!("role-fanout-reader-{}", Uuid::new_v4().simple());
+    let denied_role_id = format!("role-fanout-denied-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
@@ -1394,10 +1713,80 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         "Fanout",
         &channel_id,
         "general",
-        &[&member_id, &teammate_id],
+        &[&member_id, &teammate_id, &read_denied_id],
         &[],
     )
     .await;
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &reader_role_id,
+            server_id: &server_id,
+            name: "Reader",
+            rank: 10,
+        },
+    )
+    .await
+    .expect("insert reader role");
+    server_channels_repo::insert_server_role(
+        &pool,
+        server_channels_repo::ServerRoleInsertParams {
+            role_id: &denied_role_id,
+            server_id: &server_id,
+            name: "No Channel Read",
+            rank: 1,
+        },
+    )
+    .await
+    .expect("insert read-denied role");
+    for identity_id in [&member_id, &teammate_id] {
+        server_channels_repo::assign_server_membership_role(
+            &pool,
+            server_channels_repo::ServerMembershipRoleInsertParams {
+                server_id: &server_id,
+                identity_id,
+                role_id: &reader_role_id,
+            },
+        )
+        .await
+        .expect("assign reader role");
+    }
+    server_channels_repo::assign_server_membership_role(
+        &pool,
+        server_channels_repo::ServerMembershipRoleInsertParams {
+            server_id: &server_id,
+            identity_id: &read_denied_id,
+            role_id: &denied_role_id,
+        },
+    )
+    .await
+    .expect("assign read-denied role");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &reader_role_id,
+            can_read: true,
+            can_send: true,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("allow reader role channel access");
+    server_channels_repo::upsert_server_channel_role_permissions(
+        &pool,
+        server_channels_repo::ServerChannelRolePermissionParams {
+            server_id: &server_id,
+            channel_id: &channel_id,
+            role_id: &denied_role_id,
+            can_read: false,
+            can_send: false,
+            can_manage: false,
+        },
+    )
+    .await
+    .expect("deny read-denied role channel access");
     ensure_db_identity_key(&pool, &outsider_id).await;
 
     let realtime_listener = TcpListener::bind("127.0.0.1:0")
@@ -1414,6 +1803,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     let member_token = issue_db_session_cookie(&pool, &api_state, &member_id).await;
     let teammate_token = issue_db_session_cookie(&pool, &api_state, &teammate_id).await;
+    let read_denied_token = issue_db_session_cookie(&pool, &api_state, &read_denied_id).await;
     let outsider_token = issue_db_session_cookie(&pool, &api_state, &outsider_id).await;
 
     let api_base_url = start_api_http_server(api_state.clone()).await;
@@ -1453,9 +1843,11 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let mut member_socket =
         connect_ws_with_token_and_device(&ws_url, &member_token, "device-primary").await;
     let mut teammate_socket = connect_ws_with_token(&ws_url, &teammate_token).await;
+    let mut read_denied_socket = connect_ws_with_token(&ws_url, &read_denied_token).await;
     let mut outsider_socket = connect_ws_with_token(&ws_url, &outsider_token).await;
     let _ = member_socket.next().await;
     let _ = teammate_socket.next().await;
+    let _ = read_denied_socket.next().await;
     let _ = outsider_socket.next().await;
 
     let client = reqwest::Client::new();
@@ -1485,6 +1877,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     assert_eq!(member_created["data"]["channel_id"], channel_id);
     assert_eq!(teammate_created["data"]["channel_seq"], 1);
     assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.created",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.created",
         &message_id,
@@ -1512,6 +1911,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         recv_channel_event(&mut teammate_socket, "channel.message.updated", &message_id).await;
     assert_eq!(member_updated["data"]["channel_seq"], 1);
     assert_eq!(teammate_updated["data"]["channel_id"], channel_id);
+    assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.updated",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
     assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.updated",
@@ -1565,6 +1971,13 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     assert_eq!(member_deleted["data"]["channel_seq"], 1);
     assert_eq!(teammate_deleted["data"]["channel_id"], channel_id);
     assert_no_channel_event(
+        &mut read_denied_socket,
+        "channel.message.deleted",
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+    assert_no_channel_event(
         &mut outsider_socket,
         "channel.message.deleted",
         &message_id,
@@ -1613,9 +2026,29 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let mut late_device_reconnect =
         connect_ws_with_token_and_device(&ws_url, &member_token, "device-late").await;
     let _ = late_device_reconnect.next().await;
-    assert_no_channel_event(
+    assert_no_channel_events_for_message(
         &mut late_device_reconnect,
-        "channel.message.created",
+        &[
+            "channel.message.created",
+            "channel.message.updated",
+            "channel.message.deleted",
+        ],
+        &message_id,
+        std::time::Duration::from_millis(500),
+    )
+    .await;
+
+    let mut late_read_denied_device =
+        connect_ws_with_token_and_device(&ws_url, &read_denied_token, "device-read-denied-late")
+            .await;
+    let _ = late_read_denied_device.next().await;
+    assert_no_channel_events_for_message(
+        &mut late_read_denied_device,
+        &[
+            "channel.message.created",
+            "channel.message.updated",
+            "channel.message.deleted",
+        ],
         &message_id,
         std::time::Duration::from_millis(500),
     )

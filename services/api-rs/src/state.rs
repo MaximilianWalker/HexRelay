@@ -10,7 +10,9 @@ use sqlx::PgPool;
 
 use crate::{
     config::{ApiDmRetentionConfig, ApiRateLimitConfig},
-    domain::node_identity::LocalNodeIdentity,
+    domain::{
+        node_identity::LocalNodeIdentity, server_channels::realtime::ServerChannelDispatchQueue,
+    },
     models::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
         FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
@@ -54,6 +56,7 @@ pub struct AppState {
     pub session_cookie_same_site: String,
     pub session_cookie_secure: bool,
     pub session_signing_keys: Arc<BTreeMap<String, String>>,
+    pub server_channel_dispatch_queue: ServerChannelDispatchQueue,
     pub sessions: Arc<RwLock<HashMap<String, SessionRecord>>>,
     pub trust_proxy_headers: bool,
 }
@@ -117,6 +120,7 @@ impl AppState {
             session_cookie_same_site,
             session_cookie_secure,
             session_signing_keys: Arc::new(session_signing_keys),
+            server_channel_dispatch_queue: ServerChannelDispatchQueue::default(),
             sessions: Arc::default(),
             trust_proxy_headers,
         }

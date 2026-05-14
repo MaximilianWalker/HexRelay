@@ -1,10 +1,10 @@
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch,
+    send_via_node_dispatch_with_provenance,
     transport::{NodeDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
@@ -250,7 +250,7 @@ pub async fn dispatch_dm_envelope(
     let payload = serde_json::to_vec(&request)
         .map_err(|error| format!("encode DM envelope dispatch payload: {error}"))?;
 
-    send_via_node_dispatch(
+    let outcome = send_via_node_dispatch_with_provenance(
         CommunicationMode::DmEnvelope,
         communication_core::PolicyContext::default(),
         RealtimeNodeDispatchSender {
@@ -262,10 +262,19 @@ pub async fn dispatch_dm_envelope(
     )
     .map_err(|error| {
         format!(
-            "dispatch DM envelope via NodeClientTransport: {:?}",
-            error.code
+            "dispatch DM envelope via NodeClientTransport: {}",
+            error.code.as_str()
         )
-    })
+    })?;
+
+    debug!(
+        mode = outcome.provenance.mode.as_str(),
+        profile = outcome.provenance.profile.as_str(),
+        reason_code = outcome.provenance.reason_code.as_str(),
+        policy_assertions = ?outcome.provenance.policy_assertions,
+        "NodeClientTransport DM envelope dispatch provenance emitted"
+    );
+    Ok(())
 }
 
 #[cfg(test)]

@@ -13,13 +13,6 @@ pub struct ReplayRetention {
 }
 
 impl ReplayRetention {
-    pub fn bounded(max_entries: usize) -> Self {
-        Self {
-            max_entries,
-            key_ttl_seconds: None,
-        }
-    }
-
     pub fn with_key_ttl(max_entries: usize, ttl_seconds: u64) -> Result<Self, redis::RedisError> {
         validate_replay_key_ttl(ttl_seconds)?;
         Ok(Self {
@@ -27,30 +20,6 @@ impl ReplayRetention {
             key_ttl_seconds: Some(ttl_seconds),
         })
     }
-}
-
-pub async fn persist_replay_entries<TCursor, F>(
-    connection: &mut MultiplexedConnection,
-    identities: &[String],
-    client_payload: &str,
-    replay_log_max_entries: usize,
-    stream_head_key: fn(&str) -> String,
-    replay_log_key: fn(&str) -> String,
-    build_cursor: F,
-) -> Result<Vec<TCursor>, redis::RedisError>
-where
-    F: Fn(&str, u64) -> TCursor,
-{
-    persist_replay_entries_with_retention(
-        connection,
-        identities,
-        client_payload,
-        ReplayRetention::bounded(replay_log_max_entries),
-        stream_head_key,
-        replay_log_key,
-        build_cursor,
-    )
-    .await
 }
 
 pub async fn persist_replay_entries_with_retention<TCursor, F>(

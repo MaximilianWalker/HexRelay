@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-14
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 added T4.1.9 backend realtime dispatch-summary observability for recipient-targeted DM active-device fanout.
+- Latest meaningful change: 2026-05-14 moved `T4.6.1` through `T4.6.4` to blocked follow-ups pending explicit UX approval.
 
 ## Iteration Scope
 
@@ -52,11 +52,9 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | E3 / S3.1 | M | API | T3.1.1 | Bootstrap identity material is shared only after acceptance and is blocked on pending/declined states |
 | T3.2.1 | Implement block/mute logic and fanout filters | E3 / S3.2 | M | API | T3.1.1 | Blocked/muted users are excluded from delivery paths as defined |
 | T3.3.1 | Implement presence service with Redis ephemeral state | E3 / S3.3 | L | Realtime | T1.1.2 | Presence transitions propagate within p95 <= 1s and recover correctly after reconnect in integration tests |
-| T3.3.2 | Add profile-device presence convergence and late-device hydration | E3 / S3.3 | M | Realtime/Core | T3.3.1, T4.0.3 | Presence state converges across all active profile devices and hydrates missed transitions on later-active devices |
 | T3.4.1 | Implement global user discovery index and shared-server query | E3 / S3.4 | L | API | T3.1.1 | Discovery returns only permitted profiles, excludes blocked users, and enforces rate-limit/denylist controls in policy tests |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | E4 / S4.1 | M | Core | T3.3.1 | Common communication interface supports DM and `server_channel` modes with deterministic policy routing; envelope delivery extensions land under `T4.1.7` |
 | T4.0.2 | Implement initial node transport adapter boundaries (`NodeClientTransport`) | E4 / S4.1 | L | Core | T4.0.1 | Existing node-client call paths route through adapter interfaces without behavior regression |
-| T4.0.3 | Implement shared session provenance and reason-code taxonomy | E4 / S4.1 | M | Core | T4.0.1 | Both DM and server paths emit stable provenance + reason-code outputs |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers over encrypted-envelope history without server-readable plaintext |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay semantics while allowing encrypted-envelope store-and-forward terminology |
@@ -68,21 +66,9 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.9 | Implement DM active-device profile fanout semantics | E4 / S4.1 | M | Core/Realtime | T4.1.7 | One accepted ciphertext envelope fanouts to all currently active devices linked to recipient profile |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | E4 / S4.1 | L | Core | T4.1.8, T4.1.9 | Devices activated after first delivery replay missed ciphertext envelopes and converge deterministically |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | E4 / S4.1 | L | Core/Web | T4.1.7 | Runtime, web, contracts, docs, tests, and guardrails contain no DM WAN wizard, endpoint-card, or parallel-dial surfaces |
-| T4.2.1 | Implement guild/channel/role schema | E4 / S4.2 | L | API | T4.1.1 | Roles and channel membership constraints are enforced in DB/API |
 | T4.2.2 | Build server/channel management UI | E4 / S4.2 | M | Web | T4.2.1 | Owners/admins can create channels and assign base roles |
-| T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | E4 / S4.3 | XL | API | T4.2.1 | Server channels support read/create with reply and mention metadata in the runtime API baseline; edit/delete/audit-safe realtime follow in subsequent T4.3.x slices |
-| T4.3.2 | Add websocket event fanout and optimistic UI for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
-| T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | E4 / S4.3 | M | Realtime/Core | T4.0.2, T4.3.2 | Server communication is adapterized with no DM policy leakage or regression |
-| T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | E4 / S4.3 | L | Realtime/Core | T4.3.3, T3.3.2 | Server-channel and presence events converge across all profile devices, including devices that reconnect later |
-| T4.4.1 | Add permission middleware and authorization tests | E4 / S4.4 | L | API | T4.2.1, T4.3.1 | Permission bypass attempts fail and are covered in tests |
-| T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | E4 / S4.5 | L | Core | T4.1.1 | Peers establish encrypted sessions with verifiable identity keys |
-| T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | E4 / S4.5 | XL | Core | T4.5.1 | 1:1 DM messages are ciphertext envelopes, decrypt correctly on clients only, and catch up when recipient devices are offline |
-| T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | E4 / S4.6 | XL | Core | T4.5.2 | Group session keys update on member add/remove and old members cannot decrypt new traffic |
-| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | E4 / S4.6 | XL | Core | T4.5.3 | Group DM payloads are ciphertext envelopes; rekey and missing-key failures are test-covered without server-side plaintext/key custody |
-| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | E4 / S4.2 | L | Web | T4.2.2 | Search/filter/pin actions work and deep-link into server workspace |
-| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | E4 / S4.1 | L | Web | T3.1.2 | Search/filter/open-DM actions work and state persists per user |
-| T4.6.3 | Implement dual server navigation modes and burger persistence | E4 / S4.2 | L | Web | T4.6.1 | Topbar supports open/close/reorder/pin tabs and folder assignment; burger `expanded/collapsed/hidden` preference persists per device |
-| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | E4 / S4.2 | M | Web | T4.6.1, T4.6.3 | Mobile app shows `Home/Servers/Contacts/Settings` tabs and slide-in workspace drawers per spec |
+| T4.3.2 | Add websocket event fanout for server channels | E4 / S4.3 | L | Realtime | T4.3.1, T3.3.1, T4.0.2 | Clients receive strictly ordered server-channel events; reconnect tests show no lost/duplicated events |
+| T4.6.5 | Approve and implement server-channel optimistic send UI | E4 / S4.2 | M | Web | T4.3.2, explicit UX approval | Users can send server-channel messages with approved optimistic pending/sent/failure states and no duplicate websocket rows |
 
 ## Task Touchpoints and Validation Gates
 
@@ -107,7 +93,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 - Iteration 1 exit checklist is complete and OpenAPI/auth baseline is stable.
 - Realtime execution must use current runtime contract authority `docs/contracts/realtime-events-runtime.asyncapi.yaml`; target-state expansion planning uses `docs/contracts/realtime-events.asyncapi.yaml` (resolved by `C-012`).
-- Current runtime realtime signaling authority covers authenticated self-targeted websocket envelope validation only; recipient-targeted signaling delivery remains an open readiness `watch`, and cross-identity targeting is currently rejected until realtime routing fanout is implemented.
+- Current runtime realtime signaling authority covers authenticated sender validation plus accepted-contact recipient-targeted live websocket delivery for cross-identity offer/answer/candidate propagation; signaling delivery is not durable/offline-queued.
 - Navigation implementation uses `docs/product/07-ui-navigation-spec.md` as authority.
 
 ## Exit Evidence
@@ -146,9 +132,11 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T3.1.4 | Implement contact invite share UX | PR #50 | API client functions, robust link/token parsing, copy-to-clipboard, busy/error states; QR contact-invite sharing is superseded by the later QR-only-for-server-invites scope |
 | T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout and friend request creation; policy tests and OpenAPI updated |
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
+| T3.3.2 | Add profile-device presence convergence and late-device hydration | profile-device sync closeout branch | Realtime websocket tests cover presence fanout to multiple active profile devices, late-device online hydration, missed offline rehydration, per-device cursor dedupe, and no duplicate replay on reconnect. |
 | T3.4.1 | Implement global user discovery index and shared-server query | PR #52 plus follow-up parity/policy hardening | `/discovery/users` supports `global` and `shared_server` scopes, excludes blocked and denylisted users, enforces query rate limiting, and is covered by integration tests for scope normalization, denylist enforcement, and shared-server membership filtering |
 | T4.0.1 | Define shared communication layer interfaces and policy engine boundary | local working tree after PR #95 | `crates/communication-core` owns the initial shared mode/profile/policy/router boundary, deterministic routing tests cover DM/server/presence modes, current server-channel and presence integrations consume shared provenance building, and envelope-delivery extension is now tracked under `T4.1.7` |
 | T4.0.2 | Implement transport adapter boundaries (`NodeClientTransport`) | T4.0.2 adapter rollout branch | `communication-core` exposes node-client dispatch bootstraps; server-channel and presence dispatch route through node-client adapters; node-bypassing DM adapter scope is superseded by the server-node P2P envelope baseline |
+| T4.0.3 | Implement shared session provenance and reason-code taxonomy | T4.0.3 shared provenance branch | `communication-core` exposes stable snake-case mode/profile/reason-code outputs and provenance-returning dispatch helpers; DM, server-channel, and presence NodeClientTransport dispatch paths now emit shared provenance without changing runtime routes or UX behavior |
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | local working tree after PR #95 plus DM thread regression closeout | DM thread list/messages/read APIs already provide cursor pagination, unread markers, membership scoping, and group-DM history semantics without server-readable plaintext; integration coverage now explicitly asserts the returned `group_dm` thread shape and participant set |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | local working tree after PR #95 plus DM policy regression closeout | DM privacy-policy APIs already default to `friends_only`, persist per-identity override settings, enforce `friends_only`/`same_server`/`anyone` across DM paths, and now explicitly assert `same_server` readback alongside the existing enforcement coverage |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | dm envelope baseline pivot branch | Direct-only policy is superseded; CI guardrails now target unsafe semantics: server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay behavior |
@@ -160,12 +148,32 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.9 | Implement DM active-device profile fanout semantics | DM fanout/catch-up branches plus current realtime dispatch-summary branch | Accepted ciphertext envelopes fan out to active profile devices through verified-device realtime dispatch; internal summaries now classify target-device outcomes without plaintext/private-key access |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | DM fanout/catch-up branches | Later-active devices replay missed ciphertext envelopes with per-device cursor metadata and dedupe coverage |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | envelope-baseline pivot plus DM transport policy guardrail | Runtime, web, contracts, tests, fixtures, and guardrails reject retired WAN wizard, endpoint-card, and parallel-dial DM surfaces |
+| T4.2.1 | Implement guild/channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
+| T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | T4.3.1/T4.4.1 server-channel permission hardening branch | Runtime REST server-channel message routes support list/create/edit/delete, same-channel replies, same-server mentions, pagination, tombstones, and dispatch-safe persistence behavior with contract and integration coverage |
+| T4.3.2 | Add websocket event fanout for server channels | server-channel realtime fanout branches plus reconnect duplicate closeout | API-persisted create/update/delete mutations fan out to authorized active websocket members, preserve FIFO API-to-realtime dispatch order, hydrate late profile devices through channel replay cursors, and assert no duplicate create/update/delete events after reconnect. Optimistic send UI is split to `T4.6.5` and remains blocked pending explicit approval of `docs/product/08-screen-state-spec.md`. |
+| T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | profile-device sync closeout branch | Server-channel API dispatch and realtime presence edge dispatch both route through `communication-core` `NodeClientTransport` helpers with stable provenance logging and no DM policy leakage. |
+| T4.3.4 | Implement server-channel profile-device fanout and late-device hydration | profile-device sync closeout branch | Server-channel and presence websocket tests cover active profile-device fanout, late-device hydration, reconnect cursor dedupe, denied-channel replay exclusion, and missed presence transition replay. |
+| T4.4.1 | Add permission middleware and authorization tests | T4.3.1/T4.4.1 server-channel permission hardening branch | Server/channel authorization now covers unauthenticated, outsider, cross-server path, role read-denial, role send-denial, non-author edit/delete, and removed-member bypass attempts across middleware, handler, and repository tests |
+| T4.5.1 | Implement E2EE DM key exchange/session bootstrap for 1:1 DMs | T4.5.1 session-bootstrap closeout branch | `communication-core` establishes one-to-one E2EE sessions with Ed25519-signed identity bootstrap material, X25519 ephemeral agreement, HKDF-SHA256-derived session keys, trusted-peer identity-key verification, and regressions for forged identity material, tampered signatures, and wrong session contexts. |
+| T4.5.2 | Implement E2EE DM encrypt/decrypt flow with key rotation (1:1) | T4.5.2 rotation planning branch | `communication-core` encrypts/decrypts client-only one-to-one ciphertext envelopes, reports rotation boundaries, derives rotated one-to-one sessions from newly signed peer bootstrap material, rejects old-session decrypt for rotated traffic, rejects group-context rotation, and serializes encrypted results without plaintext. Offline catch-up evidence remains covered by the encrypted-envelope delivery/catch-up task set. |
+| T4.5.3 | Implement group DM E2EE session bootstrap and membership key updates | T4.5.3 group bootstrap/rekey branch | `communication-core` creates member-scoped group session bootstraps, derives group sessions only for current participants, creates membership-change rekey plans with added/removed identity sets, rejects removed identities before deriving new sessions, and proves old group sessions cannot decrypt post-rekey traffic. |
+| T4.5.4 | Implement group DM E2EE encrypt/decrypt and failure recovery paths | T4.5.4 missing-key recovery branch | `communication-core` group sessions encrypt/decrypt XChaCha20-Poly1305 ciphertext envelopes, serialize encrypted results without plaintext, reject one-to-one sessions in the group session ring, return `session_key_missing` for post-rekey envelopes before the next group key arrives, and decrypt successfully after the rekeyed member session is inserted. |
 
 ## In Progress
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| _None_ | _No active Iteration 2 task selected_ | _n/a_ | Next recommended work is server-channel/presence convergence cleanup or live-call recipient-targeted signaling; no UX changes without explicit approval |
+| None | - | - | - |
+
+## Blocked Follow-Ups
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-01` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-02` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.3 | Implement dual server navigation modes and burger persistence | blocked | Runtime UI work requires explicit approval for `NAV-APP-03` and `NAV-APP-04` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | blocked | Runtime UI work requires explicit approval for `NAV-APP-05` and `NAV-APP-06` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
+| T4.6.5 | Approve and implement server-channel optimistic send UI | blocked | Plan-only proposal exists in `docs/product/08-screen-state-spec.md`; implementation must wait for explicit user approval of flow, copy, controls, and behavior. |
 
 ## Suggested Sprint Sequencing
 
@@ -194,8 +202,7 @@ Week 6:
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
 - Finalize T4.4.1
-- T4.5.1 -> T4.5.2 -> T4.5.3 -> T4.5.4
-- T4.6.1, T4.6.2, T4.6.3, T4.6.4 navigation surfaces and persistence checks
+- After explicit approval, resume T4.6.1, T4.6.2, T4.6.3, and T4.6.4 navigation surfaces and persistence checks from the blocked follow-ups.
 - Stabilization, load tests for chat fanout, iteration demo
 
 ## Iteration 2 Exit Checklist
@@ -214,7 +221,7 @@ Week 6:
 - Broad contact/friend device awareness is also not an MVP gap; future work should only revisit contact-authorized, pull-based endpoint-card freshness if explicit UX evidence shows stale peer metadata is hurting reconnect success.
 - Broad multi-device DM convergence must operate over accepted ciphertext envelopes plus minimal replay metadata under the message-node delivery design.
 - Durable DM history and replay metadata must preserve client-only plaintext/private-key boundaries; any future storage expansion must keep ciphertext-only server behavior.
-- Recipient-targeted realtime signaling remains a separate realtime routing follow-up for live call signaling; it should not be conflated with DM convergence, presence discovery, or payload delivery semantics.
+- Recipient-targeted realtime signaling is accepted-contact live websocket routing for call offer/answer/candidate payloads; it is separate from DM convergence, presence discovery, durable/offline queueing, and payload delivery semantics.
 - DM/group DM and guild channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.
 - Permission enforcement is server-authoritative and test-covered.
@@ -238,6 +245,7 @@ Week 6:
 ## Execution Notes
 
 - Keep event payload contracts explicit and synchronized with runtime behavior.
+- `T4.6.1` through `T4.6.4` implementation sequencing and the approval package live in `docs/planning/navigation-implementation-plan.md`; keep those tasks in blocked follow-ups until explicit user approval of flow, copy, controls, and behavior exists.
 - Record authorization decision logs for node-owner debugging.
 - Server nodes/message nodes in the server-node P2P network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.

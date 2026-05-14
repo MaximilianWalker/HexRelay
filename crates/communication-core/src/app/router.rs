@@ -1,7 +1,7 @@
 use crate::app::PolicyEngine;
 use crate::domain::{
-    CommunicationMode, CommunicationReasonCode, ConnectIntent, PolicyContext, PolicyError,
-    SendEnvelope, SessionProvenance, TransportProfile,
+    CommunicationMode, CommunicationReasonCode, ConnectIntent, DispatchOutcome, PolicyContext,
+    PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::NodeClientTransport;
 
@@ -44,16 +44,19 @@ where
 
     pub fn send(&self, envelope: &SendEnvelope) -> Result<(), CommunicationError> {
         let profile = self.route_profile(envelope.mode, None)?;
+        self.send_with_profile(envelope, profile)
+    }
 
-        match profile {
-            TransportProfile::NodeClient => self.node_client.send(envelope).map_err(|_| {
-                transport_error(
-                    CommunicationReasonCode::TransportSendFailed,
-                    envelope.mode,
-                    profile,
-                )
-            }),
-        }
+    pub fn send_with_provenance(
+        &self,
+        envelope: &SendEnvelope,
+    ) -> Result<DispatchOutcome, CommunicationError> {
+        let profile = self.route_profile(envelope.mode, None)?;
+        self.send_with_profile(envelope, profile)?;
+
+        Ok(DispatchOutcome {
+            provenance: PolicyEngine::build_provenance(envelope.mode, profile),
+        })
     }
 
     fn route_profile(
@@ -69,6 +72,22 @@ where
                 .map_err(|error| map_policy_error(error, mode))?;
         }
         Ok(profile)
+    }
+
+    fn send_with_profile(
+        &self,
+        envelope: &SendEnvelope,
+        profile: TransportProfile,
+    ) -> Result<(), CommunicationError> {
+        match profile {
+            TransportProfile::NodeClient => self.node_client.send(envelope).map_err(|_| {
+                transport_error(
+                    CommunicationReasonCode::TransportSendFailed,
+                    envelope.mode,
+                    profile,
+                )
+            }),
+        }
     }
 }
 

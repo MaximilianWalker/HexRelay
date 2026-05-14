@@ -9,7 +9,7 @@ use axum::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    infra::db::repos::server_channels_repo,
+    infra::db::repos::server_channels_repo::{self, ServerChannelPermission},
     infra::db::repos::servers_repo,
     models::ApiError,
     shared::errors::{forbidden, internal_error},
@@ -221,6 +221,46 @@ where
                 authorization_scope = "server_channel",
                 decision = "deny",
                 reason = "channel_not_in_server",
+                identity_id = %membership.identity_id,
+                server_id = %membership.server_id,
+                channel_id = %channel_id,
+                "server channel authorization denied"
+            );
+            return Err(map_server_channel_authorization_failure(
+                ServerChannelAuthorizationFailure::ServerAccessDenied,
+            ));
+        }
+
+        let can_read = server_channels_repo::identity_has_server_channel_permission(
+            pool,
+            &membership.server_id,
+            &channel_id,
+            &membership.identity_id,
+            ServerChannelPermission::Read,
+        )
+        .await
+        .map_err(|error| {
+            warn!(
+                authorization_scope = "server_channel",
+                decision = "failure",
+                reason = "server_channel_permission_lookup_failed",
+                identity_id = %membership.identity_id,
+                server_id = %membership.server_id,
+                channel_id = %channel_id,
+                error = %error,
+                "server channel authorization lookup failed"
+            );
+            internal_error(
+                "storage_unavailable",
+                "failed to verify server channel permission",
+            )
+        })?;
+
+        if !can_read {
+            info!(
+                authorization_scope = "server_channel",
+                decision = "deny",
+                reason = "channel_read_permission_required",
                 identity_id = %membership.identity_id,
                 server_id = %membership.server_id,
                 channel_id = %channel_id,
