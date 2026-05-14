@@ -170,6 +170,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'SessionValidateResponse',
         'InviteCreateRequest',
         'InviteCreateResponse',
+        'ServerChannelMessageCreateRequest',
+        'ServerChannelMessageEditRequest',
         'FriendRequestCreateRequest',
         'DmFanoutDispatchRequest',
         'DmFanoutDispatchResponse',
@@ -177,9 +179,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'DmFanoutCatchUpItem',
         'DmFanoutCatchUpResponse',
     }
+    IDENTITY_ID_PATTERN = r'^[A-Za-z0-9_-]{3,64}$'
     TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS = {
         'InviteCreateRequest': {
             'max_uses': {'minimum': 1},
+        },
+        'ServerChannelMessageCreateRequest': {
+            'content': {'min_length': 1, 'max_length': 4000},
+        },
+        'ServerChannelMessageEditRequest': {
+            'content': {'min_length': 1, 'max_length': 4000},
         },
         'DmFanoutDispatchRequest': {
             'message_id': {'min_length': 1, 'max_length': 128},
@@ -241,17 +250,25 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     TRACKED_REST_SCHEMA_FIELD_PATTERNS = {
         'AuthVerifyRequest': {
-            'identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+            'identity_id': IDENTITY_ID_PATTERN,
         },
         'FriendRequestCreateRequest': {
-            'requester_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
-            'target_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+            'requester_identity_id': IDENTITY_ID_PATTERN,
+            'target_identity_id': IDENTITY_ID_PATTERN,
         },
         'DmFanoutDispatchRequest': {
-            'recipient_identity_id': r'^[A-Za-z0-9_-]{3,64}$',
+            'recipient_identity_id': IDENTITY_ID_PATTERN,
         },
         'DmFanoutCatchUpRequest': {
             'device_secret': r'^[A-Za-z0-9_-]{16,128}$',
+        },
+    }
+    TRACKED_REST_SCHEMA_FIELD_ITEM_PATTERNS = {
+        'ServerChannelMessageCreateRequest': {
+            'mention_identity_ids': IDENTITY_ID_PATTERN,
+        },
+        'ServerChannelMessageEditRequest': {
+            'mention_identity_ids': IDENTITY_ID_PATTERN,
         },
     }
     REST_SCHEMA_CONSTRAINT_LABELS = (
@@ -862,11 +879,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS.get((method, path), {})
 
 
+    def parse_rust_struct_fields(body: str):
+        fields = []
+        pending_attrs = []
+        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
+
+        for line in body.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('#['):
+                pending_attrs.append(stripped)
+                continue
+
+            field_match = field_pattern.match(stripped)
+            if field_match:
+                fields.append({
+                    'name': field_match.group(1),
+                    'raw_type': field_match.group(2),
+                    'serde_default': any('serde' in attr and 'default' in attr for attr in pending_attrs),
+                })
+                pending_attrs = []
+                continue
+
+            if stripped:
+                pending_attrs = []
+
+        return fields
+
+
     def extract_query_struct_fields(models_path: pathlib.Path):
         text = models_path.read_text()
         structs = {}
         struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
-        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
 
         for match in struct_pattern.finditer(text):
             name = match.group(1)
@@ -874,8 +917,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if not name.endswith('Query'):
                 continue
             field_details = {}
-            for field_name, raw_type in field_pattern.findall(body):
-                schema_type, required = map_query_schema_type(raw_type.strip())
+            for field in parse_rust_struct_fields(body):
+                field_name = field['name']
+                schema_type, required = map_query_schema_type(field['raw_type'].strip())
+                if field.get('serde_default'):
+                    required = False
                 field_details[field_name] = {
                     'required': required,
                     'schema_type': schema_type,
@@ -946,7 +992,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         text = models_path.read_text()
         structs = {}
         struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
-        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
 
         for match in struct_pattern.finditer(text):
             name = match.group(1)
@@ -954,8 +999,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 continue
             body = match.group(2)
             fields = {}
-            for field_name, raw_type in field_pattern.findall(body):
-                fields[field_name] = map_rest_schema_type(raw_type.strip())
+            for field in parse_rust_struct_fields(body):
+                field_name = field['name']
+                fields[field_name] = map_rest_schema_type(field['raw_type'].strip())
+                if field.get('serde_default'):
+                    fields[field_name]['required'] = False
             for field_name, constraints in TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS.get(name, {}).items():
                 if field_name in fields:
                     fields[field_name].update(constraints)
@@ -968,6 +1016,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             for field_name, pattern in TRACKED_REST_SCHEMA_FIELD_PATTERNS.get(name, {}).items():
                 if field_name in fields:
                     fields[field_name]['pattern'] = pattern
+            for field_name, pattern in TRACKED_REST_SCHEMA_FIELD_ITEM_PATTERNS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['item_pattern'] = pattern
             structs[name] = fields
 
         return structs
@@ -1082,6 +1133,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         ):
                             pattern_value = pattern_value[1:-1]
                         current_properties[current_property]['pattern'] = pattern_value
+                        continue
+                    item_pattern_match = re.match(r'^( {12})pattern:\s*(.+?)\s*$', line)
+                    if item_pattern_match and current_property_items:
+                        pattern_value = item_pattern_match.group(2).strip()
+                        if (
+                            len(pattern_value) >= 2
+                            and pattern_value[0] == pattern_value[-1]
+                            and pattern_value[0] in {"'", '"'}
+                        ):
+                            pattern_value = pattern_value[1:-1]
+                        current_properties[current_property]['item_pattern'] = pattern_value
                         continue
                     nullable_match = re.match(r'^( {10})nullable:\s*(true|false)\s*$', line)
                     if nullable_match:
@@ -2396,6 +2458,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     path,
                     seen,
                 )
+
+            runtime_item_pattern = runtime_field.get('item_pattern')
+            if runtime_item_pattern:
+                documented_item_pattern = documented_field.get('item_pattern')
+                if runtime_item_pattern != documented_item_pattern:
+                    actual_item_pattern = documented_item_pattern or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items pattern `{runtime_item_pattern}` at runtime but documents `{actual_item_pattern}` in {contract_path}."
+                    )
+                    continue
 
     for key, runtime in sorted(runtime_semantics.items()):
         method, path = key

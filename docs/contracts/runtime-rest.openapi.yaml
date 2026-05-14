@@ -3147,6 +3147,7 @@ components:
           type: array
           items:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
           default: []
     ServerChannelMessageEditRequest:
       type: object
@@ -3160,6 +3161,7 @@ components:
           type: array
           items:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
           default: []
     ServerChannelMessage:
       type: object

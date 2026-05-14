@@ -445,6 +445,76 @@ PY
   trap - RETURN
 }
 
+run_server_channel_request_schema_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-server-channel-example-status"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - \
+    "$temp_repo/services/api-rs/src/models.rs" \
+    "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" \
+    "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+models_path = pathlib.Path(sys.argv[1])
+contract_path = pathlib.Path(sys.argv[2])
+mutation_name = sys.argv[3]
+
+models_text = models_path.read_text()
+contract_text = contract_path.read_text()
+
+if mutation_name == "fail-rest-schema-serde-default-required":
+    old_model = "    pub mention_identity_ids: Option<Vec<String>>,"
+    new_model = "    #[serde(default)]\n    pub mention_identity_ids: Vec<String>,"
+    if old_model not in models_text:
+        raise SystemExit("fixture model mutation target not found")
+    models_path.write_text(models_text.replace(old_model, new_model, 1))
+
+    old_contract = "      required: [content]"
+    new_contract = "      required: [content, mention_identity_ids]"
+    if old_contract not in contract_text:
+        raise SystemExit("fixture contract required mutation target not found")
+    contract_path.write_text(contract_text.replace(old_contract, new_contract, 1))
+elif mutation_name == "fail-rest-schema-array-item-pattern":
+    old_contract = "            pattern: '^[A-Za-z0-9_-]{3,64}$'"
+    if old_contract not in contract_text:
+        raise SystemExit("fixture contract item-pattern mutation target not found")
+    contract_path.write_text(contract_text.replace(old_contract, "", 1))
+else:
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
 run_path_parameter_format_fixture pass-path-parameter-format 0
@@ -481,10 +551,12 @@ run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-array-item-ref 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items as schema `DmFanoutCatchUpItem` at runtime but documents `FriendRequestPage`'
+run_server_channel_request_schema_fixture fail-rest-schema-array-item-pattern 1 'uses request schema `ServerChannelMessageCreateRequest` field `mention_identity_ids` array items pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-date-time-format 1 'returns schema `AuthVerifyResponse` field `expires_at` format `date-time` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-nullable-field 1 'uses request schema `DmFanoutCatchUpRequest` field `cursor` nullable `true` at runtime but documents `false`'
 run_fixture fail-rest-schema-scalar-bounds 1 'uses request schema `DmFanoutCatchUpRequest` field `limit` maximum `100` at runtime but documents `50`'
 run_fixture fail-rest-schema-enum-domain 1 'returns schema `DmFanoutCatchUpResponse` field `status` enum [blocked, ready] at runtime but documents [ready]'
+run_server_channel_request_schema_fixture fail-rest-schema-serde-default-required 1 'uses request schema `ServerChannelMessageCreateRequest` with required fields [content] at runtime but documents [content, mention_identity_ids]'
 run_fixture fail-rest-schema-string-pattern 1 'uses request schema `AuthVerifyRequest` field `identity_id` pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-nested-item-field-type 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items reference schema `DmFanoutCatchUpItem` field `ciphertext` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-required-fields 1 'uses request schema `AuthVerifyRequest` with required fields [challenge_id, identity_id, signature] at runtime but documents [challenge_id, identity_id]'
