@@ -701,6 +701,25 @@ if mutation_name == "fail-dm-mark-read-scalar-bounds":
     if old not in contract_text:
         raise SystemExit("fixture contract scalar-bound mutation target not found")
     contract_text = contract_text.replace(old, new, 1)
+elif mutation_name == "fail-dm-mark-read-response-last-read-scalar-bound":
+    old = '''        last_read_seq:
+          type: integer
+          minimum: 0'''
+    new = '''        last_read_seq:
+          type: integer'''
+    if contract_text.count(old) < 2:
+        raise SystemExit("fixture response last_read_seq scalar-bound mutation target not found")
+    before, separator, after = contract_text.partition(old)
+    contract_text = before + separator + after.replace(old, new, 1)
+elif mutation_name == "fail-dm-mark-read-response-unread-scalar-bound":
+    old = '''        unread:
+          type: integer
+          minimum: 0'''
+    new = '''        unread:
+          type: integer'''
+    if old not in contract_text:
+        raise SystemExit("fixture response unread scalar-bound mutation target not found")
+    contract_text = contract_text.replace(old, new, 1)
 elif mutation_name != "pass-dm-mark-read-scalar-bounds":
     raise SystemExit(f"unknown fixture mutation: {mutation_name}")
 
@@ -767,6 +786,8 @@ run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-array-item-ref 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items as schema `DmFanoutCatchUpItem` at runtime but documents `FriendRequestPage`'
 run_dm_mark_read_schema_fixture fail-dm-mark-read-scalar-bounds 1 'uses request schema `DmThreadMarkReadRequest` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
+run_dm_mark_read_schema_fixture fail-dm-mark-read-response-last-read-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
+run_dm_mark_read_schema_fixture fail-dm-mark-read-response-unread-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `unread` minimum `0` at runtime but documents `<none>`'
 run_server_channel_request_schema_fixture fail-rest-schema-array-item-pattern 1 'uses request schema `ServerChannelMessageCreateRequest` field `mention_identity_ids` array items pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-date-time-format 1 'returns schema `AuthVerifyResponse` field `expires_at` format `date-time` at runtime but documents `<none>`'
 run_fixture fail-rest-schema-nullable-field 1 'uses request schema `DmFanoutCatchUpRequest` field `cursor` nullable `true` at runtime but documents `false`'
