@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented routed REST path-parameter semantic coverage in the contract-parity readiness docs.
+- Latest meaningful change: 2026-05-14 documented DM static-peer outbound retry worker semantics in the runtime REST contract.
 
 ## Purpose
 

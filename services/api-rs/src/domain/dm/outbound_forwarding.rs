@@ -1,4 +1,8 @@
-use chrono::{DateTime, Duration, Utc};
+use std::time::Duration as StdDuration;
+
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use tokio::task::JoinHandle;
+use tracing::{debug, info, warn};
 
 use crate::{
     domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
@@ -9,6 +13,7 @@ use crate::{
 pub const DM_OUTBOUND_FORWARD_MAX_ATTEMPTS: u32 = 5;
 pub const DM_OUTBOUND_FORWARD_RETRY_LIMIT: u32 = 25;
 pub const DM_OUTBOUND_FORWARD_STALE_ATTEMPT_SECONDS: i64 = 30;
+pub const DM_OUTBOUND_FORWARD_RETRY_WORKER_INTERVAL_SECONDS: u64 = 5;
 const DM_OUTBOUND_FORWARD_BASE_BACKOFF_SECONDS: i64 = 5;
 const DM_OUTBOUND_FORWARD_MAX_BACKOFF_SECONDS: i64 = 300;
 const MAX_FORWARDING_ERROR_LENGTH: usize = 512;
@@ -30,6 +35,21 @@ impl Default for DmOutboundForwardRetryConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DmOutboundForwardRetryWorkerConfig {
+    pub retry: DmOutboundForwardRetryConfig,
+    pub interval: StdDuration,
+}
+
+impl Default for DmOutboundForwardRetryWorkerConfig {
+    fn default() -> Self {
+        Self {
+            retry: DmOutboundForwardRetryConfig::default(),
+            interval: StdDuration::from_secs(DM_OUTBOUND_FORWARD_RETRY_WORKER_INTERVAL_SECONDS),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct DmOutboundForwardRetrySummary {
     pub scanned: u32,
@@ -44,6 +64,70 @@ pub struct DmOutboundForwardRetrySummary {
 enum ForwardFailureClass {
     Retryable,
     Terminal,
+}
+
+pub fn spawn_dm_outbound_forward_retry_worker(
+    state: AppState,
+    config: DmOutboundForwardRetryWorkerConfig,
+) -> JoinHandle<()> {
+    tokio::spawn(run_dm_outbound_forward_retry_worker(state, config))
+}
+
+async fn run_dm_outbound_forward_retry_worker(
+    state: AppState,
+    config: DmOutboundForwardRetryWorkerConfig,
+) {
+    let interval_duration = config.interval.max(StdDuration::from_millis(1));
+    info!(
+        interval_ms = interval_duration.as_millis(),
+        limit = config.retry.limit,
+        max_attempts = config.retry.max_attempts,
+        stale_attempt_seconds = config.retry.stale_attempt_seconds,
+        "starting dm outbound forward retry worker"
+    );
+
+    let mut tick = tokio::time::interval(interval_duration);
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        tick.tick().await;
+
+        if !static_peer_forwarding_ready(&state) {
+            debug!(
+                has_local_node_identity = state.local_node_identity.is_some(),
+                static_peer_count = state.static_peer_registry.descriptors().len(),
+                "skipping dm outbound forward retries until static-peer forwarding is configured"
+            );
+            continue;
+        }
+
+        match retry_due_dm_outbound_forwards(&state, config.retry).await {
+            Ok(summary) if summary.scanned > 0 => {
+                info!(
+                    scanned = summary.scanned,
+                    attempted = summary.attempted,
+                    forwarded = summary.forwarded,
+                    retryable_failed = summary.retryable_failed,
+                    terminal_failed = summary.terminal_failed,
+                    skipped = summary.skipped,
+                    "processed due dm outbound forward retries"
+                );
+            }
+            Ok(_) => {
+                debug!("no due dm outbound forward retries found");
+            }
+            Err(error) => {
+                warn!(
+                    error = %error,
+                    "failed to process dm outbound forward retries"
+                );
+            }
+        }
+    }
+}
+
+fn static_peer_forwarding_ready(state: &AppState) -> bool {
+    state.local_node_identity.is_some() && !state.static_peer_registry.descriptors().is_empty()
 }
 
 pub async fn retry_due_dm_outbound_forwards(
@@ -178,7 +262,7 @@ pub fn next_retry_attempt_at(
     let jitter = (seahash::hash(format!("{destination_node_id}:{message_id}").as_bytes())
         % u64::try_from(jitter_window + 1).unwrap_or(1)) as i64;
 
-    Some(now + Duration::seconds(base_delay + jitter))
+    Some(now + ChronoDuration::seconds(base_delay + jitter))
 }
 
 pub fn next_retry_attempt_after_failure(
@@ -250,8 +334,8 @@ mod tests {
 
         assert_eq!(first, second);
         let delay = first - now;
-        assert!(delay >= Duration::seconds(10));
-        assert!(delay <= Duration::seconds(12));
+        assert!(delay >= ChronoDuration::seconds(10));
+        assert!(delay <= ChronoDuration::seconds(12));
     }
 
     #[test]
