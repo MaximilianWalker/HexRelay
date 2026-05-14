@@ -115,6 +115,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
     TRACKED_ERROR_SCHEMA_STATUSES = {'400', '401', '403', '404', '409', '429', '500'}
     API_ERROR_SCHEMA_NAME = 'ApiError'
+    CSRF_HEADER_NAME = 'x-csrf-token'
+    CSRF_HEADER_SCHEMA_TYPE = 'string'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
     INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
@@ -1457,9 +1459,68 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return components
 
 
+    def extract_component_parameters(lines: list[str]) -> dict[str, dict[str, object]]:
+        components: dict[str, dict[str, object]] = {}
+        in_parameters = False
+        current_component = None
+        in_schema = False
+
+        for line in lines:
+            if not in_parameters:
+                if re.match(r'^  parameters:\s*$', line):
+                    in_parameters = True
+                continue
+
+            if re.match(r'^  [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                break
+
+            component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if component_match:
+                current_component = component_match.group(1)
+                components[current_component] = {
+                    'name': None,
+                    'in': None,
+                    'required': False,
+                    'schema_type': None,
+                }
+                in_schema = False
+                continue
+
+            if current_component and in_schema and not re.match(r'^ {8,}', line):
+                in_schema = False
+
+            if current_component:
+                name_match = re.match(r'^      name:\s+([A-Za-z0-9_-]+)\s*$', line)
+                if name_match:
+                    components[current_component]['name'] = name_match.group(1)
+                    continue
+
+                location_match = re.match(r'^      in:\s+([A-Za-z0-9_-]+)\s*$', line)
+                if location_match:
+                    components[current_component]['in'] = location_match.group(1)
+                    continue
+
+                required_match = re.match(r'^      required:\s+(true|false)\s*$', line)
+                if required_match:
+                    components[current_component]['required'] = required_match.group(1) == 'true'
+                    continue
+
+                if re.match(r'^      schema:\s*$', line):
+                    in_schema = True
+                    continue
+
+                type_match = re.match(r'^        type:\s+([A-Za-z0-9_]+)\s*$', line)
+                if in_schema and type_match:
+                    components[current_component]['schema_type'] = type_match.group(1)
+                    continue
+
+        return components
+
+
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
         request_body_components = extract_component_request_bodies(lines)
+        parameter_components = extract_component_parameters(lines)
         response_components = {}
         semantics = {}
         in_paths = False
@@ -1589,6 +1650,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_schemas': {},
                     'request_headers': set(),
                     'request_header_details': {},
+                    'csrf_header': None,
                     'response_headers': {},
                     'response_cookie_actions': {},
                     'error_example_codes': {},
@@ -1707,7 +1769,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 continue
 
             if "#/components/parameters/CsrfTokenHeader" in line:
+                csrf_header = parameter_components.get('CsrfTokenHeader', {})
                 semantics[(current_method, current_path)]['has_csrf'] = True
+                semantics[(current_method, current_path)]['csrf_header'] = csrf_header
+                if csrf_header.get('in') == 'header' and csrf_header.get('name'):
+                    header_name = str(csrf_header.get('name'))
+                    semantics[(current_method, current_path)]['request_headers'].add(header_name)
+                    semantics[(current_method, current_path)]['request_header_details'][header_name] = {
+                        'required': bool(csrf_header.get('required', False)),
+                        'schema_type': csrf_header.get('schema_type'),
+                    }
                 continue
             if re.match(r"^        '401':\s*$", line):
                 semantics[(current_method, current_path)]['has_401'] = True
@@ -2112,6 +2183,24 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 errors.append(f"::error::{method} {path} can return HTTP 500 at runtime via direct internal_error emitters or local helper/delegate flows but is missing a 500 response in {contract_path}.")
         if runtime['has_csrf'] and not contract['has_csrf']:
             errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
+        if runtime['has_csrf'] and contract['has_csrf']:
+            csrf_header = contract.get('csrf_header') or {}
+            documented_name = csrf_header.get('name') or '<none>'
+            documented_location = csrf_header.get('in') or '<none>'
+            if documented_name != CSRF_HEADER_NAME or documented_location != 'header':
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF header `{CSRF_HEADER_NAME}` at runtime but CsrfTokenHeader documents `{documented_name}` in `{documented_location}` in {contract_path}."
+                )
+            if csrf_header.get('required'):
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF only for cookie-authenticated mutation requests at runtime but CsrfTokenHeader is marked always required in {contract_path}."
+                )
+            documented_type = csrf_header.get('schema_type')
+            if documented_type != CSRF_HEADER_SCHEMA_TYPE:
+                actual_type = documented_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF header `{CSRF_HEADER_NAME}` as type `{CSRF_HEADER_SCHEMA_TYPE}` at runtime but documents `{actual_type}` in {contract_path}."
+                )
         if runtime['has_json_body'] and not contract['has_request_body']:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
         if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:

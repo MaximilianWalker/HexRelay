@@ -51,6 +51,7 @@ run_fixture pass-response-schema-alias 0
 run_fixture pass-session-auth-security 0
 run_fixture pass-server-channel-example-status 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
+run_fixture fail-csrf-header-semantics 1 'enforces CSRF header `x-csrf-token` as type `string` at runtime but documents `integer`'
 run_fixture fail-discovery-query-semantics 1 "default:global"
 run_fixture fail-dm-control-example 1 "dm_policy_invalid"
 run_fixture fail-error-response-schema 1 'can return HTTP 400 with ApiError at runtime but documents schema `FriendRequestRecord` instead of `ApiError`'
