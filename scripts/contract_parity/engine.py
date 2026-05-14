@@ -1337,6 +1337,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_500': False,
                     'has_csrf': False,
                     'has_request_body': False,
+                    'request_body_required': False,
                     'request_body_schema': None,
                     'response_schemas': {},
                     'request_headers': set(),
@@ -1428,6 +1429,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_request_body = True
                 in_request_body_json = False
                 in_request_body_schema = False
+                continue
+            if in_request_body and re.match(r'^        required:\s+true\s*$', line):
+                semantics[(current_method, current_path)]['request_body_required'] = True
                 continue
             if in_request_body and re.match(r'^          application/json:\s*$', line):
                 in_request_body_json = True
@@ -1766,6 +1770,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
         if runtime['has_json_body'] and not contract['has_request_body']:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+        if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
+            errors.append(f"::error::{method} {path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}.")
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
