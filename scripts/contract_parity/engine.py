@@ -483,6 +483,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_headers': extract_runtime_response_headers(body),
                     'response_cookie_actions': extract_runtime_response_cookie_actions(body),
                     'has_path_params': 'Path<' in params,
+                    'path_param_details': extract_path_param_details(params),
                     'query_type': extract_query_type(params),
                     'implied_error_statuses': auth_semantics['implied_error_statuses'],
                     'error_statuses': set(),
@@ -501,6 +502,75 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         if match:
             return match.group(1)
         return None
+
+
+    def split_top_level_types(raw_types: str):
+        types = []
+        current = []
+        depth = 0
+        for char in raw_types:
+            if char in '<(':
+                depth += 1
+            elif char in '>)':
+                depth -= 1
+            if char == ',' and depth == 0:
+                types.append(''.join(current).strip())
+                current = []
+                continue
+            current.append(char)
+        if current:
+            types.append(''.join(current).strip())
+        return types
+
+
+    def map_path_parameter_type(raw_type: str):
+        normalized_type = raw_type.replace('&', '').strip()
+        details = {}
+        if normalized_type in {'String', 'str'} or normalized_type.endswith(' str'):
+            details['schema_type'] = 'string'
+        elif normalized_type in {'Uuid', 'uuid::Uuid'}:
+            details['schema_type'] = 'string'
+            details['format'] = 'uuid'
+        elif normalized_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
+            details['schema_type'] = 'integer'
+        elif normalized_type == 'bool':
+            details['schema_type'] = 'boolean'
+        return details
+
+
+    def extract_path_param_type(params: str):
+        match = re.search(
+            r'(?:^|[^A-Za-z0-9_:])(?:axum::extract::)?Path\b.*?:\s*(?:axum::extract::)?Path\s*<',
+            params,
+            re.S,
+        )
+        if not match:
+            return None
+        cursor = match.end()
+        depth = 1
+        raw_type = []
+        while cursor < len(params):
+            char = params[cursor]
+            if char == '<':
+                depth += 1
+            elif char == '>':
+                depth -= 1
+                if depth == 0:
+                    return ''.join(raw_type).strip()
+            raw_type.append(char)
+            cursor += 1
+        return None
+
+
+    def extract_path_param_details(params: str):
+        raw_type = extract_path_param_type(params)
+        if raw_type is None:
+            return []
+        if raw_type.startswith('(') and raw_type.endswith(')'):
+            raw_types = split_top_level_types(raw_type[1:-1])
+        else:
+            raw_types = [raw_type]
+        return [map_path_parameter_type(path_type) for path_type in raw_types]
 
 
     def extract_request_body_schema(params: str):
@@ -1046,11 +1116,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if not path_match:
                 continue
             path = re.sub(r':([A-Za-z0-9_]+)', r'{\1}', path_match.group(1))
-            path_param_names = sorted(set(re.findall(r'\{([A-Za-z0-9_]+)\}', path)))
+            path_param_names = re.findall(r'\{([A-Za-z0-9_]+)\}', path)
             for method, handler in re.findall(r'\b(get|post|put|patch|delete)\s*\(\s*(\w+)\s*\)', block):
                 handler_id = route_handler_lookup.get(handler)
                 handler_semantics = function_semantics.get(handler_id, {})
                 query_type = handler_semantics.get('query_type')
+                path_param_details = {}
+                if handler_semantics.get('has_path_params'):
+                    runtime_path_details = handler_semantics.get('path_param_details', [])
+                    path_param_details = {
+                        name: runtime_path_details[index] if index < len(runtime_path_details) else {}
+                        for index, name in enumerate(path_param_names)
+                    }
                 semantics[(method.upper(), path)] = {
                                 'handler': handler,
                                 'has_auth': bool(handler_semantics.get('has_auth')),
@@ -1084,6 +1161,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         method.upper(), path
                     ) if should_track_route_scoped_error_examples(method.upper(), path) else {},
                     'path_param_names': path_param_names if handler_semantics.get('has_path_params') else [],
+                    'path_parameter_details': path_param_details,
                     'query_parameters': query_struct_fields.get(query_type, {}) if query_type else {},
                     'error_statuses': infer_error_statuses(
                         handler_id,
@@ -1117,6 +1195,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_method = None
         current_parameter_in = None
         current_parameter_name = None
+        current_path_schema_parameter = None
         current_query_schema_parameter = None
         in_request_body = False
         in_request_body_json = False
@@ -1185,6 +1264,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_method = None
                 current_parameter_in = None
                 current_parameter_name = None
+                current_path_schema_parameter = None
                 current_query_schema_parameter = None
                 in_request_body = False
                 in_request_body_json = False
@@ -1207,6 +1287,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_method = method_match.group(1).upper()
                 current_parameter_in = None
                 current_parameter_name = None
+                current_path_schema_parameter = None
                 current_query_schema_parameter = None
                 in_request_body = False
                 in_request_body_json = False
@@ -1235,6 +1316,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'response_cookie_actions': {},
                     'error_example_codes': {},
                     'path_parameters': set(),
+                    'path_parameter_details': {},
                     'query_parameters': set(),
                     'query_parameter_details': {},
                     'error_responses': set(),
@@ -1290,6 +1372,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_cookie_actions = False
             if in_parameters_block and not re.match(r'^ {8,}', line):
                 in_parameters_block = False
+            if current_path_schema_parameter and not re.match(r'^            ', line):
+                current_path_schema_parameter = None
+            if current_query_schema_parameter and not re.match(r'^            ', line):
+                current_query_schema_parameter = None
             if in_error_example_value and not re.match(r'^ {18,}', line):
                 in_error_example_value = False
             if in_error_examples and not re.match(r'^ {16,}', line):
@@ -1345,12 +1431,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
                 current_parameter_in = None
                 current_parameter_name = None
+                current_path_schema_parameter = None
                 current_query_schema_parameter = None
 
             parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
             if parameter_match:
                 current_parameter_in = parameter_match.group(1)
                 current_parameter_name = None
+                current_path_schema_parameter = None
                 current_query_schema_parameter = None
                 continue
 
@@ -1358,6 +1446,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if other_parameter_match:
                 current_parameter_in = None
                 current_parameter_name = None
+                current_path_schema_parameter = None
                 current_query_schema_parameter = None
                 continue
 
@@ -1366,6 +1455,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = parameter_name_match.group(1)
                 if current_parameter_in == 'path':
                     semantics[(current_method, current_path)]['path_parameters'].add(current_parameter_name)
+                    semantics[(current_method, current_path)]['path_parameter_details'].setdefault(
+                        current_parameter_name,
+                        {
+                            'required': False,
+                            'schema_type': None,
+                            'format': None,
+                        },
+                    )
                 else:
                     semantics[(current_method, current_path)]['query_parameters'].add(current_parameter_name)
                     semantics[(current_method, current_path)]['query_parameter_details'].setdefault(
@@ -1384,14 +1481,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
                 continue
 
+            if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          required: true\s*$', line):
+                semantics[(current_method, current_path)]['path_parameter_details'][current_parameter_name]['required'] = True
+                continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          required: true\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
+                continue
+            if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          schema:\s*$', line):
+                current_path_schema_parameter = current_parameter_name
                 continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          schema:\s*$', line):
                 current_query_schema_parameter = current_parameter_name
                 continue
-            if current_query_schema_parameter and not re.match(r'^            ', line):
-                current_query_schema_parameter = None
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          x-hexrelay-query-semantics:\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = True
                 continue
@@ -1403,6 +1504,15 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     continue
                 if in_semantics and not re.match(r'^            ', line):
                     semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = False
+            if current_path_schema_parameter:
+                type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
+                if type_match:
+                    semantics[(current_method, current_path)]['path_parameter_details'][current_path_schema_parameter]['schema_type'] = type_match.group(1)
+                    continue
+                format_match = re.match(r'^            format: ([A-Za-z0-9_-]+)\s*$', line)
+                if format_match:
+                    semantics[(current_method, current_path)]['path_parameter_details'][current_path_schema_parameter]['format'] = format_match.group(1)
+                    continue
             if current_query_schema_parameter:
                 type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
                 if type_match:
@@ -1665,6 +1775,23 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_path_parameters = sorted(set(runtime['path_param_names']) - contract['path_parameters'])
         for parameter_name in missing_path_parameters:
             errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but is missing an `in: path` parameter in {contract_path}.")
+        for parameter_name, runtime_path in sorted(runtime['path_parameter_details'].items()):
+            contract_path_parameter = contract['path_parameter_details'].get(parameter_name)
+            if contract_path_parameter is None:
+                continue
+            if not contract_path_parameter.get('required'):
+                errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` at runtime but it is not marked required in {contract_path}.")
+            runtime_type = runtime_path.get('schema_type')
+            documented_type = contract_path_parameter.get('schema_type')
+            if runtime_type and not documented_type:
+                errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` as type `{runtime_type}` at runtime but does not document a path schema type in {contract_path}.")
+            elif runtime_type and documented_type and runtime_type != documented_type:
+                errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` as type `{runtime_type}` at runtime but documents `{documented_type}` in {contract_path}.")
+            runtime_format = runtime_path.get('format')
+            documented_format = contract_path_parameter.get('format')
+            if runtime_format and runtime_format != documented_format:
+                actual_format = documented_format or '<none>'
+                errors.append(f"::error::{method} {path} uses path parameter `{parameter_name}` with format `{runtime_format}` at runtime but documents `{actual_format}` in {contract_path}.")
         missing_query_parameters = sorted(set(runtime['query_parameters']) - contract['query_parameters'])
         for parameter_name in missing_query_parameters:
             errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` at runtime but is missing an `in: query` parameter in {contract_path}.")
