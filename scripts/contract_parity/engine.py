@@ -173,6 +173,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'ServerChannelMessageCreateRequest',
         'ServerChannelMessageEditRequest',
         'FriendRequestCreateRequest',
+        'DmPolicy',
+        'DmPolicyUpdate',
         'DmFanoutDispatchRequest',
         'DmFanoutDispatchResponse',
         'DmFanoutCatchUpRequest',
@@ -240,6 +242,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 'fanout_device_inactive',
             ),
             'transport_profile': ('encrypted_envelope_node',),
+        },
+        'DmPolicy': {
+            'inbound_policy': ('friends_only', 'same_server', 'anyone'),
+            'offline_delivery_mode': ('encrypted_envelope_catchup',),
+        },
+        'DmPolicyUpdate': {
+            'inbound_policy': ('friends_only', 'same_server', 'anyone'),
         },
     }
     TRACKED_REST_SCHEMA_FIELD_FORMATS = {
