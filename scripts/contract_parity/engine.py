@@ -183,6 +183,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'limit': {'minimum': 1, 'maximum': 100},
         },
     }
+    TRACKED_REST_SCHEMA_FIELD_ENUMS = {
+        'InviteCreateRequest': {
+            'mode': ('one_time', 'multi_use'),
+        },
+        'InviteCreateResponse': {
+            'mode': ('one_time', 'multi_use'),
+        },
+        'DmFanoutDispatchResponse': {
+            'status': ('accepted', 'blocked'),
+            'reason_code': (
+                'fanout_pending_delivery',
+                'fanout_forwarded_to_static_peer',
+                'fanout_policy_blocked',
+                'fanout_same_server_context_required',
+                'fanout_blocked_user',
+            ),
+            'transport_profile': ('encrypted_envelope_node',),
+            'delivery_state': ('pending_delivery', 'forwarded', 'rejected'),
+            'reachability_state': ('unreachable', 'blocked', 'unknown'),
+        },
+        'DmFanoutCatchUpResponse': {
+            'status': ('ready', 'blocked'),
+            'reason_code': (
+                'fanout_catch_up_ok',
+                'fanout_catch_up_no_missed',
+                'fanout_device_unknown',
+                'fanout_device_inactive',
+            ),
+            'transport_profile': ('encrypted_envelope_node',),
+        },
+    }
     REST_SCHEMA_CONSTRAINT_LABELS = (
         ('min_length', 'minLength'),
         ('max_length', 'maxLength'),
@@ -853,6 +884,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             for field_name, constraints in TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS.get(name, {}).items():
                 if field_name in fields:
                     fields[field_name].update(constraints)
+            for field_name, enum_values in TRACKED_REST_SCHEMA_FIELD_ENUMS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['enum'] = set(enum_values)
             structs[name] = fields
 
         return structs
@@ -866,8 +900,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_properties = {}
         current_property = None
         current_property_items = False
+        current_property_enum = False
         in_required = False
         in_properties = False
+
+        def parse_enum_values(raw_values: str):
+            return {value.strip().strip('"\'') for value in raw_values.split(',') if value.strip()}
 
         def build_schema_fields(properties: dict[str, dict[str, object]], required: set[str]):
             return {
@@ -889,6 +927,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_properties = {}
                 current_property = None
                 current_property_items = False
+                current_property_enum = False
                 in_required = False
                 in_properties = False
                 continue
@@ -924,9 +963,22 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 if property_match:
                     current_property = property_match.group(1)
                     current_property_items = False
+                    current_property_enum = False
                     current_properties.setdefault(current_property, {})
                     continue
                 if current_property:
+                    if current_property_enum:
+                        inline_enum_values = re.match(r'^ {12}\[(.*)\]\s*$', line)
+                        enum_item_match = re.match(r'^ {12}-\s*([A-Za-z0-9:_-]+)\s*$', line)
+                        if inline_enum_values:
+                            current_properties[current_property]['enum'] = parse_enum_values(inline_enum_values.group(1))
+                            current_property_enum = False
+                            continue
+                        if enum_item_match:
+                            current_properties[current_property].setdefault('enum', set()).add(enum_item_match.group(1))
+                            continue
+                        if not re.match(r'^ {12}', line):
+                            current_property_enum = False
                     type_match = re.match(r'^( {10}| {12})type:\s*([A-Za-z0-9_]+)\s*$', line)
                     if type_match:
                         indent = len(type_match.group(1))
@@ -940,6 +992,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         current_properties[current_property]['nullable'] = nullable_match.group(2) == 'true'
                         current_property_items = False
                         continue
+                    enum_match = re.match(r'^( {10})enum:\s*(?:\[(.*)\])?\s*$', line)
+                    if enum_match and not current_property_items:
+                        raw_values = enum_match.group(2)
+                        if raw_values is None:
+                            current_property_enum = True
+                            current_properties[current_property].setdefault('enum', set())
+                        else:
+                            current_properties[current_property]['enum'] = parse_enum_values(raw_values)
+                            current_property_enum = False
+                        continue
                     constraint_match = re.match(r'^( {10})(minLength|maxLength|minimum|maximum):\s*(\d+)\s*$', line)
                     if constraint_match and not current_property_items:
                         constraint_key = {
@@ -952,10 +1014,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
+                        current_property_enum = False
                         continue
                     if re.match(r'^ {10,}properties:\s*$', line):
                         current_property = None
                         current_property_items = False
+                        current_property_enum = False
                         continue
                     schema_ref_match = re.match(r"^( {10}| {12})\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
                     if schema_ref_match:
@@ -971,10 +1035,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     if not re.match(r'^ {10,}', line):
                         current_property = None
                         current_property_items = False
+                        current_property_enum = False
                 if not re.match(r'^          ', line):
                     in_properties = False
                     current_property = None
                     current_property_items = False
+                    current_property_enum = False
 
         if current_schema in TRACKED_REST_SCHEMA_NAMES and current_properties:
             structs[current_schema] = build_schema_fields(current_properties, current_required)
@@ -1861,6 +1927,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` nullable `{format_bool(runtime_nullable)}` at runtime but documents `{format_bool(documented_nullable)}` in {contract_path}."
                 )
                 continue
+
+            runtime_enum = set(runtime_field.get('enum', ()))
+            if runtime_enum:
+                documented_enum = set(documented_field.get('enum', set()))
+                if runtime_enum != documented_enum:
+                    expected = ', '.join(sorted(runtime_enum))
+                    documented = ', '.join(sorted(documented_enum)) or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` enum [{expected}] at runtime but documents [{documented}] in {contract_path}."
+                    )
+                    continue
 
             constraint_mismatch = False
             for constraint_key, label in REST_SCHEMA_CONSTRAINT_LABELS:
