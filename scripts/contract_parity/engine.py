@@ -178,6 +178,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'DmFanoutCatchUpRequest',
         'DmFanoutCatchUpItem',
         'DmFanoutCatchUpResponse',
+        'DmThreadMarkReadRequest',
+        'DmThreadMarkReadResponse',
     }
     IDENTITY_ID_PATTERN = r'^[A-Za-z0-9_-]{3,64}$'
     TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS = {
@@ -200,6 +202,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'device_id': {'min_length': 1, 'max_length': 64},
             'device_secret': {'min_length': 16, 'max_length': 128},
             'limit': {'minimum': 1, 'maximum': 100},
+        },
+        'DmThreadMarkReadRequest': {
+            'last_read_seq': {'minimum': 0},
+        },
+        'DmThreadMarkReadResponse': {
+            'last_read_seq': {'minimum': 0},
+            'unread': {'minimum': 0},
         },
     }
     TRACKED_REST_SCHEMA_FIELD_ENUMS = {
