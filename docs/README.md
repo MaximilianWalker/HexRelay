@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented shared REST `ApiError` schema-shape contract-parity coverage.
+- Latest meaningful change: 2026-05-14 documented server-channel message request `serde(default)` and mention-array item-pattern contract-parity coverage.
 
 ## Purpose
 
