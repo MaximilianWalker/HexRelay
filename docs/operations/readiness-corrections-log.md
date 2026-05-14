@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-14
 - Source of truth: `docs/operations/readiness-corrections-log.md`
 
 ## Quick Context
 
 - Primary log for readiness corrections and recurrence prevention state.
 - Update in the same change whenever a readiness finding is fixed, deferred, or regresses.
-- Latest meaningful change: 2026-05-13 narrowed the contract semantic-depth watch with tracked REST DTO field-type parity coverage.
+- Latest meaningful change: 2026-05-14 narrowed the contract semantic-depth watch with routed REST path-parameter requiredness and schema-type parity.
 
 ## Purpose
 
@@ -31,7 +31,7 @@
 
 ## Active Watch Summary
 
-- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, tracked REST DTO required-field and field-type checks, selected receive-side realtime semantic checks, current send-side signaling auth/targeting checks, current send-side signaling success-envelope checks, and shared realtime error-envelope checks.
+- `ci`: contract parity still does not prove full request/response/auth-behavior semantics beyond high-signal inventory, selected REST semantic checks, shared REST `ApiError` response-schema checks, routed REST path-parameter requiredness/type checks, tracked REST DTO required-field and field-type checks, selected receive-side realtime semantic checks, current send-side signaling auth/targeting checks, current send-side signaling success-envelope checks, and shared realtime error-envelope checks.
   - owner=maintainers
   - decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity
   - exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond inventory matching
@@ -46,6 +46,7 @@
 
 ## Entries
 
+- 2026-05-14 | `ci` | Contract parity still did not validate routed REST path-parameter semantics beyond presence, so OpenAPI could drift from runtime `Path<...>` extractor requiredness or schema types while route inventory still passed | extended `scripts/contract_parity/engine.py` to compare runtime path extractor schema types against OpenAPI `in: path` required/type declarations, added the `fail-path-parameter-semantics` fixture, and wired it into `scripts/test-contract-parity.sh` | `docs/contracts/README.md` and `docs/operations/contributor-guide.md` now document path-parameter requiredness and schema-type parity; the broader semantic-depth watch remains open for request/response/auth behavior beyond current tracked slices | `watch` | owner=maintainers | decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity | exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond routed path/query checks, tracked DTO field requirements/types, and the existing route/realtime semantic checks
 - 2026-05-13 | `ci` | Contract parity did not validate property type semantics for the tracked REST DTO set, so OpenAPI could drift from runtime string/integer/boolean/array field types while required-field parity still passed | extended `scripts/contract_parity/engine.py` to compare tracked REST DTO property types and array item types, added the `fail-rest-schema-field-types` fixture, and wired it into `scripts/test-contract-parity.sh` | `docs/contracts/README.md` and `docs/operations/contributor-guide.md` now document required-field and field-type parity; the broader semantic-depth watch remains open for request/response/auth behavior beyond current tracked slices | `watch` | owner=maintainers | decision_trigger=next CI hardening cycle or a repeated payload/status/auth drift that passes parity | exit_criteria=CI validates request/response schema semantics or generated/runtime contract assertions beyond tracked DTO field requirements/types and the existing route/realtime semantic checks
 - 2026-05-13 | `realtime-rs` | Recipient-targeted websocket signaling delivery was still deferred, and validated signaling remained self-targeted loopback only | removed the cross-identity `event_unsupported` guard for authenticated `call.signal.offer` / `answer` / `ice_candidate` payloads, required accepted-contact authorization before recipient delivery, routed valid signaling envelopes to active websocket sessions for the target identity with distinct recipient-bound envelopes, added websocket and dispatch coverage for cross-identity offer/answer/candidate propagation, and updated the runtime AsyncAPI signaling semantics | `docs/contracts/realtime-events-runtime.asyncapi.yaml`, `docs/contracts/README.md`, `docs/planning/iterations/02-sprint-board.md`, and `docs/operations/contributor-guide.md` now describe recipient-targeted live signaling delivery instead of an open loopback-only watch | `closed`
 - 2026-05-12 | `docs` | Project-owned API/realtime versioning remained in contract artifact filenames, schema aliases, realtime envelope fields, runtime cache keys, signed-token format segments, and browser storage-key suffixes even though the API is internal/local and does not need public version compatibility | renamed contract artifacts to unversioned names, removed realtime envelope-version payload fields and numeric schema suffix aliases, retired the legacy REST compatibility alias, removed runtime cache-key/token/storage version suffixes, and synchronized in-repo consumers, fixtures, docs, and contract parity validators | `AGENTS.md`, contract indexes, runtime contracts, and parity fixtures now require one clean internal API/realtime shape unless a real migration or rollout constraint exists | `closed`
