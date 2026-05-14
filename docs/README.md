@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented routed REST path-parameter format contract-parity coverage.
+- Latest meaningful change: 2026-05-14 documented selected routed REST query-parameter string-pattern contract-parity coverage.
 
 ## Purpose
 

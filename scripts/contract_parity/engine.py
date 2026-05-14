@@ -441,6 +441,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     QUERY_RUNTIME_FIELD_RULES = {
         'FriendRequestListQuery': {
+            'identity_id': {'pattern': r'^[A-Za-z0-9_-]{3,64}$'},
             'direction': {'enum': ('inbound', 'outbound')},
         },
         'ServerChannelMessageListQuery': {
@@ -1878,6 +1879,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             'enum': set(),
                             'minimum': None,
                             'maximum': None,
+                            'pattern': None,
                             'semantics': set(),
                         },
                     )
@@ -1949,6 +1951,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 maximum_match = re.match(r'^            maximum: (\d+)\s*$', line)
                 if maximum_match:
                     semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
+                    continue
+                pattern_match = re.match(r'^            pattern:\s*(.+?)\s*$', line)
+                if pattern_match:
+                    pattern_value = pattern_match.group(1).strip()
+                    if (
+                        len(pattern_value) >= 2
+                        and pattern_value[0] == pattern_value[-1]
+                        and pattern_value[0] in {"'", '"'}
+                    ):
+                        pattern_value = pattern_value[1:-1]
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['pattern'] = pattern_value
                     continue
             if current_header_schema_parameter:
                 type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
@@ -2435,6 +2448,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 documented_bound = contract_query.get(bound_name)
                 if runtime_bound is not None and runtime_bound != documented_bound:
                     errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with {bound_name} `{runtime_bound}` at runtime but documents `{documented_bound}` in {contract_path}.")
+            runtime_pattern = runtime_query.get('pattern')
+            documented_pattern = contract_query.get('pattern')
+            if runtime_pattern and runtime_pattern != documented_pattern:
+                actual_pattern = documented_pattern or '<none>'
+                errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with pattern `{runtime_pattern}` at runtime but documents `{actual_pattern}` in {contract_path}.")
             runtime_semantics = set(runtime_query.get('semantics', ()))
             documented_semantics = set(contract_query.get('semantics', set()))
             if runtime_semantics and runtime_semantics != documented_semantics:
