@@ -146,9 +146,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_RESPONSE_COOKIE_ACTIONS = {
         'issue:hexrelay_session': (
             r'build_session_cookie_value\(\s*session_cookie_name\(\)',
+            r'build_cookie\(\s*SESSION_COOKIE_NAME\b',
         ),
         'issue:hexrelay_csrf': (
             r'build_session_cookie_value\(\s*csrf_cookie_name\(\)',
+            r'build_cookie\(\s*CSRF_COOKIE_NAME\b',
         ),
         'clear:hexrelay_session': (
             r'build_expired_cookie\(\s*session_cookie_name\(\)',
@@ -571,7 +573,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_json_body': 'Json<' in params,
                     'has_request_body_extractor': has_request_body_extractor(params),
                     'request_body_schema': extract_request_body_schema(params),
-                    'response_body_schema': extract_response_body_schema(return_type),
+                    'response_body_schema': extract_response_body_schema(return_type, body),
                     'request_headers': extract_runtime_request_headers(params, body),
                     'response_headers': extract_runtime_response_headers(body),
                     'response_cookie_actions': extract_runtime_response_cookie_actions(body),
@@ -681,13 +683,40 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         )
 
 
-    def extract_response_body_schema(return_type: str):
-        json_match = re.search(r'Json<\s*([^>]+)\s*>', return_type)
-        if not json_match:
-            return None
-        raw_type = json_match.group(1).strip()
-        normalized = raw_type.split('::')[-1]
+    def normalize_response_schema(raw_type: str):
+        normalized = raw_type.strip().split('::')[-1]
         return RESPONSE_SCHEMA_ALIASES.get(normalized, normalized)
+
+
+    def extract_response_builder_body_schema(body: str):
+        local_structs = {
+            name: normalize_response_schema(schema_name)
+            for name, schema_name in re.findall(
+                r'\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Z][A-Za-z0-9_]*)\s*\{',
+                body,
+                re.S,
+            )
+        }
+        json_response_vars = re.findall(
+            r'\bJson\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\.into_response\s*\(',
+            body,
+            re.S,
+        )
+        schemas = {local_structs[var_name] for var_name in json_response_vars if var_name in local_structs}
+        if len(schemas) == 1:
+            return next(iter(schemas))
+        return None
+
+
+    def has_json_response_builder(body: str):
+        return extract_response_builder_body_schema(body) is not None
+
+
+    def extract_response_body_schema(return_type: str, body: str):
+        json_match = re.search(r'Json<\s*([^>]+)\s*>', return_type)
+        if json_match:
+            return normalize_response_schema(json_match.group(1))
+        return extract_response_builder_body_schema(body)
 
 
     def extract_runtime_request_headers(params: str, body: str):
@@ -1276,6 +1305,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             return '204'
         if 'StatusCode::ACCEPTED' in body:
             return '202'
+        if has_json_response_builder(body):
+            return '200'
 
         body_inner = body.strip()
         if body_inner.startswith('{') and body_inner.endswith('}'):
@@ -1306,6 +1337,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
         return_type = function.get('return_type', '')
         if 'Json<' in return_type:
+            return 'json'
+        if has_json_response_builder(function.get('body', '')):
             return 'json'
         if 'StatusCode' in return_type:
             return 'none'
