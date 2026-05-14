@@ -565,6 +565,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_internal_auth': '.get("x-hexrelay-internal-token")' in body,
                     'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                     'has_json_body': 'Json<' in params,
+                    'has_request_body_extractor': has_request_body_extractor(params),
                     'request_body_schema': extract_request_body_schema(params),
                     'response_body_schema': extract_response_body_schema(return_type),
                     'request_headers': extract_runtime_request_headers(params, body),
@@ -668,6 +669,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         raw_type = match.group(1).strip()
         normalized = raw_type.split('::')[-1]
         return REQUEST_SCHEMA_ALIASES.get(normalized, normalized)
+
+
+    def has_request_body_extractor(params: str):
+        return 'Json<' in params or bool(
+            re.search(r'(?:^|[^A-Za-z0-9_:])(?:axum::body::)?Bytes\b', params)
+        )
 
 
     def extract_response_body_schema(return_type: str):
@@ -1340,6 +1347,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                                 or infer_has_500(handler_id, function_semantics, local_lookup),
                     'has_csrf': bool(handler_semantics.get('has_csrf')),
                     'has_json_body': bool(handler_semantics.get('has_json_body')),
+                    'has_request_body_extractor': bool(
+                        handler_semantics.get('has_request_body_extractor')
+                    ),
                     'request_body_schema': handler_semantics.get('request_body_schema'),
                     'response_body_schema': handler_semantics.get('response_body_schema'),
                     'success_body_kind': infer_success_body_kind(
@@ -2106,6 +2116,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
         if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
             errors.append(f"::error::{method} {path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}.")
+        if not runtime['has_request_body_extractor'] and contract['has_request_body']:
+            errors.append(f"::error::{method} {path} documents a requestBody but runtime handler has no request-body extractor in {contract_path}.")
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
