@@ -3340,6 +3340,7 @@ components:
       properties:
         recipient_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         message_id:
           type: string
           minLength: 1
@@ -3413,6 +3414,7 @@ components:
           type: string
           minLength: 16
           maxLength: 128
+          pattern: '^[A-Za-z0-9_-]{16,128}$'
           description: Must match the secret established by the profile-device heartbeat for this device id.
         cursor:
           type: string
@@ -3823,8 +3825,10 @@ components:
       properties:
         requester_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         target_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
     IdentityBootstrapBundle:
       type: object
       required: [identity_id, public_key, algorithm, devices]
@@ -3863,6 +3867,7 @@ components:
       properties:
         identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         challenge_id:
           type: string
         signature:
