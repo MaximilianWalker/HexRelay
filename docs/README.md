@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented routed REST request-body absence contract-parity coverage.
+- Latest meaningful change: 2026-05-14 documented CSRF header component contract-parity coverage.
 
 ## Purpose
 
