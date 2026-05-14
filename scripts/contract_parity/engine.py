@@ -757,10 +757,12 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def map_rest_schema_type(raw_type: str):
         required = True
+        nullable = False
         inner_type = raw_type.strip()
         option_inner = unwrap_rust_generic(inner_type, 'Option')
         if option_inner is not None:
             required = False
+            nullable = True
             inner_type = option_inner
 
         vec_inner = unwrap_rust_generic(inner_type, 'Vec')
@@ -768,6 +770,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             item_details = map_rest_schema_type(vec_inner)
             details = {
                 'required': required,
+                'nullable': nullable,
                 'schema_type': 'array',
                 'item_schema_type': item_details['schema_type'],
             }
@@ -789,6 +792,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
         details = {
             'required': required,
+            'nullable': nullable,
             'schema_type': schema_type,
         }
         if schema_ref:
@@ -831,6 +835,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 field_name: {
                     **properties.get(field_name, {}),
                     'required': field_name in required,
+                    'nullable': bool(properties.get(field_name, {}).get('nullable', False)),
                 }
                 for field_name in set(properties) | required
             }
@@ -890,6 +895,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             current_properties[current_property]['item_schema_type'] = type_match.group(2)
                         elif not current_property_items and indent == 10:
                             current_properties[current_property]['schema_type'] = type_match.group(2)
+                        continue
+                    nullable_match = re.match(r'^( {10})nullable:\s*(true|false)\s*$', line)
+                    if nullable_match:
+                        current_properties[current_property]['nullable'] = nullable_match.group(2) == 'true'
+                        current_property_items = False
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
@@ -1730,6 +1740,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     errors = []
 
+    def format_bool(value):
+        return 'true' if value else 'false'
+
     def compare_tracked_rest_schema(schema_name, relation, method, path, seen=None):
         if schema_name not in runtime_schema_fields or schema_name not in contract_schema_fields:
             return
@@ -1758,6 +1771,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 actual_type = documented_type or '<none>'
                 errors.append(
                     f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
+                )
+                continue
+
+            runtime_nullable = bool(runtime_field.get('nullable', False))
+            documented_nullable = bool(documented_field.get('nullable', False))
+            if runtime_nullable != documented_nullable:
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` nullable `{format_bool(runtime_nullable)}` at runtime but documents `{format_bool(documented_nullable)}` in {contract_path}."
                 )
                 continue
 
