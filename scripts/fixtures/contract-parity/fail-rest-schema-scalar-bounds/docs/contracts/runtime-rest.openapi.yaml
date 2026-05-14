@@ -1,0 +1,214 @@
+openapi: 3.1.0
+paths:
+  /friends/requests/{request_id}/accept:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestAcceptRequest'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
+        '400':
+          description: Invalid request state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                identityInvalid:
+                  value:
+                    code: identity_invalid
+                    message: friend request not found or not actionable by current session
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Transition invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                transitionInvalid:
+                  value:
+                    code: transition_invalid
+                    message: friend request transition is not allowed from current state
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /dm/threads:
+    get:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: DM thread page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThreadPage'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                cursorInvalid:
+                  value:
+                    code: cursor_invalid
+                    message: unknown dm thread cursor
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /dm/fanout/catch-up:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmFanoutCatchUpRequest'
+      responses:
+        '200':
+          description: DM catch-up response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmFanoutCatchUpResponse'
+components:
+  parameters:
+    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    InternalServerError:
+      description: Internal server error
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - cursor_invalid
+            - identity_invalid
+            - transition_invalid
+            - storage_unavailable
+    FriendRequestAcceptRequest:
+      type: object
+    FriendRequestRecord:
+      type: object
+    DmThreadPage:
+      type: object
+    DmFanoutCatchUpRequest:
+      type: object
+      required: [device_id, device_secret]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        device_secret:
+          type: string
+          minLength: 16
+          maxLength: 128
+        cursor:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          nullable: true
+    DmFanoutCatchUpItem:
+      type: object
+      required: [envelope_id, cursor, thread_id, message_id, ciphertext]
+      properties:
+        envelope_id:
+          type: string
+        cursor:
+          type: string
+        thread_id:
+          type: string
+        message_id:
+          type: string
+        ciphertext:
+          type: string
+        source_device_id:
+          type: string
+    FriendRequestPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FriendRequestRecord'
+    DmFanoutCatchUpResponse:
+      type: object
+      required:
+        - status
+        - reason_code
+        - transport_profile
+        - device_id
+        - replay_count
+        - next_cursor
+        - deduped_message_ids
+        - items
+      properties:
+        status:
+          type: string
+        reason_code:
+          type: string
+        transport_profile:
+          type: string
+        device_id:
+          type: string
+        replay_count:
+          type: integer
+        next_cursor:
+          type: string
+        deduped_message_ids:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DmFanoutCatchUpItem'
