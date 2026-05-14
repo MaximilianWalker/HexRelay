@@ -525,7 +525,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def map_path_parameter_type(raw_type: str):
         normalized_type = raw_type.replace('&', '').strip()
-        details = {'schema_type': 'object'}
+        details = {}
         if normalized_type in {'String', 'str'} or normalized_type.endswith(' str'):
             details['schema_type'] = 'string'
         elif normalized_type in {'Uuid', 'uuid::Uuid'}:
@@ -538,11 +538,34 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return details
 
 
-    def extract_path_param_details(params: str):
-        match = re.search(r'(?:^|[^A-Za-z0-9_:])(?:axum::extract::)?Path\s*\(?.*?:\s*(?:axum::extract::)?Path<\s*(.*?)\s*>', params, re.S)
+    def extract_path_param_type(params: str):
+        match = re.search(
+            r'(?:^|[^A-Za-z0-9_:])(?:axum::extract::)?Path\b.*?:\s*(?:axum::extract::)?Path\s*<',
+            params,
+            re.S,
+        )
         if not match:
+            return None
+        cursor = match.end()
+        depth = 1
+        raw_type = []
+        while cursor < len(params):
+            char = params[cursor]
+            if char == '<':
+                depth += 1
+            elif char == '>':
+                depth -= 1
+                if depth == 0:
+                    return ''.join(raw_type).strip()
+            raw_type.append(char)
+            cursor += 1
+        return None
+
+
+    def extract_path_param_details(params: str):
+        raw_type = extract_path_param_type(params)
+        if raw_type is None:
             return []
-        raw_type = match.group(1).strip()
         if raw_type.startswith('(') and raw_type.endswith(')'):
             raw_types = split_top_level_types(raw_type[1:-1])
         else:
