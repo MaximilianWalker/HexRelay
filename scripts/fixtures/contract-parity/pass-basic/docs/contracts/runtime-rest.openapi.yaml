@@ -51,6 +51,21 @@ paths:
                     message: friend request transition is not allowed from current state
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /internal/raw-forward:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestAcceptRequest'
+      responses:
+        '200':
+          description: Raw body forwarded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestRecord'
   /dm/threads:
     get:
       security:
