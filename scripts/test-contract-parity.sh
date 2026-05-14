@@ -109,8 +109,79 @@ PY
   trap - RETURN
 }
 
+run_path_parameter_format_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/services/api-rs/src/transport/http/handlers/friends.rs" "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+handler_path = pathlib.Path(sys.argv[1])
+contract_path = pathlib.Path(sys.argv[2])
+mutation_name = sys.argv[3]
+
+handler_text = handler_path.read_text()
+old_handler = "Path(_request_id): Path<String>,"
+new_handler = "Path(_request_id): Path<uuid::Uuid>,"
+if old_handler not in handler_text:
+    raise SystemExit("fixture handler mutation target not found")
+handler_path.write_text(handler_text.replace(old_handler, new_handler, 1))
+
+if mutation_name == "pass-path-parameter-format":
+    contract_text = contract_path.read_text()
+    old_contract = """        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string"""
+    new_contract = """        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+            format: uuid"""
+    if old_contract not in contract_text:
+        raise SystemExit("fixture contract mutation target not found")
+    contract_path.write_text(contract_text.replace(old_contract, new_contract, 1))
+elif mutation_name != "fail-path-parameter-format":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_path_parameter_format_fixture pass-path-parameter-format 0
 run_response_header_schema_type_fixture pass-response-header-schema-ref 0
 run_fixture pass-request-body-component 0
 run_fixture pass-request-schema-alias 0
@@ -134,6 +205,7 @@ run_fixture fail-missing-csrf-header 1 "missing the CsrfTokenHeader parameter"
 run_fixture fail-missing-request-body 1 "missing requestBody"
 run_fixture fail-nonauth-helper-500 1 "local helper/delegate flows but is missing a 500 response"
 run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON success body"
+run_path_parameter_format_fixture fail-path-parameter-format 1 'uses path parameter `request_id` with format `uuid` at runtime but documents `<none>`'
 run_fixture fail-path-parameter-semantics 1 'uses path parameter `request_id` as type `string` at runtime but documents `integer`'
 run_fixture fail-public-auth-security 1 'GET /health documents security schemes [BearerAuth, CookieAuth] but runtime does not require session or internal-token auth'
 run_fixture fail-request-body-required 1 "requestBody is not marked required"
