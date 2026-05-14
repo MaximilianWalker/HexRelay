@@ -1,6 +1,9 @@
 use api_rs::{
     app::{build_app, ApiConfig, AppState},
     db::connect_and_prepare,
+    domain::dm::outbound_forwarding::{
+        spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
+    },
 };
 use std::env;
 use tracing::{error, info};
@@ -65,6 +68,10 @@ async fn main() {
     .with_dm_retention(config.dm_retention.clone())
     .with_db_pool(db_pool);
 
+    let _dm_outbound_forward_retry_worker = spawn_dm_outbound_forward_retry_worker(
+        state.clone(),
+        DmOutboundForwardRetryWorkerConfig::default(),
+    );
     let app = build_app(state);
     let addr = config.bind_addr;
     info!(%addr, "starting api service");

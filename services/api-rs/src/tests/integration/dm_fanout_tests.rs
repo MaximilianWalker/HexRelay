@@ -5,6 +5,7 @@ use communication_core::{
     NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy,
     StaticPeerRegistry, StoragePolicy,
 };
+use std::{sync::LazyLock, time::Duration as StdDuration};
 
 use crate::{
     domain::{
@@ -13,6 +14,9 @@ use crate::{
                 forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
             },
             outbound_forwarding::{retry_due_dm_outbound_forwards, DmOutboundForwardRetryConfig},
+            outbound_forwarding::{
+                spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
+            },
             validation::DM_OFFLINE_DELIVERY_MODE,
         },
         node_identity::LocalNodeIdentity,
@@ -30,6 +34,8 @@ fn unique_message_id(prefix: &str) -> String {
 }
 
 const TEST_RETRY_STALE_ATTEMPT_SECONDS: i64 = 60;
+static OUTBOUND_FORWARD_RETRY_TEST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 struct SignedNodeDescriptor {
     descriptor: NodeDescriptor,
@@ -305,6 +311,49 @@ async fn delete_outbound_forward_record(
     .expect("delete test outbound forward record");
 }
 
+async fn delete_retry_test_outbound_forward_records(pool: &sqlx::PgPool) {
+    sqlx::query(
+        "
+        DELETE FROM dm_outbound_forwarding_log
+        WHERE sender_identity_id LIKE 'usr-origin-retry-%'
+           OR message_id LIKE 'msg-static-peer-retry%'
+        ",
+    )
+    .execute(pool)
+    .await
+    .expect("delete prior retry test outbound forward records");
+}
+
+async fn wait_for_outbound_forward_state(
+    pool: &sqlx::PgPool,
+    sender: &str,
+    destination_node_id: &str,
+    message_id: &str,
+    expected_state: &str,
+) -> crate::models::DmOutboundForwardRecord {
+    tokio::time::timeout(StdDuration::from_secs(5), async {
+        loop {
+            if let Some(record) = dm_repo::get_dm_outbound_forward_record(
+                pool,
+                sender,
+                destination_node_id,
+                message_id,
+            )
+            .await
+            .expect("load outbound forward record while waiting")
+            {
+                if record.forwarding_state == expected_state {
+                    return record;
+                }
+            }
+
+            tokio::time::sleep(StdDuration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("outbound forward record should reach expected state")
+}
+
 #[tokio::test]
 async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() {
     let Some(pool) = prepared_database_pool().await else {
@@ -370,8 +419,9 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
     .await
     .expect("insert retention profile device");
 
-    let old_delivery_at = Utc::now() - Duration::days(31);
-    let old_outbound_at = Utc::now() - Duration::days(8);
+    let retention_cutoff = Utc::now();
+    let expired_delivery_at = retention_cutoff - Duration::seconds(1);
+    let expired_outbound_at = retention_cutoff - Duration::seconds(1);
     sqlx::query(
         "
         INSERT INTO dm_fanout_stream_heads (identity_id, latest_cursor, updated_at)
@@ -416,7 +466,7 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
     .bind(&thread_id)
     .bind(&message_id)
     .bind(&sender)
-    .bind(old_delivery_at)
+    .bind(expired_delivery_at)
     .execute(&pool)
     .await
     .expect("insert retention delivery metadata");
@@ -458,20 +508,17 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
         .bind(&thread_id)
         .bind(&recipient)
         .bind(state)
-        .bind(old_outbound_at)
+        .bind(expired_outbound_at)
         .bind(next_attempt_at)
         .execute(&pool)
         .await
         .expect("insert retention outbound metadata");
     }
 
-    let summary = dm_repo::purge_expired_dm_delivery_metadata(
-        &pool,
-        Utc::now() - Duration::days(30),
-        Utc::now() - Duration::days(7),
-    )
-    .await
-    .expect("purge expired dm delivery metadata");
+    let summary =
+        dm_repo::purge_expired_dm_delivery_metadata(&pool, retention_cutoff, retention_cutoff)
+            .await
+            .expect("purge expired dm delivery metadata");
     assert!(summary.fanout_delivery_records_deleted >= 1);
     assert!(summary.outbound_forward_records_deleted >= 2);
 
@@ -952,6 +999,8 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
+    let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
+    delete_retry_test_outbound_forward_records(&pool).await;
     let local = signed_node_descriptor(
         TEST_NODE_FINGERPRINT,
         "descriptor-local",
@@ -1024,6 +1073,84 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
 }
 
 #[tokio::test]
+async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
+    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let sender = unique_identity("usr-origin-retry-worker-sender");
+    let recipient = unique_identity("usr-remote-retry-worker-recipient");
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
+    delete_retry_test_outbound_forward_records(&pool).await;
+    let local = signed_node_descriptor(
+        TEST_NODE_FINGERPRINT,
+        "descriptor-local",
+        "https://local.example",
+    );
+    let destination = signed_node_descriptor(
+        "node-destination",
+        "descriptor-destination",
+        &destination_base_url,
+    );
+    let message_id = unique_message_id("msg-static-peer-retry-worker");
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        &destination.descriptor.node_id,
+        &message_id,
+    )
+    .await;
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_local_node_identity(Some(LocalNodeIdentity {
+            descriptor: local.descriptor.clone(),
+            private_key_pkcs8: local.private_key_pkcs8,
+        }))
+        .with_static_peer_registry(
+            StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry"),
+        );
+
+    let worker = spawn_dm_outbound_forward_retry_worker(
+        state,
+        DmOutboundForwardRetryWorkerConfig {
+            retry: DmOutboundForwardRetryConfig {
+                limit: 10,
+                max_attempts: 5,
+                stale_attempt_seconds: TEST_RETRY_STALE_ATTEMPT_SECONDS,
+            },
+            interval: StdDuration::from_millis(10),
+        },
+    );
+
+    let captured = tokio::time::timeout(StdDuration::from_secs(5), capture_rx)
+        .await
+        .expect("worker should forward due outbound record")
+        .expect("capture worker node-forwarded request");
+    let forwarded: NodeForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode worker retried node forward body");
+    assert_eq!(forwarded.sender_identity_id, sender);
+    assert_eq!(forwarded.recipient_identity_id, recipient);
+    assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
+
+    let record = wait_for_outbound_forward_state(
+        &pool,
+        &sender,
+        &destination.descriptor.node_id,
+        &message_id,
+        "forwarded",
+    )
+    .await;
+    assert_eq!(record.attempt_count, 2);
+    assert!(record.next_attempt_at.is_none());
+
+    worker.abort();
+    let _ = worker.await;
+    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
+        .await;
+}
+
+#[tokio::test]
 async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     let (destination_base_url, capture_rx) =
         start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
@@ -1032,6 +1159,8 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
+    let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
+    delete_retry_test_outbound_forward_records(&pool).await;
     let local = signed_node_descriptor(
         TEST_NODE_FINGERPRINT,
         "descriptor-local",
@@ -1115,6 +1244,8 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
+    let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
+    delete_retry_test_outbound_forward_records(&pool).await;
     let destination_node_id = "node-missing";
     let message_id = unique_message_id("msg-static-peer-retry-terminal");
     seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
