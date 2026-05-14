@@ -214,6 +214,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'transport_profile': ('encrypted_envelope_node',),
         },
     }
+    TRACKED_REST_SCHEMA_FIELD_FORMATS = {
+        'AuthVerifyResponse': {
+            'expires_at': 'date-time',
+        },
+        'SessionValidateResponse': {
+            'expires_at': 'date-time',
+        },
+        'InviteCreateRequest': {
+            'expires_at': 'date-time',
+        },
+        'InviteCreateResponse': {
+            'expires_at': 'date-time',
+            'created_at': 'date-time',
+        },
+    }
     REST_SCHEMA_CONSTRAINT_LABELS = (
         ('min_length', 'minLength'),
         ('max_length', 'maxLength'),
@@ -887,6 +902,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             for field_name, enum_values in TRACKED_REST_SCHEMA_FIELD_ENUMS.get(name, {}).items():
                 if field_name in fields:
                     fields[field_name]['enum'] = set(enum_values)
+            for field_name, schema_format in TRACKED_REST_SCHEMA_FIELD_FORMATS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['format'] = schema_format
             structs[name] = fields
 
         return structs
@@ -986,6 +1004,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             current_properties[current_property]['item_schema_type'] = type_match.group(2)
                         elif not current_property_items and indent == 10:
                             current_properties[current_property]['schema_type'] = type_match.group(2)
+                        continue
+                    format_match = re.match(r'^( {10})format:\s*([A-Za-z0-9_.:-]+)\s*$', line)
+                    if format_match and not current_property_items:
+                        current_properties[current_property]['format'] = format_match.group(2)
                         continue
                     nullable_match = re.match(r'^( {10})nullable:\s*(true|false)\s*$', line)
                     if nullable_match:
@@ -1927,6 +1949,16 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` nullable `{format_bool(runtime_nullable)}` at runtime but documents `{format_bool(documented_nullable)}` in {contract_path}."
                 )
                 continue
+
+            runtime_format = runtime_field.get('format')
+            if runtime_format:
+                documented_format = documented_field.get('format')
+                if runtime_format != documented_format:
+                    actual_format = documented_format or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` format `{runtime_format}` at runtime but documents `{actual_format}` in {contract_path}."
+                    )
+                    continue
 
             runtime_enum = set(runtime_field.get('enum', ()))
             if runtime_enum:
