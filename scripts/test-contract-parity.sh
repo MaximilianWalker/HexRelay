@@ -7,6 +7,17 @@ FIXTURES_DIR="$ROOT_DIR/scripts/fixtures/contract-parity"
 FIXTURE_GIT_AUTHOR_NAME="OpenCode Fixture"
 FIXTURE_GIT_AUTHOR_EMAIL="fixture@hexrelay.local"
 
+if command -v py >/dev/null 2>&1; then
+  PYTHON_BIN=(py -3)
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN=(python3)
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN=(python)
+else
+  echo "::error::python3, python, or py -3 is required for contract parity fixture mutations."
+  exit 1
+fi
+
 run_fixture() {
   local fixture_name="$1"
   local expected_exit="$2"
@@ -43,8 +54,64 @@ run_fixture() {
   trap - RETURN
 }
 
+run_response_header_schema_type_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-cookie-actions"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+old = "schema:\n                type: string"
+if mutation_name == "fail-response-header-schema-type":
+    new = "schema:\n                type: integer"
+elif mutation_name == "pass-response-header-schema-ref":
+    new = "schema:\n                $ref: '#/components/schemas/CookieHeader'"
+    text += "\n    CookieHeader:\n      type: string\n"
+else:
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+if old not in text:
+    raise SystemExit("fixture mutation target not found")
+path.write_text(text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_response_header_schema_type_fixture pass-response-header-schema-ref 0
 run_fixture pass-request-body-component 0
 run_fixture pass-request-schema-alias 0
 run_fixture pass-response-schema-alias 0
@@ -86,6 +153,7 @@ run_fixture fail-realtime-envelope-semantics 1 'Realtime runtime event `realtime
 run_fixture fail-realtime-signal-envelope-semantics 1 'Realtime runtime event `call.signal.offer` uses data fields [call_id, from_identity_id, sdp_offer, to_identity_id] but documents [call_id, from_identity_id, to_identity_id]'
 run_fixture fail-realtime-signaling-semantics 1 'Realtime runtime event `call.signal.offer` requires from_identity_id/session-identity parity at runtime but does not require it'
 run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
+run_response_header_schema_type_fixture fail-response-header-schema-type 1 'returns response header `Set-Cookie` for HTTP 200 as type `string` at runtime but documents `integer`'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
 run_fixture fail-server-channel-example-status 1 "missing tracked HTTP 400 route-level error examples for ApiError codes [reply_target_invalid]"
 run_fixture fail-session-auth-401 1 "missing a 401 response"

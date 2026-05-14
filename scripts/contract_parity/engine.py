@@ -140,6 +140,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_RESPONSE_HEADERS = {
         'Set-Cookie': {
             'runtime_markers': ('append_cookie(',),
+            'schema_type': 'string',
         },
     }
     TRACKED_RESPONSE_COOKIE_ACTIONS = {
@@ -1517,10 +1518,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return components
 
 
+    def extract_component_schema_types(lines: list[str]) -> dict[str, str]:
+        schema_types: dict[str, str] = {}
+        in_schemas = False
+        current_schema = None
+
+        for line in lines:
+            if not in_schemas:
+                if re.match(r'^  schemas:\s*$', line):
+                    in_schemas = True
+                continue
+
+            if re.match(r'^\S', line):
+                break
+
+            schema_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if schema_match:
+                current_schema = schema_match.group(1)
+                continue
+
+            type_match = re.match(r'^      type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if current_schema and type_match:
+                schema_types[current_schema] = type_match.group(1)
+
+        return schema_types
+
+
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
         request_body_components = extract_component_request_bodies(lines)
         parameter_components = extract_component_parameters(lines)
+        component_schema_types = extract_component_schema_types(lines)
         response_components = {}
         semantics = {}
         in_paths = False
@@ -1541,6 +1569,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         in_response_headers = False
         current_response_header_status = None
         current_response_header_name = None
+        in_response_header_schema = False
         in_response_cookie_actions = False
         current_error_status = None
         in_error_examples = False
@@ -1611,6 +1640,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
@@ -1635,6 +1665,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
@@ -1652,6 +1683,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'request_header_details': {},
                     'csrf_header': None,
                     'response_headers': {},
+                    'response_header_details': {},
                     'response_cookie_actions': {},
                     'error_example_codes': {},
                     'path_parameters': set(),
@@ -1687,6 +1719,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             elif current_response_status and not re.match(r'^ {8,}', line):
                 current_response_status = None
@@ -1695,6 +1728,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             if current_error_status and re.match(r"^        '(?:2\d\d|4\d\d|5\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
                 current_error_status = None
@@ -1703,10 +1737,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if in_response_headers and not re.match(r'^ {10,}', line):
                 in_response_headers = False
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             if current_response_header_name and not re.match(r'^ {14,}', line):
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
+            if in_response_header_schema and not re.match(r'^ {16,}', line):
+                in_response_header_schema = False
             if in_response_cookie_actions and not re.match(r'^ {16,}', line):
                 in_response_cookie_actions = False
             if in_parameters_block and not re.match(r'^ {8,}', line):
@@ -1925,6 +1963,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 current_response_header_status = current_response_status
                 in_response_headers = False
+                in_response_header_schema = False
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
@@ -1937,14 +1976,66 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 current_response_header_status = current_response_status
                 in_response_headers = False
+                in_response_header_schema = False
             if current_response_header_status and re.match(r'^          headers:\s*$', line):
                 in_response_headers = True
                 continue
             response_header_match = re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)
             if in_response_headers and response_header_match:
                 current_response_header_name = response_header_match.group(1)
+                in_response_header_schema = False
                 in_response_cookie_actions = False
-                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
+                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(current_response_header_name)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )
+                continue
+            response_header_inline_ref_match = re.match(r"^              schema:\s*\{\s*\$ref:\s*'#/components/schemas/([A-Za-z0-9_]+)'\s*\}\s*$", line)
+            if current_response_header_name and response_header_inline_ref_match:
+                schema_name = response_header_inline_ref_match.group(1)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = component_schema_types.get(schema_name)
+                continue
+            if current_response_header_name and re.match(r'^              schema:\s*$', line):
+                in_response_header_schema = True
+                continue
+            response_header_type_match = re.match(r'^                type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if in_response_header_schema and response_header_type_match:
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = response_header_type_match.group(1)
+                continue
+            response_header_ref_match = re.match(r"^                \$ref:\s*'#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if in_response_header_schema and response_header_ref_match:
+                schema_name = response_header_ref_match.group(1)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = component_schema_types.get(schema_name)
                 continue
             if current_response_header_name == 'Set-Cookie' and re.match(r'^              x-hexrelay-cookie-actions:\s*$', line):
                 in_response_cookie_actions = True
@@ -2257,6 +2348,15 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             )
             for header_name in missing_response_headers:
                 errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
+            documented_response_header_details = contract['response_header_details'].get(runtime['success_status'], {})
+            for header_name in sorted(runtime['response_headers'] - set(missing_response_headers)):
+                expected_type = TRACKED_RESPONSE_HEADERS.get(header_name, {}).get('schema_type')
+                if not expected_type:
+                    continue
+                documented_type = documented_response_header_details.get(header_name, {}).get('schema_type')
+                if expected_type != documented_type:
+                    actual_type = documented_type or '<none>'
+                    errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} as type `{expected_type}` at runtime but documents `{actual_type}` in {contract_path}.")
             runtime_cookie_actions = runtime['response_cookie_actions']
             documented_cookie_actions = contract['response_cookie_actions'].get(runtime['success_status'], set())
             if runtime_cookie_actions or documented_cookie_actions:
