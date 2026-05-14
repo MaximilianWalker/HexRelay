@@ -109,6 +109,57 @@ PY
   trap - RETURN
 }
 
+run_response_builder_success_schema_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-cookie-actions"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+if mutation_name != "fail-response-builder-success-schema":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+old = "                $ref: '#/components/schemas/TestingSessionCreateResponse'"
+new = "                $ref: '#/components/schemas/AuthVerifyResponse'"
+if old not in text:
+    raise SystemExit("fixture mutation target not found")
+path.write_text(text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_path_parameter_format_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -387,6 +438,7 @@ run_fixture fail-realtime-signal-envelope-semantics 1 'Realtime runtime event `c
 run_fixture fail-realtime-signaling-semantics 1 'Realtime runtime event `call.signal.offer` requires from_identity_id/session-identity parity at runtime but does not require it'
 run_fixture fail-response-header 1 'returns response header `Set-Cookie` for HTTP 200 at runtime but is missing it'
 run_response_header_schema_type_fixture fail-response-header-schema-type 1 'returns response header `Set-Cookie` for HTTP 200 as type `string` at runtime but documents `integer`'
+run_response_builder_success_schema_fixture fail-response-builder-success-schema 1 'POST /dev/testing/sessions returns response schema `TestingSessionCreateResponse` for HTTP 200 at runtime but documents `AuthVerifyResponse`'
 run_fixture fail-response-schema-ref 1 "PresenceWatcherListResponse"
 run_fixture fail-server-channel-example-status 1 "missing tracked HTTP 400 route-level error examples for ApiError codes [reply_target_invalid]"
 run_fixture fail-session-auth-401 1 "missing a 401 response"
