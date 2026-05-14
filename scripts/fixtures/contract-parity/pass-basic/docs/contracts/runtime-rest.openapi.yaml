@@ -123,6 +123,7 @@ components:
   schemas:
     ApiError:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
@@ -131,6 +132,8 @@ components:
             - identity_invalid
             - transition_invalid
             - storage_unavailable
+        message:
+          type: string
     FriendRequestAcceptRequest:
       type: object
     FriendRequestRecord:
