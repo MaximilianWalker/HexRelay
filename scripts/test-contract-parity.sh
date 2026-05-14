@@ -515,6 +515,195 @@ PY
   trap - RETURN
 }
 
+run_dm_policy_schema_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-session-auth-security"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - \
+    "$temp_repo/services/api-rs/src/app/router.rs" \
+    "$temp_repo/services/api-rs/src/models.rs" \
+    "$temp_repo/services/api-rs/src/transport/http/handlers/dm.rs" \
+    "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" \
+    "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+router_path = pathlib.Path(sys.argv[1])
+models_path = pathlib.Path(sys.argv[2])
+handler_path = pathlib.Path(sys.argv[3])
+contract_path = pathlib.Path(sys.argv[4])
+mutation_name = sys.argv[5]
+
+router_text = router_path.read_text()
+old_router = 'Router::new().route("/dm/threads", get(list_dm_threads));'
+new_router = '''Router::new()
+        .route("/dm/threads", get(list_dm_threads))
+        .route("/dm/privacy-policy", post(update_dm_policy));'''
+if old_router not in router_text:
+    raise SystemExit("fixture router mutation target not found")
+router_path.write_text(router_text.replace(old_router, new_router, 1))
+
+models_path.write_text(models_path.read_text() + '''
+
+pub struct DmPolicy {
+    pub inbound_policy: String,
+    pub offline_delivery_mode: String,
+}
+
+pub struct DmPolicyUpdate {
+    pub inbound_policy: String,
+}
+''')
+
+handler_text = handler_path.read_text()
+old_import = 'models::{DmThreadListQuery, DmThreadPage},'
+new_import = 'models::{DmPolicy, DmPolicyUpdate, DmThreadListQuery, DmThreadPage},'
+if old_import not in handler_text:
+    raise SystemExit("fixture handler import mutation target not found")
+handler_text = handler_text.replace(old_import, new_import, 1)
+handler_text += '''
+
+pub async fn update_dm_policy(
+    State(_state): State<AppState>,
+    _auth: AuthSession,
+    Json(payload): Json<DmPolicyUpdate>,
+) -> ApiResult<Json<DmPolicy>> {
+    if !matches!(
+        payload.inbound_policy.as_str(),
+        "friends_only" | "same_server" | "anyone"
+    ) {
+        return Err(bad_request(
+            "dm_policy_invalid",
+            "inbound_policy must be one of: friends_only, same_server, anyone",
+        ));
+    }
+    Ok(Json(DmPolicy {
+        inbound_policy: payload.inbound_policy,
+        offline_delivery_mode: "encrypted_envelope_catchup".to_string(),
+    }))
+}
+'''
+handler_path.write_text(handler_text)
+
+contract_text = contract_path.read_text()
+route_insert = '''  /dm/privacy-policy:
+    post:
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmPolicyUpdate'
+      responses:
+        '200':
+          description: DM policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmPolicy'
+        '400':
+          description: Invalid DM policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                dmPolicyInvalid:
+                  value:
+                    code: dm_policy_invalid
+                    message: "inbound_policy must be one of: friends_only, same_server, anyone"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+'''
+if 'components:\n' not in contract_text:
+    raise SystemExit("fixture contract components target not found")
+contract_text = contract_text.replace('components:\n', route_insert + 'components:\n', 1)
+
+schema_insert = '''    DmPolicy:
+      type: object
+      required: [inbound_policy, offline_delivery_mode]
+      properties:
+        inbound_policy:
+          type: string
+          enum: [friends_only, same_server, anyone]
+        offline_delivery_mode:
+          type: string
+          enum: [encrypted_envelope_catchup]
+    DmPolicyUpdate:
+      type: object
+      required: [inbound_policy]
+      properties:
+        inbound_policy:
+          type: string
+          enum: [friends_only, same_server, anyone]
+'''
+if '    ApiError:\n' not in contract_text:
+    raise SystemExit("fixture contract schema target not found")
+contract_text = contract_text.replace('    ApiError:\n', schema_insert + '    ApiError:\n', 1)
+contract_text = contract_text.replace(
+    '            - cursor_invalid',
+    '            - cursor_invalid\n            - dm_policy_invalid',
+    1,
+)
+
+if mutation_name == "fail-dm-policy-update-inbound-enum-domain":
+    old = "          enum: [friends_only, same_server, anyone]"
+    new = "          enum: [friends_only, same_server]"
+    if contract_text.count(old) < 2:
+        raise SystemExit("fixture DmPolicyUpdate enum mutation target not found")
+    before, separator, after = contract_text.partition(old)
+    contract_text = before + separator + after.replace(old, new, 1)
+elif mutation_name == "fail-dm-policy-response-offline-mode-enum-domain":
+    old = '''        offline_delivery_mode:
+          type: string
+          enum: [encrypted_envelope_catchup]'''
+    new = '''        offline_delivery_mode:
+          type: string'''
+    if old not in contract_text:
+        raise SystemExit("fixture DmPolicy offline mode enum mutation target not found")
+    contract_text = contract_text.replace(old, new, 1)
+elif mutation_name != "pass-dm-policy-enum-domain":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+contract_path.write_text(contract_text)
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_dm_mark_read_schema_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -758,6 +947,7 @@ run_fixture pass-request-schema-alias 0
 run_fixture pass-response-schema-alias 0
 run_fixture pass-session-auth-security 0
 run_fixture pass-server-channel-example-status 0
+run_dm_policy_schema_fixture pass-dm-policy-enum-domain 0
 run_fixture fail-cookie-actions 1 "issue:hexrelay_csrf"
 run_api_error_schema_shape_fixture fail-api-error-schema-shape 1 '`ApiError` must require fields [code, message] but documents [code]'
 run_fixture fail-csrf-header-semantics 1 'enforces CSRF header `x-csrf-token` as type `string` at runtime but documents `integer`'
@@ -785,6 +975,8 @@ run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
 run_fixture fail-rest-schema-array-item-ref 1 'returns schema `DmFanoutCatchUpResponse` field `items` array items as schema `DmFanoutCatchUpItem` at runtime but documents `FriendRequestPage`'
+run_dm_policy_schema_fixture fail-dm-policy-update-inbound-enum-domain 1 'uses request schema `DmPolicyUpdate` field `inbound_policy` enum [anyone, friends_only, same_server] at runtime but documents [friends_only, same_server]'
+run_dm_policy_schema_fixture fail-dm-policy-response-offline-mode-enum-domain 1 'returns schema `DmPolicy` field `offline_delivery_mode` enum [encrypted_envelope_catchup] at runtime but documents [<none>]'
 run_dm_mark_read_schema_fixture fail-dm-mark-read-scalar-bounds 1 'uses request schema `DmThreadMarkReadRequest` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
 run_dm_mark_read_schema_fixture fail-dm-mark-read-response-last-read-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `last_read_seq` minimum `0` at runtime but documents `<none>`'
 run_dm_mark_read_schema_fixture fail-dm-mark-read-response-unread-scalar-bound 1 'returns schema `DmThreadMarkReadResponse` field `unread` minimum `0` at runtime but documents `<none>`'
