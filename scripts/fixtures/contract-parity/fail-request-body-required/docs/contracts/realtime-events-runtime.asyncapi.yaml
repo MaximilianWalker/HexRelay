@@ -1,0 +1,16 @@
+asyncapi: '3.0.0'
+channels:
+  ready:
+    messages:
+      ready:
+        payload:
+          type: object
+components:
+  schemas:
+    RealtimeError:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - RATE_LIMITED

@@ -1,0 +1,3 @@
+fn router() {
+    Router::new();
+}

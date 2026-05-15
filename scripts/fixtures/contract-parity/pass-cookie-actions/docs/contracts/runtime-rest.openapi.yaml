@@ -109,6 +109,23 @@ paths:
                     message: session_id does not match authenticated session
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /dev/testing/sessions:
+    post:
+      responses:
+        '200':
+          description: Testing session activated
+          headers:
+            Set-Cookie:
+              description: Session and csrf cookies issued
+              x-hexrelay-cookie-actions:
+                - issue:hexrelay_session
+                - issue:hexrelay_csrf
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestingSessionCreateResponse'
 components:
   parameters:
     CsrfTokenHeader:
@@ -124,9 +141,17 @@ components:
   schemas:
     ApiError:
       type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
     AuthVerifyRequest:
       type: object
     AuthVerifyResponse:
       type: object
     SessionRevokeRequest:
+      type: object
+    TestingSessionCreateResponse:
       type: object

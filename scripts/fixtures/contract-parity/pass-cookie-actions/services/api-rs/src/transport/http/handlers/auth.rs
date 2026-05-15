@@ -1,11 +1,12 @@
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 
 use crate::{
-    models::{AuthVerifyRequest, AuthVerifyResponse, SessionRevokeRequest},
+    models::{AuthVerifyRequest, AuthVerifyResponse, SessionRevokeRequest, TestingSessionCreateResponse},
     shared::errors::ApiResult,
     state::AppState,
     transport::http::middleware::auth::{csrf_cookie_name, enforce_csrf_for_cookie_auth, session_cookie_name, AuthSession},
@@ -35,6 +36,20 @@ pub async fn revoke_session(
 ) -> ApiResult<(HeaderMap, StatusCode)> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     Ok((clear_auth_cookies()?, StatusCode::NO_CONTENT))
+}
+
+pub async fn activate_testing_session(State(_state): State<AppState>) -> ApiResult<Response> {
+    let body = TestingSessionCreateResponse {};
+    let mut response = Json(body).into_response();
+    append_cookie(
+        response.headers_mut(),
+        &build_session_cookie_value(session_cookie_name(), "issued", true),
+    )?;
+    append_cookie(
+        response.headers_mut(),
+        &build_session_cookie_value(csrf_cookie_name(), "csrf", false),
+    )?;
+    Ok(response)
 }
 
 fn clear_auth_cookies() -> ApiResult<HeaderMap> {

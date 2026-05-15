@@ -7,3 +7,5 @@ pub struct AuthVerifyResponse {}
 pub struct SessionRevokeRequest {
     pub session_id: String,
 }
+
+pub struct TestingSessionCreateResponse {}

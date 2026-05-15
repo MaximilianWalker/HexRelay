@@ -115,6 +115,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_ERROR_EXAMPLE_STATUS_PATTERN = '|'.join(sorted(set(TRACKED_ERROR_STATUS_TOKENS) | {'401'}))
     TRACKED_ERROR_SCHEMA_STATUSES = {'400', '401', '403', '404', '409', '429', '500'}
     API_ERROR_SCHEMA_NAME = 'ApiError'
+    API_ERROR_REQUIRED_FIELDS = {'code', 'message'}
+    API_ERROR_FIELD_TYPES = {
+        'code': 'string',
+        'message': 'string',
+    }
+    JSON_REQUEST_MEDIA_TYPE = 'application/json'
+    CSRF_HEADER_NAME = 'x-csrf-token'
+    CSRF_HEADER_SCHEMA_TYPE = 'string'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
     INTERNAL_TOKEN_REQUIRED_HEADERS = {'x-hexrelay-internal-token'}
     AUTH_PARAM_MARKERS = (
@@ -131,19 +139,24 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'x-hexrelay-internal-token': {
             'runtime_marker': '.get("x-hexrelay-internal-token")',
             'contract_parameter': 'x-hexrelay-internal-token',
+            'required': True,
+            'schema_type': 'string',
         },
     }
     TRACKED_RESPONSE_HEADERS = {
         'Set-Cookie': {
             'runtime_markers': ('append_cookie(',),
+            'schema_type': 'string',
         },
     }
     TRACKED_RESPONSE_COOKIE_ACTIONS = {
         'issue:hexrelay_session': (
             r'build_session_cookie_value\(\s*session_cookie_name\(\)',
+            r'build_cookie\(\s*SESSION_COOKIE_NAME\b',
         ),
         'issue:hexrelay_csrf': (
             r'build_session_cookie_value\(\s*csrf_cookie_name\(\)',
+            r'build_cookie\(\s*CSRF_COOKIE_NAME\b',
         ),
         'clear:hexrelay_session': (
             r'build_expired_cookie\(\s*session_cookie_name\(\)',
@@ -158,10 +171,131 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'SessionValidateResponse',
         'InviteCreateRequest',
         'InviteCreateResponse',
+        'ServerChannelMessageCreateRequest',
+        'ServerChannelMessageEditRequest',
         'FriendRequestCreateRequest',
+        'DmPolicy',
+        'DmPolicyUpdate',
         'DmFanoutDispatchRequest',
         'DmFanoutDispatchResponse',
+        'DmFanoutCatchUpRequest',
+        'DmFanoutCatchUpItem',
+        'DmFanoutCatchUpResponse',
+        'DmThreadMarkReadRequest',
+        'DmThreadMarkReadResponse',
     }
+    IDENTITY_ID_PATTERN = r'^[A-Za-z0-9_-]{3,64}$'
+    TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS = {
+        'InviteCreateRequest': {
+            'max_uses': {'minimum': 1},
+        },
+        'ServerChannelMessageCreateRequest': {
+            'content': {'min_length': 1, 'max_length': 4000},
+        },
+        'ServerChannelMessageEditRequest': {
+            'content': {'min_length': 1, 'max_length': 4000},
+        },
+        'DmFanoutDispatchRequest': {
+            'message_id': {'min_length': 1, 'max_length': 128},
+            'ciphertext': {'min_length': 1, 'max_length': 8192},
+            'source_device_id': {'min_length': 1, 'max_length': 64},
+            'destination_node_id': {'min_length': 1, 'max_length': 128},
+        },
+        'DmFanoutCatchUpRequest': {
+            'device_id': {'min_length': 1, 'max_length': 64},
+            'device_secret': {'min_length': 16, 'max_length': 128},
+            'limit': {'minimum': 1, 'maximum': 100},
+        },
+        'DmThreadMarkReadRequest': {
+            'last_read_seq': {'minimum': 0},
+        },
+        'DmThreadMarkReadResponse': {
+            'last_read_seq': {'minimum': 0},
+            'unread': {'minimum': 0},
+        },
+    }
+    TRACKED_REST_SCHEMA_FIELD_ENUMS = {
+        'InviteCreateRequest': {
+            'mode': ('one_time', 'multi_use'),
+        },
+        'InviteCreateResponse': {
+            'mode': ('one_time', 'multi_use'),
+        },
+        'DmFanoutDispatchResponse': {
+            'status': ('accepted', 'blocked'),
+            'reason_code': (
+                'fanout_pending_delivery',
+                'fanout_forwarded_to_static_peer',
+                'fanout_policy_blocked',
+                'fanout_same_server_context_required',
+                'fanout_blocked_user',
+            ),
+            'transport_profile': ('encrypted_envelope_node',),
+            'delivery_state': ('pending_delivery', 'forwarded', 'rejected'),
+            'reachability_state': ('unreachable', 'blocked', 'unknown'),
+        },
+        'DmFanoutCatchUpResponse': {
+            'status': ('ready', 'blocked'),
+            'reason_code': (
+                'fanout_catch_up_ok',
+                'fanout_catch_up_no_missed',
+                'fanout_device_unknown',
+                'fanout_device_inactive',
+            ),
+            'transport_profile': ('encrypted_envelope_node',),
+        },
+        'DmPolicy': {
+            'inbound_policy': ('friends_only', 'same_server', 'anyone'),
+            'offline_delivery_mode': ('encrypted_envelope_catchup',),
+        },
+        'DmPolicyUpdate': {
+            'inbound_policy': ('friends_only', 'same_server', 'anyone'),
+        },
+    }
+    TRACKED_REST_SCHEMA_FIELD_FORMATS = {
+        'AuthVerifyResponse': {
+            'expires_at': 'date-time',
+        },
+        'SessionValidateResponse': {
+            'expires_at': 'date-time',
+        },
+        'InviteCreateRequest': {
+            'expires_at': 'date-time',
+        },
+        'InviteCreateResponse': {
+            'expires_at': 'date-time',
+            'created_at': 'date-time',
+        },
+    }
+    TRACKED_REST_SCHEMA_FIELD_PATTERNS = {
+        'AuthVerifyRequest': {
+            'identity_id': IDENTITY_ID_PATTERN,
+        },
+        'FriendRequestCreateRequest': {
+            'requester_identity_id': IDENTITY_ID_PATTERN,
+            'target_identity_id': IDENTITY_ID_PATTERN,
+        },
+        'DmFanoutDispatchRequest': {
+            'recipient_identity_id': IDENTITY_ID_PATTERN,
+        },
+        'DmFanoutCatchUpRequest': {
+            'device_secret': r'^[A-Za-z0-9_-]{16,128}$',
+        },
+    }
+    TRACKED_REST_SCHEMA_FIELD_ITEM_PATTERNS = {
+        'ServerChannelMessageCreateRequest': {
+            'mention_identity_ids': IDENTITY_ID_PATTERN,
+        },
+        'ServerChannelMessageEditRequest': {
+            'mention_identity_ids': IDENTITY_ID_PATTERN,
+        },
+    }
+    REST_SCHEMA_CONSTRAINT_LABELS = (
+        ('min_length', 'minLength'),
+        ('max_length', 'maxLength'),
+        ('minimum', 'minimum'),
+        ('maximum', 'maximum'),
+    )
     ROUTE_SCOPED_ERROR_CODE_ROUTES = {
         ('POST', '/servers/{server_id}/channels/{channel_id}/messages'),
         ('PATCH', '/servers/{server_id}/channels/{channel_id}/messages/{message_id}'),
@@ -350,6 +484,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     }
     QUERY_RUNTIME_FIELD_RULES = {
         'FriendRequestListQuery': {
+            'identity_id': {'pattern': r'^[A-Za-z0-9_-]{3,64}$'},
             'direction': {'enum': ('inbound', 'outbound')},
         },
         'ServerChannelMessageListQuery': {
@@ -477,8 +612,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_internal_auth': '.get("x-hexrelay-internal-token")' in body,
                     'has_csrf': 'enforce_csrf_for_cookie_auth(' in body,
                     'has_json_body': 'Json<' in params,
+                    'has_request_body_extractor': has_request_body_extractor(params),
                     'request_body_schema': extract_request_body_schema(params),
-                    'response_body_schema': extract_response_body_schema(return_type),
+                    'response_body_schema': extract_response_body_schema(return_type, body),
                     'request_headers': extract_runtime_request_headers(params, body),
                     'response_headers': extract_runtime_response_headers(body),
                     'response_cookie_actions': extract_runtime_response_cookie_actions(body),
@@ -582,13 +718,46 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return REQUEST_SCHEMA_ALIASES.get(normalized, normalized)
 
 
-    def extract_response_body_schema(return_type: str):
-        json_match = re.search(r'Json<\s*([^>]+)\s*>', return_type)
-        if not json_match:
-            return None
-        raw_type = json_match.group(1).strip()
-        normalized = raw_type.split('::')[-1]
+    def has_request_body_extractor(params: str):
+        return 'Json<' in params or bool(
+            re.search(r'(?:^|[^A-Za-z0-9_:])(?:axum::body::)?Bytes\b', params)
+        )
+
+
+    def normalize_response_schema(raw_type: str):
+        normalized = raw_type.strip().split('::')[-1]
         return RESPONSE_SCHEMA_ALIASES.get(normalized, normalized)
+
+
+    def extract_response_builder_body_schema(body: str):
+        local_structs = {
+            name: normalize_response_schema(schema_name)
+            for name, schema_name in re.findall(
+                r'\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Z][A-Za-z0-9_]*)\s*\{',
+                body,
+                re.S,
+            )
+        }
+        json_response_vars = re.findall(
+            r'\bJson\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\.into_response\s*\(',
+            body,
+            re.S,
+        )
+        schemas = {local_structs[var_name] for var_name in json_response_vars if var_name in local_structs}
+        if len(schemas) == 1:
+            return next(iter(schemas))
+        return None
+
+
+    def has_json_response_builder(body: str):
+        return extract_response_builder_body_schema(body) is not None
+
+
+    def extract_response_body_schema(return_type: str, body: str):
+        json_match = re.search(r'Json<\s*([^>]+)\s*>', return_type)
+        if json_match:
+            return normalize_response_schema(json_match.group(1))
+        return extract_response_builder_body_schema(body)
 
 
     def extract_runtime_request_headers(params: str, body: str):
@@ -598,6 +767,18 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if has_header_map and rule['runtime_marker'] in body:
                 headers.add(header_name)
         return headers
+
+
+    def build_runtime_request_header_details(headers: set[str]):
+        details = {}
+        for rule in TRACKED_REQUEST_HEADERS.values():
+            header_name = rule['contract_parameter']
+            if header_name in headers:
+                details[header_name] = {
+                    'required': bool(rule.get('required', False)),
+                    'schema_type': rule.get('schema_type'),
+                }
+        return details
 
 
     def extract_runtime_response_headers(body: str):
@@ -636,6 +817,51 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             )
 
         return headers
+
+
+    def infer_request_headers(handler_id, functions, local_lookup, stack=None):
+        if stack is None:
+            stack = set()
+        if handler_id in stack:
+            return set()
+
+        function = functions.get(handler_id)
+        if not function:
+            return set()
+
+        headers = set(function.get('request_headers', set()))
+        body = function.get('body', '')
+        helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+        helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+        for callee_id in sorted(helper_ids):
+            headers.update(
+                infer_request_headers(callee_id, functions, local_lookup, stack | {handler_id})
+            )
+
+        return headers
+
+
+    def infer_has_csrf(handler_id, functions, local_lookup, stack=None):
+        if stack is None:
+            stack = set()
+        if handler_id in stack:
+            return False
+
+        function = functions.get(handler_id)
+        if not function:
+            return False
+
+        if function.get('has_csrf'):
+            return True
+
+        body = function.get('body', '')
+        helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+        helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+        for callee_id in sorted(helper_ids):
+            if infer_has_csrf(callee_id, functions, local_lookup, stack | {handler_id}):
+                return True
+
+        return False
 
 
     def infer_response_cookie_actions(handler_id, functions, local_lookup, stack=None):
@@ -717,11 +943,37 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return ROUTE_SCOPED_ERROR_EXAMPLE_STATUS_EXPECTATIONS.get((method, path), {})
 
 
+    def parse_rust_struct_fields(body: str):
+        fields = []
+        pending_attrs = []
+        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
+
+        for line in body.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('#['):
+                pending_attrs.append(stripped)
+                continue
+
+            field_match = field_pattern.match(stripped)
+            if field_match:
+                fields.append({
+                    'name': field_match.group(1),
+                    'raw_type': field_match.group(2),
+                    'serde_default': any('serde' in attr and 'default' in attr for attr in pending_attrs),
+                })
+                pending_attrs = []
+                continue
+
+            if stripped:
+                pending_attrs = []
+
+        return fields
+
+
     def extract_query_struct_fields(models_path: pathlib.Path):
         text = models_path.read_text()
         structs = {}
         struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
-        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
 
         for match in struct_pattern.finditer(text):
             name = match.group(1)
@@ -729,8 +981,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if not name.endswith('Query'):
                 continue
             field_details = {}
-            for field_name, raw_type in field_pattern.findall(body):
-                schema_type, required = map_query_schema_type(raw_type.strip())
+            for field in parse_rust_struct_fields(body):
+                field_name = field['name']
+                schema_type, required = map_query_schema_type(field['raw_type'].strip())
+                if field.get('serde_default'):
+                    required = False
                 field_details[field_name] = {
                     'required': required,
                     'schema_type': schema_type,
@@ -754,22 +1009,29 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
     def map_rest_schema_type(raw_type: str):
         required = True
+        nullable = False
         inner_type = raw_type.strip()
         option_inner = unwrap_rust_generic(inner_type, 'Option')
         if option_inner is not None:
             required = False
+            nullable = True
             inner_type = option_inner
 
         vec_inner = unwrap_rust_generic(inner_type, 'Vec')
         if vec_inner is not None:
             item_details = map_rest_schema_type(vec_inner)
-            return {
+            details = {
                 'required': required,
+                'nullable': nullable,
                 'schema_type': 'array',
                 'item_schema_type': item_details['schema_type'],
             }
+            if item_details.get('schema_ref'):
+                details['item_schema_ref'] = item_details['schema_ref']
+            return details
 
         schema_type = 'object'
+        schema_ref = None
         normalized_type = inner_type.replace('&', '').strip()
         if normalized_type == 'String' or normalized_type.endswith(' str'):
             schema_type = 'string'
@@ -777,18 +1039,23 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             schema_type = 'boolean'
         elif normalized_type in {'u8', 'u16', 'u32', 'u64', 'usize', 'i8', 'i16', 'i32', 'i64', 'isize'}:
             schema_type = 'integer'
+        elif normalized_type.split('::')[-1] in TRACKED_REST_SCHEMA_NAMES:
+            schema_ref = normalized_type.split('::')[-1]
 
-        return {
+        details = {
             'required': required,
+            'nullable': nullable,
             'schema_type': schema_type,
         }
+        if schema_ref:
+            details['schema_ref'] = schema_ref
+        return details
 
 
     def extract_tracked_schema_fields(models_path: pathlib.Path):
         text = models_path.read_text()
         structs = {}
         struct_pattern = re.compile(r'pub struct\s+(\w+)\s*\{(.*?)\n\}', re.S)
-        field_pattern = re.compile(r'pub\s+(\w+):\s*([^,\n]+)')
 
         for match in struct_pattern.finditer(text):
             name = match.group(1)
@@ -796,8 +1063,26 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 continue
             body = match.group(2)
             fields = {}
-            for field_name, raw_type in field_pattern.findall(body):
-                fields[field_name] = map_rest_schema_type(raw_type.strip())
+            for field in parse_rust_struct_fields(body):
+                field_name = field['name']
+                fields[field_name] = map_rest_schema_type(field['raw_type'].strip())
+                if field.get('serde_default'):
+                    fields[field_name]['required'] = False
+            for field_name, constraints in TRACKED_REST_SCHEMA_FIELD_CONSTRAINTS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name].update(constraints)
+            for field_name, enum_values in TRACKED_REST_SCHEMA_FIELD_ENUMS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['enum'] = set(enum_values)
+            for field_name, schema_format in TRACKED_REST_SCHEMA_FIELD_FORMATS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['format'] = schema_format
+            for field_name, pattern in TRACKED_REST_SCHEMA_FIELD_PATTERNS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['pattern'] = pattern
+            for field_name, pattern in TRACKED_REST_SCHEMA_FIELD_ITEM_PATTERNS.get(name, {}).items():
+                if field_name in fields:
+                    fields[field_name]['item_pattern'] = pattern
             structs[name] = fields
 
         return structs
@@ -811,14 +1096,19 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_properties = {}
         current_property = None
         current_property_items = False
+        current_property_enum = False
         in_required = False
         in_properties = False
+
+        def parse_enum_values(raw_values: str):
+            return {value.strip().strip('"\'') for value in raw_values.split(',') if value.strip()}
 
         def build_schema_fields(properties: dict[str, dict[str, object]], required: set[str]):
             return {
                 field_name: {
                     **properties.get(field_name, {}),
                     'required': field_name in required,
+                    'nullable': bool(properties.get(field_name, {}).get('nullable', False)),
                 }
                 for field_name in set(properties) | required
             }
@@ -833,6 +1123,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_properties = {}
                 current_property = None
                 current_property_items = False
+                current_property_enum = False
                 in_required = False
                 in_properties = False
                 continue
@@ -868,26 +1159,110 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 if property_match:
                     current_property = property_match.group(1)
                     current_property_items = False
+                    current_property_enum = False
                     current_properties.setdefault(current_property, {})
                     continue
                 if current_property:
-                    type_match = re.match(r'^ {10,}type:\s*([A-Za-z0-9_]+)\s*$', line)
+                    if current_property_enum:
+                        inline_enum_values = re.match(r'^ {12}\[(.*)\]\s*$', line)
+                        enum_item_match = re.match(r'^ {12}-\s*([A-Za-z0-9:_-]+)\s*$', line)
+                        if inline_enum_values:
+                            current_properties[current_property]['enum'] = parse_enum_values(inline_enum_values.group(1))
+                            current_property_enum = False
+                            continue
+                        if enum_item_match:
+                            current_properties[current_property].setdefault('enum', set()).add(enum_item_match.group(1))
+                            continue
+                        if not re.match(r'^ {12}', line):
+                            current_property_enum = False
+                    type_match = re.match(r'^( {10}| {12})type:\s*([A-Za-z0-9_]+)\s*$', line)
                     if type_match:
-                        if current_property_items:
-                            current_properties[current_property]['item_schema_type'] = type_match.group(1)
+                        indent = len(type_match.group(1))
+                        if current_property_items and indent == 12:
+                            current_properties[current_property]['item_schema_type'] = type_match.group(2)
+                        elif not current_property_items and indent == 10:
+                            current_properties[current_property]['schema_type'] = type_match.group(2)
+                        continue
+                    format_match = re.match(r'^( {10})format:\s*([A-Za-z0-9_.:-]+)\s*$', line)
+                    if format_match and not current_property_items:
+                        current_properties[current_property]['format'] = format_match.group(2)
+                        continue
+                    pattern_match = re.match(r'^( {10})pattern:\s*(.+?)\s*$', line)
+                    if pattern_match and not current_property_items:
+                        pattern_value = pattern_match.group(2).strip()
+                        if (
+                            len(pattern_value) >= 2
+                            and pattern_value[0] == pattern_value[-1]
+                            and pattern_value[0] in {"'", '"'}
+                        ):
+                            pattern_value = pattern_value[1:-1]
+                        current_properties[current_property]['pattern'] = pattern_value
+                        continue
+                    item_pattern_match = re.match(r'^( {12})pattern:\s*(.+?)\s*$', line)
+                    if item_pattern_match and current_property_items:
+                        pattern_value = item_pattern_match.group(2).strip()
+                        if (
+                            len(pattern_value) >= 2
+                            and pattern_value[0] == pattern_value[-1]
+                            and pattern_value[0] in {"'", '"'}
+                        ):
+                            pattern_value = pattern_value[1:-1]
+                        current_properties[current_property]['item_pattern'] = pattern_value
+                        continue
+                    nullable_match = re.match(r'^( {10})nullable:\s*(true|false)\s*$', line)
+                    if nullable_match:
+                        current_properties[current_property]['nullable'] = nullable_match.group(2) == 'true'
+                        current_property_items = False
+                        continue
+                    enum_match = re.match(r'^( {10})enum:\s*(?:\[(.*)\])?\s*$', line)
+                    if enum_match and not current_property_items:
+                        raw_values = enum_match.group(2)
+                        if raw_values is None:
+                            current_property_enum = True
+                            current_properties[current_property].setdefault('enum', set())
                         else:
-                            current_properties[current_property]['schema_type'] = type_match.group(1)
+                            current_properties[current_property]['enum'] = parse_enum_values(raw_values)
+                            current_property_enum = False
+                        continue
+                    constraint_match = re.match(r'^( {10})(minLength|maxLength|minimum|maximum):\s*(\d+)\s*$', line)
+                    if constraint_match and not current_property_items:
+                        constraint_key = {
+                            'minLength': 'min_length',
+                            'maxLength': 'max_length',
+                            'minimum': 'minimum',
+                            'maximum': 'maximum',
+                        }[constraint_match.group(2)]
+                        current_properties[current_property][constraint_key] = int(constraint_match.group(3))
                         continue
                     if re.match(r'^          items:\s*$', line):
                         current_property_items = True
+                        current_property_enum = False
+                        continue
+                    if re.match(r'^ {10,}properties:\s*$', line):
+                        current_property = None
+                        current_property_items = False
+                        current_property_enum = False
+                        continue
+                    schema_ref_match = re.match(r"^( {10}| {12})\$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+                    if schema_ref_match:
+                        indent = len(schema_ref_match.group(1))
+                        schema_name = schema_ref_match.group(2)
+                        if current_property_items and indent == 12:
+                            current_properties[current_property]['item_schema_type'] = 'object'
+                            current_properties[current_property]['item_schema_ref'] = schema_name
+                        elif not current_property_items and indent == 10:
+                            current_properties[current_property]['schema_type'] = 'object'
+                            current_properties[current_property]['schema_ref'] = schema_name
                         continue
                     if not re.match(r'^ {10,}', line):
                         current_property = None
                         current_property_items = False
+                        current_property_enum = False
                 if not re.match(r'^          ', line):
                     in_properties = False
                     current_property = None
                     current_property_items = False
+                    current_property_enum = False
 
         if current_schema in TRACKED_REST_SCHEMA_NAMES and current_properties:
             structs[current_schema] = build_schema_fields(current_properties, current_required)
@@ -1061,6 +1436,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             return '204'
         if 'StatusCode::ACCEPTED' in body:
             return '202'
+        if has_json_response_builder(body):
+            return '200'
 
         body_inner = body.strip()
         if body_inner.startswith('{') and body_inner.endswith('}'):
@@ -1091,6 +1468,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
         return_type = function.get('return_type', '')
         if 'Json<' in return_type:
+            return 'json'
+        if has_json_response_builder(function.get('body', '')):
             return 'json'
         if 'StatusCode' in return_type:
             return 'none'
@@ -1128,20 +1507,30 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         name: runtime_path_details[index] if index < len(runtime_path_details) else {}
                         for index, name in enumerate(path_param_names)
                     }
+                inferred_request_headers = infer_request_headers(
+                    handler_id, function_semantics, local_lookup
+                )
                 semantics[(method.upper(), path)] = {
                                 'handler': handler,
                                 'has_auth': bool(handler_semantics.get('has_auth')),
-                                'has_internal_auth': bool(handler_semantics.get('has_internal_auth')),
+                                'has_internal_auth': bool(handler_semantics.get('has_internal_auth'))
+                                or bool(inferred_request_headers & INTERNAL_TOKEN_REQUIRED_HEADERS),
                                 'has_500': bool(handler_semantics.get('has_auth'))
                                 or infer_has_500(handler_id, function_semantics, local_lookup),
-                    'has_csrf': bool(handler_semantics.get('has_csrf')),
+                    'has_csrf': infer_has_csrf(handler_id, function_semantics, local_lookup),
                     'has_json_body': bool(handler_semantics.get('has_json_body')),
+                    'has_request_body_extractor': bool(
+                        handler_semantics.get('has_request_body_extractor')
+                    ),
                     'request_body_schema': handler_semantics.get('request_body_schema'),
                     'response_body_schema': handler_semantics.get('response_body_schema'),
                     'success_body_kind': infer_success_body_kind(
                         handler_id, function_semantics, local_lookup
                     ),
-                    'request_headers': handler_semantics.get('request_headers', set()),
+                    'request_headers': inferred_request_headers,
+                    'request_header_details': build_runtime_request_header_details(
+                        inferred_request_headers
+                    ),
                     'response_headers': infer_response_headers(
                         handler_id, function_semantics, local_lookup
                     ),
@@ -1186,8 +1575,232 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return semantics
 
 
+    def extract_component_request_bodies(lines: list[str]) -> dict[str, dict[str, object]]:
+        components: dict[str, dict[str, object]] = {}
+        in_request_bodies = False
+        current_component = None
+        in_request_body_content = False
+        in_request_body_json = False
+        in_request_body_schema = False
+
+        for line in lines:
+            if not in_request_bodies:
+                if re.match(r'^  requestBodies:\s*$', line):
+                    in_request_bodies = True
+                continue
+
+            if re.match(r'^  [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                break
+
+            request_body_component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if request_body_component_match:
+                current_component = request_body_component_match.group(1)
+                components[current_component] = {
+                    'required': False,
+                    'schema': None,
+                    'media_types': set(),
+                }
+                in_request_body_content = False
+                in_request_body_json = False
+                in_request_body_schema = False
+                continue
+
+            if in_request_body_content and not re.match(r'^ {8,}', line):
+                in_request_body_content = False
+                in_request_body_json = False
+                in_request_body_schema = False
+            if in_request_body_json and not re.match(r'^ {8,}', line):
+                in_request_body_json = False
+                in_request_body_schema = False
+            if in_request_body_schema and not re.match(r'^ {12,}', line):
+                in_request_body_schema = False
+
+            if current_component and re.match(r'^      required:\s+true\s*$', line):
+                components[current_component]['required'] = True
+                continue
+            if current_component and re.match(r'^      content:\s*$', line):
+                in_request_body_content = True
+                continue
+            media_type_match = re.match(r'^        ([^:\s]+/[^:\s]+):\s*$', line)
+            if current_component and in_request_body_content and media_type_match:
+                media_type = media_type_match.group(1)
+                components[current_component]['media_types'].add(media_type)
+                in_request_body_json = media_type == JSON_REQUEST_MEDIA_TYPE
+                in_request_body_schema = False
+                continue
+            if current_component and in_request_body_json and re.match(r'^          schema:\s*$', line):
+                in_request_body_schema = True
+                continue
+
+            request_schema_match = re.match(r"^            \$ref: '#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if current_component and in_request_body_schema and request_schema_match:
+                components[current_component]['schema'] = request_schema_match.group(1)
+                continue
+
+        return components
+
+
+    def extract_component_parameters(lines: list[str]) -> dict[str, dict[str, object]]:
+        components: dict[str, dict[str, object]] = {}
+        in_parameters = False
+        current_component = None
+        in_schema = False
+
+        for line in lines:
+            if not in_parameters:
+                if re.match(r'^  parameters:\s*$', line):
+                    in_parameters = True
+                continue
+
+            if re.match(r'^  [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
+                break
+
+            component_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if component_match:
+                current_component = component_match.group(1)
+                components[current_component] = {
+                    'name': None,
+                    'in': None,
+                    'required': False,
+                    'schema_type': None,
+                }
+                in_schema = False
+                continue
+
+            if current_component and in_schema and not re.match(r'^ {8,}', line):
+                in_schema = False
+
+            if current_component:
+                name_match = re.match(r'^      name:\s+([A-Za-z0-9_-]+)\s*$', line)
+                if name_match:
+                    components[current_component]['name'] = name_match.group(1)
+                    continue
+
+                location_match = re.match(r'^      in:\s+([A-Za-z0-9_-]+)\s*$', line)
+                if location_match:
+                    components[current_component]['in'] = location_match.group(1)
+                    continue
+
+                required_match = re.match(r'^      required:\s+(true|false)\s*$', line)
+                if required_match:
+                    components[current_component]['required'] = required_match.group(1) == 'true'
+                    continue
+
+                if re.match(r'^      schema:\s*$', line):
+                    in_schema = True
+                    continue
+
+                type_match = re.match(r'^        type:\s+([A-Za-z0-9_]+)\s*$', line)
+                if in_schema and type_match:
+                    components[current_component]['schema_type'] = type_match.group(1)
+                    continue
+
+        return components
+
+
+    def extract_component_schema_types(lines: list[str]) -> dict[str, str]:
+        schema_types: dict[str, str] = {}
+        in_schemas = False
+        current_schema = None
+
+        for line in lines:
+            if not in_schemas:
+                if re.match(r'^  schemas:\s*$', line):
+                    in_schemas = True
+                continue
+
+            if re.match(r'^\S', line):
+                break
+
+            schema_match = re.match(r'^    ([A-Za-z0-9_]+):\s*$', line)
+            if schema_match:
+                current_schema = schema_match.group(1)
+                continue
+
+            type_match = re.match(r'^      type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if current_schema and type_match:
+                schema_types[current_schema] = type_match.group(1)
+
+        return schema_types
+
+
+    def extract_api_error_schema_shape(lines: list[str]) -> dict[str, object]:
+        shape = {
+            'present': False,
+            'schema_type': None,
+            'required': set(),
+            'field_types': {},
+        }
+        in_schema = False
+        in_required = False
+        in_properties = False
+        current_property = None
+
+        for line in lines:
+            if not in_schema:
+                if re.match(rf'^\s{{4}}{API_ERROR_SCHEMA_NAME}:\s*$', line):
+                    in_schema = True
+                    shape['present'] = True
+                continue
+
+            if re.match(r'^\s{4}[A-Za-z].*:\s*$', line):
+                break
+
+            schema_type_match = re.match(r'^\s{6}type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if schema_type_match and not in_properties:
+                shape['schema_type'] = schema_type_match.group(1)
+                continue
+
+            inline_required_match = re.match(r'^\s{6}required:\s*\[(.*)\]\s*$', line)
+            if inline_required_match:
+                shape['required'] = {
+                    item.strip()
+                    for item in inline_required_match.group(1).split(',')
+                    if item.strip()
+                }
+                in_required = False
+                continue
+
+            if re.match(r'^\s{6}required:\s*$', line):
+                in_required = True
+                in_properties = False
+                current_property = None
+                continue
+
+            if in_required:
+                required_item_match = re.match(r'^\s{8}-\s+([A-Za-z0-9_]+)\s*$', line)
+                if required_item_match:
+                    shape['required'].add(required_item_match.group(1))
+                    continue
+                if not re.match(r'^\s{8}', line):
+                    in_required = False
+
+            if re.match(r'^\s{6}properties:\s*$', line):
+                in_properties = True
+                in_required = False
+                current_property = None
+                continue
+
+            if in_properties:
+                property_match = re.match(r'^\s{8}([A-Za-z0-9_]+):\s*$', line)
+                if property_match:
+                    current_property = property_match.group(1)
+                    shape['field_types'].setdefault(current_property, None)
+                    continue
+
+                property_type_match = re.match(r'^\s{10}type:\s+([A-Za-z0-9_]+)\s*$', line)
+                if current_property and property_type_match:
+                    shape['field_types'][current_property] = property_type_match.group(1)
+                    continue
+
+        return shape
+
+
     def extract_contract_semantics(contract_path: pathlib.Path):
         lines = contract_path.read_text().splitlines()
+        request_body_components = extract_component_request_bodies(lines)
+        parameter_components = extract_component_parameters(lines)
+        component_schema_types = extract_component_schema_types(lines)
         response_components = {}
         semantics = {}
         in_paths = False
@@ -1197,7 +1810,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_parameter_name = None
         current_path_schema_parameter = None
         current_query_schema_parameter = None
+        current_header_schema_parameter = None
         in_request_body = False
+        in_request_body_content = False
         in_request_body_json = False
         in_request_body_schema = False
         current_response_status = None
@@ -1207,6 +1822,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         in_response_headers = False
         current_response_header_status = None
         current_response_header_name = None
+        in_response_header_schema = False
         in_response_cookie_actions = False
         current_error_status = None
         in_error_examples = False
@@ -1266,7 +1882,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 in_request_body = False
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 current_response_status = None
@@ -1276,6 +1894,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
@@ -1289,7 +1908,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 in_request_body = False
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 current_response_status = None
@@ -1299,6 +1920,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
                 current_error_status = None
                 in_error_examples = False
@@ -1309,10 +1931,15 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_500': False,
                     'has_csrf': False,
                     'has_request_body': False,
+                    'request_body_required': False,
                     'request_body_schema': None,
+                    'request_body_media_types': set(),
                     'response_schemas': {},
                     'request_headers': set(),
+                    'request_header_details': {},
+                    'csrf_header': None,
                     'response_headers': {},
+                    'response_header_details': {},
                     'response_cookie_actions': {},
                     'error_example_codes': {},
                     'path_parameters': set(),
@@ -1327,6 +1954,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if not current_path or not current_method:
                 continue
 
+            if in_request_body_content and not re.match(r'^ {10,}', line):
+                in_request_body_content = False
+                in_request_body_json = False
+                in_request_body_schema = False
             if in_request_body_schema and not re.match(r'^ {14,}', line):
                 in_request_body_schema = False
             if in_request_body_json and not re.match(r'^ {12,}', line):
@@ -1348,6 +1979,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             elif current_response_status and not re.match(r'^ {8,}', line):
                 current_response_status = None
@@ -1356,6 +1988,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_headers = False
                 current_response_header_status = None
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             if current_error_status and re.match(r"^        '(?:2\d\d|4\d\d|5\d\d)':\s*$", line) and not re.match(rf"^        '{current_error_status}':\s*$", line):
                 current_error_status = None
@@ -1364,10 +1997,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if in_response_headers and not re.match(r'^ {10,}', line):
                 in_response_headers = False
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
             if current_response_header_name and not re.match(r'^ {14,}', line):
                 current_response_header_name = None
+                in_response_header_schema = False
                 in_response_cookie_actions = False
+            if in_response_header_schema and not re.match(r'^ {16,}', line):
+                in_response_header_schema = False
             if in_response_cookie_actions and not re.match(r'^ {16,}', line):
                 in_response_cookie_actions = False
             if in_parameters_block and not re.match(r'^ {8,}', line):
@@ -1376,6 +2013,8 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_path_schema_parameter = None
             if current_query_schema_parameter and not re.match(r'^            ', line):
                 current_query_schema_parameter = None
+            if current_header_schema_parameter and not re.match(r'^            ', line):
+                current_header_schema_parameter = None
             if in_error_example_value and not re.match(r'^ {18,}', line):
                 in_error_example_value = False
             if in_error_examples and not re.match(r'^ {16,}', line):
@@ -1398,11 +2037,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if re.match(r'^      requestBody:\s*$', line):
                 semantics[(current_method, current_path)]['has_request_body'] = True
                 in_request_body = True
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 continue
-            if in_request_body and re.match(r'^          application/json:\s*$', line):
-                in_request_body_json = True
+            if in_request_body and re.match(r'^        required:\s+true\s*$', line):
+                semantics[(current_method, current_path)]['request_body_required'] = True
+                continue
+            if in_request_body and re.match(r'^        content:\s*$', line):
+                in_request_body_content = True
+                continue
+            request_media_type_match = re.match(r'^          ([^:\s]+/[^:\s]+):\s*$', line)
+            if in_request_body_content and request_media_type_match:
+                media_type = request_media_type_match.group(1)
+                semantics[(current_method, current_path)]['request_body_media_types'].add(media_type)
+                in_request_body_json = media_type == JSON_REQUEST_MEDIA_TYPE
                 in_request_body_schema = False
                 continue
             if in_request_body_json and re.match(r'^            schema:\s*$', line):
@@ -1412,9 +2061,32 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if in_request_body_schema and request_schema_match:
                 semantics[(current_method, current_path)]['request_body_schema'] = request_schema_match.group(1)
                 continue
+            request_body_component_ref_match = re.match(r"^        \$ref: '#/components/requestBodies/([A-Za-z0-9_]+)'\s*$", line)
+            if in_request_body and request_body_component_ref_match:
+                component_name = request_body_component_ref_match.group(1)
+                component = request_body_components.get(component_name, {})
+                semantics[(current_method, current_path)]['request_body_required'] = bool(
+                    component.get('required')
+                )
+                component_schema = component.get('schema')
+                if component_schema:
+                    semantics[(current_method, current_path)]['request_body_schema'] = component_schema
+                semantics[(current_method, current_path)]['request_body_media_types'] = set(
+                    component.get('media_types', set())
+                )
+                continue
 
             if "#/components/parameters/CsrfTokenHeader" in line:
+                csrf_header = parameter_components.get('CsrfTokenHeader', {})
                 semantics[(current_method, current_path)]['has_csrf'] = True
+                semantics[(current_method, current_path)]['csrf_header'] = csrf_header
+                if csrf_header.get('in') == 'header' and csrf_header.get('name'):
+                    header_name = str(csrf_header.get('name'))
+                    semantics[(current_method, current_path)]['request_headers'].add(header_name)
+                    semantics[(current_method, current_path)]['request_header_details'][header_name] = {
+                        'required': bool(csrf_header.get('required', False)),
+                        'schema_type': csrf_header.get('schema_type'),
+                    }
                 continue
             if re.match(r"^        '401':\s*$", line):
                 semantics[(current_method, current_path)]['has_401'] = True
@@ -1424,8 +2096,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             request_header_ref_match = re.match(r"^        - \$ref: '#/components/parameters/([A-Za-z0-9_]+)'\s*$", line)
             if in_parameters_block and request_header_ref_match:
                 parameter_ref = request_header_ref_match.group(1)
-                if parameter_ref == 'CsrfTokenHeader':
-                    semantics[(current_method, current_path)]['request_headers'].add('x-csrf-token')
+                component_parameter = parameter_components.get(parameter_ref, {})
+                if component_parameter.get('in') == 'header' and component_parameter.get('name'):
+                    header_name = str(component_parameter.get('name'))
+                    semantics[(current_method, current_path)]['request_headers'].add(header_name)
+                    semantics[(current_method, current_path)]['request_header_details'][header_name] = {
+                        'required': bool(component_parameter.get('required', False)),
+                        'schema_type': component_parameter.get('schema_type'),
+                    }
                 continue
 
             if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
@@ -1433,6 +2111,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
 
             parameter_match = re.match(r'^        - in: (path|query|header)\s*$', line)
             if parameter_match:
@@ -1440,6 +2119,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 continue
 
             other_parameter_match = re.match(r'^        - in: [A-Za-z_][A-Za-z0-9_]*\s*$', line)
@@ -1448,6 +2128,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_parameter_name = None
                 current_path_schema_parameter = None
                 current_query_schema_parameter = None
+                current_header_schema_parameter = None
                 continue
 
             parameter_name_match = re.match(r'^          name: ([A-Za-z0-9_-]+)\s*$', line)
@@ -1473,12 +2154,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                             'enum': set(),
                             'minimum': None,
                             'maximum': None,
+                            'pattern': None,
                             'semantics': set(),
                         },
                     )
                 continue
             if parameter_name_match and current_parameter_in == 'header':
-                semantics[(current_method, current_path)]['request_headers'].add(parameter_name_match.group(1))
+                current_parameter_name = parameter_name_match.group(1)
+                semantics[(current_method, current_path)]['request_headers'].add(current_parameter_name)
+                semantics[(current_method, current_path)]['request_header_details'].setdefault(
+                    current_parameter_name,
+                    {
+                        'required': False,
+                        'schema_type': None,
+                    },
+                )
                 continue
 
             if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          required: true\s*$', line):
@@ -1487,11 +2177,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          required: true\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['required'] = True
                 continue
+            if current_parameter_in == 'header' and current_parameter_name and re.match(r'^          required: true\s*$', line):
+                semantics[(current_method, current_path)]['request_header_details'][current_parameter_name]['required'] = True
+                continue
             if current_parameter_in == 'path' and current_parameter_name and re.match(r'^          schema:\s*$', line):
                 current_path_schema_parameter = current_parameter_name
                 continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          schema:\s*$', line):
                 current_query_schema_parameter = current_parameter_name
+                continue
+            if current_parameter_in == 'header' and current_parameter_name and re.match(r'^          schema:\s*$', line):
+                current_header_schema_parameter = current_parameter_name
                 continue
             if current_parameter_in == 'query' and current_parameter_name and re.match(r'^          x-hexrelay-query-semantics:\s*$', line):
                 semantics[(current_method, current_path)]['query_parameter_details'][current_parameter_name]['_in_semantics'] = True
@@ -1531,6 +2227,22 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 if maximum_match:
                     semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['maximum'] = int(maximum_match.group(1))
                     continue
+                pattern_match = re.match(r'^            pattern:\s*(.+?)\s*$', line)
+                if pattern_match:
+                    pattern_value = pattern_match.group(1).strip()
+                    if (
+                        len(pattern_value) >= 2
+                        and pattern_value[0] == pattern_value[-1]
+                        and pattern_value[0] in {"'", '"'}
+                    ):
+                        pattern_value = pattern_value[1:-1]
+                    semantics[(current_method, current_path)]['query_parameter_details'][current_query_schema_parameter]['pattern'] = pattern_value
+                    continue
+            if current_header_schema_parameter:
+                type_match = re.match(r'^            type: ([A-Za-z0-9_]+)\s*$', line)
+                if type_match:
+                    semantics[(current_method, current_path)]['request_header_details'][current_header_schema_parameter]['schema_type'] = type_match.group(1)
+                    continue
 
             success_match = re.match(r"^        '(2\d\d)':\s*$", line)
             if success_match:
@@ -1539,6 +2251,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 current_response_header_status = current_response_status
                 in_response_headers = False
+                in_response_header_schema = False
                 current_error_status = None
                 in_error_examples = False
                 in_error_example_value = False
@@ -1551,14 +2264,66 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 in_response_schema = False
                 current_response_header_status = current_response_status
                 in_response_headers = False
+                in_response_header_schema = False
             if current_response_header_status and re.match(r'^          headers:\s*$', line):
                 in_response_headers = True
                 continue
             response_header_match = re.match(r'^            ([A-Za-z0-9-]+):\s*$', line)
             if in_response_headers and response_header_match:
                 current_response_header_name = response_header_match.group(1)
+                in_response_header_schema = False
                 in_response_cookie_actions = False
-                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(response_header_match.group(1))
+                semantics[(current_method, current_path)]['response_headers'].setdefault(current_response_header_status, set()).add(current_response_header_name)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )
+                continue
+            response_header_inline_ref_match = re.match(r"^              schema:\s*\{\s*\$ref:\s*'#/components/schemas/([A-Za-z0-9_]+)'\s*\}\s*$", line)
+            if current_response_header_name and response_header_inline_ref_match:
+                schema_name = response_header_inline_ref_match.group(1)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = component_schema_types.get(schema_name)
+                continue
+            if current_response_header_name and re.match(r'^              schema:\s*$', line):
+                in_response_header_schema = True
+                continue
+            response_header_type_match = re.match(r'^                type:\s+([A-Za-z0-9_]+)\s*$', line)
+            if in_response_header_schema and response_header_type_match:
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = response_header_type_match.group(1)
+                continue
+            response_header_ref_match = re.match(r"^                \$ref:\s*'#/components/schemas/([A-Za-z0-9_]+)'\s*$", line)
+            if in_response_header_schema and response_header_ref_match:
+                schema_name = response_header_ref_match.group(1)
+                semantics[(current_method, current_path)]['response_header_details'].setdefault(
+                    current_response_header_status,
+                    {},
+                ).setdefault(
+                    current_response_header_name,
+                    {
+                        'schema_type': None,
+                    },
+                )['schema_type'] = component_schema_types.get(schema_name)
                 continue
             if current_response_header_name == 'Set-Cookie' and re.match(r'^              x-hexrelay-cookie-actions:\s*$', line):
                 in_response_cookie_actions = True
@@ -1617,12 +2382,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
 
 
     contract_path = pathlib.Path(contract_path_str)
+    contract_lines = contract_path.read_text().splitlines()
     router_text = pathlib.Path('services/api-rs/src/app/router.rs').read_text()
     handler_paths = sorted(pathlib.Path('services/api-rs/src/transport/http/handlers').glob('*.rs'))
     models_path = pathlib.Path('services/api-rs/src/models.rs')
     query_struct_fields = extract_query_struct_fields(models_path)
     runtime_schema_fields = extract_tracked_schema_fields(models_path)
     contract_schema_fields = extract_openapi_tracked_schema_fields(contract_path)
+    api_error_schema_shape = extract_api_error_schema_shape(contract_lines)
 
     function_semantics, route_handler_lookup, local_lookup = extract_function_blocks(handler_paths)
     runtime_semantics = extract_runtime_semantics(
@@ -1631,6 +2398,179 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
     contract_semantics = extract_contract_semantics(contract_path)
 
     errors = []
+
+    def format_bool(value):
+        return 'true' if value else 'false'
+
+    requires_api_error_schema = api_error_schema_shape['present'] or any(
+        runtime['error_statuses'] & TRACKED_ERROR_SCHEMA_STATUSES
+        for runtime in runtime_semantics.values()
+    )
+    if requires_api_error_schema and not api_error_schema_shape['present']:
+        errors.append(f"::error::{contract_path} is missing the shared `{API_ERROR_SCHEMA_NAME}` schema.")
+    elif api_error_schema_shape['present']:
+        documented_schema_type = api_error_schema_shape.get('schema_type')
+        if documented_schema_type != 'object':
+            actual = documented_schema_type or '<none>'
+            errors.append(
+                f"::error::{contract_path} documents `{API_ERROR_SCHEMA_NAME}` as type `{actual}` instead of `object`."
+            )
+
+        documented_required = api_error_schema_shape.get('required', set())
+        if documented_required != API_ERROR_REQUIRED_FIELDS:
+            expected = ', '.join(sorted(API_ERROR_REQUIRED_FIELDS))
+            documented = ', '.join(sorted(documented_required)) or '<none>'
+            errors.append(
+                f"::error::{contract_path} `{API_ERROR_SCHEMA_NAME}` must require fields [{expected}] but documents [{documented}]."
+            )
+
+        documented_field_types = api_error_schema_shape.get('field_types', {})
+        for field_name, expected_type in sorted(API_ERROR_FIELD_TYPES.items()):
+            documented_type = documented_field_types.get(field_name)
+            if documented_type != expected_type:
+                actual = documented_type or '<none>'
+                errors.append(
+                    f"::error::{contract_path} `{API_ERROR_SCHEMA_NAME}` field `{field_name}` must be type `{expected_type}` but documents `{actual}`."
+                )
+
+    def compare_tracked_rest_schema(schema_name, relation, method, path, seen=None):
+        if schema_name not in runtime_schema_fields or schema_name not in contract_schema_fields:
+            return
+        if seen is None:
+            seen = set()
+        if schema_name in seen:
+            return
+        seen = seen | {schema_name}
+
+        runtime_fields = runtime_schema_fields[schema_name]
+        documented_fields = contract_schema_fields[schema_name]
+        runtime_required = {name for name, field in runtime_fields.items() if field['required']}
+        documented_required = {name for name, field in documented_fields.items() if field['required']}
+        if runtime_required != documented_required:
+            documented = ', '.join(sorted(documented_required)) or '<none>'
+            expected = ', '.join(sorted(runtime_required)) or '<none>'
+            errors.append(
+                f"::error::{method} {path} {relation} `{schema_name}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
+            )
+
+        for field_name, runtime_field in sorted(runtime_fields.items()):
+            documented_field = documented_fields.get(field_name, {})
+            runtime_type = runtime_field.get('schema_type')
+            documented_type = documented_field.get('schema_type')
+            if runtime_type != documented_type:
+                actual_type = documented_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
+                )
+                continue
+
+            runtime_nullable = bool(runtime_field.get('nullable', False))
+            documented_nullable = bool(documented_field.get('nullable', False))
+            if runtime_nullable != documented_nullable:
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` nullable `{format_bool(runtime_nullable)}` at runtime but documents `{format_bool(documented_nullable)}` in {contract_path}."
+                )
+                continue
+
+            runtime_format = runtime_field.get('format')
+            if runtime_format:
+                documented_format = documented_field.get('format')
+                if runtime_format != documented_format:
+                    actual_format = documented_format or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` format `{runtime_format}` at runtime but documents `{actual_format}` in {contract_path}."
+                    )
+                    continue
+
+            runtime_pattern = runtime_field.get('pattern')
+            if runtime_pattern:
+                documented_pattern = documented_field.get('pattern')
+                if runtime_pattern != documented_pattern:
+                    actual_pattern = documented_pattern or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` pattern `{runtime_pattern}` at runtime but documents `{actual_pattern}` in {contract_path}."
+                    )
+                    continue
+
+            runtime_enum = set(runtime_field.get('enum', ()))
+            if runtime_enum:
+                documented_enum = set(documented_field.get('enum', set()))
+                if runtime_enum != documented_enum:
+                    expected = ', '.join(sorted(runtime_enum))
+                    documented = ', '.join(sorted(documented_enum)) or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` enum [{expected}] at runtime but documents [{documented}] in {contract_path}."
+                    )
+                    continue
+
+            constraint_mismatch = False
+            for constraint_key, label in REST_SCHEMA_CONSTRAINT_LABELS:
+                runtime_constraint = runtime_field.get(constraint_key)
+                if runtime_constraint is None:
+                    continue
+                documented_constraint = documented_field.get(constraint_key)
+                if runtime_constraint != documented_constraint:
+                    actual_constraint = documented_constraint if documented_constraint is not None else '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` {label} `{runtime_constraint}` at runtime but documents `{actual_constraint}` in {contract_path}."
+                    )
+                    constraint_mismatch = True
+                    break
+            if constraint_mismatch:
+                continue
+
+            runtime_ref = runtime_field.get('schema_ref')
+            documented_ref = documented_field.get('schema_ref')
+            if runtime_ref and runtime_ref != documented_ref:
+                actual_ref = documented_ref or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` as schema `{runtime_ref}` at runtime but documents `{actual_ref}` in {contract_path}."
+                )
+                continue
+            if runtime_ref:
+                compare_tracked_rest_schema(
+                    runtime_ref,
+                    f"{relation} `{schema_name}` field `{field_name}` references schema",
+                    method,
+                    path,
+                    seen,
+                )
+
+            runtime_item_type = runtime_field.get('item_schema_type')
+            documented_item_type = documented_field.get('item_schema_type')
+            if runtime_item_type and runtime_item_type != documented_item_type:
+                actual_item_type = documented_item_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
+                )
+                continue
+
+            runtime_item_ref = runtime_field.get('item_schema_ref')
+            documented_item_ref = documented_field.get('item_schema_ref')
+            if runtime_item_ref and runtime_item_ref != documented_item_ref:
+                actual_item_ref = documented_item_ref or '<none>'
+                errors.append(
+                    f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items as schema `{runtime_item_ref}` at runtime but documents `{actual_item_ref}` in {contract_path}."
+                )
+                continue
+            if runtime_item_ref:
+                compare_tracked_rest_schema(
+                    runtime_item_ref,
+                    f"{relation} `{schema_name}` field `{field_name}` array items reference schema",
+                    method,
+                    path,
+                    seen,
+                )
+
+            runtime_item_pattern = runtime_field.get('item_pattern')
+            if runtime_item_pattern:
+                documented_item_pattern = documented_field.get('item_pattern')
+                if runtime_item_pattern != documented_item_pattern:
+                    actual_item_pattern = documented_item_pattern or '<none>'
+                    errors.append(
+                        f"::error::{method} {path} {relation} `{schema_name}` field `{field_name}` array items pattern `{runtime_item_pattern}` at runtime but documents `{actual_item_pattern}` in {contract_path}."
+                    )
+                    continue
 
     for key, runtime in sorted(runtime_semantics.items()):
         method, path = key
@@ -1648,6 +2588,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if contract['security_schemes']:
                 documented = ', '.join(sorted(contract['security_schemes']))
                 errors.append(f"::error::{method} {path} uses internal-token auth at runtime and should not declare session security schemes [{documented}] in {contract_path}.")
+        if not runtime['has_auth'] and not runtime['has_internal_auth'] and contract['security_schemes']:
+            documented = ', '.join(sorted(contract['security_schemes']))
+            errors.append(f"::error::{method} {path} documents security schemes [{documented}] but runtime does not require session or internal-token auth in {contract_path}.")
         if runtime['has_401'] and not contract['has_401']:
             if runtime['has_auth']:
                 errors.append(f"::error::{method} {path} requires session auth at runtime (AuthSession or server-membership authorizer extractor) but is missing a 401 response in {contract_path}.")
@@ -1662,68 +2605,62 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 errors.append(f"::error::{method} {path} can return HTTP 500 at runtime via direct internal_error emitters or local helper/delegate flows but is missing a 500 response in {contract_path}.")
         if runtime['has_csrf'] and not contract['has_csrf']:
             errors.append(f"::error::{method} {path} enforces CSRF at runtime but is missing the CsrfTokenHeader parameter in {contract_path}.")
+        if runtime['has_csrf'] and contract['has_csrf']:
+            csrf_header = contract.get('csrf_header') or {}
+            documented_name = csrf_header.get('name') or '<none>'
+            documented_location = csrf_header.get('in') or '<none>'
+            if documented_name != CSRF_HEADER_NAME or documented_location != 'header':
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF header `{CSRF_HEADER_NAME}` at runtime but CsrfTokenHeader documents `{documented_name}` in `{documented_location}` in {contract_path}."
+                )
+            if csrf_header.get('required'):
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF only for cookie-authenticated mutation requests at runtime but CsrfTokenHeader is marked always required in {contract_path}."
+                )
+            documented_type = csrf_header.get('schema_type')
+            if documented_type != CSRF_HEADER_SCHEMA_TYPE:
+                actual_type = documented_type or '<none>'
+                errors.append(
+                    f"::error::{method} {path} enforces CSRF header `{CSRF_HEADER_NAME}` as type `{CSRF_HEADER_SCHEMA_TYPE}` at runtime but documents `{actual_type}` in {contract_path}."
+                )
+        if not runtime['has_csrf'] and contract['has_csrf']:
+            errors.append(
+                f"::error::{method} {path} documents CsrfTokenHeader but runtime does not enforce CSRF in {contract_path}."
+            )
         if runtime['has_json_body'] and not contract['has_request_body']:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
+        if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
+            errors.append(f"::error::{method} {path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}.")
+        if runtime['has_json_body'] and contract['has_request_body']:
+            documented_media_types = set(contract.get('request_body_media_types', set()))
+            if documented_media_types != {JSON_REQUEST_MEDIA_TYPE}:
+                documented = ', '.join(sorted(documented_media_types)) or '<none>'
+                errors.append(
+                    f"::error::{method} {path} accepts JSON request bodies at runtime but documents request media types [{documented}] instead of [{JSON_REQUEST_MEDIA_TYPE}] in {contract_path}."
+                )
+        if not runtime['has_request_body_extractor'] and contract['has_request_body']:
+            errors.append(f"::error::{method} {path} documents a requestBody but runtime handler has no request-body extractor in {contract_path}.")
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
             documented = contract['request_body_schema'] or '<none>'
             errors.append(f"::error::{method} {path} accepts request body schema `{runtime['request_body_schema']}` at runtime but documents `{documented}` in {contract_path}.")
-        if runtime['request_body_schema'] in runtime_schema_fields and runtime['request_body_schema'] in contract_schema_fields:
-            runtime_required = {name for name, field in runtime_schema_fields[runtime['request_body_schema']].items() if field['required']}
-            documented_required = {name for name, field in contract_schema_fields[runtime['request_body_schema']].items() if field['required']}
-            if runtime_required != documented_required:
-                documented = ', '.join(sorted(documented_required)) or '<none>'
-                expected = ', '.join(sorted(runtime_required)) or '<none>'
-                errors.append(
-                    f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` with required fields [{expected}] at runtime but documents [{documented}] in {contract_path}."
-                )
-            for field_name, runtime_field in sorted(runtime_schema_fields[runtime['request_body_schema']].items()):
-                documented_field = contract_schema_fields[runtime['request_body_schema']].get(field_name, {})
-                runtime_type = runtime_field.get('schema_type')
-                documented_type = documented_field.get('schema_type')
-                if runtime_type != documented_type:
-                    actual_type = documented_type or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
-                    )
-                    continue
-                runtime_item_type = runtime_field.get('item_schema_type')
-                documented_item_type = documented_field.get('item_schema_type')
-                if runtime_item_type and runtime_item_type != documented_item_type:
-                    actual_item_type = documented_item_type or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} uses request schema `{runtime['request_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
-                    )
+        compare_tracked_rest_schema(
+            runtime['request_body_schema'],
+            'uses request schema',
+            method,
+            path,
+        )
         if runtime['response_body_schema'] and runtime['success_status']:
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented != runtime['response_body_schema']:
                 actual = documented or '<none>'
                 errors.append(f"::error::{method} {path} returns response schema `{runtime['response_body_schema']}` for HTTP {runtime['success_status']} at runtime but documents `{actual}` in {contract_path}.")
-            elif runtime['response_body_schema'] in runtime_schema_fields and runtime['response_body_schema'] in contract_schema_fields:
-                runtime_required = {name for name, field in runtime_schema_fields[runtime['response_body_schema']].items() if field['required']}
-                documented_required = {name for name, field in contract_schema_fields[runtime['response_body_schema']].items() if field['required']}
-                if runtime_required != documented_required:
-                    documented_fields = ', '.join(sorted(documented_required)) or '<none>'
-                    expected_fields = ', '.join(sorted(runtime_required)) or '<none>'
-                    errors.append(
-                        f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` with required fields [{expected_fields}] at runtime but documents [{documented_fields}] in {contract_path}."
-                    )
-                for field_name, runtime_field in sorted(runtime_schema_fields[runtime['response_body_schema']].items()):
-                    documented_field = contract_schema_fields[runtime['response_body_schema']].get(field_name, {})
-                    runtime_type = runtime_field.get('schema_type')
-                    documented_type = documented_field.get('schema_type')
-                    if runtime_type != documented_type:
-                        actual_type = documented_type or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` as type `{runtime_type}` at runtime but documents `{actual_type}` in {contract_path}."
-                        )
-                        continue
-                    runtime_item_type = runtime_field.get('item_schema_type')
-                    documented_item_type = documented_field.get('item_schema_type')
-                    if runtime_item_type and runtime_item_type != documented_item_type:
-                        actual_item_type = documented_item_type or '<none>'
-                        errors.append(
-                            f"::error::{method} {path} returns schema `{runtime['response_body_schema']}` field `{field_name}` array items as type `{runtime_item_type}` at runtime but documents `{actual_item_type}` in {contract_path}."
-                        )
+            else:
+                compare_tracked_rest_schema(
+                    runtime['response_body_schema'],
+                    'returns schema',
+                    method,
+                    path,
+                )
         if runtime['success_status'] and runtime['success_body_kind'] == 'none':
             documented = contract['response_schemas'].get(runtime['success_status'])
             if documented is not None:
@@ -1735,12 +2672,40 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_request_headers = sorted(runtime['request_headers'] - contract['request_headers'])
         for header_name in missing_request_headers:
             errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but is missing it from {contract_path}.")
+        unexpected_request_headers = sorted(
+            (contract['request_headers'] & set(TRACKED_REQUEST_HEADERS)) - runtime['request_headers']
+        )
+        for header_name in unexpected_request_headers:
+            errors.append(
+                f"::error::{method} {path} documents request header `{header_name}` but runtime does not require it in {contract_path}."
+            )
+        for header_name, runtime_header in sorted(runtime['request_header_details'].items()):
+            contract_header = contract['request_header_details'].get(header_name)
+            if contract_header is None:
+                continue
+            if runtime_header.get('required') and not contract_header.get('required'):
+                errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but it is not marked required in {contract_path}.")
+            runtime_type = runtime_header.get('schema_type')
+            documented_type = contract_header.get('schema_type')
+            if runtime_type and not documented_type:
+                errors.append(f"::error::{method} {path} uses request header `{header_name}` as type `{runtime_type}` at runtime but does not document a header schema type in {contract_path}.")
+            elif runtime_type and documented_type and runtime_type != documented_type:
+                errors.append(f"::error::{method} {path} uses request header `{header_name}` as type `{runtime_type}` at runtime but documents `{documented_type}` in {contract_path}.")
         if runtime['success_status']:
             missing_response_headers = sorted(
                 runtime['response_headers'] - contract['response_headers'].get(runtime['success_status'], set())
             )
             for header_name in missing_response_headers:
                 errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} at runtime but is missing it from {contract_path}.")
+            documented_response_header_details = contract['response_header_details'].get(runtime['success_status'], {})
+            for header_name in sorted(runtime['response_headers'] - set(missing_response_headers)):
+                expected_type = TRACKED_RESPONSE_HEADERS.get(header_name, {}).get('schema_type')
+                if not expected_type:
+                    continue
+                documented_type = documented_response_header_details.get(header_name, {}).get('schema_type')
+                if expected_type != documented_type:
+                    actual_type = documented_type or '<none>'
+                    errors.append(f"::error::{method} {path} returns response header `{header_name}` for HTTP {runtime['success_status']} as type `{expected_type}` at runtime but documents `{actual_type}` in {contract_path}.")
             runtime_cookie_actions = runtime['response_cookie_actions']
             documented_cookie_actions = contract['response_cookie_actions'].get(runtime['success_status'], set())
             if runtime_cookie_actions or documented_cookie_actions:
@@ -1819,6 +2784,11 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 documented_bound = contract_query.get(bound_name)
                 if runtime_bound is not None and runtime_bound != documented_bound:
                     errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with {bound_name} `{runtime_bound}` at runtime but documents `{documented_bound}` in {contract_path}.")
+            runtime_pattern = runtime_query.get('pattern')
+            documented_pattern = contract_query.get('pattern')
+            if runtime_pattern and runtime_pattern != documented_pattern:
+                actual_pattern = documented_pattern or '<none>'
+                errors.append(f"::error::{method} {path} uses query parameter `{parameter_name}` with pattern `{runtime_pattern}` at runtime but documents `{actual_pattern}` in {contract_path}.")
             runtime_semantics = set(runtime_query.get('semantics', ()))
             documented_semantics = set(contract_query.get('semantics', set()))
             if runtime_semantics and runtime_semantics != documented_semantics:

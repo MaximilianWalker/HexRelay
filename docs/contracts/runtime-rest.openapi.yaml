@@ -2013,6 +2013,11 @@ paths:
         delivery is evaluated. When `destination_node_id` points at a configured
         static peer, the envelope is authenticated and forwarded server-node to
         server-node; the destination node performs local recipient acceptance.
+        Failed static-peer handoff attempts are durably recorded with bounded
+        retry metadata and driven by the API runtime retry worker when local
+        static-peer forwarding prerequisites are configured, until the handoff
+        succeeds, reaches a terminal policy/auth error, or exhausts the retry
+        attempt limit.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -2035,7 +2040,9 @@ paths:
             success means the origin node durably recorded the outbound
             forwarding attempt and handed the encrypted envelope to the
             destination server node; it does not imply final recipient-device
-            delivery.
+            delivery. Previously failed static-peer handoff attempts are retried
+            asynchronously by the API runtime worker from the durable outbound
+            forwarding log when local forwarding prerequisites are configured.
           content:
             application/json:
               schema:
@@ -2368,6 +2375,7 @@ paths:
           description: Must match the authenticated session identity; provided explicitly for request/response parity with storage-backed query validation.
           schema:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
         - in: query
           name: direction
           schema:
@@ -3139,6 +3147,7 @@ components:
           type: array
           items:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
           default: []
     ServerChannelMessageEditRequest:
       type: object
@@ -3152,6 +3161,7 @@ components:
           type: array
           items:
             type: string
+            pattern: '^[A-Za-z0-9_-]{3,64}$'
           default: []
     ServerChannelMessage:
       type: object
@@ -3333,6 +3343,7 @@ components:
       properties:
         recipient_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         message_id:
           type: string
           minLength: 1
@@ -3376,7 +3387,7 @@ components:
         delivery_state:
           type: string
           enum: [pending_delivery, forwarded, rejected]
-          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; recipient-device delivery remains ack-backed and destination-owned.
+          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; retry-scheduled failures are driven asynchronously from the durable outbound forwarding log, and recipient-device delivery remains ack-backed and destination-owned.
         reachability_state:
           type: string
           enum: [unreachable, blocked, unknown]
@@ -3406,6 +3417,7 @@ components:
           type: string
           minLength: 16
           maxLength: 128
+          pattern: '^[A-Za-z0-9_-]{16,128}$'
           description: Must match the secret established by the profile-device heartbeat for this device id.
         cursor:
           type: string
@@ -3816,8 +3828,10 @@ components:
       properties:
         requester_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         target_identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
     IdentityBootstrapBundle:
       type: object
       required: [identity_id, public_key, algorithm, devices]
@@ -3856,6 +3870,7 @@ components:
       properties:
         identity_id:
           type: string
+          pattern: '^[A-Za-z0-9_-]{3,64}$'
         challenge_id:
           type: string
         signature:

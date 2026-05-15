@@ -81,6 +81,7 @@ components:
   schemas:
     ApiError:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
@@ -89,6 +90,8 @@ components:
             - blocked_user
             - identity_invalid
             - storage_unavailable
+        message:
+          type: string
     FriendRequestCreateRequest:
       type: object
     FriendRequestRecord:
