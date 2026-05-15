@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-15
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-13 tightened the `T4.6.1` through `T4.6.4` navigation approval response and pre-implementation gate package.
+- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery implementation plan.
 
 ## Purpose
 
@@ -29,6 +29,24 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-15 (DM workspace delivery approval package)
+
+- Area affected: DM workspace delivery, E2EE private-message history/send behavior, quality-audit routing, and approval-gated Web implementation planning.
+- Change summary:
+  - Added `docs/planning/dm-workspace-delivery-implementation-plan.md` as the approval-pending implementation plan for `QA-17-20260514-dm-workspace-send-not-wired`.
+  - Defined proposed DM workspace flow, controls, copy baseline, required state mapping, implementation slices, validation, evidence expectations, and `DMW-APP-*` approval decisions.
+  - Kept all runtime DM workspace UI implementation blocked until explicit user approval of flow, copy, controls, and behavior.
+- Rationale:
+  - The selected quality finding is valid but UX-facing; the smallest mergeable prerequisite is a plan-only approval package rather than unapproved Web behavior.
+- Linked docs updated:
+  - `docs/planning/dm-workspace-delivery-implementation-plan.md`
+  - `docs/product/08-screen-state-spec.md`
+  - `docs/product/README.md`
+  - `docs/planning/README.md`
+  - `docs/operations/quality-audits/17-ux-product-quality.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-13 (T4.6 navigation approval gate hardening)
 
