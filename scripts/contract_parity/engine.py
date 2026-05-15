@@ -2066,8 +2066,14 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             request_header_ref_match = re.match(r"^        - \$ref: '#/components/parameters/([A-Za-z0-9_]+)'\s*$", line)
             if in_parameters_block and request_header_ref_match:
                 parameter_ref = request_header_ref_match.group(1)
-                if parameter_ref == 'CsrfTokenHeader':
-                    semantics[(current_method, current_path)]['request_headers'].add('x-csrf-token')
+                component_parameter = parameter_components.get(parameter_ref, {})
+                if component_parameter.get('in') == 'header' and component_parameter.get('name'):
+                    header_name = str(component_parameter.get('name'))
+                    semantics[(current_method, current_path)]['request_headers'].add(header_name)
+                    semantics[(current_method, current_path)]['request_header_details'][header_name] = {
+                        'required': bool(component_parameter.get('required', False)),
+                        'schema_type': component_parameter.get('schema_type'),
+                    }
                 continue
 
             if re.match(r'^      [A-Za-z_][A-Za-z0-9_]*:\s*$', line):
