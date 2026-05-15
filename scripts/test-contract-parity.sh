@@ -215,6 +215,256 @@ PY
   trap - RETURN
 }
 
+run_unexpected_request_header_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+
+if mutation_name == "fail-unexpected-csrf-header":
+    old = """      parameters:
+        - in: query
+          name: cursor"""
+    new = """      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: query
+          name: cursor"""
+elif mutation_name == "fail-unexpected-internal-auth-header":
+    old = """      parameters:
+        - in: query
+          name: cursor"""
+    new = """      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: cursor"""
+elif mutation_name == "fail-unexpected-internal-auth-header-component":
+    old = """      parameters:
+        - in: query
+          name: cursor"""
+    new = """      parameters:
+        - $ref: '#/components/parameters/InternalTokenHeader'
+        - in: query
+          name: cursor"""
+    component_target = """    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string"""
+    component_insert = """    CsrfTokenHeader:
+      in: header
+      name: x-csrf-token
+      schema:
+        type: string
+    InternalTokenHeader:
+      in: header
+      name: x-hexrelay-internal-token
+      required: true
+      schema:
+        type: string"""
+    if component_target not in text:
+        raise SystemExit("fixture component mutation target not found")
+    text = text.replace(component_target, component_insert, 1)
+else:
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+if old not in text:
+    raise SystemExit("fixture mutation target not found")
+path.write_text(text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
+run_delegated_csrf_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/services/api-rs/src/transport/http/handlers/friends.rs" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+if mutation_name != "pass-delegated-csrf-header":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+old = """    enforce_csrf_for_cookie_auth(&auth, &headers)?;
+    helper_accept()?;"""
+new = """    delegated_accept_guard(&auth, &headers)?;
+    helper_accept()?;"""
+if old not in text:
+    raise SystemExit("fixture delegated csrf mutation target not found")
+text = text.replace(old, new, 1)
+text += """
+
+fn delegated_accept_guard(auth: &AuthSession, headers: &HeaderMap) -> ApiResult<()> {
+    enforce_csrf_for_cookie_auth(auth, headers)
+}
+"""
+path.write_text(text)
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
+run_delegated_internal_header_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - \
+    "$temp_repo/services/api-rs/src/transport/http/handlers/friends.rs" \
+    "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" \
+    "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+handler_path = pathlib.Path(sys.argv[1])
+contract_path = pathlib.Path(sys.argv[2])
+mutation_name = sys.argv[3]
+if mutation_name != "pass-delegated-internal-auth-header":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+handler_text = handler_path.read_text()
+old_handler = """pub async fn forward_raw_body(
+    State(_state): State<AppState>,
+    _body: Bytes,
+) -> ApiResult<Json<FriendRequestRecord>> {
+    Ok(Json(FriendRequestRecord { id: "raw_1".to_string() }))
+}"""
+new_handler = """pub async fn forward_raw_body(
+    State(_state): State<AppState>,
+    headers: HeaderMap,
+    _body: Bytes,
+) -> ApiResult<Json<FriendRequestRecord>> {
+    let _token = delegated_internal_header(&headers);
+    Ok(Json(FriendRequestRecord { id: "raw_1".to_string() }))
+}
+
+fn delegated_internal_header(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get("x-hexrelay-internal-token")
+        .and_then(|value| value.to_str().ok())
+}"""
+if old_handler not in handler_text:
+    raise SystemExit("fixture delegated internal handler target not found")
+handler_path.write_text(handler_text.replace(old_handler, new_handler, 1))
+
+contract_text = contract_path.read_text()
+old_contract = """  /internal/raw-forward:
+    post:
+      requestBody:"""
+new_contract = """  /internal/raw-forward:
+    post:
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+      requestBody:"""
+if old_contract not in contract_text:
+    raise SystemExit("fixture delegated internal contract target not found")
+contract_path.write_text(contract_text.replace(old_contract, new_contract, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_path_parameter_format_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -939,6 +1189,8 @@ PY
 
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
+run_delegated_csrf_fixture pass-delegated-csrf-header 0
+run_delegated_internal_header_fixture pass-delegated-internal-auth-header 0
 run_dm_mark_read_schema_fixture pass-dm-mark-read-scalar-bounds 0
 run_path_parameter_format_fixture pass-path-parameter-format 0
 run_response_header_schema_type_fixture pass-response-header-schema-ref 0
@@ -1003,6 +1255,9 @@ run_fixture fail-session-auth-security 1 "documents security schemes [CookieAuth
 run_fixture fail-session-auth-500 1 "missing a 500 response"
 run_fixture fail-success-content 1 "documents no success schema"
 run_fixture fail-unexpected-request-body 1 "documents a requestBody but runtime handler has no request-body extractor"
+run_unexpected_request_header_fixture fail-unexpected-csrf-header 1 "documents CsrfTokenHeader but runtime does not enforce CSRF"
+run_unexpected_request_header_fixture fail-unexpected-internal-auth-header 1 'documents request header `x-hexrelay-internal-token` but runtime does not require it'
+run_unexpected_request_header_fixture fail-unexpected-internal-auth-header-component 1 'documents request header `x-hexrelay-internal-token` but runtime does not require it'
 run_fixture fail-missing-example 1 "thread_not_found"
 
 printf '[contract-parity-test] Fixture regressions passed\n'
