@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-15 documented JSON request media-type contract-parity coverage.
+- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery planning authority.
 
 ## Purpose
 
@@ -37,6 +37,7 @@
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
 | Navigation implementation planning and approval package | `docs/planning/navigation-implementation-plan.md` | Web and delivery maintainers | `T4.6.1`-`T4.6.4` sequencing, task slicing, approval package, or navigation evidence plan changes |
 | MVP screen and state authority | `docs/product/08-screen-state-spec.md` | Product/design maintainers | Screen states, flow transitions, or policy-driven UI behavior changes |
+| DM workspace delivery implementation planning and approval package | `docs/planning/dm-workspace-delivery-implementation-plan.md` | Web, core, API, and delivery maintainers | DM workspace history/send flow, copy, controls, implementation slicing, approval package, or delivery evidence plan changes |
 | Runtime service environment/config reference | `docs/reference/runtime-config-reference.md` | Platform maintainers | `services/*/src/config.rs`, `services/*/.env.example`, or runtime env semantics change |
 | Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
@@ -126,6 +127,7 @@
 - `docs/reference/runtime-config-reference.md`
 - `docs/planning/kpi-slo-test-profile.md`
 - `docs/planning/local-runtime-testing-plan.md`
+- `docs/planning/dm-workspace-delivery-implementation-plan.md`
 - `docs/planning/navigation-implementation-plan.md`
 - `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - `docs/testing/01-mvp-verification-matrix.md`

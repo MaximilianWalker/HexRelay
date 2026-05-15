@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-15
 - Source of truth: `docs/product/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-13 added the approval-pending server-channel optimistic send proposal to the screen/state authority.
+- Latest meaningful change: 2026-05-15 linked the approval-pending DM workspace delivery plan from the screen/state authority.
 
 ## Contents
 
