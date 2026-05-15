@@ -85,7 +85,7 @@ Flow:
 2. The workspace validates profile/session state, contact existence, accepted relationship state, block state, and inbound/outbound policy before enabling send.
 3. For an accepted contact, the client loads the matching DM thread and message page from runtime DM history. If the existing API cannot deterministically map a contact to a thread, the first runtime slice must add the missing non-UX contract and tests before changing visible behavior.
 4. The client decrypts messages locally from ciphertext envelopes and never sends plaintext or private keys to the server.
-5. Empty history shows the approved empty state and keeps the composer enabled only when relationship, bootstrap, and policy checks pass.
+5. Empty history shows the approved empty state and keeps the composer enabled only when the accepted relationship, bootstrap, and policy checks pass.
 6. Sending a non-empty message prepares client-side encrypted envelope payloads, adds a local pending row, and calls the server-node fanout dispatch path.
 7. Durable API acceptance replaces the pending row with `Sent` state using the persisted message/thread identity.
 8. Recipient-device ack or catch-up reconciliation can advance the row to `Delivered`; read state appears only when an approved participant-visible read receipt exists.
@@ -109,7 +109,6 @@ Copy baseline:
 |---|---|
 | Loading | `Loading private chat` |
 | Empty | `No messages yet` |
-| Pending contact | `Finish the contact request before starting an encrypted conversation` |
 | Blocked | `Messaging is blocked for this contact` |
 | Policy denied | `Your DM policy does not allow this conversation` |
 | Reconnecting | `Reconnecting` |
@@ -117,7 +116,6 @@ Copy baseline:
 | Durable acceptance | `Sent` |
 | Recipient-device ack | `Delivered` |
 | Retryable failure | `Could not send` |
-| History load failure | `Private chat could not load` |
 
 State mapping:
 
@@ -136,10 +134,11 @@ Delivery indicators:
 |---|---|
 | `Sending` | Local encryption or fanout submission is in progress |
 | `Sent` | API durably accepted ciphertext into DM history plus delivery metadata |
-| `Queued` | Durable acceptance exists, but no recipient-device ack is known |
 | `Delivered` | At least one recipient profile device acked the encrypted envelope |
 | `Read` | Approved participant-visible read receipt exists |
 | `Failed` | Send failed or became unrecoverable |
+
+Contact-request states and generic history-load error copy are out of scope for this approval package because the current DM Workspace state authority does not list separate `pending_contact` or generic `error` states. If implementation needs those states, update the screen/state authority through a separately approved UX change before rendering them.
 
 ## Work Packages
 
@@ -281,6 +280,7 @@ Stop and keep the work plan-only when any of these conditions apply:
 - This plan does not introduce backend API contracts.
 - This plan does not approve any runtime UI copy, control, or behavior.
 - Existing runtime APIs may still lack a deterministic contact-to-thread mapping for the current contact route; that must be proven or added in a future approved implementation slice.
+- Generic history-load error copy is not approved here; if it is needed beyond `loading`, `reconnecting`, or retryable send failure, add it through a separate screen/state approval.
 - Client-side decrypt/render behavior depends on local key/session availability and must preserve client-only plaintext/private-key boundaries.
 - Manual browser evidence remains required until deterministic render coverage exists for every required DM workspace state.
 
