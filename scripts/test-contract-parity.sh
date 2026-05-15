@@ -160,6 +160,66 @@ PY
   trap - RETURN
 }
 
+run_request_body_media_type_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+if mutation_name != "fail-request-body-media-type":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+old = """        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestAcceptRequest'"""
+new = """        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestAcceptRequest'
+          text/plain:
+            schema:
+              type: string"""
+if old not in text:
+    raise SystemExit("fixture mutation target not found")
+path.write_text(text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_api_error_schema_shape_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -1223,6 +1283,7 @@ run_fixture fail-path-parameter-semantics 1 'uses path parameter `request_id` as
 run_fixture fail-public-auth-security 1 'GET /health documents security schemes [BearerAuth, CookieAuth] but runtime does not require session or internal-token auth'
 run_query_parameter_pattern_fixture fail-query-parameter-pattern 1 'uses query parameter `identity_id` with pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-request-body-required 1 "requestBody is not marked required"
+run_request_body_media_type_fixture fail-request-body-media-type 1 'accepts JSON request bodies at runtime but documents request media types [application/json, text/plain] instead of [application/json]'
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'
