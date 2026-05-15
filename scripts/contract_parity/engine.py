@@ -120,6 +120,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'code': 'string',
         'message': 'string',
     }
+    JSON_REQUEST_MEDIA_TYPE = 'application/json'
     CSRF_HEADER_NAME = 'x-csrf-token'
     CSRF_HEADER_SCHEMA_TYPE = 'string'
     AUTH_SESSION_SECURITY_SCHEMES = {'CookieAuth', 'BearerAuth'}
@@ -1578,6 +1579,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         components: dict[str, dict[str, object]] = {}
         in_request_bodies = False
         current_component = None
+        in_request_body_content = False
         in_request_body_json = False
         in_request_body_schema = False
 
@@ -1596,18 +1598,34 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 components[current_component] = {
                     'required': False,
                     'schema': None,
+                    'media_types': set(),
                 }
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 continue
+
+            if in_request_body_content and not re.match(r'^ {8,}', line):
+                in_request_body_content = False
+                in_request_body_json = False
+                in_request_body_schema = False
+            if in_request_body_json and not re.match(r'^ {8,}', line):
+                in_request_body_json = False
+                in_request_body_schema = False
+            if in_request_body_schema and not re.match(r'^ {12,}', line):
+                in_request_body_schema = False
 
             if current_component and re.match(r'^      required:\s+true\s*$', line):
                 components[current_component]['required'] = True
                 continue
             if current_component and re.match(r'^      content:\s*$', line):
+                in_request_body_content = True
                 continue
-            if current_component and re.match(r'^        application/json:\s*$', line):
-                in_request_body_json = True
+            media_type_match = re.match(r'^        ([^:\s]+/[^:\s]+):\s*$', line)
+            if current_component and in_request_body_content and media_type_match:
+                media_type = media_type_match.group(1)
+                components[current_component]['media_types'].add(media_type)
+                in_request_body_json = media_type == JSON_REQUEST_MEDIA_TYPE
                 in_request_body_schema = False
                 continue
             if current_component and in_request_body_json and re.match(r'^          schema:\s*$', line):
@@ -1618,12 +1636,6 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if current_component and in_request_body_schema and request_schema_match:
                 components[current_component]['schema'] = request_schema_match.group(1)
                 continue
-
-            if in_request_body_schema and not re.match(r'^ {12,}', line):
-                in_request_body_schema = False
-            if in_request_body_json and not re.match(r'^ {8,}', line):
-                in_request_body_json = False
-                in_request_body_schema = False
 
         return components
 
@@ -1800,6 +1812,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         current_query_schema_parameter = None
         current_header_schema_parameter = None
         in_request_body = False
+        in_request_body_content = False
         in_request_body_json = False
         in_request_body_schema = False
         current_response_status = None
@@ -1871,6 +1884,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_query_schema_parameter = None
                 current_header_schema_parameter = None
                 in_request_body = False
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 current_response_status = None
@@ -1896,6 +1910,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 current_query_schema_parameter = None
                 current_header_schema_parameter = None
                 in_request_body = False
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 current_response_status = None
@@ -1918,6 +1933,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'has_request_body': False,
                     'request_body_required': False,
                     'request_body_schema': None,
+                    'request_body_media_types': set(),
                     'response_schemas': {},
                     'request_headers': set(),
                     'request_header_details': {},
@@ -1938,6 +1954,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if not current_path or not current_method:
                 continue
 
+            if in_request_body_content and not re.match(r'^ {10,}', line):
+                in_request_body_content = False
+                in_request_body_json = False
+                in_request_body_schema = False
             if in_request_body_schema and not re.match(r'^ {14,}', line):
                 in_request_body_schema = False
             if in_request_body_json and not re.match(r'^ {12,}', line):
@@ -2017,14 +2037,21 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             if re.match(r'^      requestBody:\s*$', line):
                 semantics[(current_method, current_path)]['has_request_body'] = True
                 in_request_body = True
+                in_request_body_content = False
                 in_request_body_json = False
                 in_request_body_schema = False
                 continue
             if in_request_body and re.match(r'^        required:\s+true\s*$', line):
                 semantics[(current_method, current_path)]['request_body_required'] = True
                 continue
-            if in_request_body and re.match(r'^          application/json:\s*$', line):
-                in_request_body_json = True
+            if in_request_body and re.match(r'^        content:\s*$', line):
+                in_request_body_content = True
+                continue
+            request_media_type_match = re.match(r'^          ([^:\s]+/[^:\s]+):\s*$', line)
+            if in_request_body_content and request_media_type_match:
+                media_type = request_media_type_match.group(1)
+                semantics[(current_method, current_path)]['request_body_media_types'].add(media_type)
+                in_request_body_json = media_type == JSON_REQUEST_MEDIA_TYPE
                 in_request_body_schema = False
                 continue
             if in_request_body_json and re.match(r'^            schema:\s*$', line):
@@ -2044,6 +2071,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 component_schema = component.get('schema')
                 if component_schema:
                     semantics[(current_method, current_path)]['request_body_schema'] = component_schema
+                semantics[(current_method, current_path)]['request_body_media_types'] = set(
+                    component.get('media_types', set())
+                )
                 continue
 
             if "#/components/parameters/CsrfTokenHeader" in line:
@@ -2601,6 +2631,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
         if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
             errors.append(f"::error::{method} {path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}.")
+        if runtime['has_json_body'] and contract['has_request_body']:
+            documented_media_types = set(contract.get('request_body_media_types', set()))
+            if documented_media_types != {JSON_REQUEST_MEDIA_TYPE}:
+                documented = ', '.join(sorted(documented_media_types)) or '<none>'
+                errors.append(
+                    f"::error::{method} {path} accepts JSON request bodies at runtime but documents request media types [{documented}] instead of [{JSON_REQUEST_MEDIA_TYPE}] in {contract_path}."
+                )
         if not runtime['has_request_body_extractor'] and contract['has_request_body']:
             errors.append(f"::error::{method} {path} documents a requestBody but runtime handler has no request-body extractor in {contract_path}.")
         if runtime['request_body_schema'] and contract['request_body_schema'] != runtime['request_body_schema']:
