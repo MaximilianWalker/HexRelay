@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 documented DM privacy-policy request/response enum-domain contract-parity coverage.
+- Latest meaningful change: 2026-05-14 documented tracked request-header absence contract-parity coverage.
 
 ## Purpose
 

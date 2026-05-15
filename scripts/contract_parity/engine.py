@@ -818,6 +818,51 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         return headers
 
 
+    def infer_request_headers(handler_id, functions, local_lookup, stack=None):
+        if stack is None:
+            stack = set()
+        if handler_id in stack:
+            return set()
+
+        function = functions.get(handler_id)
+        if not function:
+            return set()
+
+        headers = set(function.get('request_headers', set()))
+        body = function.get('body', '')
+        helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+        helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+        for callee_id in sorted(helper_ids):
+            headers.update(
+                infer_request_headers(callee_id, functions, local_lookup, stack | {handler_id})
+            )
+
+        return headers
+
+
+    def infer_has_csrf(handler_id, functions, local_lookup, stack=None):
+        if stack is None:
+            stack = set()
+        if handler_id in stack:
+            return False
+
+        function = functions.get(handler_id)
+        if not function:
+            return False
+
+        if function.get('has_csrf'):
+            return True
+
+        body = function.get('body', '')
+        helper_ids = resolve_local_helper_ids(body, function, local_lookup)
+        helper_ids.update(resolve_local_delegate_ids(body, function, local_lookup))
+        for callee_id in sorted(helper_ids):
+            if infer_has_csrf(callee_id, functions, local_lookup, stack | {handler_id}):
+                return True
+
+        return False
+
+
     def infer_response_cookie_actions(handler_id, functions, local_lookup, stack=None):
         if stack is None:
             stack = set()
@@ -1461,13 +1506,17 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                         name: runtime_path_details[index] if index < len(runtime_path_details) else {}
                         for index, name in enumerate(path_param_names)
                     }
+                inferred_request_headers = infer_request_headers(
+                    handler_id, function_semantics, local_lookup
+                )
                 semantics[(method.upper(), path)] = {
                                 'handler': handler,
                                 'has_auth': bool(handler_semantics.get('has_auth')),
-                                'has_internal_auth': bool(handler_semantics.get('has_internal_auth')),
+                                'has_internal_auth': bool(handler_semantics.get('has_internal_auth'))
+                                or bool(inferred_request_headers & INTERNAL_TOKEN_REQUIRED_HEADERS),
                                 'has_500': bool(handler_semantics.get('has_auth'))
                                 or infer_has_500(handler_id, function_semantics, local_lookup),
-                    'has_csrf': bool(handler_semantics.get('has_csrf')),
+                    'has_csrf': infer_has_csrf(handler_id, function_semantics, local_lookup),
                     'has_json_body': bool(handler_semantics.get('has_json_body')),
                     'has_request_body_extractor': bool(
                         handler_semantics.get('has_request_body_extractor')
@@ -1477,9 +1526,9 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                     'success_body_kind': infer_success_body_kind(
                         handler_id, function_semantics, local_lookup
                     ),
-                    'request_headers': handler_semantics.get('request_headers', set()),
+                    'request_headers': inferred_request_headers,
                     'request_header_details': build_runtime_request_header_details(
-                        handler_semantics.get('request_headers', set())
+                        inferred_request_headers
                     ),
                     'response_headers': infer_response_headers(
                         handler_id, function_semantics, local_lookup
@@ -2538,6 +2587,10 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 errors.append(
                     f"::error::{method} {path} enforces CSRF header `{CSRF_HEADER_NAME}` as type `{CSRF_HEADER_SCHEMA_TYPE}` at runtime but documents `{actual_type}` in {contract_path}."
                 )
+        if not runtime['has_csrf'] and contract['has_csrf']:
+            errors.append(
+                f"::error::{method} {path} documents CsrfTokenHeader but runtime does not enforce CSRF in {contract_path}."
+            )
         if runtime['has_json_body'] and not contract['has_request_body']:
             errors.append(f"::error::{method} {path} accepts a Json request body at runtime but is missing requestBody in {contract_path}.")
         if runtime['has_json_body'] and contract['has_request_body'] and not contract['request_body_required']:
@@ -2576,6 +2629,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         missing_request_headers = sorted(runtime['request_headers'] - contract['request_headers'])
         for header_name in missing_request_headers:
             errors.append(f"::error::{method} {path} requires request header `{header_name}` at runtime but is missing it from {contract_path}.")
+        unexpected_request_headers = sorted(
+            (contract['request_headers'] & set(TRACKED_REQUEST_HEADERS)) - runtime['request_headers']
+        )
+        for header_name in unexpected_request_headers:
+            errors.append(
+                f"::error::{method} {path} documents request header `{header_name}` but runtime does not require it in {contract_path}."
+            )
         for header_name, runtime_header in sorted(runtime['request_header_details'].items()):
             contract_header = contract['request_header_details'].get(header_name)
             if contract_header is None:

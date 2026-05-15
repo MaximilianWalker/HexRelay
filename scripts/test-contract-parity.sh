@@ -215,6 +215,77 @@ PY
   trap - RETURN
 }
 
+run_unexpected_request_header_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+text = path.read_text()
+
+if mutation_name == "fail-unexpected-csrf-header":
+    old = """      parameters:
+        - in: query
+          name: cursor"""
+    new = """      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+        - in: query
+          name: cursor"""
+elif mutation_name == "fail-unexpected-internal-auth-header":
+    old = """      parameters:
+        - in: query
+          name: cursor"""
+    new = """      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: cursor"""
+else:
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+if old not in text:
+    raise SystemExit("fixture mutation target not found")
+path.write_text(text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_path_parameter_format_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -1003,6 +1074,8 @@ run_fixture fail-session-auth-security 1 "documents security schemes [CookieAuth
 run_fixture fail-session-auth-500 1 "missing a 500 response"
 run_fixture fail-success-content 1 "documents no success schema"
 run_fixture fail-unexpected-request-body 1 "documents a requestBody but runtime handler has no request-body extractor"
+run_unexpected_request_header_fixture fail-unexpected-csrf-header 1 "documents CsrfTokenHeader but runtime does not enforce CSRF"
+run_unexpected_request_header_fixture fail-unexpected-internal-auth-header 1 'documents request header `x-hexrelay-internal-token` but runtime does not require it'
 run_fixture fail-missing-example 1 "thread_not_found"
 
 printf '[contract-parity-test] Fixture regressions passed\n'
