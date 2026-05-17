@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-17
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery planning authority.
+- Latest meaningful change: 2026-05-17 routed the Windows parity CI gate through contributor validation guidance.
 
 ## Purpose
 

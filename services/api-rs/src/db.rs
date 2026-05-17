@@ -230,7 +230,25 @@ mod tests {
 
     static TEMP_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+    fn skip_service_backed_tests() -> bool {
+        env::var("HEXRELAY_SKIP_SERVICE_BACKED_TESTS")
+            .map(|value| {
+                matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes"
+                )
+            })
+            .unwrap_or(false)
+    }
+
     async fn prepare_test_pool() -> Option<PgPool> {
+        if skip_service_backed_tests() {
+            eprintln!(
+                "[api-rs db test] skipping DB-backed test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+            );
+            return None;
+        }
+
         let url = match env::var("API_DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
             _ => {
@@ -292,6 +310,13 @@ mod tests {
 
     #[tokio::test]
     async fn migration_checksum_mismatch_is_detected_and_lock_is_released() {
+        if skip_service_backed_tests() {
+            eprintln!(
+                "[api-rs db test] skipping DB-backed test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+            );
+            return;
+        }
+
         let url = match env::var("API_DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
             _ => {
@@ -440,6 +465,13 @@ mod tests {
 
     #[tokio::test]
     async fn concurrent_prepare_on_fresh_database_is_serialized() {
+        if skip_service_backed_tests() {
+            eprintln!(
+                "[api-rs db test] skipping DB-backed test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+            );
+            return;
+        }
+
         let url = match env::var("API_DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
             _ => {

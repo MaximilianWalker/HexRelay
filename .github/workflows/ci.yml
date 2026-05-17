@@ -303,6 +303,37 @@ jobs:
             npm run build
           fi
 
+  windows-parity-check:
+    name: windows-parity-check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+
+      - name: Windows setup path
+        shell: pwsh
+        run: npm run setup:windows
+
+      - name: Validate runtime profile definitions
+        run: npm run validate:runtime-profiles
+
+      - name: Validate network profile definitions
+        run: npm run validate:network-profiles
+
+      - name: Windows PowerShell test path
+        shell: pwsh
+        run: npm run test:windows -- -SkipServiceBackedTests
+
   rust-coverage-gate:
     name: rust-coverage-gate
     runs-on: ubuntu-latest
@@ -360,7 +391,7 @@ jobs:
   integration-smoke:
     name: integration-smoke (web->api->realtime)
     runs-on: ubuntu-latest
-    needs: [security-audit, rust-check, web-check, rust-coverage-gate, migration-evidence-check, evidence-provenance-check, contract-parity-check, docs-index-freshness-check, dm-transport-policy-check]
+    needs: [security-audit, rust-check, web-check, windows-parity-check, rust-coverage-gate, migration-evidence-check, evidence-provenance-check, contract-parity-check, docs-index-freshness-check, dm-transport-policy-check]
     services:
       postgres:
         image: postgres:16
