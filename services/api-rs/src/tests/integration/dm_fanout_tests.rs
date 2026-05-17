@@ -688,7 +688,7 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     assert_eq!(outbound.attempt_count, 1);
     assert!(outbound.last_error.is_none());
 
-    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+    let records = dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, 0, 10)
         .await
         .expect("load node B delivery records");
     let accepted = records
@@ -793,7 +793,7 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
     assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_pending_delivery");
 
-    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+    let records = dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, 0, 10)
         .await
         .expect("load delivery records");
     let record = records
