@@ -10,16 +10,6 @@ declare global {
   }
 }
 
-const FALLBACK_PREFIX = "hexrelay.secure.fallback";
-
-function fallbackStorage(): Storage | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.sessionStorage;
-}
-
 function resolveProvider(): SecureStoreProvider | null {
   if (typeof window === "undefined") {
     return null;
@@ -28,86 +18,41 @@ function resolveProvider(): SecureStoreProvider | null {
   return window.__HEXRELAY_SECURE_STORE__ ?? null;
 }
 
-function fallbackKey(key: string): string {
-  return `${FALLBACK_PREFIX}.${key}`;
-}
-
 export async function secureGetItem(key: string): Promise<string | null> {
-  const storage = fallbackStorage();
-  if (!storage) {
+  const provider = resolveProvider();
+  if (!provider) {
     return null;
   }
 
-  const provider = resolveProvider();
-  if (provider) {
-    const fallbackValue = storage.getItem(fallbackKey(key));
-
-    try {
-      const providerValue = await provider.getItem(key);
-
-      if (fallbackValue !== null) {
-        let synced = providerValue === fallbackValue;
-
-        if (!synced) {
-          try {
-            await provider.setItem(key, fallbackValue);
-            synced = true;
-          } catch {
-            // keep fallback value as source of truth when provider update fails
-          }
-        }
-
-        if (synced) {
-          storage.removeItem(fallbackKey(key));
-        }
-
-        return fallbackValue;
-      }
-
-      return providerValue;
-    } catch {
-      return fallbackValue;
-    }
+  try {
+    return await provider.getItem(key);
+  } catch {
+    return null;
   }
-
-  return storage.getItem(fallbackKey(key));
 }
 
 export async function secureSetItem(key: string, value: string): Promise<void> {
-  const storage = fallbackStorage();
-  if (!storage) {
-    return;
-  }
-
   const provider = resolveProvider();
-  if (provider) {
-    try {
-      await provider.setItem(key, value);
-      storage.removeItem(fallbackKey(key));
-      return;
-    } catch {
-      storage.setItem(fallbackKey(key), value);
-      return;
-    }
+  if (!provider) {
+    throw new Error("Secure storage provider unavailable");
   }
 
-  storage.setItem(fallbackKey(key), value);
+  try {
+    await provider.setItem(key, value);
+  } catch {
+    throw new Error("Secure storage provider write failed");
+  }
 }
 
 export async function secureRemoveItem(key: string): Promise<void> {
-  const storage = fallbackStorage();
-  if (!storage) {
+  const provider = resolveProvider();
+  if (!provider) {
     return;
   }
 
-  const provider = resolveProvider();
-  if (provider) {
-    try {
-      await provider.removeItem(key);
-    } catch {
-      // continue and clear fallback storage below
-    }
+  try {
+    await provider.removeItem(key);
+  } catch {
+    // Removing key handles is best-effort when the platform store is unavailable.
   }
-
-  storage.removeItem(fallbackKey(key));
 }
