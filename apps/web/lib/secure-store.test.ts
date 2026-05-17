@@ -18,6 +18,22 @@ class MemoryStorage {
   }
 }
 
+type SecureStoreProvider = {
+  getItem(key: string): Promise<string | null>;
+  removeItem(key: string): Promise<void>;
+  setItem(key: string, value: string): Promise<void>;
+};
+
+type WindowWithSecureStore = {
+  __HEXRELAY_SECURE_STORE__?: SecureStoreProvider;
+  localStorage: MemoryStorage;
+  sessionStorage: MemoryStorage;
+};
+
+function currentWindow(): WindowWithSecureStore {
+  return globalThis.window as unknown as WindowWithSecureStore;
+}
+
 describe("secure-store", () => {
   beforeEach(() => {
     (globalThis as { window?: unknown }).window = {
@@ -30,46 +46,89 @@ describe("secure-store", () => {
     delete (globalThis as { window?: unknown }).window;
   });
 
-  it("falls back to sessionStorage when provider setItem fails", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
+  it("returns null when the secure-store provider is unavailable", async () => {
+    const windowRef = currentWindow();
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-a", "value-a");
+
+    expect(await secureGetItem("key-a")).toBeNull();
+  });
+
+  it("rejects writes when the secure-store provider is unavailable", async () => {
+    const windowRef = currentWindow();
+
+    await expect(secureSetItem("key-a", "value-a")).rejects.toThrow(
+      "Secure storage provider unavailable",
+    );
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-a")).toBeNull();
+  });
+
+  it("stores, reads, and removes values through the secure-store provider", async () => {
+    const stored = new Map<string, string>();
+    const windowRef = currentWindow();
+    windowRef.__HEXRELAY_SECURE_STORE__ = {
+      async getItem(key) {
+        return stored.get(key) ?? null;
+      },
+      async removeItem(key) {
+        stored.delete(key);
+      },
+      async setItem(key, value) {
+        stored.set(key, value);
+      },
     };
 
+    await secureSetItem("key-b", "value-b");
+
+    expect(await secureGetItem("key-b")).toBe("value-b");
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-b")).toBeNull();
+
+    await secureRemoveItem("key-b");
+    expect(await secureGetItem("key-b")).toBeNull();
+  });
+
+  it("returns null when provider reads fail", async () => {
+    const windowRef = currentWindow();
+    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-c", "value-c");
+    windowRef.__HEXRELAY_SECURE_STORE__ = {
+      async getItem() {
+        throw new Error("get failed");
+      },
+      async removeItem() {
+        return;
+      },
+      async setItem() {
+        return;
+      },
+    };
+
+    expect(await secureGetItem("key-c")).toBeNull();
+  });
+
+  it("rejects provider write failures without using browser storage", async () => {
+    const windowRef = currentWindow();
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
         return null;
       },
       async removeItem() {
-        throw new Error("remove failed");
+        return;
       },
       async setItem() {
         throw new Error("set failed");
       },
     };
 
-    await secureSetItem("key-a", "value-a");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-a")).toBe("value-a");
+    await expect(secureSetItem("key-d", "value-d")).rejects.toThrow(
+      "Secure storage provider write failed",
+    );
+    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-d")).toBeNull();
   });
 
-  it("falls back to sessionStorage when provider get/remove fail", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-b", "value-b");
+  it("treats provider remove failures as best-effort cleanup", async () => {
+    const windowRef = currentWindow();
     windowRef.__HEXRELAY_SECURE_STORE__ = {
       async getItem() {
-        throw new Error("get failed");
+        return null;
       },
       async removeItem() {
         throw new Error("remove failed");
@@ -79,173 +138,6 @@ describe("secure-store", () => {
       },
     };
 
-    expect(await secureGetItem("key-b")).toBe("value-b");
-    await secureRemoveItem("key-b");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-b")).toBeNull();
-  });
-
-  it("reads fallback value when provider returns null", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-c", "value-c");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return null;
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem() {
-        return;
-      },
-    };
-
-    expect(await secureGetItem("key-c")).toBe("value-c");
-  });
-
-  it("migrates fallback value back to provider when provider recovers", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    let providerValue: string | null = null;
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-f", "fallback-f");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return providerValue;
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem(_key, value) {
-        providerValue = value;
-      },
-    };
-
-    expect(await secureGetItem("key-f")).toBe("fallback-f");
-    expect(providerValue).toBe("fallback-f");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-f")).toBeNull();
-  });
-
-  it("clears fallback even when provider remove succeeds", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-d", "value-d");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return null;
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem() {
-        return;
-      },
-    };
-
-    await secureRemoveItem("key-d");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-d")).toBeNull();
-  });
-
-  it("clears stale fallback when provider set succeeds", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-e", "stale-value");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return "provider-value";
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem() {
-        return;
-      },
-    };
-
-    await secureSetItem("key-e", "new-value");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-e")).toBeNull();
-  });
-
-  it("prefers fallback over stale provider value", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    let providerValue = "stale-provider";
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-g", "fresh-fallback");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return providerValue;
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem(_key, value) {
-        providerValue = value;
-      },
-    };
-
-    expect(await secureGetItem("key-g")).toBe("fresh-fallback");
-    expect(providerValue).toBe("fresh-fallback");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-g")).toBeNull();
-  });
-
-  it("keeps fallback when provider resync fails", async () => {
-    const windowRef = globalThis.window as {
-      __HEXRELAY_SECURE_STORE__?: {
-        getItem(key: string): Promise<string | null>;
-        removeItem(key: string): Promise<void>;
-        setItem(key: string, value: string): Promise<void>;
-      };
-      sessionStorage: MemoryStorage;
-    };
-
-    windowRef.sessionStorage.setItem("hexrelay.secure.fallback.key-h", "fallback-h");
-    windowRef.__HEXRELAY_SECURE_STORE__ = {
-      async getItem() {
-        return "stale-provider";
-      },
-      async removeItem() {
-        return;
-      },
-      async setItem() {
-        throw new Error("provider unavailable");
-      },
-    };
-
-    expect(await secureGetItem("key-h")).toBe("fallback-h");
-    expect(windowRef.sessionStorage.getItem("hexrelay.secure.fallback.key-h")).toBe("fallback-h");
+    await expect(secureRemoveItem("key-e")).resolves.toBeUndefined();
   });
 });
