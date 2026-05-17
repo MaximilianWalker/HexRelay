@@ -61,6 +61,8 @@ pub async fn insert_dm_thread(
     .execute(pool)
     .await?;
 
+    refresh_dm_thread_last_message(pool, params.thread_id).await?;
+
     Ok(())
 }
 
@@ -70,10 +72,16 @@ pub async fn insert_dm_thread_participant(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "
-        INSERT INTO dm_thread_participants (thread_id, identity_id, last_read_seq)
-        VALUES ($1, $2, $3)
+        INSERT INTO dm_thread_participants (thread_id, identity_id, last_read_seq, last_message_seq)
+        VALUES (
+            $1,
+            $2,
+            $3,
+            COALESCE((SELECT last_message_seq FROM dm_threads WHERE thread_id = $1), 0)
+        )
         ON CONFLICT (thread_id, identity_id) DO UPDATE
-        SET last_read_seq = EXCLUDED.last_read_seq
+        SET last_read_seq = EXCLUDED.last_read_seq,
+            last_message_seq = EXCLUDED.last_message_seq
         ",
     )
     .bind(params.thread_id)
@@ -84,6 +92,8 @@ pub async fn insert_dm_thread_participant(
     )
     .execute(pool)
     .await?;
+
+    refresh_dm_thread_last_message(pool, params.thread_id).await?;
 
     Ok(())
 }
@@ -113,6 +123,8 @@ pub async fn insert_dm_message(
     .bind(params.edited_at)
     .execute(pool)
     .await?;
+
+    refresh_dm_thread_last_message(pool, params.thread_id).await?;
 
     Ok(())
 }
@@ -198,8 +210,129 @@ pub async fn insert_dm_message_in_tx(
     .execute(&mut **tx)
     .await?;
 
+    refresh_dm_thread_last_message_in_tx(tx, params.thread_id).await?;
+
     Ok(())
 }
+
+async fn refresh_dm_thread_last_message(pool: &PgPool, thread_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        WITH latest AS (
+            SELECT seq, ciphertext, created_at
+            FROM dm_messages
+            WHERE thread_id = $1
+            ORDER BY seq DESC
+            LIMIT 1
+        ),
+        updated_thread AS (
+            UPDATE dm_threads
+            SET last_message_seq = COALESCE((SELECT seq FROM latest), 0),
+                last_message_preview = COALESCE((SELECT ciphertext FROM latest), ''),
+                last_message_at = (SELECT created_at FROM latest)
+            WHERE thread_id = $1
+            RETURNING last_message_seq
+        )
+        UPDATE dm_thread_participants
+        SET last_message_seq = (SELECT last_message_seq FROM updated_thread)
+        WHERE thread_id = $1
+        "#,
+    )
+    .bind(thread_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn refresh_dm_thread_last_message_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    thread_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        WITH latest AS (
+            SELECT seq, ciphertext, created_at
+            FROM dm_messages
+            WHERE thread_id = $1
+            ORDER BY seq DESC
+            LIMIT 1
+        ),
+        updated_thread AS (
+            UPDATE dm_threads
+            SET last_message_seq = COALESCE((SELECT seq FROM latest), 0),
+                last_message_preview = COALESCE((SELECT ciphertext FROM latest), ''),
+                last_message_at = (SELECT created_at FROM latest)
+            WHERE thread_id = $1
+            RETURNING last_message_seq
+        )
+        UPDATE dm_thread_participants
+        SET last_message_seq = (SELECT last_message_seq FROM updated_thread)
+        WHERE thread_id = $1
+        "#,
+    )
+    .bind(thread_id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+const LIST_DM_THREADS_SQL: &str = r#"
+        WITH cursor_position AS (
+            SELECT pt.last_message_seq
+            FROM dm_thread_participants pt
+            WHERE pt.identity_id = $1
+              AND pt.thread_id = $2::TEXT
+              AND ((NOT $4) OR GREATEST(pt.last_message_seq - pt.last_read_seq, 0) > 0)
+        ),
+        page_threads AS (
+            SELECT
+                t.thread_id,
+                t.kind,
+                t.title,
+                pt.last_message_seq,
+                pt.last_read_seq,
+                GREATEST(pt.last_message_seq - pt.last_read_seq, 0) AS unread,
+                t.last_message_preview,
+                TO_CHAR(
+                    COALESCE(t.last_message_at, t.created_at) AT TIME ZONE 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+                ) AS last_message_at
+            FROM dm_thread_participants pt
+            INNER JOIN dm_threads t ON t.thread_id = pt.thread_id
+            WHERE pt.identity_id = $1
+              AND ((NOT $4) OR GREATEST(pt.last_message_seq - pt.last_read_seq, 0) > 0)
+              AND (
+                  $2::TEXT IS NULL
+                  OR NOT EXISTS (SELECT 1 FROM cursor_position)
+                  OR pt.last_message_seq < (SELECT last_message_seq FROM cursor_position)
+                  OR (
+                      pt.last_message_seq = (SELECT last_message_seq FROM cursor_position)
+                      AND pt.thread_id > $2::TEXT
+                  )
+              )
+            ORDER BY pt.last_message_seq DESC, pt.thread_id ASC
+            LIMIT $3
+        )
+        SELECT
+            page_threads.thread_id,
+            page_threads.kind,
+            page_threads.title,
+            participants.participant_ids,
+            page_threads.last_message_seq,
+            page_threads.last_read_seq,
+            page_threads.unread,
+            page_threads.last_message_preview,
+            page_threads.last_message_at
+        FROM page_threads
+        CROSS JOIN LATERAL (
+            SELECT ARRAY_AGG(identity_id ORDER BY identity_id) AS participant_ids
+            FROM dm_thread_participants
+            WHERE thread_id = page_threads.thread_id
+        ) participants
+        ORDER BY page_threads.last_message_seq DESC, page_threads.thread_id ASC
+        "#;
 
 pub async fn list_dm_threads_for_identity(
     pool: &PgPool,
@@ -228,67 +361,13 @@ pub async fn list_dm_threads_for_identity(
         }
     }
 
-    let rows = sqlx::query(
-        r#"
-        WITH participant_threads AS (
-            SELECT thread_id, last_read_seq
-            FROM dm_thread_participants
-            WHERE identity_id = $1
-        ),
-        message_stats AS (
-            SELECT
-                m.thread_id,
-                MAX(m.seq) AS last_message_seq,
-                (ARRAY_AGG(m.ciphertext ORDER BY m.seq DESC))[1] AS last_message_preview,
-                (ARRAY_AGG(TO_CHAR(m.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') ORDER BY m.seq DESC))[1] AS last_message_at
-            FROM dm_messages m
-            GROUP BY m.thread_id
-        ),
-        participant_lists AS (
-            SELECT thread_id, ARRAY_AGG(identity_id ORDER BY identity_id) AS participant_ids
-            FROM dm_thread_participants
-            GROUP BY thread_id
-        ),
-        filtered AS (
-            SELECT
-                t.thread_id,
-                t.kind,
-                t.title,
-                pl.participant_ids,
-                COALESCE(ms.last_message_seq, 0) AS last_message_seq,
-                pt.last_read_seq,
-                GREATEST(COALESCE(ms.last_message_seq, 0) - pt.last_read_seq, 0) AS unread,
-                COALESCE(ms.last_message_preview, '') AS last_message_preview,
-                COALESCE(ms.last_message_at, TO_CHAR(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS last_message_at
-            FROM participant_threads pt
-            INNER JOIN dm_threads t ON t.thread_id = pt.thread_id
-            INNER JOIN participant_lists pl ON pl.thread_id = t.thread_id
-            LEFT JOIN message_stats ms ON ms.thread_id = t.thread_id
-            WHERE (NOT $4) OR GREATEST(COALESCE(ms.last_message_seq, 0) - pt.last_read_seq, 0) > 0
-            ORDER BY COALESCE(ms.last_message_seq, 0) DESC, t.thread_id ASC
-        ),
-        ranked AS (
-            SELECT *, ROW_NUMBER() OVER (ORDER BY COALESCE(last_message_seq, 0) DESC, thread_id ASC) AS rn
-            FROM filtered
-        )
-        SELECT thread_id, kind, title, participant_ids,
-               last_message_seq, last_read_seq, unread,
-               last_message_preview, last_message_at
-        FROM ranked
-        WHERE rn > COALESCE(
-            (SELECT r2.rn FROM ranked r2 WHERE r2.thread_id = $2::TEXT),
-            0
-        )
-        ORDER BY last_message_seq DESC, thread_id ASC
-        LIMIT $3
-        "#,
-    )
-    .bind(identity_id)
-    .bind(cursor)
-    .bind(fetch_limit)
-    .bind(unread_only)
-    .fetch_all(pool)
-    .await?;
+    let rows = sqlx::query(LIST_DM_THREADS_SQL)
+        .bind(identity_id)
+        .bind(cursor)
+        .bind(fetch_limit)
+        .bind(unread_only)
+        .fetch_all(pool)
+        .await?;
 
     rows.into_iter().map(map_dm_thread_row).collect()
 }
@@ -373,11 +452,7 @@ pub async fn mark_dm_thread_read(
         SET last_read_seq = GREATEST(last_read_seq, $3)
         WHERE thread_id = $1 AND identity_id = $2
         RETURNING last_read_seq,
-                  GREATEST(
-                      (SELECT COALESCE(MAX(seq), 0) FROM dm_messages WHERE thread_id = $1)
-                      - last_read_seq,
-                      0
-                  ) AS unread
+                  GREATEST(last_message_seq - last_read_seq, 0) AS unread
         "#,
     )
     .bind(thread_id)
@@ -436,4 +511,30 @@ fn map_dm_message_row(row: sqlx::postgres::PgRow) -> Result<DmMessageRecord, sql
         created_at: row.try_get::<String, _>("created_at")?,
         edited_at: row.try_get::<Option<String>, _>("edited_at")?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LIST_DM_THREADS_SQL;
+
+    #[test]
+    fn list_dm_threads_query_uses_identity_keyset_without_global_rank() {
+        for marker in [
+            concat!("message", "_stats AS"),
+            concat!("participant", "_lists AS"),
+            "ROW_NUMBER",
+            concat!("GROUP BY m", ".thread_id"),
+        ] {
+            assert!(
+                !LIST_DM_THREADS_SQL.contains(marker),
+                "thread listing query should not contain global aggregate/rank marker {marker}"
+            );
+        }
+
+        assert!(LIST_DM_THREADS_SQL.contains("FROM dm_thread_participants pt"));
+        assert!(LIST_DM_THREADS_SQL.contains("pt.identity_id = $1"));
+        assert!(LIST_DM_THREADS_SQL.contains("pt.last_message_seq <"));
+        assert!(LIST_DM_THREADS_SQL.contains("LIMIT $3"));
+        assert!(LIST_DM_THREADS_SQL.contains("CROSS JOIN LATERAL"));
+    }
 }
