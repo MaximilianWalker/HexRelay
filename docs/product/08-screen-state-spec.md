@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-15
 - Source of truth: `docs/product/08-screen-state-spec.md`
 
 ## Quick Context
 
 - Purpose: define screen-level states so Web/API/Core teams implement the same behavior.
 - Primary edit location: update when a screen flow or failure mode changes.
-- Latest meaningful change: 2026-05-13 added an approval-pending server-channel optimistic send proposal without authorizing UI implementation.
+- Latest meaningful change: 2026-05-15 linked the approval-pending DM workspace delivery plan without authorizing UI implementation.
 
 ## Core Screens
 
@@ -83,6 +83,12 @@ Behavior constraints:
 - Do not add unread/read receipt behavior in this scope.
 - Do not introduce DM transport concepts, endpoint cards, preflight checks, or node-bypassing language.
 
+## DM Workspace Delivery Proposal
+
+Status: approval_pending. The proposed accepted-contact DM workspace delivery flow, copy, controls, implementation slices, and approval decision record live in `docs/planning/dm-workspace-delivery-implementation-plan.md`.
+
+This reference does not approve runtime UI implementation. DM workspace runtime changes must cite an explicit approval reference with non-pending `DMW-APP-*` values before editing visible Web behavior.
+
 ## Policy-Driven States
 
 - DM inbound policy denied (`friends_only`, `same_server`, `anyone`) must surface deterministic reason and settings shortcut.
@@ -123,6 +129,7 @@ Behavior constraints:
 ## Related Documents
 
 - `docs/product/07-ui-navigation-spec.md`
+- `docs/planning/dm-workspace-delivery-implementation-plan.md`
 - `docs/planning/iterations/01-sprint-board.md`
 - `docs/planning/iterations/02-sprint-board.md`
 - `docs/planning/iterations/03-sprint-board.md`
