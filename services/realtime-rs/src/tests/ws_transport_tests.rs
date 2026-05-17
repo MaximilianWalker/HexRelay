@@ -326,7 +326,25 @@ async fn start_presence_api_stub(
     format!("http://{}", address)
 }
 
+fn skip_service_backed_tests() -> bool {
+    env::var("HEXRELAY_SKIP_SERVICE_BACKED_TESTS")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
+        .unwrap_or(false)
+}
+
 async fn prepared_redis_client() -> Option<redis::Client> {
+    if skip_service_backed_tests() {
+        eprintln!(
+            "[realtime-rs test] skipping Redis-backed presence test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+        );
+        return None;
+    }
+
     let redis_url = match env::var("REALTIME_PRESENCE_REDIS_URL") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {

@@ -210,7 +210,25 @@ fn extract_cookie_from_set_cookie_headers(
     None
 }
 
+fn skip_service_backed_tests() -> bool {
+    env::var("HEXRELAY_SKIP_SERVICE_BACKED_TESTS")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
+        .unwrap_or(false)
+}
+
 async fn prepared_database_pool() -> Option<sqlx::PgPool> {
+    if skip_service_backed_tests() {
+        eprintln!(
+            "[api-rs test] skipping DB-backed tests because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+        );
+        return None;
+    }
+
     let database_url = match env::var("API_DATABASE_URL") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
@@ -241,6 +259,13 @@ async fn prepared_database_pool() -> Option<sqlx::PgPool> {
 }
 
 async fn prepared_presence_redis_client() -> Option<redis::Client> {
+    if skip_service_backed_tests() {
+        eprintln!(
+            "[api-rs test] skipping Redis-backed presence test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
+        );
+        return None;
+    }
+
     let redis_url = match env::var("API_PRESENCE_REDIS_URL") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {

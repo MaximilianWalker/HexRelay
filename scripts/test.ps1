@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipServiceBackedTests
+)
+
 $ErrorActionPreference = 'Stop'
 
 function Invoke-Checked {
@@ -14,6 +18,12 @@ function Invoke-Checked {
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+$previousSkipServiceBackedTests = $env:HEXRELAY_SKIP_SERVICE_BACKED_TESTS
+if ($SkipServiceBackedTests) {
+    Write-Host '[test.ps1] Skipping external service-backed Rust tests'
+    $env:HEXRELAY_SKIP_SERVICE_BACKED_TESTS = '1'
+}
 
 $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
 if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $cargoBin })) {
@@ -40,6 +50,14 @@ Invoke-Checked -Label 'web test coverage' -Command {
 }
 Invoke-Checked -Label 'web build' -Command {
     npm run build --prefix 'apps/web'
+}
+
+if ($SkipServiceBackedTests) {
+    if ($null -eq $previousSkipServiceBackedTests) {
+        Remove-Item Env:\HEXRELAY_SKIP_SERVICE_BACKED_TESTS -ErrorAction SilentlyContinue
+    } else {
+        $env:HEXRELAY_SKIP_SERVICE_BACKED_TESTS = $previousSkipServiceBackedTests
+    }
 }
 
 Write-Host '[test.ps1] Complete'
