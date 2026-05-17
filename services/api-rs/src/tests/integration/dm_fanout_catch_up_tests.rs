@@ -102,6 +102,41 @@ async fn catch_up(app: &axum::Router, token: &str, device_id: &str) -> serde_jso
     serde_json::from_slice(&body).expect("decode catch-up body")
 }
 
+async fn catch_up_page(
+    app: &axum::Router,
+    token: &str,
+    device_id: &str,
+    cursor: Option<&str>,
+    limit: u32,
+) -> serde_json::Value {
+    let mut payload = serde_json::json!({
+        "device_id": device_id,
+        "device_secret": device_secret(device_id),
+        "limit": limit,
+    });
+    if let Some(cursor) = cursor {
+        payload["cursor"] = serde_json::json!(cursor);
+    }
+
+    let catch_up = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .expect("build paged fanout catch-up request");
+    let response = app
+        .clone()
+        .oneshot(catch_up)
+        .await
+        .expect("paged fanout catch-up response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read paged catch-up body");
+    serde_json::from_slice(&body).expect("decode paged catch-up body")
+}
+
 async fn ack_dm_envelope(
     app: &axum::Router,
     envelope_id: &str,
@@ -544,6 +579,61 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
     let catch_up_payload: serde_json::Value =
         catch_up_response.json().await.expect("decode catch-up");
     assert_eq!(catch_up_payload["replay_count"], 1);
+}
+
+#[tokio::test]
+async fn fanout_catch_up_paginates_from_request_cursor() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let message_ids = [
+        unique_message_id("msg-page-a"),
+        unique_message_id("msg-page-b"),
+        unique_message_id("msg-page-c"),
+    ];
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    heartbeat_device(&app, &tokens[recipient.as_str()], "desktop-main", true).await;
+
+    for message_id in &message_ids {
+        dispatch_dm(
+            &app,
+            &tokens[sender.as_str()],
+            &recipient,
+            message_id,
+            "enc:paged-catch-up",
+        )
+        .await;
+    }
+
+    let first_page =
+        catch_up_page(&app, &tokens[recipient.as_str()], "desktop-main", None, 1).await;
+    assert_eq!(first_page["replay_count"], 1);
+    assert_eq!(first_page["next_cursor"], "1");
+    assert_eq!(first_page["items"][0]["cursor"], "1");
+    assert_eq!(
+        first_page["items"][0]["message_id"],
+        message_ids[0].as_str()
+    );
+
+    let second_page = catch_up_page(
+        &app,
+        &tokens[recipient.as_str()],
+        "desktop-main",
+        Some("1"),
+        1,
+    )
+    .await;
+    assert_eq!(second_page["replay_count"], 1);
+    assert_eq!(second_page["next_cursor"], "2");
+    assert_eq!(second_page["items"][0]["cursor"], "2");
+    assert_eq!(
+        second_page["items"][0]["message_id"],
+        message_ids[1].as_str()
+    );
 }
 
 #[tokio::test]

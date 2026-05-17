@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-17 routed the Windows parity CI gate through contributor validation guidance.
+- Latest meaningful change: 2026-05-17 clarified DM fanout catch-up replay cursor contract semantics.
 
 ## Purpose
 

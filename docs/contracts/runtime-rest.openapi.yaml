@@ -3677,7 +3677,7 @@ components:
           description: Number of replay items returned in this response after duplicate suppression.
         next_cursor:
           type: string
-          description: Cursor of the last returned missing envelope, or the durable device cursor when no envelopes are returned. Blocked branches force `"0"`; durable per-device cursor advancement occurs only after contiguous `dm.envelope.ack` persistence.
+          description: Cursor of the last returned missing envelope, or the effective replay cursor (`max(durable device cursor, requested cursor)`) when no envelopes are returned. Blocked branches force `"0"`; durable per-device cursor advancement occurs only after contiguous `dm.envelope.ack` persistence.
         deduped_message_ids:
           type: array
           description: Message IDs skipped as duplicate replay entries using key `(message_id, sender_identity_id, source_device_id, ciphertext)`.
