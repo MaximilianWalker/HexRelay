@@ -324,10 +324,11 @@ jobs:
         shell: pwsh
         run: npm run setup:windows
 
-      - name: Validate portable profile definitions
-        run: |
-          npm run validate:runtime-profiles
-          npm run validate:network-profiles
+      - name: Validate runtime profile definitions
+        run: npm run validate:runtime-profiles
+
+      - name: Validate network profile definitions
+        run: npm run validate:network-profiles
 
       - name: Windows PowerShell test path
         shell: pwsh
