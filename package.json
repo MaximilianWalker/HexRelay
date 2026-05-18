@@ -34,6 +34,6 @@
     "test:network": "node scripts/test-network.mjs",
     "test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1",
     "test:unix": "bash scripts/test.sh",
-    "security": "bash scripts/ensure-cargo-audit.sh && cargo audit --deny warnings --ignore RUSTSEC-2023-0071"
+    "security": "node scripts/security.mjs"
   }
 }
