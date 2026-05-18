@@ -16,7 +16,10 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
+use crate::state::{
+    AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState, OutboundReplayCheckpoint,
+    OutboundWsMessage,
+};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
 const MIN_DEVICE_SECRET_LEN: usize = 16;
@@ -137,7 +140,7 @@ async fn handle_socket(
     auth_context: SessionAuthContext,
 ) {
     let (mut sender, mut receiver) = socket.split();
-    let (outbound_tx, mut outbound_rx) = mpsc::channel::<String>(64);
+    let (outbound_tx, mut outbound_rx) = mpsc::channel::<OutboundWsMessage>(64);
 
     register_connection_sender(
         &state,
@@ -148,15 +151,24 @@ async fn handle_socket(
     )
     .await;
 
+    let writer_state = state.clone();
     let writer = tokio::spawn(async move {
-        while let Some(payload) = outbound_rx.recv().await {
-            if sender.send(Message::Text(payload)).await.is_err() {
+        while let Some(message) = outbound_rx.recv().await {
+            let checkpoint = message.replay_checkpoint().cloned();
+            if sender
+                .send(Message::Text(message.into_payload()))
+                .await
+                .is_err()
+            {
                 break;
+            }
+            if let Some(checkpoint) = checkpoint {
+                persist_outbound_replay_checkpoint(&writer_state, checkpoint).await;
             }
         }
     });
 
-    let _ = outbound_tx.try_send(connection_ready_banner());
+    try_send_outbound_text(&outbound_tx, connection_ready_banner());
     if let (Some(device_id), Some(device_secret)) =
         (device_id.as_deref(), initial_device_secret.as_deref())
     {
@@ -171,7 +183,7 @@ async fn handle_socket(
         if verified {
             mark_connection_dm_device_verified(&state, &session_identity_id, &connection_id).await;
         }
-        let _ = outbound_tx.try_send(response);
+        try_send_outbound_text(&outbound_tx, response);
     }
     crate::domain::presence::hydrate_presence_backlog_if_needed(
         &state,
@@ -201,7 +213,7 @@ async fn handle_socket(
                     }
 
                     warn!(identity_id = %session_identity_id, "closed websocket due to dev fault disconnect timer");
-                    let _ = outbound_tx.try_send(build_error_event(
+                    try_send_outbound_text(&outbound_tx, build_error_event(
                         "dev_fault_disconnect",
                         "dev fault injection closed websocket",
                     ));
@@ -251,6 +263,44 @@ async fn handle_socket(
     let _ = writer.await;
 }
 
+fn try_send_outbound_text(outbound_tx: &mpsc::Sender<OutboundWsMessage>, payload: String) {
+    let _ = outbound_tx.try_send(OutboundWsMessage::text(payload));
+}
+
+async fn persist_outbound_replay_checkpoint(
+    state: &AppState,
+    checkpoint: OutboundReplayCheckpoint,
+) {
+    match checkpoint {
+        OutboundReplayCheckpoint::Channel {
+            identity_id,
+            device_id,
+            cursor,
+        } => {
+            crate::domain::channels::persist_channel_device_cursor(
+                state,
+                &identity_id,
+                &device_id,
+                cursor,
+            )
+            .await;
+        }
+        OutboundReplayCheckpoint::Presence {
+            identity_id,
+            device_id,
+            cursor,
+        } => {
+            crate::domain::presence::persist_presence_device_cursor(
+                state,
+                &identity_id,
+                &device_id,
+                cursor,
+            )
+            .await;
+        }
+    }
+}
+
 async fn dev_fault_disconnect_due(state: &AppState, connected_at: tokio::time::Instant) -> bool {
     current_dev_fault_config(state)
         .await
@@ -265,7 +315,7 @@ async fn handle_inbound_message(
     connection_id: &str,
     device_id: Option<&str>,
     auth_context: &SessionAuthContext,
-    outbound_tx: &mpsc::Sender<String>,
+    outbound_tx: &mpsc::Sender<OutboundWsMessage>,
     message: Result<Message, axum::Error>,
 ) -> bool {
     match message {
@@ -275,10 +325,10 @@ async fn handle_inbound_message(
                     identity_id = %session_identity_id,
                     "closed websocket due to oversized text payload"
                 );
-                let _ = outbound_tx.try_send(build_error_event(
-                    "event_too_large",
-                    "inbound message exceeds max size",
-                ));
+                try_send_outbound_text(
+                    outbound_tx,
+                    build_error_event("event_too_large", "inbound message exceeds max size"),
+                );
                 return false;
             }
 
@@ -303,7 +353,7 @@ async fn handle_inbound_message(
                     mark_connection_dm_device_verified(state, session_identity_id, connection_id)
                         .await;
                 }
-                let _ = outbound_tx.try_send(response);
+                try_send_outbound_text(outbound_tx, response);
             } else if crate::domain::dms::is_dm_envelope_ack_event(&text) {
                 let dm_device_verified = connection_dm_device_verified(
                     state,
@@ -320,7 +370,7 @@ async fn handle_inbound_message(
                     &text,
                 )
                 .await;
-                let _ = outbound_tx.try_send(response);
+                try_send_outbound_text(outbound_tx, response);
             } else {
                 let routed =
                     crate::domain::events::service::route_inbound_event(&text, session_identity_id);
@@ -340,10 +390,13 @@ async fn handle_inbound_message(
                     )
                     .await
                     {
-                        let _ = outbound_tx.try_send(build_error_event(
-                            "event_forbidden",
-                            "signaling recipient is not an accepted contact",
-                        ));
+                        try_send_outbound_text(
+                            outbound_tx,
+                            build_error_event(
+                                "event_forbidden",
+                                "signaling recipient is not an accepted contact",
+                            ),
+                        );
                         return true;
                     }
                     dispatch_recipient_signal(
@@ -353,7 +406,7 @@ async fn handle_inbound_message(
                     )
                     .await;
                 }
-                let _ = outbound_tx.try_send(routed.sender_response);
+                try_send_outbound_text(outbound_tx, routed.sender_response);
             }
             true
         }
@@ -367,10 +420,10 @@ async fn handle_inbound_message(
                     identity_id = %session_identity_id,
                     "closed websocket due to oversized binary payload"
                 );
-                let _ = outbound_tx.try_send(build_error_event(
-                    "event_too_large",
-                    "inbound message exceeds max size",
-                ));
+                try_send_outbound_text(
+                    outbound_tx,
+                    build_error_event("event_too_large", "inbound message exceeds max size"),
+                );
                 return false;
             }
 
@@ -388,7 +441,7 @@ async fn handle_inbound_message(
 fn message_rate_allowed(
     state: &AppState,
     session_identity_id: &str,
-    outbound_tx: &mpsc::Sender<String>,
+    outbound_tx: &mpsc::Sender<OutboundWsMessage>,
 ) -> bool {
     let allowed = state.rate_limiter.allow(
         "ws_message",
@@ -404,10 +457,10 @@ fn message_rate_allowed(
         identity_id = %session_identity_id,
         "closed websocket due to message rate limit"
     );
-    let _ = outbound_tx.try_send(build_error_event(
-        "event_rate_limited",
-        "too many websocket messages",
-    ));
+    try_send_outbound_text(
+        outbound_tx,
+        build_error_event("event_rate_limited", "too many websocket messages"),
+    );
     false
 }
 
@@ -415,7 +468,7 @@ fn signal_target_rate_allowed(
     state: &AppState,
     session_identity_id: &str,
     target_identity_id: &str,
-    outbound_tx: &mpsc::Sender<String>,
+    outbound_tx: &mpsc::Sender<OutboundWsMessage>,
 ) -> bool {
     let rate_key = format!("{session_identity_id}->{target_identity_id}");
     let allowed = state.rate_limiter.allow(
@@ -433,10 +486,13 @@ fn signal_target_rate_allowed(
         target_identity_id = %target_identity_id,
         "rejected recipient-targeted signaling due to sender-recipient rate limit"
     );
-    let _ = outbound_tx.try_send(build_error_event(
-        "event_rate_limited",
-        "too many websocket signaling messages to recipient",
-    ));
+    try_send_outbound_text(
+        outbound_tx,
+        build_error_event(
+            "event_rate_limited",
+            "too many websocket signaling messages to recipient",
+        ),
+    );
     false
 }
 
@@ -628,7 +684,7 @@ async fn dispatch_recipient_signal(
     let mut queued_count = 0usize;
     let mut saturated_count = 0usize;
     for (connection_id, entry) in connections.iter() {
-        match entry.sender.try_send(payload.to_owned()) {
+        match entry.sender.try_send(OutboundWsMessage::text(payload)) {
             Ok(()) => queued_count += 1,
             Err(mpsc::error::TrySendError::Full(_)) => saturated_count += 1,
             Err(mpsc::error::TrySendError::Closed(_)) => {
@@ -1023,7 +1079,7 @@ async fn register_connection_sender(
     state: &AppState,
     identity_id: &str,
     connection_id: &str,
-    sender: mpsc::Sender<String>,
+    sender: mpsc::Sender<OutboundWsMessage>,
     device_id: Option<String>,
 ) {
     let mut guard = state.connection_senders.lock().await;
@@ -1101,7 +1157,9 @@ mod tests {
         release_connection_slot_after_failed_upgrade, should_drop_dev_fault, stable_hash,
         websocket_device_id, websocket_device_secret, SignalDispatchSummary,
     };
-    use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
+    use crate::state::{
+        AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState, OutboundWsMessage,
+    };
     use axum::http::{HeaderMap, HeaderValue};
     use chrono::{Duration as ChronoDuration, Utc};
     use std::collections::HashMap;
@@ -1317,8 +1375,8 @@ mod tests {
     #[tokio::test]
     async fn dispatch_recipient_signal_queues_to_all_active_connections() {
         let state = test_state();
-        let (first_tx, mut first_rx) = mpsc::channel::<String>(1);
-        let (second_tx, mut second_rx) = mpsc::channel::<String>(1);
+        let (first_tx, mut first_rx) = mpsc::channel::<OutboundWsMessage>(1);
+        let (second_tx, mut second_rx) = mpsc::channel::<OutboundWsMessage>(1);
         state.connection_senders.lock().await.insert(
             "usr-recipient".to_string(),
             HashMap::from([
@@ -1374,9 +1432,9 @@ mod tests {
     #[tokio::test]
     async fn dispatch_recipient_signal_keeps_full_connections_registered() {
         let state = test_state();
-        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<OutboundWsMessage>(1);
         full_tx
-            .try_send("seed".to_string())
+            .try_send(OutboundWsMessage::text("seed"))
             .expect("fill recipient queue");
         state.connection_senders.lock().await.insert(
             "usr-recipient".to_string(),
@@ -1414,7 +1472,7 @@ mod tests {
     #[tokio::test]
     async fn dispatch_recipient_signal_removes_stale_connection() {
         let state = test_state();
-        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
+        let (stale_tx, stale_rx) = mpsc::channel::<OutboundWsMessage>(1);
         drop(stale_rx);
         state.connection_senders.lock().await.insert(
             "usr-recipient".to_string(),

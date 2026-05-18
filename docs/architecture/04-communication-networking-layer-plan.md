@@ -6,14 +6,14 @@
 - Owner: Architecture, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-18
 - Source of truth: `docs/architecture/04-communication-networking-layer-plan.md`
 
 ## Quick Context
 
 - Primary edit location for networking-layer architecture across E2EE DM envelope delivery and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-05-11 added recipient-targeted realtime dispatch summaries for DM encrypted envelopes while keeping final delivery ack-backed.
+- Latest meaningful change: 2026-05-18 moved server-channel and presence replay cursor advancement from websocket queue acceptance to successful websocket writer handoff.
 
 ## Purpose
 
@@ -462,7 +462,8 @@ Current MVP-adjacent backend baseline:
 - Profile-level requirement: all devices linked to a profile eventually converge to the same inbound communication state.
 - Convergence includes devices that were offline when first delivery occurred and become active later.
 - Successful DM send means durable sender-side acceptance, not merely attempted live fanout.
-- Delivery model is staged: durable acceptance, realtime dispatch attempt, ack-backed delivery receipt, then deferred convergence by ack-advanced per-device cursor and idempotent dedupe.
+- DM delivery model is staged: durable acceptance, realtime dispatch attempt, ack-backed delivery receipt, then deferred convergence by ack-advanced per-device cursor and idempotent dedupe.
+- Server-channel and presence replay cursors advance only after the realtime gateway observes a successful websocket frame write for that profile device; queue acceptance alone must leave the replay checkpoint unchanged.
 - Read state is a separate target-state concern: explicit read receipts may advance profile-level read state, but envelope delivery acks must never imply user-visible read state.
 - Dedup identity is stable by `(message_id, profile_device_id)` for DM and `(event_id, profile_device_id)` for server-channel/presence.
 - DM convergence must preserve ciphertext-only server behavior: server nodes/message nodes may store/replay E2EE envelopes and minimal metadata, never plaintext or private keys.
@@ -503,7 +504,7 @@ Current MVP-adjacent backend baseline:
 
 - Node fanout targets all active devices linked to the authenticated profile.
 - Later-active devices hydrate missed channel messages and presence transitions by cursor.
-- Per-device channel/presence cursor state must survive reconnect and device restarts.
+- Per-device channel/presence cursor state must survive reconnect and device restarts, and must not skip events that were only accepted into a websocket queue.
 - DM ciphertext-only and client-only-key policy remains isolated and cannot be overridden by server transport logic.
 
 ## Communication Layer Interface Plan
@@ -531,7 +532,7 @@ Current MVP-adjacent backend baseline:
 - `DeliveryReceipt`: `(entity_id, profile_device_id, acked_at)` with idempotent upsert semantics.
 - `ReadReceipt`: `(message_id, reader_identity_id, reader_device_id, read_cursor, scope, read_at)` with participant fanout suppressed unless reader privacy allows it.
 - `CatchUpRequest`: profile-device cursor request for missed DM/server entities.
-- `CatchUpResponse`: ordered missing entities plus the cursor of the last returned missing entity; the durable checkpoint advances only after contiguous device acks.
+- `CatchUpResponse`: ordered missing entities plus the cursor of the last returned missing entity; DM durable checkpoints advance only after contiguous device acks, while server-channel and presence checkpoints advance after successful websocket writer handoff for the device.
 
 ## Delivery Ownership
 
@@ -569,7 +570,7 @@ Current MVP-adjacent backend baseline:
 - Reconnect and ordering tests for channel and presence traffic.
 - Adapter boundary tests ensuring server transport does not mutate DM ciphertext-only or client-only-key policy rules.
 - Profile multi-device fanout tests ensure channel/presence events deliver to all active profile devices.
-- Late-device hydration tests ensure channel/presence replay convergence by per-device cursor.
+- Late-device hydration tests ensure channel/presence replay convergence by per-device cursor and prevent queued-but-unsent events from advancing replay checkpoints.
 
 ## Migration and Rollout Notes
 

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -13,12 +14,73 @@ use crate::transport::ws::middleware::rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct ConnectionSenderEntry {
-    pub sender: Sender<String>,
+    pub sender: Sender<OutboundWsMessage>,
     pub device_id: Option<String>,
     pub dm_device_verified: bool,
 }
 
 pub type ConnectionSenderMap = HashMap<String, HashMap<String, ConnectionSenderEntry>>;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutboundWsMessage {
+    payload: String,
+    replay_checkpoint: Option<OutboundReplayCheckpoint>,
+}
+
+impl OutboundWsMessage {
+    pub fn text(payload: impl Into<String>) -> Self {
+        Self {
+            payload: payload.into(),
+            replay_checkpoint: None,
+        }
+    }
+
+    pub fn with_replay_checkpoint(
+        payload: impl Into<String>,
+        replay_checkpoint: OutboundReplayCheckpoint,
+    ) -> Self {
+        Self {
+            payload: payload.into(),
+            replay_checkpoint: Some(replay_checkpoint),
+        }
+    }
+
+    pub fn into_payload(self) -> String {
+        self.payload
+    }
+
+    pub fn replay_checkpoint(&self) -> Option<&OutboundReplayCheckpoint> {
+        self.replay_checkpoint.as_ref()
+    }
+}
+
+impl Deref for OutboundWsMessage {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.payload
+    }
+}
+
+impl AsRef<str> for OutboundWsMessage {
+    fn as_ref(&self) -> &str {
+        &self.payload
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OutboundReplayCheckpoint {
+    Channel {
+        identity_id: String,
+        device_id: String,
+        cursor: u64,
+    },
+    Presence {
+        identity_id: String,
+        device_id: String,
+        cursor: u64,
+    },
+}
 
 #[derive(Clone)]
 pub struct AppState {

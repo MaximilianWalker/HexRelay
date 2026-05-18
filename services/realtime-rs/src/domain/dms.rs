@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::error::TrySendError;
 use tracing::{info, warn};
 
-use crate::state::AppState;
+use crate::state::{AppState, OutboundWsMessage};
 
 const MAX_ID_LEN: usize = 128;
 const MAX_IDENTITY_ID_LEN: usize = 64;
@@ -357,7 +357,10 @@ async fn dispatch_dm_envelopes_locally(
             else {
                 continue;
             };
-            match entry.sender.try_send(payload.clone()) {
+            match entry
+                .sender
+                .try_send(OutboundWsMessage::text(payload.clone()))
+            {
                 Ok(()) => {
                     *device_state = DeviceDispatchState::Queued;
                 }
@@ -706,14 +709,15 @@ struct DmAckError {
 mod tests {
     use super::*;
     use crate::app::AppState;
+    use crate::state::OutboundWsMessage;
     use tokio::sync::mpsc;
 
     #[tokio::test]
     async fn dispatch_dm_envelope_sends_only_to_target_devices() {
         let state = test_state();
-        let (desktop_tx, mut desktop_rx) = mpsc::channel::<String>(1);
-        let (phone_tx, mut phone_rx) = mpsc::channel::<String>(1);
-        let (other_tx, mut other_rx) = mpsc::channel::<String>(1);
+        let (desktop_tx, mut desktop_rx) = mpsc::channel::<OutboundWsMessage>(1);
+        let (phone_tx, mut phone_rx) = mpsc::channel::<OutboundWsMessage>(1);
+        let (other_tx, mut other_rx) = mpsc::channel::<OutboundWsMessage>(1);
 
         state.connection_senders.lock().await.insert(
             "usr-recipient".to_string(),
@@ -792,9 +796,9 @@ mod tests {
     #[tokio::test]
     async fn dispatch_dm_envelope_keeps_full_connections_registered() {
         let state = test_state();
-        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<OutboundWsMessage>(1);
         full_tx
-            .try_send("seed".to_string())
+            .try_send(OutboundWsMessage::text("seed"))
             .expect("fill outbound queue");
 
         state.connection_senders.lock().await.insert(
@@ -842,8 +846,8 @@ mod tests {
     #[tokio::test]
     async fn dispatch_dm_envelope_reports_pending_target_reasons() {
         let state = test_state();
-        let (unverified_tx, mut unverified_rx) = mpsc::channel::<String>(1);
-        let (closed_tx, closed_rx) = mpsc::channel::<String>(1);
+        let (unverified_tx, mut unverified_rx) = mpsc::channel::<OutboundWsMessage>(1);
+        let (closed_tx, closed_rx) = mpsc::channel::<OutboundWsMessage>(1);
         drop(closed_rx);
 
         state.connection_senders.lock().await.insert(

@@ -32,7 +32,10 @@ info:
     or the `device_id` query parameter for browser websocket clients that cannot
     set custom upgrade headers, to enable per-device replay/hydration for
     `presence.updated`, `channel.message.created`, `channel.message.updated`, and
-    `channel.message.deleted`; the same device binding is required for
+    `channel.message.deleted`. Channel and presence replay checkpoints advance
+    only after the websocket writer successfully writes the outbound event frame
+    for that device, so queue saturation or connection closure leaves missed
+    events eligible for replay. The same device binding is required for
     device-targeted DM envelope dispatch and `dm.envelope.ack` validation. Native
     clients may provide `x-hexrelay-device-secret` during websocket upgrade;
     browser clients must send `dm.device.proof` after `realtime.connected` because
