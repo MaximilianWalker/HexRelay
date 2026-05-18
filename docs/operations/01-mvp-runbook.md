@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-18
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-node only and that realtime websocket abuse controls remain process-local.
+- Latest meaningful change: 2026-05-18 routed cargo-audit security gate and temporary ignore policy through one scripted source.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -198,11 +198,14 @@ npm --prefix apps/web run e2e:smoke
 
 - Canonical contributor security-parity procedure lives in `docs/operations/contributor-guide.md`.
 - CI security gates currently include:
-  - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0049`
+  - `node scripts/cargo-audit-policy.mjs check`
+  - `node scripts/cargo-audit-policy.mjs validate`
+  - `node scripts/cargo-audit-policy.mjs audit`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Advisory ignore governance:
-  - temporary ignores remain CI-blocked by `scripts/validate-cargo-audit-ignore.sh` expiry checks.
+  - temporary ignores are defined only in `scripts/cargo-audit-policy.mjs` and remain CI-blocked by `node scripts/cargo-audit-policy.mjs validate`.
+  - inspect active temporary ignores with `node scripts/cargo-audit-policy.mjs list`.
 - Rust coverage gate:
   - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.

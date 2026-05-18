@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-declare -A advisories=(
-  ["RUSTSEC-2023-0071"]="2026-06-30"
-  ["RUSTSEC-2026-0049"]="2026-09-30"
-  ["RUSTSEC-2026-0097"]="2026-08-31"
-)
-
-today_utc="$(date -u +%F)"
-failed=0
-
-for advisory_id in "${!advisories[@]}"; do
-  ignore_expiry_utc="${advisories[$advisory_id]}"
-  if [[ "${today_utc}" > "${ignore_expiry_utc}" ]]; then
-    echo "::error::cargo-audit ignore ${advisory_id} expired on ${ignore_expiry_utc}."
-    echo "Remove the ignore or renew with explicit rationale in the same PR."
-    failed=1
-  else
-    echo "[security] cargo-audit ignore ${advisory_id} valid until ${ignore_expiry_utc}"
+node_cmd=""
+if command -v node >/dev/null 2>&1; then
+  node_cmd="node"
+elif command -v node.exe >/dev/null 2>&1; then
+  node_cmd="node.exe"
+elif command -v where.exe >/dev/null 2>&1; then
+  node_windows="$(where.exe node.exe 2>/dev/null | tr -d '\r' | head -n 1)"
+  if [ -n "${node_windows}" ]; then
+    if command -v cygpath >/dev/null 2>&1; then
+      node_cmd="$(cygpath -u "${node_windows}")"
+    else
+      node_cmd="${node_windows}"
+    fi
   fi
-done
+fi
 
-exit "${failed}"
+if [ -z "${node_cmd}" ]; then
+  echo "::error::Node.js is required to validate cargo-audit ignore policy." >&2
+  exit 1
+fi
+
+"${node_cmd}" scripts/cargo-audit-policy.mjs validate "$@"
