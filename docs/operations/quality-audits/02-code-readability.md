@@ -16,16 +16,17 @@
 
 | ID | Priority | Status | Summary | Evidence | Next step | Last seen |
 |---|---|---|---|---|---|---|
-| QA-02-20260512-monolithic-seed-validator | P2 | found | Dev seed scenario validation is concentrated in one long function that mixes unrelated fixture domains. | A read-only function-span scan found `services/api-rs/src/dev_seed.rs:674` `validate_scenario` spans 419 lines through `services/api-rs/src/dev_seed.rs:1090`, covering identity/session validation, friend requests, DM policies/devices, invites, servers, memberships, channel/message invariants, and DM thread/message checks in one sequential block. `docs/architecture/adr-0003-rust-service-module-architecture.md:24` already identifies overly concentrated backend behavior as raising review and refactor risk. | Split seed validation into focused per-fixture validators backed by a shared validation context so reviewers can verify each fixture domain without traversing the full scenario validator. | 2026-05-12 |
+| _none_ | | | | | | |
 
 ## Resolved Findings
 
 | ID | Priority | Status | Summary | Resolution evidence | Resolved |
 |---|---|---|---|---|---|
-| _none_ | | | | | |
+| QA-02-20260512-monolithic-seed-validator | P2 | fixed | Dev seed scenario validation is concentrated in one long function that mixes unrelated fixture domains. | Refactored `services/api-rs/src/dev_seed.rs` so `validate_scenario` is a 25-line orchestration function backed by `ScenarioValidationContext` and focused identity, session, friend, DM policy/device, invite, server, channel-message, and DM-thread validators. Temporary span harness now reports `validate_scenario span: 25 lines`, and `cargo test -p api-rs dev_seed --all-features` passed with 20 dev-seed tests. | 2026-05-18 |
 
 ## Run History
 
 | Date (UTC) | Auditor | Result |
 |---|---|---|
+| 2026-05-18T21:20:30Z | Codex | Fixed `QA-02-20260512-monolithic-seed-validator` by splitting dev seed scenario validation into focused validators with a shared validation context and preserving existing dev-seed behavior tests. |
 | 2026-05-12T21:06:14Z | Codex | Added 1 P2 found finding about monolithic dev seed scenario validation. |
