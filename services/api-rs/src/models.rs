@@ -46,6 +46,139 @@ pub struct SessionRecord {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataExportPackage {
+    pub kind: String,
+    pub generated_at: String,
+    pub identity: AccountDataIdentityExport,
+    pub sessions: AccountDataSessionExport,
+    pub contacts: Vec<AccountDataFriendRequestExport>,
+    pub servers: Vec<AccountDataServerMembershipExport>,
+    pub dm_profile_devices: Vec<AccountDataProfileDeviceExport>,
+    pub dm_threads: Vec<AccountDataDmThreadExport>,
+    pub dm_messages: Vec<AccountDataDmMessageExport>,
+    pub server_channel_messages: Vec<AccountDataServerChannelMessageExport>,
+    pub retention: AccountDataRetentionExport,
+    pub limitations: Vec<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataIdentityExport {
+    pub identity_id: String,
+    pub public_key: String,
+    pub algorithm: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataSessionExport {
+    pub active_count: u32,
+    pub current_session_expires_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataFriendRequestExport {
+    pub request_id: String,
+    pub requester_identity_id: String,
+    pub target_identity_id: String,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataServerMembershipExport {
+    pub server_id: String,
+    pub name: String,
+    pub favorite: bool,
+    pub muted: bool,
+    pub unread_count: u32,
+    pub joined_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataProfileDeviceExport {
+    pub device_id: String,
+    pub active: bool,
+    pub last_seen_epoch: i64,
+    pub delivery_cursor: u64,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataDmThreadExport {
+    pub thread_id: String,
+    pub kind: String,
+    pub title: String,
+    pub created_at: String,
+    pub participants: Vec<AccountDataDmThreadParticipantExport>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataDmThreadParticipantExport {
+    pub identity_id: String,
+    pub last_read_seq: u64,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataDmMessageExport {
+    pub message_id: String,
+    pub thread_id: String,
+    pub author_id: String,
+    pub seq: u64,
+    pub ciphertext: String,
+    pub created_at: String,
+    pub edited_at: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataServerChannelMessageExport {
+    pub message_id: String,
+    pub server_id: String,
+    pub channel_id: String,
+    pub author_id: String,
+    pub channel_seq: u64,
+    pub content: String,
+    pub reply_to_message_id: Option<String>,
+    pub mention_identity_ids: Vec<String>,
+    pub created_at: String,
+    pub edited_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AccountDataRetentionExport {
+    pub sessions: String,
+    pub dm_history: String,
+    pub dm_delivery_metadata: String,
+    pub server_channel_messages: String,
+}
+
+#[derive(Deserialize)]
+pub struct AccountDataImportRequest {
+    pub dry_run: bool,
+    pub package: AccountDataExportPackage,
+}
+
+#[derive(Serialize)]
+pub struct AccountDataImportReport {
+    pub status: String,
+    pub identity_id: String,
+    pub mutating_import_available: bool,
+    pub planned_counts: AccountDataImportCounts,
+    pub warnings: Vec<String>,
+    pub blocked_actions: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct AccountDataImportCounts {
+    pub contacts: u32,
+    pub servers: u32,
+    pub dm_profile_devices: u32,
+    pub dm_threads: u32,
+    pub dm_messages: u32,
+    pub server_channel_messages: u32,
+}
+
 #[derive(Deserialize)]
 pub struct SessionRevokeRequest {
     pub session_id: String,

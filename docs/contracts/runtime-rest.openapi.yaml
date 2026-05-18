@@ -400,6 +400,127 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /account/export:
+    get:
+      summary: Export authenticated account-owned data
+      description: |
+        Returns a deterministic, authenticated account-data package for the
+        current identity. The package includes identity public-key material,
+        active-session counts, contact request state, server memberships,
+        DM profile-device sync state without device secrets, canonical encrypted
+        DM history for threads the identity participates in, and authored
+        server-channel messages including tombstone state. Private keys,
+        recovery material, session ids/tokens, DM device secrets, endpoint
+        hints, and transient delivery metadata are intentionally excluded.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Account-data export package for the authenticated identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDataExportPackage'
+              examples:
+                portableAccountData:
+                  summary: Export package omits secrets while preserving portable runtime data
+                  value:
+                    kind: hexrelay.account_data_export
+                    generated_at: '2026-05-18T12:00:00Z'
+                    identity:
+                      identity_id: usr-nora-k
+                      public_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                      algorithm: ed25519
+                      created_at: '2026-05-18T11:00:00Z'
+                    sessions:
+                      active_count: 1
+                      current_session_expires_at: '2026-05-18T13:00:00Z'
+                    contacts: []
+                    servers: []
+                    dm_profile_devices: []
+                    dm_threads: []
+                    dm_messages: []
+                    server_channel_messages: []
+                    retention:
+                      sessions: Session ids and tokens are not exported.
+                      dm_history: Canonical encrypted DM history is exported as ciphertext only.
+                      dm_delivery_metadata: Delivery metadata is not exported.
+                      server_channel_messages: Authored messages include tombstone state.
+                    limitations:
+                      - Mutating import is not enabled by this runtime surface.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /account/import:
+    post:
+      summary: Validate an account-data import package
+      description: |
+        Performs a dry-run compatibility check for an account-data export
+        package. The runtime does not mutate storage through this endpoint yet:
+        `dry_run` must be `true`, the package identity must match the
+        authenticated identity, and the response reports the section counts that
+        would be considered by a future mutating import path. This keeps the
+        export/import contract explicit without importing secrets, sessions, or
+        transport metadata.
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDataImportRequest'
+      responses:
+        '200':
+          description: Dry-run import report with planned section counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDataImportReport'
+              examples:
+                dryRunReport:
+                  summary: Dry-run import accepts a matching package without mutating storage
+                  value:
+                    status: dry_run
+                    identity_id: usr-nora-k
+                    mutating_import_available: false
+                    planned_counts:
+                      contacts: 0
+                      servers: 0
+                      dm_profile_devices: 0
+                      dm_threads: 0
+                      dm_messages: 0
+                      server_channel_messages: 0
+                    warnings:
+                      - Mutating import is not enabled by this runtime surface.
+                    blocked_actions:
+                      - No database rows are inserted, updated, or deleted by dry-run import.
+        '400':
+          description: Import package is not accepted for dry-run validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                writeUnavailable:
+                  summary: Runtime rejects mutating import attempts
+                  value:
+                    code: account_import_write_unavailable
+                    message: account data import is dry-run only in this runtime
+                identityMismatch:
+                  summary: Package identity must match the authenticated identity
+                  value:
+                    code: account_import_identity_mismatch
+                    message: import package identity_id must match the authenticated identity
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /dev/testing/profiles:
     get:
       summary: List dev testing profiles
@@ -2989,6 +3110,307 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 components:
   schemas:
+    AccountDataExportPackage:
+      type: object
+      required:
+        - kind
+        - generated_at
+        - identity
+        - sessions
+        - contacts
+        - servers
+        - dm_profile_devices
+        - dm_threads
+        - dm_messages
+        - server_channel_messages
+        - retention
+        - limitations
+      properties:
+        kind:
+          type: string
+          enum: [hexrelay.account_data_export]
+        generated_at:
+          type: string
+          format: date-time
+        identity:
+          $ref: '#/components/schemas/AccountDataIdentityExport'
+        sessions:
+          $ref: '#/components/schemas/AccountDataSessionExport'
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataFriendRequestExport'
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataServerMembershipExport'
+        dm_profile_devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataProfileDeviceExport'
+        dm_threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataDmThreadExport'
+        dm_messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataDmMessageExport'
+        server_channel_messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataServerChannelMessageExport'
+        retention:
+          $ref: '#/components/schemas/AccountDataRetentionExport'
+        limitations:
+          type: array
+          items:
+            type: string
+    AccountDataIdentityExport:
+      type: object
+      required: [identity_id, public_key, algorithm, created_at]
+      properties:
+        identity_id:
+          type: string
+        public_key:
+          type: string
+        algorithm:
+          type: string
+          enum: [ed25519]
+        created_at:
+          type: string
+          format: date-time
+    AccountDataSessionExport:
+      type: object
+      required: [active_count, current_session_expires_at]
+      properties:
+        active_count:
+          type: integer
+          minimum: 0
+        current_session_expires_at:
+          type: string
+          format: date-time
+    AccountDataFriendRequestExport:
+      type: object
+      required: [request_id, requester_identity_id, target_identity_id, status, created_at]
+      properties:
+        request_id:
+          type: string
+        requester_identity_id:
+          type: string
+        target_identity_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined, cancelled]
+        created_at:
+          type: string
+          format: date-time
+    AccountDataServerMembershipExport:
+      type: object
+      required: [server_id, name, favorite, muted, unread_count, joined_at]
+      properties:
+        server_id:
+          type: string
+        name:
+          type: string
+        favorite:
+          type: boolean
+        muted:
+          type: boolean
+        unread_count:
+          type: integer
+          minimum: 0
+        joined_at:
+          type: string
+          format: date-time
+    AccountDataProfileDeviceExport:
+      type: object
+      required: [device_id, active, last_seen_epoch, delivery_cursor, updated_at]
+      properties:
+        device_id:
+          type: string
+        active:
+          type: boolean
+        last_seen_epoch:
+          type: integer
+          minimum: 0
+        delivery_cursor:
+          type: integer
+          minimum: 0
+        updated_at:
+          type: string
+          format: date-time
+    AccountDataDmThreadExport:
+      type: object
+      required: [thread_id, kind, title, created_at, participants]
+      properties:
+        thread_id:
+          type: string
+        kind:
+          type: string
+          enum: [dm, group_dm]
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDataDmThreadParticipantExport'
+    AccountDataDmThreadParticipantExport:
+      type: object
+      required: [identity_id, last_read_seq]
+      properties:
+        identity_id:
+          type: string
+        last_read_seq:
+          type: integer
+          minimum: 0
+    AccountDataDmMessageExport:
+      type: object
+      required: [message_id, thread_id, author_id, seq, ciphertext, created_at]
+      properties:
+        message_id:
+          type: string
+        thread_id:
+          type: string
+        author_id:
+          type: string
+        seq:
+          type: integer
+          minimum: 0
+        ciphertext:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+    AccountDataServerChannelMessageExport:
+      type: object
+      required:
+        - message_id
+        - server_id
+        - channel_id
+        - author_id
+        - channel_seq
+        - content
+        - mention_identity_ids
+        - created_at
+      properties:
+        message_id:
+          type: string
+        server_id:
+          type: string
+        channel_id:
+          type: string
+        author_id:
+          type: string
+        channel_seq:
+          type: integer
+          minimum: 1
+        content:
+          type: string
+        reply_to_message_id:
+          type: string
+          nullable: true
+        mention_identity_ids:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+    AccountDataRetentionExport:
+      type: object
+      required: [sessions, dm_history, dm_delivery_metadata, server_channel_messages]
+      properties:
+        sessions:
+          type: string
+        dm_history:
+          type: string
+        dm_delivery_metadata:
+          type: string
+        server_channel_messages:
+          type: string
+    AccountDataImportRequest:
+      type: object
+      required: [dry_run, package]
+      properties:
+        dry_run:
+          type: boolean
+          enum: [true]
+          description: Must be true; mutating import is not enabled by the current runtime.
+        package:
+          $ref: '#/components/schemas/AccountDataExportPackage'
+    AccountDataImportReport:
+      type: object
+      required:
+        - status
+        - identity_id
+        - mutating_import_available
+        - planned_counts
+        - warnings
+        - blocked_actions
+      properties:
+        status:
+          type: string
+          enum: [dry_run]
+        identity_id:
+          type: string
+        mutating_import_available:
+          type: boolean
+          enum: [false]
+        planned_counts:
+          $ref: '#/components/schemas/AccountDataImportCounts'
+        warnings:
+          type: array
+          items:
+            type: string
+        blocked_actions:
+          type: array
+          items:
+            type: string
+    AccountDataImportCounts:
+      type: object
+      required:
+        - contacts
+        - servers
+        - dm_profile_devices
+        - dm_threads
+        - dm_messages
+        - server_channel_messages
+      properties:
+        contacts:
+          type: integer
+          minimum: 0
+        servers:
+          type: integer
+          minimum: 0
+        dm_profile_devices:
+          type: integer
+          minimum: 0
+        dm_threads:
+          type: integer
+          minimum: 0
+        dm_messages:
+          type: integer
+          minimum: 0
+        server_channel_messages:
+          type: integer
+          minimum: 0
     HealthResponse:
       type: object
       required: [service, status]
@@ -4065,6 +4487,8 @@ components:
         code:
           type: string
           enum:
+            - account_import_identity_mismatch
+            - account_import_write_unavailable
             - already_blocked
             - already_muted
             - blocked_user

@@ -1,3 +1,4 @@
+pub mod account_data;
 pub mod auth;
 pub mod block_mute;
 pub mod dev_testing;

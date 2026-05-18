@@ -1,3 +1,4 @@
+pub mod account_data_repo;
 pub mod auth_repo;
 pub mod directory_repo;
 pub mod discovery_repo;

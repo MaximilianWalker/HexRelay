@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-18
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-15 documented JSON request media-type contract-parity coverage.
+- Latest meaningful change: 2026-05-18 added the account-data export and dry-run import runtime REST surface.
 
 ## Purpose
 
@@ -23,6 +23,7 @@
 
 - REST runtime baseline: `docs/contracts/runtime-rest.openapi.yaml`
 - Runtime REST node-administration bootstrap uses `GET /node/connection` for public endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity owner/admin capability reporting.
+- Runtime REST account-data portability uses authenticated `GET /account/export` plus dry-run-only `POST /account/import`; private keys, session ids/tokens, DM device secrets, endpoint hints, and delivery metadata are intentionally absent from those payloads.
 - Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, durable explicit static-peer destination node forwarding, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime REST dispatch paths that cross the shared `NodeClientTransport` boundary emit stable snake-case provenance mode/profile/reason-code telemetry without changing REST payload schemas.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
