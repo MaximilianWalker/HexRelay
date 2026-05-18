@@ -219,7 +219,7 @@ export default function ContactMessagesPage() {
             <>
               <div className={styles.state}>
                 <p className={styles.title}>Conversation starts here</p>
-                <p className={styles.meta}>
+                <p className={styles.meta} id="dm-message-composer-help">
                   The next backend slice will load E2EE DM thread history and send encrypted envelopes from this composer.
                 </p>
               </div>
@@ -229,6 +229,8 @@ export default function ContactMessagesPage() {
                   <IconMessageCircle className={styles.icon} aria-hidden="true" /> Message composer
                 </p>
                 <textarea
+                  aria-describedby="dm-message-composer-help"
+                  aria-label={`Message ${title}`}
                   className={styles.search}
                   id="dm-message-composer"
                   name="message"
