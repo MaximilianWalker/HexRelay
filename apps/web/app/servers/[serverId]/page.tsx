@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   IconBell,
   IconBellOff,
@@ -552,6 +552,7 @@ export default function ServerWorkspacePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [sendBusy, setSendBusy] = useState(false);
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
+  const serverMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -753,6 +754,7 @@ export default function ServerWorkspacePage() {
 
   function handleServerMenuAction(label: string): void {
     setServerMenuOpen(false);
+    serverMenuButtonRef.current?.focus();
     setStatusMessage(`preview: ${label} is available as a menu action, but is not wired in this validation build.`);
   }
 
@@ -919,27 +921,28 @@ export default function ServerWorkspacePage() {
               </div>
               <div className={styles.serverMenu}>
                 <button
+                  aria-controls="server-actions-panel"
                   aria-expanded={serverMenuOpen}
                   aria-label="Server actions"
                   className={styles.serverMenuButton}
                   onClick={() => setServerMenuOpen((current) => !current)}
+                  ref={serverMenuButtonRef}
                   title="Server actions"
                   type="button"
                 >
                   <IconDotsVertical className={styles.icon} aria-hidden="true" />
                 </button>
                 {serverMenuOpen ? (
-                  <div className={styles.serverMenuList} role="menu">
-                    <button onClick={() => handleServerMenuAction("Mark server as read")} role="menuitem" type="button">
+                  <div className={styles.serverMenuList} id="server-actions-panel">
+                    <button onClick={() => handleServerMenuAction("Mark server as read")} type="button">
                       Mark as read
                     </button>
-                    <button onClick={() => handleServerMenuAction("Mute notifications")} role="menuitem" type="button">
+                    <button onClick={() => handleServerMenuAction("Mute notifications")} type="button">
                       Mute notifications
                     </button>
                     <button
                       className={styles.serverMenuDanger}
                       onClick={() => handleServerMenuAction("Leave server")}
-                      role="menuitem"
                       type="button"
                     >
                       <IconLogout className={styles.icon} aria-hidden="true" />
