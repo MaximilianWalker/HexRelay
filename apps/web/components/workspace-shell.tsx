@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   IconAddressBook,
+  IconChevronLeft,
+  IconChevronRight,
   IconHome,
   IconLayoutNavbar,
   IconLayoutNavbarCollapse,
@@ -64,6 +66,18 @@ type WorkspaceTabMeta = {
   label?: string;
   imageLabel?: string;
   unread?: number;
+};
+
+type ContentTabScrollState = {
+  hasOverflow: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+};
+
+const EMPTY_CONTENT_TAB_SCROLL_STATE: ContentTabScrollState = {
+  hasOverflow: false,
+  canScrollLeft: false,
+  canScrollRight: false,
 };
 
 const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
@@ -133,6 +147,7 @@ export function WorkspaceShell({
   activeTabId,
   tabActions,
   workspaceTab,
+  onTabChange,
   children,
 }: {
   title: string;
@@ -141,6 +156,7 @@ export function WorkspaceShell({
   activeTabId: string;
   tabActions?: React.ReactNode;
   workspaceTab?: WorkspaceTabMeta;
+  onTabChange?: (tabId: string) => void;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -150,6 +166,10 @@ export function WorkspaceShell({
   const soundMuted = useSyncExternalStore(subscribeWorkspacePreferences, readSoundMuted, () => false);
   const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
   const profileSnapshot = useSyncExternalStore(subscribeWorkspacePreferences, readProfileSnapshot, () => DEFAULT_PROFILE);
+  const contentTabsRef = useRef<HTMLDivElement | null>(null);
+  const [contentTabScrollState, setContentTabScrollState] = useState<ContentTabScrollState>(
+    EMPTY_CONTENT_TAB_SCROLL_STATE,
+  );
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -169,6 +189,179 @@ export function WorkspaceShell({
       unread: normalizeUnread(workspaceTab?.unread),
     };
   }, [pathname, workspaceTab?.imageLabel, workspaceTab?.label, workspaceTab?.unread]);
+
+  const centerContentTabNode = useCallback((node: HTMLElement): void => {
+    const element = contentTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const centeredLeft = node.offsetLeft + node.offsetWidth / 2 - element.clientWidth / 2;
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, centeredLeft));
+  }, []);
+
+  const centerActiveContentTab = useCallback(() => {
+    const element = contentTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const activeTab = Array.from(element.querySelectorAll<HTMLElement>("[data-tab-id]")).find(
+      (node) => node.dataset.tabId === activeTabId,
+    );
+    if (activeTab) {
+      centerContentTabNode(activeTab);
+    }
+  }, [activeTabId, centerContentTabNode]);
+
+  const updateActiveContentTabMask = useCallback(() => {
+    const element = contentTabsRef.current;
+    const tabBar = element?.parentElement;
+    if (!element || !tabBar) {
+      return;
+    }
+
+    const activeTab = Array.from(element.querySelectorAll<HTMLElement>("[data-tab-id]")).find(
+      (node) => node.dataset.tabId === activeTabId,
+    );
+    if (!activeTab) {
+      tabBar.style.setProperty("--active-tab-mask-width", "0px");
+      return;
+    }
+
+    const tabBarRect = tabBar.getBoundingClientRect();
+    const activeRect = activeTab.getBoundingClientRect();
+    const left = Math.max(0, activeRect.left - tabBarRect.left);
+    const right = Math.min(tabBarRect.width, activeRect.right - tabBarRect.left);
+    const width = Math.max(0, right - left - 2);
+
+    tabBar.style.setProperty("--active-tab-mask-left", `${left}px`);
+    tabBar.style.setProperty("--active-tab-mask-width", `${width}px`);
+  }, [activeTabId]);
+
+  const updateContentTabOverflow = useCallback(() => {
+    const element = contentTabsRef.current;
+    if (!element) {
+      setContentTabScrollState(EMPTY_CONTENT_TAB_SCROLL_STATE);
+      return;
+    }
+
+    const tabBar = element.parentElement;
+    const scrollButtons = tabBar
+      ? Array.from(tabBar.querySelectorAll<HTMLElement>("[data-tab-scroll-button]"))
+      : [];
+    const gap = tabBar ? Number.parseFloat(window.getComputedStyle(tabBar).columnGap || "0") || 0 : 0;
+    const buttonWidth = scrollButtons.reduce((width, button) => width + button.offsetWidth, 0);
+    const noButtonWidth = element.clientWidth + buttonWidth + gap * scrollButtons.length;
+    const hasOverflow = element.scrollWidth > noButtonWidth + 1;
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    const scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft));
+    const nextState: ContentTabScrollState = {
+      hasOverflow,
+      canScrollLeft: hasOverflow && scrollLeft > 1,
+      canScrollRight: hasOverflow && scrollLeft < maxScrollLeft - 1,
+    };
+
+    setContentTabScrollState((current) =>
+      current.hasOverflow === nextState.hasOverflow &&
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight
+        ? current
+        : nextState,
+    );
+  }, []);
+
+  const scheduleContentTabOverflowUpdate = useCallback(() => {
+    window.requestAnimationFrame(updateContentTabOverflow);
+    window.setTimeout(updateContentTabOverflow, 0);
+    window.setTimeout(updateContentTabOverflow, 120);
+  }, [updateContentTabOverflow]);
+
+  const setContentTabsNode = useCallback((node: HTMLDivElement | null) => {
+    contentTabsRef.current = node;
+    if (!node) {
+      return;
+    }
+
+    scheduleContentTabOverflowUpdate();
+  }, [scheduleContentTabOverflowUpdate]);
+
+  const activeContentTabRef = useCallback((node: HTMLElement | null) => {
+    if (!node) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (!node.isConnected) {
+        return;
+      }
+
+      updateActiveContentTabMask();
+      scheduleContentTabOverflowUpdate();
+    });
+  }, [scheduleContentTabOverflowUpdate, updateActiveContentTabMask]);
+
+  useEffect(() => {
+    const element = contentTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      centerActiveContentTab();
+      updateActiveContentTabMask();
+      scheduleContentTabOverflowUpdate();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [activeTabId, centerActiveContentTab, scheduleContentTabOverflowUpdate, tabs.length, updateActiveContentTabMask]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateActiveContentTabMask);
+    const timeout = window.setTimeout(updateActiveContentTabMask, 0);
+    const settledTimeout = window.setTimeout(updateActiveContentTabMask, 120);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+      window.clearTimeout(settledTimeout);
+    };
+  }, [
+    contentTabScrollState.canScrollLeft,
+    contentTabScrollState.canScrollRight,
+    updateActiveContentTabMask,
+  ]);
+
+  useEffect(() => {
+    const element = contentTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const handleResize = (): void => {
+      updateActiveContentTabMask();
+      scheduleContentTabOverflowUpdate();
+    };
+    const handleScroll = (): void => {
+      updateActiveContentTabMask();
+      updateContentTabOverflow();
+    };
+    const frame = window.requestAnimationFrame(handleResize);
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(handleResize);
+    observer?.observe(element);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+      observer?.disconnect();
+    };
+  }, [scheduleContentTabOverflowUpdate, tabs.length, updateActiveContentTabMask, updateContentTabOverflow]);
 
   useEffect(() => {
     if (routeTab) {
@@ -201,6 +394,19 @@ export function WorkspaceShell({
     if (closingActiveTab) {
       router.push(nextActiveTab?.href ?? "/home");
     }
+  }
+
+  function scrollContentTabs(direction: -1 | 1): void {
+    const element = contentTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    const distance = Math.max(160, Math.floor(element.clientWidth * 0.72));
+    element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + direction * distance));
+    updateActiveContentTabMask();
+    scheduleContentTabOverflowUpdate();
   }
 
   const nav = useMemo(
@@ -447,34 +653,70 @@ export function WorkspaceShell({
             <p id="workspace-page-subtitle">{subtitle}</p>
           </header>
           <div className={styles.tabBar}>
-            <div className={styles.tabs}>
+            {contentTabScrollState.canScrollLeft ? (
+              <button
+                aria-label="Scroll tabs left"
+                className={styles.tabScrollButton}
+                data-tab-scroll-button="left"
+                onClick={() => scrollContentTabs(-1)}
+                type="button"
+              >
+                <IconChevronLeft className={styles.tabScrollIcon} aria-hidden="true" />
+              </button>
+            ) : null}
+            <div aria-label={`${title} tabs`} className={styles.tabs} ref={setContentTabsNode} role="tablist">
               {tabs.map((tab) => {
                 const TabIcon = tab.icon;
-                const tabClassName = `${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ""}`;
-
-                if (tab.onSelect) {
-                  return (
-                    <button
-                      aria-pressed={tab.id === activeTabId}
-                      className={tabClassName}
-                      key={tab.id}
-                      onClick={tab.onSelect}
-                      type="button"
-                    >
-                      {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
-                      <span className={styles.tabLabel}>{tab.label}</span>
-                    </button>
-                  );
-                }
-
-                return (
-                  <div className={tabClassName} key={tab.id}>
+                const active = tab.id === activeTabId;
+                const handleTabSelect = tab.onSelect ?? (onTabChange ? () => onTabChange(tab.id) : undefined);
+                const tabClassName = `${styles.tab} ${handleTabSelect ? styles.tabButton : ""} ${
+                  active ? styles.tabActive : ""
+                }`;
+                const tabContent = (
+                  <>
                     {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
                     <span className={styles.tabLabel}>{tab.label}</span>
+                  </>
+                );
+
+                return handleTabSelect ? (
+                  <button
+                    aria-selected={active}
+                    className={tabClassName}
+                    data-tab-id={tab.id}
+                    key={tab.id}
+                    onClick={handleTabSelect}
+                    ref={active ? activeContentTabRef : undefined}
+                    role="tab"
+                    type="button"
+                  >
+                    {tabContent}
+                  </button>
+                ) : (
+                  <div
+                    aria-selected={active}
+                    className={tabClassName}
+                    data-tab-id={tab.id}
+                    key={tab.id}
+                    ref={active ? activeContentTabRef : undefined}
+                    role="tab"
+                  >
+                    {tabContent}
                   </div>
                 );
               })}
             </div>
+            {contentTabScrollState.canScrollRight ? (
+              <button
+                aria-label="Scroll tabs right"
+                className={styles.tabScrollButton}
+                data-tab-scroll-button="right"
+                onClick={() => scrollContentTabs(1)}
+                type="button"
+              >
+                <IconChevronRight className={styles.tabScrollIcon} aria-hidden="true" />
+              </button>
+            ) : null}
             {tabActions ? <div className={styles.tabActions}>{tabActions}</div> : null}
           </div>
 
