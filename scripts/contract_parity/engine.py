@@ -488,13 +488,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'direction': {'enum': ('inbound', 'outbound')},
         },
         'ServerChannelMessageListQuery': {
-            'limit': {'minimum': 1, 'maximum': 100},
+            'limit': {'minimum': 1, 'maximum': 100, 'semantics': ('default:20',)},
         },
         'DmThreadListQuery': {
-            'limit': {'minimum': 1, 'maximum': 100},
+            'limit': {'minimum': 1, 'maximum': 100, 'semantics': ('default:20',)},
         },
         'DmThreadMessageListQuery': {
-            'limit': {'minimum': 1, 'maximum': 100},
+            'limit': {'minimum': 1, 'maximum': 100, 'semantics': ('default:20',)},
         },
         'ServerListQuery': {
             'search': {

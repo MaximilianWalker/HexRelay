@@ -755,6 +755,71 @@ PY
   trap - RETURN
 }
 
+run_query_parameter_default_semantics_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo/docs/contracts/runtime-rest.openapi.yaml" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+contract_path = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+
+if mutation_name != "fail-query-parameter-default-semantics":
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+
+contract_text = contract_path.read_text()
+old = """        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          x-hexrelay-query-semantics:
+            - default:20"""
+new = """        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100"""
+if old not in contract_text:
+    raise SystemExit("fixture query default-semantics mutation target not found")
+contract_path.write_text(contract_text.replace(old, new, 1))
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_server_channel_request_schema_fixture() {
   local mutation_name="$1"
   local expected_exit="$2"
@@ -1281,6 +1346,7 @@ run_fixture fail-no-content-success-schema 1 "returns HTTP 204 without a JSON su
 run_path_parameter_format_fixture fail-path-parameter-format 1 'uses path parameter `request_id` with format `uuid` at runtime but documents `<none>`'
 run_fixture fail-path-parameter-semantics 1 'uses path parameter `request_id` as type `string` at runtime but documents `integer`'
 run_fixture fail-public-auth-security 1 'GET /health documents security schemes [BearerAuth, CookieAuth] but runtime does not require session or internal-token auth'
+run_query_parameter_default_semantics_fixture fail-query-parameter-default-semantics 1 'uses query parameter `limit` with semantics [default:20] at runtime but documents [<none>]'
 run_query_parameter_pattern_fixture fail-query-parameter-pattern 1 'uses query parameter `identity_id` with pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-request-body-required 1 "requestBody is not marked required"
 run_request_body_media_type_fixture fail-request-body-media-type 1 'accepts JSON request bodies at runtime but documents request media types [application/json, text/plain] instead of [application/json]'
