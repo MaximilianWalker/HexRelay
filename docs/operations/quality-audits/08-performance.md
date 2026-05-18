@@ -16,16 +16,17 @@
 
 | ID | Priority | Status | Summary | Evidence | Next step | Last seen |
 |---|---|---|---|---|---|---|
-| QA-08-20260513-dm-fanout-unbounded-replay-scan | P2 | confirmed | DM fanout catch-up and ack paths can scan or lock the full recipient delivery log despite page limits. | `services/api-rs/src/transport/http/handlers/dm.rs:794` loads all delivery records before applying the response `limit` in memory; `services/api-rs/src/infra/db/repos/dm_repo.rs:362` selects every `dm_fanout_delivery_log` row for an identity with no cursor or limit; `services/api-rs/src/infra/db/repos/dm_repo.rs:815` selects every row after the device cursor with `FOR UPDATE` during ack cursor advancement. | Push catch-up cursor/limit filtering into SQL and replace ack advancement with bounded contiguous-window or targeted cursor state updates; add a regression that seeds more than `MAX_PAGE_LIMIT` delivery rows and verifies bounded query behavior. | 2026-05-13T09:37:02Z |
+| _none_ | | | | | | |
 
 ## Resolved Findings
 
 | ID | Priority | Status | Summary | Resolution evidence | Resolved |
 |---|---|---|---|---|---|
-| _none_ | | | | | |
+| QA-08-20260513-dm-fanout-unbounded-replay-scan | P2 | fixed | DM fanout catch-up and ack paths can scan or lock the full recipient delivery log despite page limits. | `services/api-rs/src/infra/db/repos/dm_repo.rs` now pages catch-up delivery rows by `identity_id`, `cursor`, `device_id`, and `LIMIT`, exposes targeted message lookup for tests, and bounds ack cursor advancement to a 100-row contiguous window; `services/api-rs/src/transport/http/handlers/dm.rs` calls the bounded page read and caps the in-memory fallback before allocation; `services/api-rs/src/tests/integration/dm_fanout_catch_up_tests.rs` seeds 125 delivery rows and verifies cursor/limit paging skips already-delivered records. Temporary source harness failed before the fix on the unbounded patterns and passed after the fix. | 2026-05-18T05:00:44Z |
 
 ## Run History
 
 | Date (UTC) | Auditor | Result |
 |---|---|---|
+| 2026-05-18T05:00:44Z | Codex | Fixed `QA-08-20260513-dm-fanout-unbounded-replay-scan` by bounding DM fanout catch-up page reads and ack cursor advancement, with durable DB-backed regression coverage. |
 | 2026-05-13T09:37:02Z | Codex | Added 1 P2 confirmed finding about unbounded DM fanout delivery-log scans in catch-up and ack hot paths. |
