@@ -678,7 +678,39 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         ));
     }
 
-    let mut identity_ids = HashSet::new();
+    let mut context = ScenarioValidationContext::default();
+
+    validate_identities(scenario, &mut context)?;
+    validate_sessions(scenario, &context)?;
+    validate_friend_requests(scenario, &context)?;
+    validate_dm_policies(scenario, &context)?;
+    validate_devices(scenario, &context)?;
+    validate_invites(scenario, &context)?;
+    validate_servers(scenario, &mut context)?;
+    validate_server_memberships(scenario, &mut context)?;
+    validate_server_channels(scenario, &mut context)?;
+    validate_server_channel_messages(scenario, &mut context)?;
+    validate_dm_threads(scenario, &mut context)?;
+
+    Ok(())
+}
+
+#[derive(Default)]
+struct ScenarioValidationContext<'a> {
+    identity_ids: HashSet<&'a str>,
+    server_ids: HashSet<&'a str>,
+    memberships: HashSet<String>,
+    channel_ids: HashSet<&'a str>,
+    channel_servers: HashMap<&'a str, &'a str>,
+    channel_last_seqs: HashMap<&'a str, u64>,
+    message_channels: HashMap<&'a str, &'a str>,
+    dm_message_ids: HashSet<&'a str>,
+}
+
+fn validate_identities<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     for identity in &scenario.identities {
         if identity.profile_id.trim().is_empty() || identity.identity_id.trim().is_empty() {
             return Err(DevSeedError::Config(
@@ -691,7 +723,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 identity.identity_id
             )));
         }
-        if !identity_ids.insert(identity.identity_id.as_str()) {
+        if !context.identity_ids.insert(identity.identity_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "duplicate fixture identity '{}'",
                 identity.identity_id
@@ -713,8 +745,15 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_sessions(
+    scenario: &SeedScenario,
+    context: &ScenarioValidationContext<'_>,
+) -> Result<(), DevSeedError> {
     for session in &scenario.sessions {
-        require_identity(&identity_ids, &session.identity_id, "session")?;
+        require_identity(&context.identity_ids, &session.identity_id, "session")?;
         if session.session_id.trim().is_empty() || session.expires_in_days <= 0 {
             return Err(DevSeedError::Config(format!(
                 "session fixture for '{}' requires session_id and positive expires_in_days",
@@ -723,14 +762,21 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_friend_requests(
+    scenario: &SeedScenario,
+    context: &ScenarioValidationContext<'_>,
+) -> Result<(), DevSeedError> {
     for request in &scenario.friend_requests {
         require_identity(
-            &identity_ids,
+            &context.identity_ids,
             &request.requester_identity_id,
             "friend request requester",
         )?;
         require_identity(
-            &identity_ids,
+            &context.identity_ids,
             &request.target_identity_id,
             "friend request target",
         )?;
@@ -751,8 +797,15 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_dm_policies(
+    scenario: &SeedScenario,
+    context: &ScenarioValidationContext<'_>,
+) -> Result<(), DevSeedError> {
     for policy in &scenario.dm_policies {
-        require_identity(&identity_ids, &policy.identity_id, "dm policy")?;
+        require_identity(&context.identity_ids, &policy.identity_id, "dm policy")?;
         if policy.offline_delivery_mode != "encrypted_envelope_catchup" {
             return Err(DevSeedError::Config(format!(
                 "unsupported offline delivery mode '{}'",
@@ -770,10 +823,24 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_devices(
+    scenario: &SeedScenario,
+    context: &ScenarioValidationContext<'_>,
+) -> Result<(), DevSeedError> {
     for device in &scenario.devices {
-        require_identity(&identity_ids, &device.identity_id, "device")?;
+        require_identity(&context.identity_ids, &device.identity_id, "device")?;
     }
 
+    Ok(())
+}
+
+fn validate_invites(
+    scenario: &SeedScenario,
+    context: &ScenarioValidationContext<'_>,
+) -> Result<(), DevSeedError> {
     for invite in &scenario.invites {
         if !invite.invite_id.starts_with("fixture-invite-") {
             return Err(DevSeedError::Config(format!(
@@ -795,7 +862,11 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 invite.mode
             )));
         }
-        require_identity(&identity_ids, &invite.creator_identity_id, "invite creator")?;
+        require_identity(
+            &context.identity_ids,
+            &invite.creator_identity_id,
+            "invite creator",
+        )?;
         if invite.node_fingerprint.trim().is_empty() {
             return Err(DevSeedError::Config(format!(
                 "invite '{}' requires node_fingerprint",
@@ -823,7 +894,13 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
-    let mut server_ids = HashSet::new();
+    Ok(())
+}
+
+fn validate_servers<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     for server in &scenario.servers {
         if !server.server_id.starts_with("fixture-server-") {
             return Err(DevSeedError::Config(format!(
@@ -831,7 +908,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 server.server_id
             )));
         }
-        if !server_ids.insert(server.server_id.as_str()) {
+        if !context.server_ids.insert(server.server_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "duplicate fixture server '{}'",
                 server.server_id
@@ -846,15 +923,25 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         validate_timestamp(&server.created_at, "server created_at")?;
     }
 
-    let mut memberships = HashSet::new();
+    Ok(())
+}
+
+fn validate_server_memberships<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     for membership in &scenario.server_memberships {
-        if !server_ids.contains(membership.server_id.as_str()) {
+        if !context.server_ids.contains(membership.server_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "server membership references unknown server '{}'",
                 membership.server_id
             )));
         }
-        require_identity(&identity_ids, &membership.identity_id, "server membership")?;
+        require_identity(
+            &context.identity_ids,
+            &membership.identity_id,
+            "server membership",
+        )?;
         if membership.unread_count < 0 {
             return Err(DevSeedError::Config(format!(
                 "server membership for '{}' requires non-negative unread_count",
@@ -862,7 +949,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
             )));
         }
         let key = format!("{}:{}", membership.server_id, membership.identity_id);
-        if !memberships.insert(key) {
+        if !context.memberships.insert(key) {
             return Err(DevSeedError::Config(format!(
                 "duplicate server membership '{}:{}'",
                 membership.server_id, membership.identity_id
@@ -871,9 +958,13 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         validate_timestamp(&membership.joined_at, "server membership joined_at")?;
     }
 
-    let mut channel_ids = HashSet::new();
-    let mut channel_servers = HashMap::new();
-    let mut channel_last_seqs: HashMap<&str, u64> = HashMap::new();
+    Ok(())
+}
+
+fn validate_server_channels<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     for channel in &scenario.server_channels {
         if !channel.channel_id.starts_with("fixture-channel-") {
             return Err(DevSeedError::Config(format!(
@@ -881,20 +972,24 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 channel.channel_id
             )));
         }
-        if !server_ids.contains(channel.server_id.as_str()) {
+        if !context.server_ids.contains(channel.server_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "server channel '{}' references unknown server '{}'",
                 channel.channel_id, channel.server_id
             )));
         }
-        if !channel_ids.insert(channel.channel_id.as_str()) {
+        if !context.channel_ids.insert(channel.channel_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "duplicate server channel '{}'",
                 channel.channel_id
             )));
         }
-        channel_servers.insert(channel.channel_id.as_str(), channel.server_id.as_str());
-        channel_last_seqs.insert(channel.channel_id.as_str(), channel.last_message_seq);
+        context
+            .channel_servers
+            .insert(channel.channel_id.as_str(), channel.server_id.as_str());
+        context
+            .channel_last_seqs
+            .insert(channel.channel_id.as_str(), channel.last_message_seq);
         if channel.name.trim().is_empty() || channel.kind != "text" {
             return Err(DevSeedError::Config(format!(
                 "server channel '{}' requires name and text kind",
@@ -904,7 +999,13 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         validate_timestamp(&channel.created_at, "server channel created_at")?;
     }
 
-    let mut message_channels = HashMap::new();
+    Ok(())
+}
+
+fn validate_server_channel_messages<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     let mut channel_message_seqs = HashSet::new();
     let mut channel_max_message_seqs: HashMap<&str, u64> = HashMap::new();
     for message in &scenario.server_channel_messages {
@@ -914,17 +1015,26 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 message.message_id
             )));
         }
-        if !channel_ids.contains(message.channel_id.as_str()) {
+        if !context.channel_ids.contains(message.channel_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "server message '{}' references unknown channel '{}'",
                 message.message_id, message.channel_id
             )));
         }
-        let server_id = channel_servers
+        let server_id = context
+            .channel_servers
             .get(message.channel_id.as_str())
+            .copied()
             .expect("validated channel has server id");
-        require_identity(&identity_ids, &message.author_id, "server message author")?;
-        if !memberships.contains(&format!("{}:{}", server_id, message.author_id)) {
+        require_identity(
+            &context.identity_ids,
+            &message.author_id,
+            "server message author",
+        )?;
+        if !context
+            .memberships
+            .contains(&format!("{}:{}", server_id, message.author_id))
+        {
             return Err(DevSeedError::Config(format!(
                 "server message '{}' author is not a member of server '{}'",
                 message.message_id, server_id
@@ -948,7 +1058,8 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
             .and_modify(|max_seq| *max_seq = (*max_seq).max(message.channel_seq))
             .or_insert(message.channel_seq);
         if let Some(reply_to_message_id) = &message.reply_to_message_id {
-            let Some(reply_channel_id) = message_channels.get(reply_to_message_id.as_str()) else {
+            let Some(reply_channel_id) = context.message_channels.get(reply_to_message_id.as_str())
+            else {
                 return Err(DevSeedError::Config(format!(
                     "server message '{}' replies to unknown earlier message '{}'",
                     message.message_id, reply_to_message_id
@@ -963,11 +1074,14 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
         for mentioned_identity_id in &message.mention_identity_ids {
             require_identity(
-                &identity_ids,
+                &context.identity_ids,
                 mentioned_identity_id,
                 "server message mention",
             )?;
-            if !memberships.contains(&format!("{}:{}", server_id, mentioned_identity_id)) {
+            if !context
+                .memberships
+                .contains(&format!("{}:{}", server_id, mentioned_identity_id))
+            {
                 return Err(DevSeedError::Config(format!(
                     "server message '{}' mentions non-member '{}'",
                     message.message_id, mentioned_identity_id
@@ -981,7 +1095,8 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         if let Some(deleted_at) = &message.deleted_at {
             validate_timestamp(deleted_at, "server message deleted_at")?;
         }
-        if message_channels
+        if context
+            .message_channels
             .insert(message.message_id.as_str(), message.channel_id.as_str())
             .is_some()
         {
@@ -992,7 +1107,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
-    for (channel_id, last_message_seq) in channel_last_seqs {
+    for (&channel_id, &last_message_seq) in &context.channel_last_seqs {
         let max_message_seq = channel_max_message_seqs
             .get(channel_id)
             .copied()
@@ -1005,7 +1120,13 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
-    let mut dm_message_ids = HashSet::new();
+    Ok(())
+}
+
+fn validate_dm_threads<'a>(
+    scenario: &'a SeedScenario,
+    context: &mut ScenarioValidationContext<'a>,
+) -> Result<(), DevSeedError> {
     for thread in &scenario.dm_threads {
         if !is_seedable_dm_thread_id(&thread.thread_id) {
             return Err(DevSeedError::Config(format!(
@@ -1039,7 +1160,11 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
         let mut participant_ids = HashSet::new();
         for participant in &thread.participants {
-            require_identity(&identity_ids, &participant.identity_id, "dm participant")?;
+            require_identity(
+                &context.identity_ids,
+                &participant.identity_id,
+                "dm participant",
+            )?;
             if !participant_ids.insert(participant.identity_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "DM thread '{}' has duplicate participant '{}'",
@@ -1049,7 +1174,11 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
         let mut message_seqs = HashSet::new();
         for message in &thread.messages {
-            require_identity(&identity_ids, &message.author_id, "dm message author")?;
+            require_identity(
+                &context.identity_ids,
+                &message.author_id,
+                "dm message author",
+            )?;
             if !participant_ids.contains(message.author_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "DM message '{}' author is not a thread participant",
@@ -1062,7 +1191,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                     message.message_id
                 )));
             }
-            if !dm_message_ids.insert(message.message_id.as_str()) {
+            if !context.dm_message_ids.insert(message.message_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "duplicate DM message '{}'",
                     message.message_id
