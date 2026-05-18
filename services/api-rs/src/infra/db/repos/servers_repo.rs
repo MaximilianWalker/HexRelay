@@ -15,6 +15,16 @@ pub struct ServerMembershipInsertParams<'a> {
     pub unread_count: i32,
 }
 
+pub struct ServerListParams<'a> {
+    pub identity_id: &'a str,
+    pub search: Option<&'a str>,
+    pub favorites_only: bool,
+    pub unread_only: bool,
+    pub muted_only: bool,
+    pub limit: usize,
+    pub offset: i64,
+}
+
 pub async fn insert_server(
     executor: impl Executor<'_, Database = Postgres>,
     params: ServerInsertParams<'_>,
@@ -85,18 +95,31 @@ pub async fn identities_share_server(
 
 pub async fn list_servers_for_identity(
     pool: &PgPool,
-    identity_id: &str,
+    params: ServerListParams<'_>,
 ) -> Result<Vec<ServerSummary>, sqlx::Error> {
+    let limit = i64::try_from(params.limit)
+        .map_err(|_| sqlx::Error::Protocol("limit too large for storage".into()))?;
     let rows = sqlx::query(
         "
         SELECT s.server_id, s.name, m.unread_count, m.favorite, m.muted
         FROM server_memberships m
         INNER JOIN servers s ON s.server_id = m.server_id
         WHERE m.identity_id = $1
+          AND ($2::BOOLEAN = FALSE OR m.favorite)
+          AND ($3::BOOLEAN = FALSE OR m.unread_count > 0)
+          AND ($4::BOOLEAN = FALSE OR m.muted)
+          AND ($5::TEXT IS NULL OR LOWER(s.name) LIKE '%' || LOWER($5::TEXT) || '%')
         ORDER BY m.favorite DESC, s.name ASC, s.server_id ASC
+        LIMIT $6 OFFSET $7
         ",
     )
-    .bind(identity_id)
+    .bind(params.identity_id)
+    .bind(params.favorites_only)
+    .bind(params.unread_only)
+    .bind(params.muted_only)
+    .bind(params.search)
+    .bind(limit)
+    .bind(params.offset)
     .fetch_all(pool)
     .await?;
 

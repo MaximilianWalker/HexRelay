@@ -101,6 +101,8 @@ pub struct ServerListQuery {
     pub favorites_only: Option<bool>,
     pub unread_only: Option<bool>,
     pub muted_only: Option<bool>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Clone, Serialize)]
@@ -115,6 +117,7 @@ pub struct ServerSummary {
 #[derive(Serialize)]
 pub struct ServerListResponse {
     pub items: Vec<ServerSummary>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -181,6 +184,8 @@ pub struct ContactListQuery {
     pub online_only: Option<bool>,
     pub unread_only: Option<bool>,
     pub favorites_only: Option<bool>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Clone, Serialize)]
@@ -197,6 +202,7 @@ pub struct ContactSummary {
 #[derive(Serialize)]
 pub struct ContactListResponse {
     pub items: Vec<ContactSummary>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -430,11 +436,14 @@ pub struct FriendRequestCreateRequest {
 pub struct FriendRequestListQuery {
     pub identity_id: String,
     pub direction: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Serialize)]
 pub struct FriendRequestPage {
     pub items: Vec<FriendRequestRecord>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Serialize)]

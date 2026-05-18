@@ -65,11 +65,13 @@ struct InviteCreateResponse {
 #[derive(Deserialize)]
 struct ServerListResponse {
     items: Vec<serde_json::Value>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct ContactListResponse {
     items: Vec<serde_json::Value>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -83,6 +85,7 @@ struct FriendRequestRecord {
 #[derive(Deserialize)]
 struct FriendRequestPage {
     items: Vec<serde_json::Value>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]

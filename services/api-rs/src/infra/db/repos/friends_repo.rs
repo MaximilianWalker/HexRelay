@@ -160,7 +160,11 @@ pub async fn find_pending_friend_request_by_pair_in_tx(
 pub async fn list_friend_requests(
     pool: &PgPool,
     query: &FriendRequestListQuery,
+    limit: usize,
+    offset: i64,
 ) -> Result<Vec<FriendRequestRecord>, FriendRequestRepoError> {
+    let limit = i64::try_from(limit)
+        .map_err(|_| sqlx::Error::Protocol("limit too large for storage".into()))?;
     let rows = sqlx::query(
         "
         SELECT request_id, requester_identity_id, target_identity_id, status, created_at
@@ -172,11 +176,14 @@ pub async fn list_friend_requests(
         ) OR (
             $2::TEXT IS NULL AND (requester_identity_id = $1 OR target_identity_id = $1)
         )
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, request_id DESC
+        LIMIT $3 OFFSET $4
         ",
     )
     .bind(&query.identity_id)
     .bind(query.direction.as_deref())
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await?;
 

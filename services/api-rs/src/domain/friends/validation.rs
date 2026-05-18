@@ -66,6 +66,8 @@ mod tests {
         let query = FriendRequestListQuery {
             identity_id: "usr-valid".to_string(),
             direction: Some("sideways".to_string()),
+            cursor: None,
+            limit: None,
         };
 
         let err = validate_friend_request_list_query(&query).expect_err("invalid direction");
@@ -77,10 +79,14 @@ mod tests {
         let inbound = FriendRequestListQuery {
             identity_id: "usr-valid".to_string(),
             direction: Some("inbound".to_string()),
+            cursor: None,
+            limit: None,
         };
         let outbound = FriendRequestListQuery {
             identity_id: "usr-valid".to_string(),
             direction: Some("outbound".to_string()),
+            cursor: None,
+            limit: None,
         };
 
         assert!(validate_friend_request_list_query(&inbound).is_ok());
