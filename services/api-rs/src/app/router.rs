@@ -8,6 +8,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::{
     app::state::AppState,
     transport::http::handlers::{
+        account_data::{export_account_data, import_account_data},
         auth::{
             issue_auth_challenge, register_identity_key, revoke_session, validate_session,
             verify_auth_challenge,
@@ -65,6 +66,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/auth/verify", post(verify_auth_challenge))
         .route("/auth/sessions/revoke", post(revoke_session))
         .route("/auth/sessions/validate", get(validate_session))
+        .route("/account/export", get(export_account_data))
+        .route("/account/import", post(import_account_data))
         .route("/dev/testing/profiles", get(list_testing_profiles))
         .route("/dev/testing/sessions", post(activate_testing_session))
         .route("/invites", post(create_invite))

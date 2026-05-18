@@ -1,5 +1,6 @@
 pub(super) use super::*;
 
+mod account_data_tests;
 mod auth_tests;
 mod authorization_tests;
 mod block_mute_tests;

@@ -6,14 +6,14 @@
 - Owner: Architecture and API maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-18
 - Source of truth: `docs/architecture/02-data-lifecycle-retention-replication.md`
 
 ## Quick Context
 
 - Purpose: define where data lives, who is authoritative, and how retention/reconciliation behaves.
 - Primary edit location: update when persistence boundaries or retention policy semantics change.
-- Latest meaningful change: 2026-05-11 defined executable DM delivery-metadata retention and abuse-control defaults for server-node encrypted-envelope delivery while keeping plaintext/private keys client-only.
+- Latest meaningful change: 2026-05-18 defined the runtime account-data export/dry-run import surface and its secret/metadata exclusions.
 
 ## Persistence Boundary Matrix
 
@@ -30,6 +30,7 @@
 | Server channel messages | server | optional cache | yes | subject to server retention policy |
 | Server channel/presence per-device cursor state | server + profile devices | yes (cache) | yes (cursor metadata) | required for late-device hydration and reconnect convergence |
 | Session tokens | server | yes (session storage) | yes | revocable and expirable |
+| Account data export package | authenticated user | yes | generated on demand | includes public identity material, contact state, server memberships, DM ciphertext history for visible threads, authored server-channel messages, and non-secret sync cursors; excludes private keys, recovery material, session ids/tokens, DM device secrets, endpoint hints, and transient delivery metadata |
 | Migration bundle metadata | migrating user | yes | no bundle plaintext | signed+encrypted bundle only |
 
 ## Retention Baseline
@@ -52,6 +53,14 @@
 - Outbound forwarding purge deletes expired `forwarded` rows and terminal `failed` rows with no future retry schedule. Queued or retry-scheduled rows remain until retry resolution or later expiry.
 - Delivery metadata retention stores no plaintext, private keys, recipient-device endpoint hints, LAN/WAN addresses, pairing payloads, or direct-transport state.
 - Abuse controls for DM delivery are identity/node scoped rate limits over dispatch, catch-up, ack, and authenticated node-forward ingress; they operate on request counts and policy state, not plaintext inspection.
+
+## Account Data Portability Surface
+
+- `GET /account/export` is the current runtime account-data portability surface. It is authenticated and generates a package for the caller's identity only.
+- The export includes public identity key material, active session counts plus the current session expiry, contact request state, server memberships, non-secret profile-device sync cursor state, canonical encrypted DM history for threads where the caller is a participant, and server-channel messages authored by the caller including `deleted_at` tombstone state.
+- The export intentionally excludes private keys, recovery phrases, session ids, session tokens, DM profile-device secret hashes, endpoint-card hints, LAN/WAN transport metadata, delivery/fanout retry logs, and outbound forwarding metadata.
+- `POST /account/import` is dry-run only in the current runtime. It validates that an export package belongs to the authenticated identity and returns planned section counts without inserting, updating, deleting, or reviving storage rows.
+- Mutating import, reconciliation, id remapping, and cutover remain future migration tasks; until those land, import behavior must fail closed rather than partially restoring data.
 
 ## Related Documents
 
