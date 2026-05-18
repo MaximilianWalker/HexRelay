@@ -1247,12 +1247,233 @@ PY
   trap - RETURN
 }
 
+run_realtime_internal_http_fixture() {
+  local mutation_name="$1"
+  local expected_exit="$2"
+  local expected_text="${3:-}"
+  local fixture_dir="$FIXTURES_DIR/pass-basic"
+  local temp_repo
+  temp_repo="$(mktemp -d)"
+  trap 'rm -rf "$temp_repo"' RETURN
+
+  cp -R "$fixture_dir/." "$temp_repo/"
+  cp "$ROOT_DIR/.gitattributes" "$temp_repo/.gitattributes"
+  git -C "$temp_repo" init -q
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit --allow-empty -qm "base"
+  "${PYTHON_BIN[@]}" - "$temp_repo" "$mutation_name" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+mutation_name = sys.argv[2]
+
+(root / "services/realtime-rs/src/transport/http").mkdir(parents=True, exist_ok=True)
+(root / "services/realtime-rs/src/app/router.rs").write_text(
+    """fn router() {
+    Router::new()
+        .route("/internal/dev/faults", get(get_dev_faults_internal).post(set_dev_faults_internal))
+        .route("/internal/dev/faults/reset", post(reset_dev_faults_internal));
+}
+"""
+)
+(root / "services/realtime-rs/src/transport/http/internal.rs").write_text(
+    """use axum::{extract::State, http::{HeaderMap, StatusCode}, Json};
+
+pub struct AppState;
+
+pub struct DevFaultUpdateRequest {
+    delay_ms: Option<u64>,
+}
+
+pub struct DevFaultResponse {
+    enabled: bool,
+}
+
+pub async fn get_dev_faults_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<DevFaultResponse>) {
+    if !internal_token_valid(&state, &headers) {
+        return dev_fault_response(StatusCode::UNAUTHORIZED);
+    }
+    dev_fault_response(StatusCode::OK)
+}
+
+pub async fn set_dev_faults_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(_payload): Json<DevFaultUpdateRequest>,
+) -> (StatusCode, Json<DevFaultResponse>) {
+    if !internal_token_valid(&state, &headers) {
+        return dev_fault_response(StatusCode::UNAUTHORIZED);
+    }
+    dev_fault_response(StatusCode::OK)
+}
+
+pub async fn reset_dev_faults_internal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<DevFaultResponse>) {
+    if !internal_token_valid(&state, &headers) {
+        return dev_fault_response(StatusCode::UNAUTHORIZED);
+    }
+    dev_fault_response(StatusCode::OK)
+}
+
+fn dev_fault_response(status: StatusCode) -> (StatusCode, Json<DevFaultResponse>) {
+    (status, Json(DevFaultResponse { enabled: true }))
+}
+
+fn internal_token_valid(_state: &AppState, headers: &HeaderMap) -> bool {
+    headers.get("x-hexrelay-internal-token").is_some()
+}
+"""
+)
+
+contract_path = root / "docs/contracts/realtime-internal.openapi.yaml"
+contract_path.write_text(
+    """openapi: 3.1.0
+info:
+  title: Fixture Realtime Internal HTTP API
+  version: unversioned
+paths:
+  /internal/dev/faults:
+    get:
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current fault settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+    post:
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevFaultUpdateRequest'
+      responses:
+        '200':
+          description: Updated fault settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+  /internal/dev/faults/reset:
+    post:
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reset fault settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+components:
+  schemas:
+    DevFaultUpdateRequest:
+      type: object
+      properties:
+        delay_ms:
+          type: integer
+    DevFaultResponse:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+"""
+)
+
+text = contract_path.read_text()
+
+def remove_path(path):
+    marker = f"  {path}:"
+    start = text.index(marker)
+    next_path = text.find("\n  /internal/", start + len(marker))
+    components = text.find("\ncomponents:", start)
+    end = min(index for index in (next_path, components) if index != -1)
+    return text[:start] + text[end + 1:]
+
+if mutation_name == "pass-realtime-internal-http-contract":
+    pass
+elif mutation_name == "fail-realtime-internal-http-inventory":
+    contract_path.write_text(remove_path("/internal/dev/faults/reset"))
+elif mutation_name == "fail-realtime-internal-http-auth-header":
+    contract_path.write_text(text.replace("          required: true", "          required: false", 1))
+elif mutation_name == "fail-realtime-internal-http-request-body":
+    start = text.index("      requestBody:")
+    end = text.index("      responses:", start)
+    contract_path.write_text(text[:start] + text[end:])
+else:
+    raise SystemExit(f"unknown fixture mutation: {mutation_name}")
+PY
+  git -C "$temp_repo" add .
+  git -C "$temp_repo" -c user.name="$FIXTURE_GIT_AUTHOR_NAME" -c user.email="$FIXTURE_GIT_AUTHOR_EMAIL" commit -qm "fixture"
+
+  set +e
+  local output
+  output="$(cd "$temp_repo" && bash "$SCRIPT_PATH" HEAD~1 HEAD 2>&1)"
+  local exit_code=$?
+  set -e
+
+  if [ "$exit_code" -ne "$expected_exit" ]; then
+    printf 'fixture %s: expected exit %s, got %s\n%s\n' "$mutation_name" "$expected_exit" "$exit_code" "$output"
+    return 1
+  fi
+
+  if [ -n "$expected_text" ] && ! printf '%s' "$output" | grep -Fq "$expected_text"; then
+    printf 'fixture %s: expected output to contain %s\n%s\n' "$mutation_name" "$expected_text" "$output"
+    return 1
+  fi
+
+  rm -rf "$temp_repo"
+  trap - RETURN
+}
+
 run_fixture pass-basic 0
 run_fixture pass-cookie-actions 0
 run_delegated_csrf_fixture pass-delegated-csrf-header 0
 run_delegated_internal_header_fixture pass-delegated-internal-auth-header 0
 run_dm_mark_read_schema_fixture pass-dm-mark-read-scalar-bounds 0
 run_path_parameter_format_fixture pass-path-parameter-format 0
+run_realtime_internal_http_fixture pass-realtime-internal-http-contract 0
 run_response_header_schema_type_fixture pass-response-header-schema-ref 0
 run_fixture pass-request-body-component 0
 run_fixture pass-request-schema-alias 0
@@ -1284,6 +1505,9 @@ run_fixture fail-public-auth-security 1 'GET /health documents security schemes 
 run_query_parameter_pattern_fixture fail-query-parameter-pattern 1 'uses query parameter `identity_id` with pattern `^[A-Za-z0-9_-]{3,64}$` at runtime but documents `<none>`'
 run_fixture fail-request-body-required 1 "requestBody is not marked required"
 run_request_body_media_type_fixture fail-request-body-media-type 1 'accepts JSON request bodies at runtime but documents request media types [application/json, text/plain] instead of [application/json]'
+run_realtime_internal_http_fixture fail-realtime-internal-http-auth-header 1 'requires request header `x-hexrelay-internal-token` at runtime but it is not marked required'
+run_realtime_internal_http_fixture fail-realtime-internal-http-inventory 1 "Realtime internal HTTP route inventory drift"
+run_realtime_internal_http_fixture fail-realtime-internal-http-request-body 1 "accepts a Json request body at runtime but is missing requestBody"
 run_fixture fail-request-schema-ref-direct 1 "FriendRequestCreateRequest"
 run_fixture fail-request-schema-ref-alias 1 "FriendRequestCreateRequest"
 run_fixture fail-rest-schema-field-types 1 'uses request schema `AuthVerifyRequest` field `signature` as type `string` at runtime but documents `integer`'

@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
 
 API_CONTRACT = "docs/contracts/runtime-rest.openapi.yaml"
 REALTIME_CONTRACT = "docs/contracts/realtime-events-runtime.asyncapi.yaml"
+REALTIME_INTERNAL_HTTP_CONTRACT = "docs/contracts/realtime-internal.openapi.yaml"
 API_SURFACE_FILES = [
     "services/api-rs/src/models.rs",
     "services/api-rs/src/app/router.rs",
@@ -30,6 +31,12 @@ REALTIME_SURFACE_FILES = [
     "services/realtime-rs/src/domain/events/*.rs",
     "services/realtime-rs/src/transport/ws/middleware/rate_limit.rs",
     "services/realtime-rs/src/transport/ws/handlers/*.rs",
+]
+REALTIME_INTERNAL_HTTP_SURFACE_FILES = [
+    "services/realtime-rs/src/app/router.rs",
+    "services/realtime-rs/src/domain/channels.rs",
+    "services/realtime-rs/src/domain/dms.rs",
+    "services/realtime-rs/src/transport/http/internal.rs",
 ]
 
 
@@ -100,11 +107,28 @@ def main(argv: list[str]) -> int:
 
     api_surface_changes = git_diff_name_only(base_sha, head_sha, API_SURFACE_FILES)
     realtime_surface_changes = git_diff_name_only(base_sha, head_sha, REALTIME_SURFACE_FILES)
+    realtime_internal_http_surface_changes = git_diff_name_only(
+        base_sha, head_sha, REALTIME_INTERNAL_HTTP_SURFACE_FILES
+    )
     api_contract_changed = contract_changed(base_sha, head_sha, API_CONTRACT)
     realtime_contract_changed = contract_changed(base_sha, head_sha, REALTIME_CONTRACT)
+    realtime_internal_http_contract_exists = pathlib.Path(
+        REALTIME_INTERNAL_HTTP_CONTRACT
+    ).exists()
+    realtime_internal_http_contract_changed = contract_changed(
+        base_sha, head_sha, REALTIME_INTERNAL_HTTP_CONTRACT
+    ) if realtime_internal_http_contract_exists else False
 
     api_runtime_inventory = engine.extract_api_runtime_inventory("services/api-rs/src/app/router.rs")
     api_contract_inventory = engine.extract_openapi_contract_inventory(API_CONTRACT)
+    realtime_internal_http_runtime_inventory = engine.extract_realtime_internal_http_runtime_inventory(
+        "services/realtime-rs/src/app/router.rs"
+    )
+    realtime_internal_http_contract_inventory = (
+        engine.extract_openapi_contract_inventory(REALTIME_INTERNAL_HTTP_CONTRACT)
+        if realtime_internal_http_contract_exists
+        else ""
+    )
     api_runtime_error_codes = engine.extract_api_runtime_error_codes(
         "services/api-rs/src/domain/**/*.rs",
         "services/api-rs/src/shared/errors.rs",
@@ -142,6 +166,20 @@ def main(argv: list[str]) -> int:
         print(realtime_surface_changes)
         errors = True
 
+    if realtime_internal_http_runtime_inventory:
+        if not realtime_internal_http_contract_exists:
+            print(
+                f"::error::Realtime internal HTTP routes exist but {REALTIME_INTERNAL_HTTP_CONTRACT} is missing."
+            )
+            errors = True
+        elif realtime_internal_http_surface_changes and not realtime_internal_http_contract_changed:
+            print(
+                f"::error::Realtime internal HTTP surface changed but {REALTIME_INTERNAL_HTTP_CONTRACT} was not updated."
+            )
+            print("Changed realtime internal HTTP surface files:")
+            print(realtime_internal_http_surface_changes)
+            errors = True
+
     if not has_required_version_field(API_CONTRACT, "openapi"):
         print(f"::error::{API_CONTRACT} is missing required openapi version field.")
         errors = True
@@ -150,13 +188,34 @@ def main(argv: list[str]) -> int:
         print(f"::error::{REALTIME_CONTRACT} is missing required asyncapi version field.")
         errors = True
 
+    if realtime_internal_http_runtime_inventory and realtime_internal_http_contract_exists:
+        if not has_required_version_field(REALTIME_INTERNAL_HTTP_CONTRACT, "openapi"):
+            print(
+                f"::error::{REALTIME_INTERNAL_HTTP_CONTRACT} is missing required openapi version field."
+            )
+            errors = True
+
     errors = compare_inventory("API route inventory", api_runtime_inventory, api_contract_inventory) or errors
+    if realtime_internal_http_runtime_inventory and realtime_internal_http_contract_exists:
+        errors = compare_inventory(
+            "Realtime internal HTTP route inventory",
+            realtime_internal_http_runtime_inventory,
+            realtime_internal_http_contract_inventory,
+        ) or errors
     errors = compare_inventory("API error-code inventory", api_runtime_error_codes, api_contract_error_codes) or errors
     errors = compare_inventory("Realtime event inventory", realtime_runtime_events, realtime_contract_events) or errors
     errors = compare_inventory("Realtime error-code inventory", realtime_runtime_error_codes, realtime_contract_error_codes) or errors
 
     if engine.validate_api_semantic_contracts(API_CONTRACT) != 0:
         errors = True
+
+    if realtime_internal_http_runtime_inventory and realtime_internal_http_contract_exists:
+        if engine.validate_realtime_internal_http_contracts(
+            REALTIME_INTERNAL_HTTP_CONTRACT,
+            "services/realtime-rs/src/app/router.rs",
+            "services/realtime-rs/src/transport/http/internal.rs",
+        ) != 0:
+            errors = True
 
     if engine.validate_realtime_semantic_contracts(
         REALTIME_CONTRACT,

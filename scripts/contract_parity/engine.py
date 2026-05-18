@@ -103,6 +103,278 @@ def extract_openapi_contract_error_codes(path: str) -> str:
 
     return "\n".join(sorted(set(codes)))
 
+HTTP_STATUS_CODES = {
+    'OK': '200',
+    'CREATED': '201',
+    'ACCEPTED': '202',
+    'NO_CONTENT': '204',
+    'BAD_REQUEST': '400',
+    'UNAUTHORIZED': '401',
+    'FORBIDDEN': '403',
+    'NOT_FOUND': '404',
+    'CONFLICT': '409',
+    'TOO_MANY_REQUESTS': '429',
+    'INTERNAL_SERVER_ERROR': '500',
+    'BAD_GATEWAY': '502',
+    'SERVICE_UNAVAILABLE': '503',
+}
+
+
+def extract_realtime_internal_http_runtime_inventory(path: str) -> str:
+    entries = []
+    for line in extract_api_runtime_inventory(path).splitlines():
+        _, route_path = line.split(" ", 1)
+        if route_path.startswith("/internal/"):
+            entries.append(line)
+    return "\n".join(sorted(entries))
+
+
+def validate_realtime_internal_http_contracts(
+    contract_path_str: str,
+    router_path_str: str,
+    handler_path_str: str,
+) -> int:
+    contract_path = pathlib.Path(contract_path_str)
+    router_path = pathlib.Path(router_path_str)
+    handler_path = pathlib.Path(handler_path_str)
+    errors = []
+
+    if not contract_path.exists():
+        print(
+            f"::error::{contract_path} is missing but realtime-rs exposes internal HTTP routes."
+        )
+        return 1
+
+    routes = _extract_realtime_internal_http_routes(router_path.read_text())
+    functions = _extract_rust_http_functions(handler_path.read_text())
+    contract_operations = _extract_openapi_operation_details(contract_path)
+
+    for key, handler in sorted(routes.items()):
+        method, route_path = key
+        contract = contract_operations.get(key)
+        if contract is None:
+            continue
+
+        runtime = functions.get(handler)
+        if runtime is None:
+            errors.append(
+                f"::error::{method} {route_path} handler `{handler}` was not found in {handler_path}."
+            )
+            continue
+
+        if runtime["has_internal_auth"]:
+            header = contract["request_header_details"].get("x-hexrelay-internal-token")
+            if header is None:
+                errors.append(
+                    f"::error::{method} {route_path} requires internal-token header `x-hexrelay-internal-token` at runtime but is missing it from {contract_path}."
+                )
+            else:
+                if not header.get("required"):
+                    errors.append(
+                        f"::error::{method} {route_path} requires request header `x-hexrelay-internal-token` at runtime but it is not marked required in {contract_path}."
+                    )
+                if header.get("schema_type") != "string":
+                    actual = header.get("schema_type") or "<none>"
+                    errors.append(
+                        f"::error::{method} {route_path} uses request header `x-hexrelay-internal-token` as type `string` at runtime but documents `{actual}` in {contract_path}."
+                    )
+            if contract["security_schemes"]:
+                documented = ", ".join(sorted(contract["security_schemes"]))
+                errors.append(
+                    f"::error::{method} {route_path} uses internal-token auth at runtime and should not declare session security schemes [{documented}] in {contract_path}."
+                )
+            if "401" not in contract["responses"]:
+                errors.append(
+                    f"::error::{method} {route_path} requires internal-token auth at runtime but is missing a 401 response in {contract_path}."
+                )
+
+        request_schema = runtime["request_body_schema"]
+        if request_schema:
+            if not contract["has_request_body"]:
+                errors.append(
+                    f"::error::{method} {route_path} accepts a Json request body at runtime but is missing requestBody in {contract_path}."
+                )
+            elif not contract["request_body_required"]:
+                errors.append(
+                    f"::error::{method} {route_path} accepts a required Json request body at runtime but requestBody is not marked required in {contract_path}."
+                )
+            elif contract["request_body_media_types"] != {"application/json"}:
+                documented = ", ".join(sorted(contract["request_body_media_types"])) or "<none>"
+                errors.append(
+                    f"::error::{method} {route_path} accepts JSON request bodies at runtime but documents request media types [{documented}] instead of [application/json] in {contract_path}."
+                )
+            if contract["request_body_schema"] != request_schema:
+                documented = contract["request_body_schema"] or "<none>"
+                errors.append(
+                    f"::error::{method} {route_path} accepts request body schema `{request_schema}` at runtime but documents `{documented}` in {contract_path}."
+                )
+        elif contract["has_request_body"]:
+            errors.append(
+                f"::error::{method} {route_path} documents a requestBody but runtime handler has no request-body extractor in {contract_path}."
+            )
+
+        for status_code in sorted(runtime["response_statuses"]):
+            if status_code not in contract["responses"]:
+                errors.append(
+                    f"::error::{method} {route_path} can return HTTP {status_code} at runtime but is missing that response in {contract_path}."
+                )
+
+    for error in errors:
+        print(error)
+    return 1 if errors else 0
+
+
+def _extract_realtime_internal_http_routes(text: str) -> dict[tuple[str, str], str]:
+    routes = {}
+    for block in _rust_route_blocks(text):
+        path_match = re.search(r'\.route\(\s*"([^"]+)"', block, re.S)
+        if not path_match:
+            continue
+        route_path = re.sub(r':([A-Za-z0-9_]+)', r'{\1}', path_match.group(1))
+        if not route_path.startswith("/internal/"):
+            continue
+        for method, handler in re.findall(r'\b(get|post|put|patch|delete)\s*\(\s*(\w+)\s*\)', block):
+            routes[(method.upper(), route_path)] = handler
+    return routes
+
+
+def _rust_route_blocks(text: str):
+    needle = '.route('
+    index = 0
+    while True:
+        start = text.find(needle, index)
+        if start == -1:
+            return
+        cursor = start + len(needle)
+        depth = 1
+        while cursor < len(text) and depth > 0:
+            char = text[cursor]
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+            cursor += 1
+        yield text[start:cursor]
+        index = cursor
+
+
+def _extract_rust_http_functions(text: str) -> dict[str, dict[str, object]]:
+    functions = {}
+    pattern = re.compile(r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\((.*?)\)\s*->', re.S)
+    for match in pattern.finditer(text):
+        name = match.group(1)
+        params = match.group(2)
+        body_start = text.find('{', match.end())
+        if body_start == -1:
+            continue
+        cursor = body_start + 1
+        depth = 1
+        while cursor < len(text) and depth > 0:
+            char = text[cursor]
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+            cursor += 1
+        body = text[body_start:cursor]
+        request_schema_match = re.search(r'Json\s*<\s*([A-Za-z0-9_]+)\s*>', params)
+        functions[name] = {
+            "has_internal_auth": "internal_token_valid(" in body
+            or '.get("x-hexrelay-internal-token")' in body,
+            "request_body_schema": request_schema_match.group(1)
+            if request_schema_match
+            else None,
+            "response_statuses": {
+                HTTP_STATUS_CODES[status]
+                for status in re.findall(r'StatusCode::([A-Z_]+)', body)
+                if status in HTTP_STATUS_CODES
+            },
+        }
+    return functions
+
+
+def _extract_openapi_operation_blocks(path: pathlib.Path) -> dict[tuple[str, str], str]:
+    lines = path.read_text().splitlines()
+    blocks = {}
+    current_path = None
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        path_match = re.match(r'^  (/[^:]+):\s*$', line)
+        if path_match:
+            current_path = path_match.group(1)
+            index += 1
+            continue
+
+        method_match = re.match(r'^    (get|post|put|patch|delete):\s*$', line)
+        if method_match and current_path:
+            start = index
+            index += 1
+            while index < len(lines):
+                candidate = lines[index]
+                if (
+                    re.match(r'^    (get|post|put|patch|delete):\s*$', candidate)
+                    or re.match(r'^  (/[^:]+):\s*$', candidate)
+                    or re.match(r'^\S', candidate)
+                ):
+                    break
+                index += 1
+            blocks[(method_match.group(1).upper(), current_path)] = "\n".join(
+                lines[start:index]
+            )
+            continue
+
+        index += 1
+    return blocks
+
+
+def _extract_openapi_operation_details(path: pathlib.Path) -> dict[tuple[str, str], dict[str, object]]:
+    operations = {}
+    for key, block in _extract_openapi_operation_blocks(path).items():
+        request_body_block = ""
+        request_body_start = block.find("requestBody:")
+        if request_body_start != -1:
+            responses_start = block.find("responses:", request_body_start)
+            request_body_block = block[
+                request_body_start:responses_start if responses_start != -1 else len(block)
+            ]
+
+        header_details = {}
+        for header_block in re.findall(
+            r'-\s+in:\s+header\s*\n\s+name:\s+([A-Za-z0-9_-]+)(.*?)(?=\n\s+-\s+in:|\n\s+requestBody:|\n\s+responses:|\Z)',
+            block,
+            re.S,
+        ):
+            header_name, details = header_block
+            type_match = re.search(r'\bschema:\s*\n\s+type:\s+([A-Za-z0-9_]+)', details)
+            header_details[header_name] = {
+                "required": bool(re.search(r'\brequired:\s+true\b', details)),
+                "schema_type": type_match.group(1) if type_match else None,
+            }
+
+        request_schema_match = re.search(
+            r"\$ref:\s+'#/components/schemas/([A-Za-z0-9_]+)'",
+            request_body_block,
+        )
+        operations[key] = {
+            "security_schemes": set(
+                re.findall(r'^\s+-\s+([A-Za-z][A-Za-z0-9_]*):\s*\[\]', block, re.M)
+            ),
+            "request_header_details": header_details,
+            "has_request_body": "requestBody:" in block,
+            "request_body_required": bool(
+                re.search(r'requestBody:\s*\n\s+required:\s+true\b', block)
+            ),
+            "request_body_media_types": set(
+                re.findall(r'^\s+([A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+):\s*$', request_body_block, re.M)
+            ),
+            "request_body_schema": request_schema_match.group(1)
+            if request_schema_match
+            else None,
+            "responses": set(re.findall(r"^\s+'(\d{3})':\s*$", block, re.M)),
+        }
+    return operations
+
 def validate_api_semantic_contracts(contract_path_str: str) -> int:
     TRACKED_ERROR_STATUS_TOKENS = {
         '400': ('bad_request(',),
