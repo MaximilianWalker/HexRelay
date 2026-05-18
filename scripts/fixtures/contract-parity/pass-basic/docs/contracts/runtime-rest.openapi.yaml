@@ -82,6 +82,8 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
+          x-hexrelay-query-semantics:
+            - default:20
         - in: query
           name: unread_only
           schema:
