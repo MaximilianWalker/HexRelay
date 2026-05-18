@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-18
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-15 documented JSON request media-type contract-parity coverage.
+- Latest meaningful change: 2026-05-18 canonicalized target-state server vocabulary across REST and realtime contract artifacts.
 
 ## Purpose
 

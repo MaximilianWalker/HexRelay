@@ -1972,7 +1972,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         &state,
         PublishChannelMessageCreatedInput {
             message_id: "msg-1".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             sender_id: "usr-sender".to_string(),
             created_at: Some("2026-03-23T05:00:00Z".to_string()),
@@ -1991,7 +1991,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 7);
-    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(replay_payload["data"]["server_id"], "server-1");
     assert_eq!(replay_payload["data"]["sender_identity_id"], "usr-sender");
     assert_channel_replay_keys_have_ttl(&redis_client, viewer_identity_id).await;
 
@@ -2009,7 +2009,7 @@ async fn websocket_channel_message_created_hydrates_late_profile_device() {
         hydrated_payload["data"]["created_at"],
         replay_payload["data"]["created_at"]
     );
-    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["server_id"], "server-1");
     assert_eq!(hydrated_payload["data"]["sender_identity_id"], "usr-sender");
 
     late_device
@@ -2083,7 +2083,7 @@ async fn websocket_channel_events_hydrate_late_device_without_prior_active_conne
         &state,
         PublishChannelMessageCreatedInput {
             message_id: "msg-no-active-1".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             sender_id: "usr-sender".to_string(),
             created_at: Some("2026-03-23T06:00:00Z".to_string()),
@@ -2102,7 +2102,7 @@ async fn websocket_channel_events_hydrate_late_device_without_prior_active_conne
         &state,
         PublishChannelMessageUpdatedInput {
             message_id: "msg-no-active-2".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             editor_id: "usr-editor".to_string(),
             edited_at: Some("2026-03-23T06:05:00Z".to_string()),
@@ -2121,7 +2121,7 @@ async fn websocket_channel_events_hydrate_late_device_without_prior_active_conne
         &state,
         PublishChannelMessageDeletedInput {
             message_id: "msg-no-active-3".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             deleted_by: "usr-moderator".to_string(),
             deleted_at: Some("2026-03-23T06:10:00Z".to_string()),
@@ -2270,7 +2270,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         &state,
         PublishChannelMessageUpdatedInput {
             message_id: "msg-2".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             editor_id: "usr-editor".to_string(),
             edited_at: Some("2026-03-23T05:05:00Z".to_string()),
@@ -2289,7 +2289,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 8);
-    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(replay_payload["data"]["server_id"], "server-1");
     assert_eq!(replay_payload["data"]["editor_identity_id"], "usr-editor");
 
     let mut late_device =
@@ -2306,7 +2306,7 @@ async fn websocket_channel_message_updated_hydrates_late_profile_device() {
         hydrated_payload["data"]["edited_at"],
         replay_payload["data"]["edited_at"]
     );
-    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["server_id"], "server-1");
     assert_eq!(hydrated_payload["data"]["editor_identity_id"], "usr-editor");
 
     late_device
@@ -2384,7 +2384,7 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
         &state,
         PublishChannelMessageDeletedInput {
             message_id: "msg-3".to_string(),
-            guild_id: "guild-1".to_string(),
+            server_id: "server-1".to_string(),
             channel_id: "channel-1".to_string(),
             deleted_by: "usr-moderator".to_string(),
             deleted_at: Some("2026-03-23T05:10:00Z".to_string()),
@@ -2403,7 +2403,7 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
     )
     .await;
     assert_eq!(replay_payload["data"]["channel_seq"], 9);
-    assert_eq!(replay_payload["data"]["server_id"], "guild-1");
+    assert_eq!(replay_payload["data"]["server_id"], "server-1");
     assert_eq!(
         replay_payload["data"]["deleter_identity_id"],
         "usr-moderator"
@@ -2423,7 +2423,7 @@ async fn websocket_channel_message_deleted_hydrates_late_profile_device() {
         hydrated_payload["data"]["deleted_at"],
         replay_payload["data"]["deleted_at"]
     );
-    assert_eq!(hydrated_payload["data"]["server_id"], "guild-1");
+    assert_eq!(hydrated_payload["data"]["server_id"], "server-1");
     assert_eq!(
         hydrated_payload["data"]["deleter_identity_id"],
         "usr-moderator"
