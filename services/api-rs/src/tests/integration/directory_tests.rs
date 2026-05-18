@@ -1,5 +1,8 @@
 use super::*;
-use realtime_rs::{domain::presence::publish_online_if_needed, state::ConnectionSenderEntry};
+use realtime_rs::{
+    domain::presence::publish_online_if_needed,
+    state::{ConnectionSenderEntry, OutboundWsMessage},
+};
 use tokio::{net::TcpListener, sync::mpsc};
 
 #[tokio::test]
@@ -528,7 +531,7 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
         10_000,
     )
     .expect("build realtime state");
-    let (sender, _receiver) = mpsc::channel::<String>(4);
+    let (sender, _receiver) = mpsc::channel::<OutboundWsMessage>(4);
     realtime_state.connection_senders.lock().await.insert(
         actor.clone(),
         HashMap::from([(

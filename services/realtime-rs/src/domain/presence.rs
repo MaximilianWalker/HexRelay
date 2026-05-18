@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::state::AppState;
+use crate::state::{AppState, OutboundReplayCheckpoint, OutboundWsMessage};
 use chrono::Utc;
 use communication_core::{
     domain::CommunicationMode,
@@ -251,7 +251,7 @@ pub async fn hydrate_presence_backlog_if_needed(
     state: &AppState,
     identity_id: &str,
     device_id: Option<&str>,
-    outbound_tx: &Sender<String>,
+    outbound_tx: &Sender<OutboundWsMessage>,
 ) {
     let Some(device_id) = device_id else {
         return;
@@ -297,34 +297,55 @@ pub async fn hydrate_presence_backlog_if_needed(
         }
     };
 
-    let mut latest_cursor = current_cursor;
     for entry in replay_entries
         .into_iter()
         .filter(|entry| entry.cursor > current_cursor)
     {
-        match outbound_tx.try_send(entry.payload.clone()) {
-            Ok(()) => {
-                latest_cursor = latest_cursor.max(entry.cursor);
-            }
+        let outbound = OutboundWsMessage::with_replay_checkpoint(
+            entry.payload,
+            OutboundReplayCheckpoint::Presence {
+                identity_id: identity_id.to_string(),
+                device_id: device_id.to_string(),
+                cursor: entry.cursor,
+            },
+        );
+        match outbound_tx.try_send(outbound) {
+            Ok(()) => {}
             Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => {
                 break;
             }
         }
     }
+}
 
-    if latest_cursor > current_cursor {
-        if let Err(error) = replay_store::set_device_cursor(
-            &mut connection,
-            presence_device_cursor_key,
-            PRESENCE_DEVICE_CURSOR_TTL_SECONDS,
-            identity_id,
-            device_id,
-            latest_cursor,
-        )
-        .await
-        {
-            warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist hydrated presence device cursor");
+pub async fn persist_presence_device_cursor(
+    state: &AppState,
+    identity_id: &str,
+    device_id: &str,
+    cursor: u64,
+) {
+    let Some(client) = state.presence_redis_client.as_ref() else {
+        return;
+    };
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(error = %error, "failed to open Redis connection for sent presence cursor update");
+            return;
         }
+    };
+
+    if let Err(error) = replay_store::set_device_cursor(
+        &mut connection,
+        presence_device_cursor_key,
+        PRESENCE_DEVICE_CURSOR_TTL_SECONDS,
+        identity_id,
+        device_id,
+        cursor,
+    )
+    .await
+    {
+        warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist sent presence device cursor");
     }
 }
 
@@ -630,7 +651,6 @@ async fn dispatch_presence_event_locally(
 ) {
     let mut stale_connections = Vec::new();
     let mut guard = state.connection_senders.lock().await;
-    let mut delivered_device_cursors = BTreeSet::new();
     let watcher_cursor_map = watcher_cursors
         .iter()
         .map(|entry| (entry.watcher_identity_id.as_str(), entry.cursor))
@@ -645,18 +665,22 @@ async fn dispatch_presence_event_locally(
             .copied();
 
         for (connection_id, entry) in connections.iter() {
-            match entry.sender.try_send(payload.to_string()) {
-                Ok(()) => {
-                    if let (Some(device_id), Some(cursor)) =
-                        (entry.device_id.as_ref(), watcher_cursor)
-                    {
-                        delivered_device_cursors.insert((
-                            watcher_identity_id.clone(),
-                            device_id.clone(),
-                            cursor,
-                        ));
-                    }
-                }
+            let outbound = if let (Some(device_id), Some(cursor)) =
+                (entry.device_id.as_ref(), watcher_cursor)
+            {
+                OutboundWsMessage::with_replay_checkpoint(
+                    payload,
+                    OutboundReplayCheckpoint::Presence {
+                        identity_id: watcher_identity_id.clone(),
+                        device_id: device_id.clone(),
+                        cursor,
+                    },
+                )
+            } else {
+                OutboundWsMessage::text(payload)
+            };
+            match entry.sender.try_send(outbound) {
+                Ok(()) => {}
                 Err(TrySendError::Closed(_)) => {
                     stale_connections.push((watcher_identity_id.clone(), connection_id.clone()));
                 }
@@ -681,41 +705,12 @@ async fn dispatch_presence_event_locally(
     }
 
     drop(guard);
-
-    if delivered_device_cursors.is_empty() {
-        return;
-    }
-
-    let Some(client) = state.presence_redis_client.as_ref() else {
-        return;
-    };
-    let mut connection = match client.get_multiplexed_tokio_connection().await {
-        Ok(value) => value,
-        Err(error) => {
-            warn!(error = %error, "failed to open Redis connection for presence cursor updates");
-            return;
-        }
-    };
-
-    for (identity_id, device_id, cursor) in delivered_device_cursors {
-        if let Err(error) = replay_store::set_device_cursor(
-            &mut connection,
-            presence_device_cursor_key,
-            PRESENCE_DEVICE_CURSOR_TTL_SECONDS,
-            &identity_id,
-            &device_id,
-            cursor,
-        )
-        .await
-        {
-            warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live presence device cursor");
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::{OutboundReplayCheckpoint, OutboundWsMessage};
     use axum::{routing::get, Json, Router};
     use serde_json::json;
     use tokio::{net::TcpListener, sync::mpsc};
@@ -846,8 +841,8 @@ mod tests {
             2048,
         )
         .expect("build app state");
-        let (open_tx, mut open_rx) = mpsc::channel::<String>(4);
-        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
+        let (open_tx, mut open_rx) = mpsc::channel::<OutboundWsMessage>(4);
+        let (stale_tx, stale_rx) = mpsc::channel::<OutboundWsMessage>(1);
         drop(stale_rx);
 
         state.connection_senders.lock().await.insert(
@@ -883,7 +878,16 @@ mod tests {
         )
         .await;
 
-        assert_eq!(open_rx.recv().await.as_deref(), Some("payload-1"));
+        let open_message = open_rx.recv().await.expect("open payload");
+        assert_eq!(open_message.as_ref(), "payload-1");
+        assert_eq!(
+            open_message.replay_checkpoint(),
+            Some(&OutboundReplayCheckpoint::Presence {
+                identity_id: "usr-main".to_string(),
+                device_id: "device-a".to_string(),
+                cursor: 4,
+            })
+        );
         let guard = state.connection_senders.lock().await;
         let connections = guard.get("usr-main").expect("remaining connections");
         assert!(connections.contains_key("conn-open"));
@@ -909,9 +913,9 @@ mod tests {
             2048,
         )
         .expect("build app state");
-        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<OutboundWsMessage>(1);
         full_tx
-            .try_send("seed".to_string())
+            .try_send(OutboundWsMessage::text("seed"))
             .expect("fill outbound queue");
 
         state.connection_senders.lock().await.insert(

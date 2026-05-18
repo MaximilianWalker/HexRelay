@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::state::AppState;
+use crate::state::{AppState, OutboundReplayCheckpoint, OutboundWsMessage};
 use chrono::Utc;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -328,7 +328,7 @@ pub async fn hydrate_channel_backlog_if_needed(
     state: &AppState,
     identity_id: &str,
     device_id: Option<&str>,
-    outbound_tx: &Sender<String>,
+    outbound_tx: &Sender<OutboundWsMessage>,
 ) {
     let Some(device_id) = device_id else {
         return;
@@ -374,30 +374,53 @@ pub async fn hydrate_channel_backlog_if_needed(
         }
     };
 
-    let mut latest_cursor = current_cursor;
     for entry in replay_entries
         .into_iter()
         .filter(|entry| entry.cursor > current_cursor)
     {
-        match outbound_tx.try_send(entry.payload.clone()) {
-            Ok(()) => latest_cursor = latest_cursor.max(entry.cursor),
+        let outbound = OutboundWsMessage::with_replay_checkpoint(
+            entry.payload,
+            OutboundReplayCheckpoint::Channel {
+                identity_id: identity_id.to_string(),
+                device_id: device_id.to_string(),
+                cursor: entry.cursor,
+            },
+        );
+        match outbound_tx.try_send(outbound) {
+            Ok(()) => {}
             Err(TrySendError::Closed(_)) | Err(TrySendError::Full(_)) => break,
         }
     }
+}
 
-    if latest_cursor > current_cursor {
-        if let Err(error) = replay_store::set_device_cursor(
-            &mut connection,
-            channel_device_cursor_key,
-            CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
-            identity_id,
-            device_id,
-            latest_cursor,
-        )
-        .await
-        {
-            warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist hydrated channel device cursor");
+pub async fn persist_channel_device_cursor(
+    state: &AppState,
+    identity_id: &str,
+    device_id: &str,
+    cursor: u64,
+) {
+    let Some(client) = state.presence_redis_client.as_ref() else {
+        return;
+    };
+    let mut connection = match client.get_multiplexed_tokio_connection().await {
+        Ok(value) => value,
+        Err(error) => {
+            warn!(error = %error, "failed to open Redis connection for sent channel cursor update");
+            return;
         }
+    };
+
+    if let Err(error) = replay_store::set_device_cursor(
+        &mut connection,
+        channel_device_cursor_key,
+        CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
+        identity_id,
+        device_id,
+        cursor,
+    )
+    .await
+    {
+        warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist sent channel device cursor");
     }
 }
 
@@ -854,7 +877,6 @@ async fn dispatch_channel_event_locally(
         .collect::<BTreeMap<_, _>>();
     let mut stale_connections = Vec::new();
     let mut guard = state.connection_senders.lock().await;
-    let mut delivered_device_cursors = BTreeSet::new();
     let recipient_cursor_map = recipient_cursors
         .iter()
         .map(|entry| (entry.recipient_identity_id.as_str(), entry.cursor))
@@ -872,18 +894,23 @@ async fn dispatch_channel_event_locally(
             .copied();
 
         for (connection_id, entry) in connections.iter() {
-            match entry.sender.try_send(payload.to_string()) {
+            let outbound = if let (Some(device_id), Some(cursor)) =
+                (entry.device_id.as_ref(), recipient_cursor)
+            {
+                OutboundWsMessage::with_replay_checkpoint(
+                    payload,
+                    OutboundReplayCheckpoint::Channel {
+                        identity_id: recipient_identity_id.clone(),
+                        device_id: device_id.clone(),
+                        cursor,
+                    },
+                )
+            } else {
+                OutboundWsMessage::text(payload)
+            };
+            match entry.sender.try_send(outbound) {
                 Ok(()) => {
                     *recipient_state = ChannelRecipientDispatchState::Queued;
-                    if let (Some(device_id), Some(cursor)) =
-                        (entry.device_id.as_ref(), recipient_cursor)
-                    {
-                        delivered_device_cursors.insert((
-                            recipient_identity_id.clone(),
-                            device_id.clone(),
-                            cursor,
-                        ));
-                    }
                 }
                 Err(TrySendError::Closed(_)) => {
                     stale_connections.push((recipient_identity_id.clone(), connection_id.clone()));
@@ -914,46 +941,6 @@ async fn dispatch_channel_event_locally(
     }
 
     drop(guard);
-
-    if delivered_device_cursors.is_empty() {
-        return build_channel_dispatch_summary(
-            context.message_id,
-            context.server_id,
-            context.channel_id,
-            recipient_states,
-            stale_connection_count,
-        );
-    }
-    if let Some(client) = state.presence_redis_client.as_ref() {
-        let mut connection = match client.get_multiplexed_tokio_connection().await {
-            Ok(value) => value,
-            Err(error) => {
-                warn!(error = %error, "failed to open Redis connection for channel cursor updates");
-                return build_channel_dispatch_summary(
-                    context.message_id,
-                    context.server_id,
-                    context.channel_id,
-                    recipient_states,
-                    stale_connection_count,
-                );
-            }
-        };
-
-        for (identity_id, device_id, cursor) in delivered_device_cursors {
-            if let Err(error) = replay_store::set_device_cursor(
-                &mut connection,
-                channel_device_cursor_key,
-                CHANNEL_DEVICE_CURSOR_TTL_SECONDS,
-                &identity_id,
-                &device_id,
-                cursor,
-            )
-            .await
-            {
-                warn!(identity_id = %identity_id, device_id = %device_id, error = %error, "failed to persist live channel device cursor");
-            }
-        }
-    }
 
     build_channel_dispatch_summary(
         context.message_id,
@@ -1095,6 +1082,7 @@ async fn consume_locally_dispatched_channel_event(state: &AppState, event_id: &s
 mod tests {
     use super::*;
     use crate::app::AppState;
+    use crate::state::{OutboundReplayCheckpoint, OutboundWsMessage};
     use tokio::sync::mpsc;
 
     fn test_state() -> AppState {
@@ -1120,9 +1108,9 @@ mod tests {
     #[tokio::test]
     async fn dispatch_channel_event_locally_keeps_full_connections_registered() {
         let state = test_state();
-        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<OutboundWsMessage>(1);
         full_tx
-            .try_send("seed".to_string())
+            .try_send(OutboundWsMessage::text("seed"))
             .expect("fill outbound queue");
 
         state.connection_senders.lock().await.insert(
@@ -1170,12 +1158,12 @@ mod tests {
     #[tokio::test]
     async fn dispatch_channel_event_locally_summarizes_recipient_outcomes() {
         let state = test_state();
-        let (queued_tx, mut queued_rx) = mpsc::channel::<String>(1);
-        let (full_tx, mut full_rx) = mpsc::channel::<String>(1);
+        let (queued_tx, mut queued_rx) = mpsc::channel::<OutboundWsMessage>(1);
+        let (full_tx, mut full_rx) = mpsc::channel::<OutboundWsMessage>(1);
         full_tx
-            .try_send("seed".to_string())
+            .try_send(OutboundWsMessage::text("seed"))
             .expect("fill outbound queue");
-        let (stale_tx, stale_rx) = mpsc::channel::<String>(1);
+        let (stale_tx, stale_rx) = mpsc::channel::<OutboundWsMessage>(1);
         drop(stale_rx);
 
         state.connection_senders.lock().await.extend([
@@ -1256,7 +1244,16 @@ mod tests {
             vec!["usr-full".to_string()]
         );
         assert_eq!(summary.stale_connection_count, 1);
-        assert_eq!(queued_rx.recv().await.as_deref(), Some("payload-1"));
+        let queued_message = queued_rx.recv().await.expect("queued payload");
+        assert_eq!(queued_message.as_ref(), "payload-1");
+        assert_eq!(
+            queued_message.replay_checkpoint(),
+            Some(&OutboundReplayCheckpoint::Channel {
+                identity_id: "usr-queued".to_string(),
+                device_id: "device-queued".to_string(),
+                cursor: 4,
+            })
+        );
         assert_eq!(full_rx.recv().await.as_deref(), Some("seed"));
         let guard = state.connection_senders.lock().await;
         assert!(!guard.contains_key("usr-stale"));
