@@ -8,21 +8,16 @@ use communication_core::{
 use std::{sync::LazyLock, time::Duration as StdDuration};
 
 use crate::{
-    domain::{
-        dm::{
-            forwarding::{
-                forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
-            },
-            outbound_forwarding::{retry_due_dm_outbound_forwards, DmOutboundForwardRetryConfig},
-            outbound_forwarding::{
-                spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
-            },
-            validation::DM_OFFLINE_DELIVERY_MODE,
-        },
-        node_identity::LocalNodeIdentity,
+    app::dm_outbound_forwarding::{
+        retry_due_dm_outbound_forwards, spawn_dm_outbound_forward_retry_worker,
+        DmOutboundForwardRetryConfig, DmOutboundForwardRetryWorkerConfig,
     },
+    domain::{dm::validation::DM_OFFLINE_DELIVERY_MODE, node_identity::LocalNodeIdentity},
     infra::db::repos::dm_repo,
     models::{DmPolicy, DmProfileDeviceRecord},
+    transport::http::adapters::dm_forwarding::{
+        forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
+    },
 };
 
 fn device_secret(device_id: &str) -> String {

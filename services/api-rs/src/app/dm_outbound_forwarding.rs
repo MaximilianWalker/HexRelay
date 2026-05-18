@@ -5,9 +5,9 @@ use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
 use crate::{
-    domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     infra::db::repos::dm_repo,
     state::AppState,
+    transport::http::adapters::dm_realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
 };
 
 pub const DM_OUTBOUND_FORWARD_MAX_ATTEMPTS: u32 = 5;

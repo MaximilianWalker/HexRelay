@@ -1,9 +1,12 @@
 use api_rs::{
-    app::{build_app, ApiConfig, AppState},
-    db::connect_and_prepare,
-    domain::dm::outbound_forwarding::{
-        spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
+    app::{
+        build_app,
+        dm_outbound_forwarding::{
+            spawn_dm_outbound_forward_retry_worker, DmOutboundForwardRetryWorkerConfig,
+        },
+        ApiConfig, AppState,
     },
+    db::connect_and_prepare,
 };
 use std::env;
 use tracing::{error, info};

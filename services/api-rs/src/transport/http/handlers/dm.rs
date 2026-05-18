@@ -15,14 +15,10 @@ use crate::domain::block_mute::service::is_blocked_bidirectional;
 use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
 use crate::transport::http::middleware::rate_limit;
 use crate::{
-    domain::dm::forwarding::{
-        authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
-    },
-    domain::dm::outbound_forwarding::{
+    app::dm_outbound_forwarding::{
         forwarding_error_summary, next_retry_attempt_after_failure,
         DM_OUTBOUND_FORWARD_MAX_ATTEMPTS,
     },
-    domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     domain::dm::validation::{
         validate_device_id, validate_device_secret, validate_dm_policy_update,
         validate_fanout_catch_up, validate_fanout_dispatch, validate_profile_device_heartbeat,
@@ -41,6 +37,10 @@ use crate::{
         ApiResult,
     },
     state::AppState,
+    transport::http::adapters::dm_forwarding::{
+        authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
+    },
+    transport::http::adapters::dm_realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 

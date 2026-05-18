@@ -6,15 +6,15 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    app::AppState,
-    domain::channels::{
-        publish_channel_message_created, publish_channel_message_deleted,
-        publish_channel_message_updated, ChannelMessageDispatchSummary,
-        PublishChannelMessageCreatedInput, PublishChannelMessageDeletedInput,
-        PublishChannelMessageUpdatedInput,
-    },
-    domain::dms::{
-        publish_dm_envelope_dispatched, DmEnvelopeDispatchSummary, PublishDmEnvelopeInput,
+    app::{
+        channels::{
+            publish_channel_message_created, publish_channel_message_deleted,
+            publish_channel_message_updated, ChannelMessageDispatchSummary,
+            PublishChannelMessageCreatedInput, PublishChannelMessageDeletedInput,
+            PublishChannelMessageUpdatedInput,
+        },
+        dms::{publish_dm_envelope_dispatched, DmEnvelopeDispatchSummary, PublishDmEnvelopeInput},
+        AppState,
     },
     state::DevFaultConfig,
 };

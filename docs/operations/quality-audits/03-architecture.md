@@ -4,7 +4,7 @@
 
 - topic_id: 03-architecture
 - topic: Architecture
-- last_audited: 2026-05-12T21:15:24Z
+- last_audited: 2026-05-18T22:37:00Z
 - source_of_truth: `docs/operations/quality-audits/03-architecture.md`
 
 ## Investigation Focus
@@ -16,16 +16,17 @@
 
 | ID | Priority | Status | Summary | Evidence | Next step | Last seen |
 |---|---|---|---|---|---|---|
-| QA-03-20260512-domain-transport-boundaries | P2 | found | Domain modules still own transport adapter and live connection concerns. | `docs/architecture/adr-0003-rust-service-module-architecture.md:86` requires mandatory layer direction, while `:96` says handlers parse IO and call domain services and `:100` assigns wire types to DTO modules. Current code keeps transport details in domain modules: `services/api-rs/src/domain/dm/realtime.rs:4` imports transport traits, `:17` owns an internal HTTP path, and `:78` stores a `reqwest::Client`; `services/api-rs/src/domain/dm/forwarding.rs:1` imports `axum::http::HeaderMap`, `:8` imports `reqwest::Url`, and `:28` owns another internal route path; realtime domain modules import `AppState`, `NodeDispatch`, mpsc senders, and live connection state at `services/realtime-rs/src/domain/presence.rs:3`, `:8`, `:14`, `:623`, with transport-shaped state defined at `services/realtime-rs/src/state.rs:12` and `:15`. | Move internal HTTP path constants, request/response wire structs, `reqwest`/`axum` dependencies, `NodeDispatch` implementations, and websocket sender-map mutation behind transport/app adapters so domain modules expose policy/data decisions rather than IO plumbing. | 2026-05-12 |
+| _none_ | | | | | | |
 
 ## Resolved Findings
 
 | ID | Priority | Status | Summary | Resolution evidence | Resolved |
 |---|---|---|---|---|---|
-| _none_ | | | | | |
+| QA-03-20260512-domain-transport-boundaries | P2 | fixed | Domain modules owned transport adapter and live connection concerns. | Reclassified API node-forwarding, realtime DM dispatch, and server-channel dispatch modules into `services/api-rs/src/transport/http/adapters/`; reclassified the API outbound-forward retry worker into `services/api-rs/src/app/dm_outbound_forwarding.rs`; reclassified realtime Redis/websocket IO services into `services/realtime-rs/src/app/{channels,dms,presence}.rs`; `rg -n "NodeDispatch|TransportError|reqwest|axum::http::HeaderMap|crate::state::AppState|sync::mpsc::Sender|ConnectionSenderEntry" services/api-rs/src/domain services/realtime-rs/src/domain` now returns no matches; `cargo check --all-targets --all-features` passes. | 2026-05-18 |
 
 ## Run History
 
 | Date (UTC) | Auditor | Result |
 |---|---|---|
+| 2026-05-18T22:37:00Z | Codex | Fixed QA-03-20260512-domain-transport-boundaries by moving transport/live connection adapters out of domain modules and validating domain boundary grep plus Rust all-target check. |
 | 2026-05-12T21:15:24Z | Codex | Added 1 P2 found finding about domain modules retaining transport and live connection responsibilities. |

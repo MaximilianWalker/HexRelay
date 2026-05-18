@@ -20,13 +20,17 @@ use tokio_tungstenite::{
 };
 use tower::util::ServiceExt;
 
-use crate::app::{build_app, AppState};
-use crate::domain::channels::{
-    publish_channel_message_created, publish_channel_message_deleted,
-    publish_channel_message_updated, PublishChannelMessageCreatedInput,
-    PublishChannelMessageDeletedInput, PublishChannelMessageUpdatedInput,
+use crate::app::{
+    build_app,
+    channels::{
+        publish_channel_message_created, publish_channel_message_deleted,
+        publish_channel_message_updated, spawn_channel_subscriber,
+        PublishChannelMessageCreatedInput, PublishChannelMessageDeletedInput,
+        PublishChannelMessageUpdatedInput,
+    },
+    presence::spawn_presence_subscriber,
+    AppState,
 };
-use crate::domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber};
 use crate::state::DevFaultConfig;
 
 use crate::transport::ws::handlers::gateway::{is_session_valid, route_inbound_event};

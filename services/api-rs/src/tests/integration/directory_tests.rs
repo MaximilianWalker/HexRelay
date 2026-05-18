@@ -1,5 +1,5 @@
 use super::*;
-use realtime_rs::{domain::presence::publish_online_if_needed, state::ConnectionSenderEntry};
+use realtime_rs::{app::presence::publish_online_if_needed, state::ConnectionSenderEntry};
 use tokio::{net::TcpListener, sync::mpsc};
 
 #[tokio::test]
