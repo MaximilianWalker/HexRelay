@@ -114,7 +114,7 @@ export default function HomePage() {
       <section>
         <p className={styles.eyebrow}>HexRelay workspace</p>
         <h1 className={styles.title}>Onboarding complete</h1>
-        <p className={styles.subtitle}>
+        <p className={styles.subtitle} id="home-persona-create-help">
           Persona sessions are isolated locally. Switch between personas to keep
           settings and active sessions scoped.
         </p>
@@ -133,6 +133,8 @@ export default function HomePage() {
 
         <div className={styles.createRow}>
           <input
+            aria-describedby="home-persona-create-help"
+            aria-label="New persona name"
             className={styles.input}
             value={newPersonaName}
             onChange={(event) => setNewPersonaName(event.target.value)}
