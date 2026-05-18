@@ -18,6 +18,9 @@ info:
     response contracts.
     Realtime/presence integration uses the shared communication-core node-client
     adapter boundary without changing REST route or payload contracts.
+    API runtime transport adapters for realtime dispatch and server-node forwarding
+    are implementation-owned under `services/api-rs/src/transport/http/adapters/`;
+    this contract remains the current behavior authority rather than a source-file map.
     Shared NodeClientTransport dispatch paths emit stable provenance telemetry
     with snake-case mode/profile/reason-code values (`dm_envelope_node_route_selected`,
     `server_channel_route_selected`, `presence_route_selected`) without adding

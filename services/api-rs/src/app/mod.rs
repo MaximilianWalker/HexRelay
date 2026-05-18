@@ -1,4 +1,5 @@
 pub mod config;
+pub mod dm_outbound_forwarding;
 pub mod router;
 pub mod state;
 

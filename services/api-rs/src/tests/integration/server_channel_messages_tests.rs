@@ -1,9 +1,9 @@
 use super::*;
 
 use futures::StreamExt;
-use realtime_rs::{
-    app::{build_app as build_realtime_app, AppState as RealtimeAppState},
-    domain::{channels::spawn_channel_subscriber, presence::spawn_presence_subscriber},
+use realtime_rs::app::{
+    build_app as build_realtime_app, channels::spawn_channel_subscriber,
+    presence::spawn_presence_subscriber, AppState as RealtimeAppState,
 };
 use tokio::net::TcpListener;
 use tokio_tungstenite::{

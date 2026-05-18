@@ -7,11 +7,13 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::{
-    domain::dm::forwarding::{forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput},
     domain::dm::routing::{
         plan_dm_envelope_route, DmEnvelopeForwardingRoute, DmEnvelopeRouteRequest,
     },
     state::AppState,
+    transport::http::adapters::dm_forwarding::{
+        forward_dm_envelope_to_static_peer, ForwardDmEnvelopeInput,
+    },
 };
 
 const INTERNAL_DM_ENVELOPE_DISPATCH_PATH: &str = "/internal/dm/envelopes/dispatch";

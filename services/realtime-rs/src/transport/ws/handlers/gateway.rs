@@ -160,7 +160,7 @@ async fn handle_socket(
     if let (Some(device_id), Some(device_secret)) =
         (device_id.as_deref(), initial_device_secret.as_deref())
     {
-        let (response, verified) = crate::domain::dms::verify_dm_device_binding(
+        let (response, verified) = crate::app::dms::verify_dm_device_binding(
             &state,
             &session_identity_id,
             device_id,
@@ -173,21 +173,21 @@ async fn handle_socket(
         }
         let _ = outbound_tx.try_send(response);
     }
-    crate::domain::presence::hydrate_presence_backlog_if_needed(
+    crate::app::presence::hydrate_presence_backlog_if_needed(
         &state,
         &session_identity_id,
         device_id.as_deref(),
         &outbound_tx,
     )
     .await;
-    crate::domain::channels::hydrate_channel_backlog_if_needed(
+    crate::app::channels::hydrate_channel_backlog_if_needed(
         &state,
         &session_identity_id,
         device_id.as_deref(),
         &outbound_tx,
     )
     .await;
-    crate::domain::presence::publish_online_if_needed(&state, &session_identity_id).await;
+    crate::app::presence::publish_online_if_needed(&state, &session_identity_id).await;
 
     let connected_at = tokio::time::Instant::now();
     let mut dev_fault_tick = tokio::time::interval(Duration::from_millis(250));
@@ -245,7 +245,7 @@ async fn handle_socket(
     }
 
     unregister_connection_sender(&state, &session_identity_id, &connection_id).await;
-    crate::domain::presence::publish_offline_if_needed(&state, &session_identity_id).await;
+    crate::app::presence::publish_offline_if_needed(&state, &session_identity_id).await;
     release_connection_slot(&state, &session_identity_id).await;
     drop(outbound_tx);
     let _ = writer.await;
@@ -291,8 +291,8 @@ async fn handle_inbound_message(
                 return true;
             }
 
-            if crate::domain::dms::is_dm_device_proof_event(&text) {
-                let (response, verified) = crate::domain::dms::handle_dm_device_proof(
+            if crate::app::dms::is_dm_device_proof_event(&text) {
+                let (response, verified) = crate::app::dms::handle_dm_device_proof(
                     state,
                     session_identity_id,
                     device_id,
@@ -304,7 +304,7 @@ async fn handle_inbound_message(
                         .await;
                 }
                 let _ = outbound_tx.try_send(response);
-            } else if crate::domain::dms::is_dm_envelope_ack_event(&text) {
+            } else if crate::app::dms::is_dm_envelope_ack_event(&text) {
                 let dm_device_verified = connection_dm_device_verified(
                     state,
                     session_identity_id,
@@ -312,7 +312,7 @@ async fn handle_inbound_message(
                     device_id,
                 )
                 .await;
-                let response = crate::domain::dms::handle_dm_envelope_ack(
+                let response = crate::app::dms::handle_dm_envelope_ack(
                     state,
                     session_identity_id,
                     device_id,

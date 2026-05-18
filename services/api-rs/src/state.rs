@@ -10,13 +10,12 @@ use sqlx::PgPool;
 
 use crate::{
     config::{ApiDmRetentionConfig, ApiRateLimitConfig},
-    domain::{
-        node_identity::LocalNodeIdentity, server_channels::realtime::ServerChannelDispatchQueue,
-    },
+    domain::node_identity::LocalNodeIdentity,
     models::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
         FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
     },
+    transport::http::adapters::server_channels_realtime::ServerChannelDispatchQueue,
     transport::http::middleware::rate_limit::RateLimiter,
 };
 

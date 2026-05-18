@@ -8,10 +8,6 @@ use tracing::{debug, info, warn};
 
 use crate::{
     domain::auth::validation::is_valid_identity_id,
-    domain::server_channels::realtime::{
-        self as server_channel_realtime, DispatchChannelMessageCreatedInput,
-        DispatchChannelMessageDeletedInput, DispatchChannelMessageUpdatedInput,
-    },
     infra::db::repos::server_channels_repo::{
         self, CreateServerChannelMessageError, ServerChannelPermission,
         SoftDeleteServerChannelMessageError, UpdateServerChannelMessageError,
@@ -23,6 +19,10 @@ use crate::{
     },
     shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
     state::AppState,
+    transport::http::adapters::server_channels_realtime::{
+        self as server_channel_realtime, DispatchChannelMessageCreatedInput,
+        DispatchChannelMessageDeletedInput, DispatchChannelMessageUpdatedInput,
+    },
     transport::http::middleware::{
         auth::{enforce_csrf_for_cookie_auth, AuthSession},
         authorization::{AuthorizedServerChannelMembership, AuthorizedServerMembership},
