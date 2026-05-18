@@ -6,6 +6,9 @@ info:
   description: |
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
+    Redis-backed replay, presence, channel, and DM websocket IO services are
+    implementation-owned under `services/realtime-rs/src/app/`; this artifact
+    remains the event/schema behavior authority rather than a source-file map.
     Current signaling operations support authenticated sender validation plus
     recipient-targeted live delivery to active websocket sessions for an accepted
     contact target identity. Sender-visible success remains a realtime-gateway
