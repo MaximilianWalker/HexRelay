@@ -1,0 +1,444 @@
+openapi: 3.1.0
+info:
+  title: HexRelay Realtime Internal HTTP API
+  version: unversioned
+  description: |
+    Current runtime contract for HTTP routes hosted by `services/realtime-rs`
+    for service-to-service dispatch and local fault-injection control. These
+    routes are not public app APIs and are protected by
+    `x-hexrelay-internal-token`. Channel and DM dispatch routes are called by
+    `services/api-rs`; development fault routes are disabled unless the
+    realtime runtime is explicitly started with fault injection enabled.
+servers:
+  - url: http://127.0.0.1:8081
+paths:
+  /internal/channels/messages/created:
+    post:
+      summary: Publish a created channel message to active realtime recipients
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime services.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelMessageCreatedDispatchRequest'
+      responses:
+        '202':
+          description: Dispatch accepted for best-effort active-recipient delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessageDispatchResponse'
+        '401':
+          $ref: '#/components/responses/InternalAuthRequired'
+        '502':
+          $ref: '#/components/responses/ChannelDispatchFailed'
+  /internal/channels/messages/updated:
+    post:
+      summary: Publish an updated channel message to active realtime recipients
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime services.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelMessageUpdatedDispatchRequest'
+      responses:
+        '202':
+          description: Dispatch accepted for best-effort active-recipient delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessageDispatchResponse'
+        '401':
+          $ref: '#/components/responses/InternalAuthRequired'
+        '502':
+          $ref: '#/components/responses/ChannelDispatchFailed'
+  /internal/channels/messages/deleted:
+    post:
+      summary: Publish a deleted channel message to active realtime recipients
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime services.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelMessageDeletedDispatchRequest'
+      responses:
+        '202':
+          description: Dispatch accepted for best-effort active-recipient delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessageDispatchResponse'
+        '401':
+          $ref: '#/components/responses/InternalAuthRequired'
+        '502':
+          $ref: '#/components/responses/ChannelDispatchFailed'
+  /internal/dm/envelopes/dispatch:
+    post:
+      summary: Publish an encrypted DM envelope to active recipient devices
+      description: |
+        Accepts an already persisted encrypted DM envelope and attempts
+        realtime delivery to the listed active recipient devices. The response
+        summarizes active-device queueing only; durable delivery state is
+        advanced later by explicit device acknowledgements through the API
+        internal ack route.
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by API and realtime services.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DmEnvelopeDispatchRequest'
+      responses:
+        '202':
+          description: Dispatch accepted for best-effort active-device delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmEnvelopeDispatchResponse'
+        '400':
+          description: Envelope dispatch payload is invalid for realtime delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalHttpError'
+              examples:
+                invalidDispatch:
+                  value:
+                    code: dm_dispatch_invalid
+                    message: recipient_identity_id is required
+        '401':
+          $ref: '#/components/responses/InternalAuthRequired'
+  /internal/dev/faults:
+    get:
+      summary: Read realtime development fault-injection settings
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by local runtime tooling and realtime.
+      responses:
+        '200':
+          description: Fault injection is enabled and the current configuration is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Internal token is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '403':
+          description: Fault injection routes are not enabled for this realtime runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+    post:
+      summary: Update realtime development fault-injection settings
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by local runtime tooling and realtime.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevFaultUpdateRequest'
+      responses:
+        '200':
+          description: Fault injection is enabled and the new configuration is active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '400':
+          description: Delay, drop-rate, or disconnect bounds are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Internal token is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '403':
+          description: Fault injection routes are not enabled for this realtime runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+  /internal/dev/faults/reset:
+    post:
+      summary: Reset realtime development fault-injection settings
+      parameters:
+        - in: header
+          name: x-hexrelay-internal-token
+          required: true
+          schema:
+            type: string
+          description: Channel-dispatch scoped internal token shared by local runtime tooling and realtime.
+      responses:
+        '200':
+          description: Fault injection is enabled and the configuration was reset to defaults.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '401':
+          description: Internal token is missing or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+        '403':
+          description: Fault injection routes are not enabled for this realtime runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevFaultResponse'
+components:
+  responses:
+    InternalAuthRequired:
+      description: Internal token is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalHttpError'
+          examples:
+            tokenMissing:
+              value:
+                code: internal_auth_required
+                message: internal dispatch token is required
+    ChannelDispatchFailed:
+      description: Realtime could not publish the channel message event.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalHttpError'
+          examples:
+            dispatchFailed:
+              value:
+                code: channel_dispatch_failed
+                message: failed to publish channel message
+  schemas:
+    ChannelMessageCreatedDispatchRequest:
+      type: object
+      required: [message_id, server_id, channel_id, sender_id, created_at, channel_seq, recipients]
+      properties:
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        server_id: { type: string, minLength: 1, maxLength: 128 }
+        channel_id: { type: string, minLength: 1, maxLength: 128 }
+        sender_id: { type: string, minLength: 1, maxLength: 128 }
+        created_at: { type: string, format: date-time }
+        channel_seq: { type: integer, minimum: 0 }
+        recipients:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 128 }
+    ChannelMessageUpdatedDispatchRequest:
+      type: object
+      required: [message_id, server_id, channel_id, editor_id, edited_at, channel_seq, recipients]
+      properties:
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        server_id: { type: string, minLength: 1, maxLength: 128 }
+        channel_id: { type: string, minLength: 1, maxLength: 128 }
+        editor_id: { type: string, minLength: 1, maxLength: 128 }
+        edited_at: { type: string, format: date-time }
+        channel_seq: { type: integer, minimum: 0 }
+        recipients:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 128 }
+    ChannelMessageDeletedDispatchRequest:
+      type: object
+      required: [message_id, server_id, channel_id, deleted_by, deleted_at, channel_seq, recipients]
+      properties:
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        server_id: { type: string, minLength: 1, maxLength: 128 }
+        channel_id: { type: string, minLength: 1, maxLength: 128 }
+        deleted_by: { type: string, minLength: 1, maxLength: 128 }
+        deleted_at: { type: string, format: date-time }
+        channel_seq: { type: integer, minimum: 0 }
+        recipients:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 128 }
+    ChannelMessageDispatchResponse:
+      type: object
+      required: [status, summary]
+      properties:
+        status: { type: string, enum: [accepted] }
+        summary:
+          $ref: '#/components/schemas/ChannelMessageDispatchSummary'
+    ChannelMessageDispatchSummary:
+      type: object
+      required:
+        - message_id
+        - server_id
+        - channel_id
+        - target_recipient_count
+        - queued_recipient_ids
+        - pending_recipient_ids
+        - no_connection_recipient_ids
+        - saturated_recipient_ids
+        - stale_connection_count
+      properties:
+        message_id: { type: string }
+        server_id: { type: string }
+        channel_id: { type: string }
+        target_recipient_count: { type: integer, minimum: 0 }
+        queued_recipient_ids:
+          type: array
+          items: { type: string }
+        pending_recipient_ids:
+          type: array
+          items: { type: string }
+        no_connection_recipient_ids:
+          type: array
+          items: { type: string }
+        saturated_recipient_ids:
+          type: array
+          items: { type: string }
+        stale_connection_count: { type: integer, minimum: 0 }
+    DmEnvelopeDispatchRequest:
+      type: object
+      required:
+        - message_id
+        - thread_id
+        - sender_identity_id
+        - recipient_identity_id
+        - ciphertext
+        - accepted_at
+        - delivery_cursor
+        - target_device_ids
+      properties:
+        message_id: { type: string, minLength: 1, maxLength: 128 }
+        thread_id: { type: string, minLength: 1, maxLength: 128 }
+        sender_identity_id: { type: string, minLength: 1, maxLength: 128 }
+        recipient_identity_id: { type: string, minLength: 1, maxLength: 128 }
+        ciphertext: { type: string, minLength: 1 }
+        source_device_id:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 128
+        accepted_at: { type: string, format: date-time }
+        delivery_cursor: { type: integer, minimum: 0 }
+        target_device_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 128 }
+    DmEnvelopeDispatchResponse:
+      type: object
+      required: [status, summary]
+      properties:
+        status: { type: string, enum: [accepted] }
+        summary:
+          $ref: '#/components/schemas/DmEnvelopeDispatchSummary'
+    DmEnvelopeDispatchSummary:
+      type: object
+      required:
+        - message_id
+        - recipient_identity_id
+        - target_device_count
+        - queued_device_ids
+        - pending_device_ids
+        - no_connection_device_ids
+        - unverified_device_ids
+        - saturated_device_ids
+        - stale_connection_count
+      properties:
+        message_id: { type: string }
+        recipient_identity_id: { type: string }
+        target_device_count: { type: integer, minimum: 0 }
+        queued_device_ids:
+          type: array
+          items: { type: string }
+        pending_device_ids:
+          type: array
+          items: { type: string }
+        no_connection_device_ids:
+          type: array
+          items: { type: string }
+        unverified_device_ids:
+          type: array
+          items: { type: string }
+        saturated_device_ids:
+          type: array
+          items: { type: string }
+        stale_connection_count: { type: integer, minimum: 0 }
+    DevFaultUpdateRequest:
+      type: object
+      properties:
+        delay_ms:
+          type: integer
+          minimum: 0
+          maximum: 600000
+        drop_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+        disconnect_after_seconds:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 86400
+    DevFaultResponse:
+      type: object
+      required: [enabled, delay_ms, drop_rate, disconnect_after_seconds]
+      properties:
+        enabled: { type: boolean }
+        delay_ms: { type: integer, minimum: 0, maximum: 600000 }
+        drop_rate: { type: number, minimum: 0, maximum: 1 }
+        disconnect_after_seconds:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 86400
+    InternalHttpError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - internal_auth_required
+            - channel_dispatch_failed
+            - dm_dispatch_invalid
+        message: { type: string }

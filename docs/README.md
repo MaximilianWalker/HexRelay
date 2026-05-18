@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-17
+- last_updated: 2026-05-18
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-17 routed the Windows parity CI gate through contributor validation guidance.
+- Latest meaningful change: 2026-05-18 routed realtime internal HTTP contracts into the contract authority index.
 
 ## Purpose
 
@@ -32,6 +32,7 @@
 | Current runtime REST contract baseline | `docs/contracts/runtime-rest.openapi.yaml` | API maintainers | Any implemented REST endpoint, schema, auth behavior, or error change |
 | MVP crypto profile contract baseline | `docs/contracts/crypto-profile.md` | Core/security maintainers | Any crypto algorithm, nonce, replay, key rotation, or crypto error contract change |
 | Current runtime realtime/signaling contract baseline | `docs/contracts/realtime-events-runtime.asyncapi.yaml` | Realtime maintainers | Any implemented websocket/signaling event schema change |
+| Current realtime internal HTTP contract baseline | `docs/contracts/realtime-internal.openapi.yaml` | Realtime/API maintainers | Any implemented realtime service-to-service HTTP dispatch, dev-fault, auth-header, request, or response behavior changes |
 | Target-state MVP REST contract model | `docs/contracts/mvp-rest.openapi.yaml` | API maintainers | Target endpoint/schema model changes for upcoming iterations |
 | Target-state realtime event/signaling model | `docs/contracts/realtime-events.asyncapi.yaml` | Realtime maintainers | Target event/schema model changes for upcoming iterations |
 | MVP UI navigation and layout authority | `docs/product/07-ui-navigation-spec.md` | Product/design maintainers | Navigation paradigm, screen hierarchy, or hub behavior changes |
@@ -107,6 +108,7 @@
 - `docs/contracts/runtime-rest.openapi.yaml`
 - `docs/contracts/README.md`
 - `docs/contracts/realtime-events-runtime.asyncapi.yaml`
+- `docs/contracts/realtime-internal.openapi.yaml`
 - `docs/contracts/crypto-profile.md`
 - `docs/contracts/mvp-rest.openapi.yaml`
 - `docs/contracts/realtime-events.asyncapi.yaml`
