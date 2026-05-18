@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-18
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery implementation plan.
+- Latest meaningful change: 2026-05-18 added the approval-pending contact-invite redemption implementation plan.
 
 ## Purpose
 
@@ -29,6 +29,22 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-18 (contact invite redemption approval package)
+
+- Area affected: Contact invite redemption, friend-request creation semantics, quality-audit routing, and approval-gated Web/API implementation planning.
+- Change summary:
+  - Added `docs/planning/contact-invite-redemption-implementation-plan.md` as the approval-pending implementation plan for `QA-17-20260514-contact-invite-preview-skipped`.
+  - Defined the current one-step runtime evidence, preview-then-accept versus one-step product decision, `CIR-APP-*` approval decisions, implementation slices, validation, and evidence expectations.
+  - Kept all runtime Contacts Hub and contact-invite API behavior blocked until explicit approval chooses the flow, copy, controls, side effects, and preview fields.
+- Rationale:
+  - The selected quality finding is valid but UX/product-facing; the smallest mergeable remediation is a plan-only approval package rather than unapproved Web/API behavior.
+- Linked docs updated:
+  - `docs/planning/contact-invite-redemption-implementation-plan.md`
+  - `docs/planning/README.md`
+  - `docs/operations/quality-audits/17-ux-product-quality.md`
+  - `docs/planning/05-iteration-log.md`
+  - `docs/README.md`
 
 ### 2026-05-15 (DM workspace delivery approval package)
 
