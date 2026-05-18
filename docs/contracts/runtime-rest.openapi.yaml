@@ -2120,7 +2120,9 @@ paths:
         when configured storage is available without exposing plaintext content.
         Catch-up throttling is identity-scoped across profile devices, while
         retention cleanup runs only after the requested active profile-device
-        secret is validated.
+        secret is validated. Storage-backed replay reads apply the durable
+        device cursor, already-delivered device exclusion, and requested page
+        limit before rows are materialized.
       security:
         - CookieAuth: []
         - BearerAuth: []

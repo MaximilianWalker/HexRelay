@@ -8,6 +8,8 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, http::HeaderValue, Message as WsMessage},
 };
 
+use crate::{infra::db::repos::dm_repo, models::DmFanoutDeliveryRecord};
+
 type WsStream =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -145,6 +147,82 @@ fn expected_envelope_id(
     let material = format!("{message_id}:{recipient_identity_id}:{device_id}:{delivery_cursor}");
     let digest = digest(&SHA256, material.as_bytes());
     format!("dm-env-{}", hex::encode(digest.as_ref()))
+}
+
+#[tokio::test]
+async fn fanout_delivery_storage_pages_after_cursor_with_limit() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+    let sender = unique_identity("usr-page-sender");
+    let recipient = unique_identity("usr-page-recipient");
+    ensure_db_identity_key(&pool, &sender).await;
+    ensure_db_identity_key(&pool, &recipient).await;
+
+    let mut tx = pool.begin().await.expect("begin fanout page seed");
+    let thread_id = dm_history_repo::ensure_direct_dm_thread_in_tx(&mut tx, &sender, &recipient)
+        .await
+        .expect("ensure direct dm thread");
+
+    for index in 0..125_u64 {
+        let message_id = unique_message_id(&format!("msg-page-{index}"));
+        let ciphertext = format!("enc:page-{index}");
+        let cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, &recipient)
+            .await
+            .expect("advance fanout stream head");
+        assert_eq!(cursor, index + 1);
+        dm_history_repo::insert_dm_message_in_tx(
+            &mut tx,
+            dm_history_repo::DmMessageInsertParams {
+                message_id: &message_id,
+                thread_id: &thread_id,
+                author_id: &sender,
+                seq: index + 1,
+                ciphertext: &ciphertext,
+                created_at: "2026-03-26T00:00:00Z",
+                edited_at: None,
+            },
+        )
+        .await
+        .expect("insert dm message");
+
+        let delivered_device_ids = if index == 0 {
+            vec!["phone-main".to_string()]
+        } else {
+            Vec::new()
+        };
+        let record = DmFanoutDeliveryRecord {
+            cursor,
+            thread_id: thread_id.clone(),
+            message_id,
+            sender_identity_id: sender.clone(),
+            ciphertext,
+            source_device_id: Some("desktop-main".to_string()),
+            delivery_state: "pending_delivery".to_string(),
+            reachability_state: "unknown".to_string(),
+            delivered_device_ids,
+        };
+        dm_repo::append_dm_fanout_delivery_record_in_tx(&mut tx, &recipient, &thread_id, &record)
+            .await
+            .expect("append fanout delivery record");
+    }
+    tx.commit().await.expect("commit fanout page seed");
+
+    let first_page =
+        dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, "phone-main", 0, 100)
+            .await
+            .expect("load first fanout page");
+    assert_eq!(first_page.len(), 100);
+    assert_eq!(first_page.first().expect("first record").cursor, 2);
+    assert_eq!(first_page.last().expect("last record").cursor, 101);
+
+    let second_page =
+        dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, "phone-main", 101, 100)
+            .await
+            .expect("load second fanout page");
+    assert_eq!(second_page.len(), 24);
+    assert_eq!(second_page.first().expect("first record").cursor, 102);
+    assert_eq!(second_page.last().expect("last record").cursor, 125);
 }
 
 async fn start_api_http_server(state: AppState) -> String {

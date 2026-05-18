@@ -791,23 +791,36 @@ pub async fn run_dm_fanout_catch_up(
         ));
     }
 
+    let effective_cursor = last_cursor;
+
     let entries = if let Some(pool) = state.db_pool.as_ref() {
-        dm_repo::list_dm_fanout_delivery_records(pool, &identity_id)
-            .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to load fanout delivery log")
-            })?
+        dm_repo::list_dm_fanout_delivery_records_page(
+            pool,
+            &identity_id,
+            &device_id,
+            effective_cursor,
+            limit,
+        )
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load fanout delivery log"))?
     } else {
-        state
+        let delivery_log = state
             .dm_fanout_delivery_log
             .read()
-            .expect("acquire dm fanout delivery log read lock")
+            .expect("acquire dm fanout delivery log read lock");
+        delivery_log
             .get(&identity_id)
-            .cloned()
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter(|entry| entry.cursor > effective_cursor)
+                    .filter(|entry| !entry.delivered_device_ids.iter().any(|id| id == &device_id))
+                    .take(limit as usize)
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default()
     };
-
-    let effective_cursor = last_cursor;
 
     let mut items = Vec::new();
     let mut deduped_message_ids = Vec::new();

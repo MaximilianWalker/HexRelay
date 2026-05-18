@@ -5,6 +5,8 @@ use crate::models::{
     DmFanoutDeliveryRecord, DmOutboundForwardRecord, DmPolicy, DmProfileDeviceRecord,
 };
 
+const DM_FANOUT_ACK_ADVANCE_WINDOW: i64 = 100;
+
 pub struct DmOutboundForwardWrite<'a> {
     pub sender_identity_id: &'a str,
     pub destination_node_id: &'a str,
@@ -359,45 +361,78 @@ pub async fn append_dm_fanout_delivery_record_in_tx(
     Ok(())
 }
 
-pub async fn list_dm_fanout_delivery_records(
+pub async fn list_dm_fanout_delivery_records_page(
     pool: &PgPool,
     identity_id: &str,
+    device_id: &str,
+    after_cursor: u64,
+    limit: u32,
 ) -> Result<Vec<DmFanoutDeliveryRecord>, sqlx::Error> {
+    let after_cursor = i64::try_from(after_cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;
     let rows = sqlx::query(
         "
         SELECT cursor, thread_id, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
         FROM dm_fanout_delivery_log
         WHERE identity_id = $1
+          AND cursor > $2
+          AND NOT (delivered_device_ids ? $3)
         ORDER BY cursor ASC
+        LIMIT $4
         ",
     )
     .bind(identity_id)
+    .bind(after_cursor)
+    .bind(device_id)
+    .bind(i64::from(limit))
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|row| {
-            let cursor = row.try_get::<i64, _>("cursor")?;
-            let delivered_device_ids_json =
-                row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
-            let delivered_device_ids =
-                serde_json::from_value::<Vec<String>>(delivered_device_ids_json).map_err(|_| {
-                    sqlx::Error::Protocol("invalid delivered_device_ids json".into())
-                })?;
-            Ok(DmFanoutDeliveryRecord {
-                cursor: u64::try_from(cursor)
-                    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
-                thread_id: row.try_get::<String, _>("thread_id")?,
-                message_id: row.try_get::<String, _>("message_id")?,
-                sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
-                ciphertext: row.try_get::<String, _>("ciphertext")?,
-                source_device_id: row.try_get::<Option<String>, _>("source_device_id")?,
-                delivery_state: row.try_get::<String, _>("delivery_state")?,
-                reachability_state: row.try_get::<String, _>("reachability_state")?,
-                delivered_device_ids,
-            })
-        })
-        .collect()
+    rows.into_iter().map(map_dm_fanout_delivery_row).collect()
+}
+
+pub async fn get_dm_fanout_delivery_record_by_message(
+    pool: &PgPool,
+    identity_id: &str,
+    message_id: &str,
+) -> Result<Option<DmFanoutDeliveryRecord>, sqlx::Error> {
+    let row = sqlx::query(
+        "
+        SELECT cursor, thread_id, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
+        FROM dm_fanout_delivery_log
+        WHERE identity_id = $1
+          AND message_id = $2
+        ORDER BY cursor ASC
+        LIMIT 1
+        ",
+    )
+    .bind(identity_id)
+    .bind(message_id)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(map_dm_fanout_delivery_row).transpose()
+}
+
+fn map_dm_fanout_delivery_row(
+    row: sqlx::postgres::PgRow,
+) -> Result<DmFanoutDeliveryRecord, sqlx::Error> {
+    let cursor = row.try_get::<i64, _>("cursor")?;
+    let delivered_device_ids_json = row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
+    let delivered_device_ids = serde_json::from_value::<Vec<String>>(delivered_device_ids_json)
+        .map_err(|_| sqlx::Error::Protocol("invalid delivered_device_ids json".into()))?;
+    Ok(DmFanoutDeliveryRecord {
+        cursor: u64::try_from(cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
+        thread_id: row.try_get::<String, _>("thread_id")?,
+        message_id: row.try_get::<String, _>("message_id")?,
+        sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
+        ciphertext: row.try_get::<String, _>("ciphertext")?,
+        source_device_id: row.try_get::<Option<String>, _>("source_device_id")?,
+        delivery_state: row.try_get::<String, _>("delivery_state")?,
+        reachability_state: row.try_get::<String, _>("reachability_state")?,
+        delivered_device_ids,
+    })
 }
 
 pub async fn purge_expired_dm_delivery_metadata(
@@ -818,6 +853,7 @@ pub async fn ack_dm_fanout_delivery_device(
         FROM dm_fanout_delivery_log
         WHERE identity_id = $1 AND cursor > $2
         ORDER BY cursor ASC
+        LIMIT $3
         FOR UPDATE
         ",
     )
@@ -826,6 +862,7 @@ pub async fn ack_dm_fanout_delivery_device(
         i64::try_from(current_cursor)
             .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
     )
+    .bind(DM_FANOUT_ACK_ADVANCE_WINDOW)
     .fetch_all(&mut *tx)
     .await?;
 

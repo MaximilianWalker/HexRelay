@@ -688,13 +688,11 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     assert_eq!(outbound.attempt_count, 1);
     assert!(outbound.last_error.is_none());
 
-    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
-        .await
-        .expect("load node B delivery records");
-    let accepted = records
-        .iter()
-        .find(|record| record.message_id == message_id)
-        .expect("node B accepted forwarded envelope");
+    let accepted =
+        dm_repo::get_dm_fanout_delivery_record_by_message(&pool, &recipient, &message_id)
+            .await
+            .expect("load node B delivery record")
+            .expect("node B accepted forwarded envelope");
     assert_eq!(accepted.sender_identity_id, sender);
     assert_eq!(accepted.ciphertext, "enc:two-node-http-smoke");
     assert_eq!(accepted.source_device_id.as_deref(), Some("desktop-main"));
@@ -793,12 +791,9 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
     assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_pending_delivery");
 
-    let records = dm_repo::list_dm_fanout_delivery_records(&pool, &recipient)
+    let record = dm_repo::get_dm_fanout_delivery_record_by_message(&pool, &recipient, &message_id)
         .await
-        .expect("load delivery records");
-    let record = records
-        .iter()
-        .find(|record| record.message_id == message_id)
+        .expect("load delivery record")
         .expect("forwarded delivery record");
     assert_eq!(record.sender_identity_id, sender);
     assert_eq!(record.ciphertext, "enc:node-forwarded-ciphertext");
