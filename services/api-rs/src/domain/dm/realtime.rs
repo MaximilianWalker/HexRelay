@@ -3,6 +3,7 @@ use communication_core::{
     send_via_node_dispatch_with_provenance,
     transport::{NodeDispatch, TransportError},
 };
+use ring::digest::{digest, SHA256};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
@@ -111,9 +112,9 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                         Ok(report) => {
                             info!(
                                 %path,
-                                message_id = %report.summary.message_id,
-                                thread_id = %thread_id,
-                                recipient_identity_id = %report.summary.recipient_identity_id,
+                                message_fingerprint = %dm_log_fingerprint(&report.summary.message_id),
+                                thread_fingerprint = %dm_log_fingerprint(&thread_id),
+                                recipient_fingerprint = %dm_log_fingerprint(&report.summary.recipient_identity_id),
                                 target_device_count = report.summary.target_device_count,
                                 queued_device_count = report.summary.queued_device_ids.len(),
                                 pending_device_count = report.summary.pending_device_ids.len(),
@@ -127,9 +128,9 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                         Err(error) => {
                             warn!(
                                 %path,
-                                %message_id,
-                                %thread_id,
-                                %recipient_identity_id,
+                                message_fingerprint = %dm_log_fingerprint(&message_id),
+                                thread_fingerprint = %dm_log_fingerprint(&thread_id),
+                                recipient_fingerprint = %dm_log_fingerprint(&recipient_identity_id),
                                 error = %error,
                                 "NodeClientTransport DM envelope dispatch summary decode failed"
                             );
@@ -139,9 +140,9 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                 Ok(response) => {
                     warn!(
                         %path,
-                        %message_id,
-                        %thread_id,
-                        %recipient_identity_id,
+                        message_fingerprint = %dm_log_fingerprint(&message_id),
+                        thread_fingerprint = %dm_log_fingerprint(&thread_id),
+                        recipient_fingerprint = %dm_log_fingerprint(&recipient_identity_id),
                         status = %response.status(),
                         "NodeClientTransport DM envelope dispatch failed"
                     );
@@ -149,9 +150,9 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                 Err(error) => {
                     warn!(
                         %path,
-                        %message_id,
-                        %thread_id,
-                        %recipient_identity_id,
+                        message_fingerprint = %dm_log_fingerprint(&message_id),
+                        thread_fingerprint = %dm_log_fingerprint(&thread_id),
+                        recipient_fingerprint = %dm_log_fingerprint(&recipient_identity_id),
                         error = %error,
                         "NodeClientTransport DM envelope dispatch errored"
                     );
@@ -201,6 +202,13 @@ impl RealtimeNodeDispatch {
     fn recipient_identity_id(&self) -> &str {
         &self.recipient_identity_id
     }
+}
+
+fn dm_log_fingerprint(value: &str) -> String {
+    let digest = digest(&SHA256, value.as_bytes());
+    let mut first_eight = [0_u8; 8];
+    first_eight.copy_from_slice(&digest.as_ref()[..8]);
+    format!("{:016x}", u64::from_be_bytes(first_eight))
 }
 
 pub async fn dispatch_dm_envelope(
@@ -349,6 +357,16 @@ mod tests {
             body_value["target_device_ids"],
             serde_json::json!(target_device_ids)
         );
+    }
+
+    #[test]
+    fn dm_log_fingerprint_redacts_raw_value() {
+        let fingerprint = dm_log_fingerprint("test-value");
+
+        assert_eq!(fingerprint, "5b1406fffc9de553");
+        assert_ne!(fingerprint, "test-value");
+        assert_eq!(fingerprint.len(), 16);
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     #[tokio::test]
