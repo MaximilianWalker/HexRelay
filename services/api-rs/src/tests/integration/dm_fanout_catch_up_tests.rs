@@ -80,15 +80,44 @@ async fn dispatch_dm(
 }
 
 async fn catch_up(app: &axum::Router, token: &str, device_id: &str) -> serde_json::Value {
+    catch_up_page(app, token, device_id, None, None).await
+}
+
+async fn catch_up_page(
+    app: &axum::Router,
+    token: &str,
+    device_id: &str,
+    cursor: Option<&str>,
+    limit: Option<u32>,
+) -> serde_json::Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "device_id".to_string(),
+        serde_json::Value::String(device_id.to_string()),
+    );
+    payload.insert(
+        "device_secret".to_string(),
+        serde_json::Value::String(device_secret(device_id)),
+    );
+    if let Some(cursor) = cursor {
+        payload.insert(
+            "cursor".to_string(),
+            serde_json::Value::String(cursor.to_string()),
+        );
+    }
+    if let Some(limit) = limit {
+        payload.insert(
+            "limit".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(limit)),
+        );
+    }
+
     let catch_up = Request::builder()
         .method("POST")
         .uri("/dm/fanout/catch-up")
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
-        .body(Body::from(format!(
-            r#"{{"device_id":"{device_id}","device_secret":"{}"}}"#,
-            device_secret(device_id)
-        )))
+        .body(Body::from(serde_json::Value::Object(payload).to_string()))
         .expect("build fanout catch-up request");
     let response = app
         .clone()
@@ -855,6 +884,81 @@ async fn fanout_catch_up_replays_until_ack_advances_cursor() {
     assert_eq!(post_ack_payload["reason_code"], "fanout_catch_up_no_missed");
     assert_eq!(post_ack_payload["replay_count"], 0);
     assert_eq!(post_ack_payload["next_cursor"], "2");
+}
+
+#[tokio::test]
+async fn fanout_catch_up_uses_request_cursor_for_limit_pagination() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let message_ids = [
+        unique_message_id("msg-page-a"),
+        unique_message_id("msg-page-b"),
+    ];
+    let (app, tokens, state) = app_with_sessions_and_state(&[recipient.as_str()]);
+    heartbeat_device(&app, &tokens[recipient.as_str()], "desktop-main", true).await;
+
+    state
+        .dm_fanout_delivery_log
+        .write()
+        .expect("acquire fanout delivery log write lock")
+        .insert(
+            recipient.clone(),
+            message_ids
+                .iter()
+                .enumerate()
+                .map(
+                    |(index, message_id)| crate::models::DmFanoutDeliveryRecord {
+                        cursor: (index + 1) as u64,
+                        thread_id: "dm-page-thread".to_string(),
+                        message_id: message_id.clone(),
+                        sender_identity_id: sender.clone(),
+                        ciphertext: format!("enc:page-{index}"),
+                        source_device_id: Some("sender-main".to_string()),
+                        delivery_state: "pending_delivery".to_string(),
+                        reachability_state: "unknown".to_string(),
+                        delivered_device_ids: vec![],
+                    },
+                )
+                .collect(),
+        );
+
+    let first_page = catch_up_page(
+        &app,
+        &tokens[recipient.as_str()],
+        "desktop-main",
+        None,
+        Some(1),
+    )
+    .await;
+    assert_eq!(first_page["reason_code"], "fanout_catch_up_ok");
+    assert_eq!(first_page["replay_count"], 1);
+    assert_eq!(first_page["next_cursor"], "1");
+    assert_eq!(first_page["items"][0]["cursor"], "1");
+    assert_eq!(
+        first_page["items"][0]["message_id"],
+        message_ids[0].as_str()
+    );
+
+    let second_page = catch_up_page(
+        &app,
+        &tokens[recipient.as_str()],
+        "desktop-main",
+        Some(
+            first_page["next_cursor"]
+                .as_str()
+                .expect("first page cursor"),
+        ),
+        Some(1),
+    )
+    .await;
+    assert_eq!(second_page["reason_code"], "fanout_catch_up_ok");
+    assert_eq!(second_page["replay_count"], 1);
+    assert_eq!(second_page["next_cursor"], "2");
+    assert_eq!(second_page["items"][0]["cursor"], "2");
+    assert_eq!(
+        second_page["items"][0]["message_id"],
+        message_ids[1].as_str()
+    );
 }
 
 #[tokio::test]
