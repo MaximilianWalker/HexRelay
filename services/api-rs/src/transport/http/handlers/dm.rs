@@ -807,7 +807,7 @@ pub async fn run_dm_fanout_catch_up(
             .unwrap_or_default()
     };
 
-    let effective_cursor = last_cursor;
+    let effective_cursor = last_cursor.max(user_cursor);
 
     let mut items = Vec::new();
     let mut deduped_message_ids = Vec::new();

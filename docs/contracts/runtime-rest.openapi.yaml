@@ -3422,6 +3422,7 @@ components:
         cursor:
           type: string
           nullable: true
+          description: Replay page cursor returned by an earlier catch-up response; replay starts after the newer of this cursor and the device's durable ack cursor, and durable checkpoint advancement still requires contiguous device acks.
         limit:
           type: integer
           minimum: 1
