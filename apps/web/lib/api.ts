@@ -306,9 +306,12 @@ export async function fetchServers(input: {
   favoritesOnly?: boolean;
   unreadOnly?: boolean;
   mutedOnly?: boolean;
+  cursor?: string;
+  limit?: number;
 }): Promise<
   ApiResult<{
     items: ServerSummary[];
+    next_cursor?: string | null;
   }>
 > {
   const params = new URLSearchParams();
@@ -323,6 +326,12 @@ export async function fetchServers(input: {
   }
   if (input.mutedOnly) {
     params.set("muted_only", "true");
+  }
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
   }
 
   const response = await apiFetch(
@@ -412,6 +421,8 @@ export async function fetchContacts(input: {
   onlineOnly?: boolean;
   unreadOnly?: boolean;
   favoritesOnly?: boolean;
+  cursor?: string;
+  limit?: number;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -423,6 +434,7 @@ export async function fetchContacts(input: {
       inbound_request: boolean;
       pending_request: boolean;
     }>;
+    next_cursor?: string | null;
   }>
 > {
   const params = new URLSearchParams();
@@ -437,6 +449,12 @@ export async function fetchContacts(input: {
   }
   if (input.favoritesOnly) {
     params.set("favorites_only", "true");
+  }
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
   }
 
   const response = await apiFetch(
@@ -468,6 +486,8 @@ export async function createFriendRequest(input: {
 export async function fetchFriendRequests(input: {
   identityId: string;
   direction?: "inbound" | "outbound";
+  cursor?: string;
+  limit?: number;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -477,12 +497,19 @@ export async function fetchFriendRequests(input: {
       status: string;
       created_at: string;
     }>;
+    next_cursor?: string | null;
   }>
 > {
   const params = new URLSearchParams();
   params.set("identity_id", input.identityId);
   if (input.direction) {
     params.set("direction", input.direction);
+  }
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
   }
 
   const response = await apiFetch(

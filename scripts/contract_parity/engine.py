@@ -486,6 +486,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         'FriendRequestListQuery': {
             'identity_id': {'pattern': r'^[A-Za-z0-9_-]{3,64}$'},
             'direction': {'enum': ('inbound', 'outbound')},
+            'cursor': {'schema_type': 'string', 'required': False},
+            'limit': {
+                'schema_type': 'integer',
+                'required': False,
+                'minimum': 1,
+                'maximum': 100,
+            },
         },
         'ServerChannelMessageListQuery': {
             'limit': {'minimum': 1, 'maximum': 100},
@@ -505,6 +512,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'favorites_only': {'schema_type': 'boolean', 'required': False},
             'unread_only': {'schema_type': 'boolean', 'required': False},
             'muted_only': {'schema_type': 'boolean', 'required': False},
+            'cursor': {'schema_type': 'string', 'required': False},
+            'limit': {
+                'schema_type': 'integer',
+                'required': False,
+                'minimum': 1,
+                'maximum': 100,
+            },
         },
         'ContactListQuery': {
             'search': {
@@ -515,6 +529,13 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'online_only': {'schema_type': 'boolean', 'required': False},
             'unread_only': {'schema_type': 'boolean', 'required': False},
             'favorites_only': {'schema_type': 'boolean', 'required': False},
+            'cursor': {'schema_type': 'string', 'required': False},
+            'limit': {
+                'schema_type': 'integer',
+                'required': False,
+                'minimum': 1,
+                'maximum': 100,
+            },
         },
         'DiscoveryUserListQuery': {
             'scope': {

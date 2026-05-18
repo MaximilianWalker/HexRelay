@@ -836,12 +836,23 @@ paths:
           name: muted_only
           schema:
             type: boolean
+        - in: query
+          name: cursor
+          description: Offset cursor returned by `next_cursor`; omitted for the first page.
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: >-
             Identity-scoped server summaries after favorites/unread/muted/search
-            filters are applied. Returned items are only the caller's joined
-            servers.
+            filters and page bounds are applied in SQL. Returned items are only
+            the caller's joined servers.
           content:
             application/json:
               schema:
@@ -856,6 +867,9 @@ paths:
                         unread: 3
                         favorite: true
                         muted: false
+                    next_cursor: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
@@ -1482,13 +1496,25 @@ paths:
           name: favorites_only
           schema:
             type: boolean
+        - in: query
+          name: cursor
+          description: Offset cursor returned by `next_cursor`; omitted for the first page.
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: >-
             Contact list response for the authenticated identity. Accepted and
             pending relationships share the same list surface; pending contacts
             remain `offline`, while accepted contacts may surface presence-backed
-            status when available.
+            status when available. Relationship search and page bounds are
+            applied in SQL before presence enrichment.
           content:
             application/json:
               schema:
@@ -1512,6 +1538,9 @@ paths:
                         favorite: false
                         inbound_request: false
                         pending_request: true
+                    next_cursor: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -2381,13 +2410,25 @@ paths:
           schema:
             type: string
             enum: [inbound, outbound]
+        - in: query
+          name: cursor
+          description: Offset cursor returned by `next_cursor`; omitted for the first page.
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: >-
             Friend request list response for the authenticated identity. Omitting
             `direction` returns both inbound and outbound requests, ordered
             newest-first by `created_at`, as current lifecycle snapshots rather
-            than only pending inbox items.
+            than only pending inbox items. Direction filtering and page bounds
+            are applied in SQL.
           content:
             application/json:
               schema:
@@ -2407,6 +2448,7 @@ paths:
                         target_identity_id: usr-alex-r
                         status: accepted
                         created_at: '2026-04-06T11:55:00Z'
+                    next_cursor: null
         '400':
           description: Invalid friend-request list filters
           content:
@@ -3104,6 +3146,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ServerSummary'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Offset cursor for the next page; null when no further rows matched the filters.
     ServerDetailResponse:
       type: object
       required: [item]
@@ -3237,6 +3283,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactSummary'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Offset cursor for the next page; null when no further rows matched the filters.
     PresenceWatcherListResponse:
       type: object
       required: [watchers]
@@ -3822,6 +3872,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FriendRequestRecord'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Offset cursor for the next page; null when no further rows matched the filters.
     FriendRequestCreateRequest:
       type: object
       required: [requester_identity_id, target_identity_id]

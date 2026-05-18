@@ -186,6 +186,88 @@ async fn lists_servers_for_authenticated_identity_only() {
 }
 
 #[tokio::test]
+async fn lists_servers_with_sql_page_boundaries_after_filters() {
+    let actor = unique_identity("usr-server-page");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[actor.as_str()]).await else {
+        return;
+    };
+    let suffix = Uuid::new_v4().simple().to_string();
+
+    for (name, unread) in [
+        ("Atlas Core", 3),
+        ("Beacon Relay", 2),
+        ("Cobalt Ops", 1),
+        ("Dormant Archive", 0),
+    ] {
+        seed_server_membership(
+            &pool,
+            &format!("srv-page-{suffix}-{name}", name = name.replace(' ', "-")),
+            name,
+            &actor,
+            true,
+            false,
+            unread,
+        )
+        .await;
+    }
+
+    let first_request = Request::builder()
+        .method("GET")
+        .uri("/servers?favorites_only=true&unread_only=true&limit=2")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build first servers page request");
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first servers page response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+    let first_body = to_bytes(first_response.into_body(), usize::MAX)
+        .await
+        .expect("read first servers page body");
+    let first_payload: ServerListResponse =
+        serde_json::from_slice(&first_body).expect("decode first servers page");
+
+    assert_eq!(
+        first_payload
+            .items
+            .iter()
+            .map(|item| item["name"].as_str().expect("server name"))
+            .collect::<Vec<_>>(),
+        vec!["Atlas Core", "Beacon Relay"]
+    );
+    assert_eq!(first_payload.next_cursor.as_deref(), Some("2"));
+
+    let second_request = Request::builder()
+        .method("GET")
+        .uri("/servers?favorites_only=true&unread_only=true&limit=2&cursor=2")
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build second servers page request");
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second servers page response");
+    assert_eq!(second_response.status(), StatusCode::OK);
+    let second_body = to_bytes(second_response.into_body(), usize::MAX)
+        .await
+        .expect("read second servers page body");
+    let second_payload: ServerListResponse =
+        serde_json::from_slice(&second_body).expect("decode second servers page");
+
+    assert_eq!(second_payload.items.len(), 1);
+    assert_eq!(second_payload.items[0]["name"], "Cobalt Ops");
+    assert_eq!(second_payload.next_cursor, None);
+}
+
+#[tokio::test]
 async fn lists_contacts_with_search_filter() {
     let (app, tokens) = app_with_sessions(&["usr-nora-k"]);
     let request = Request::builder()
@@ -204,6 +286,100 @@ async fn lists_contacts_with_search_filter() {
     let payload: ContactListResponse =
         serde_json::from_slice(&body).expect("decode contacts list response");
     assert_eq!(payload.items.len(), 1);
+}
+
+#[tokio::test]
+async fn lists_contacts_with_sql_search_and_page_boundaries() {
+    let actor = unique_identity("usr-contact-page-actor");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[actor.as_str()]).await else {
+        return;
+    };
+    let prefix = format!("usr-contact-page-{}", Uuid::new_v4().simple());
+    let peers = [
+        format!("{prefix}-a"),
+        format!("{prefix}-b"),
+        format!("{prefix}-c"),
+    ];
+    let non_matching = unique_identity("usr-contact-other");
+
+    for peer in peers.iter().chain(std::iter::once(&non_matching)) {
+        ensure_db_identity_key(&pool, peer).await;
+    }
+    for peer in &peers {
+        sqlx::query(
+            "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+        )
+        .bind(format!("fr-{}", Uuid::new_v4().simple()))
+        .bind(&actor)
+        .bind(peer)
+        .execute(&pool)
+        .await
+        .expect("insert accepted contact");
+    }
+    sqlx::query(
+        "INSERT INTO friend_requests (request_id, requester_identity_id, target_identity_id, status) VALUES ($1, $2, $3, 'accepted')",
+    )
+    .bind(format!("fr-{}", Uuid::new_v4().simple()))
+    .bind(&actor)
+    .bind(&non_matching)
+    .execute(&pool)
+    .await
+    .expect("insert non-matching contact");
+
+    let first_request = Request::builder()
+        .method("GET")
+        .uri(format!("/contacts?search={prefix}&limit=2"))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build first contacts page request");
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first contacts page response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+    let first_body = to_bytes(first_response.into_body(), usize::MAX)
+        .await
+        .expect("read first contacts page body");
+    let first_payload: ContactListResponse =
+        serde_json::from_slice(&first_body).expect("decode first contacts page");
+
+    assert_eq!(
+        first_payload
+            .items
+            .iter()
+            .map(|item| item["id"].as_str().expect("contact id"))
+            .collect::<Vec<_>>(),
+        vec![peers[0].as_str(), peers[1].as_str()]
+    );
+    assert_eq!(first_payload.next_cursor.as_deref(), Some("2"));
+
+    let second_request = Request::builder()
+        .method("GET")
+        .uri(format!("/contacts?search={prefix}&limit=2&cursor=2"))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build second contacts page request");
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second contacts page response");
+    assert_eq!(second_response.status(), StatusCode::OK);
+    let second_body = to_bytes(second_response.into_body(), usize::MAX)
+        .await
+        .expect("read second contacts page body");
+    let second_payload: ContactListResponse =
+        serde_json::from_slice(&second_body).expect("decode second contacts page");
+
+    assert_eq!(second_payload.items.len(), 1);
+    assert_eq!(second_payload.items[0]["id"], peers[2]);
+    assert_eq!(second_payload.next_cursor, None);
 }
 
 #[tokio::test]

@@ -427,6 +427,104 @@ async fn persists_friend_flow_and_lists_contacts_from_db() {
 }
 
 #[tokio::test]
+async fn lists_friend_requests_with_sql_page_boundaries() {
+    let actor = unique_identity("db-friend-page-actor");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[actor.as_str()]).await else {
+        return;
+    };
+    let targets = [
+        unique_identity("db-friend-page-a"),
+        unique_identity("db-friend-page-b"),
+        unique_identity("db-friend-page-c"),
+    ];
+    let created_at = Utc::now();
+
+    for (index, target) in targets.iter().enumerate() {
+        ensure_db_identity_key(&pool, target).await;
+        sqlx::query(
+            "
+            INSERT INTO friend_requests (
+                request_id,
+                requester_identity_id,
+                target_identity_id,
+                status,
+                created_at
+            )
+            VALUES ($1, $2, $3, 'pending', $4)
+            ",
+        )
+        .bind(format!("fr-{}", Uuid::new_v4().simple()))
+        .bind(&actor)
+        .bind(target)
+        .bind(created_at + Duration::seconds(index as i64))
+        .execute(&pool)
+        .await
+        .expect("insert paged friend request");
+    }
+
+    let first_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/friends/requests?identity_id={actor}&direction=outbound&limit=2"
+        ))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build first friend request page");
+    let first_response = app
+        .clone()
+        .oneshot(first_request)
+        .await
+        .expect("first friend request page response");
+    assert_eq!(first_response.status(), StatusCode::OK);
+    let first_body = to_bytes(first_response.into_body(), usize::MAX)
+        .await
+        .expect("read first friend request page");
+    let first_payload: FriendRequestPage =
+        serde_json::from_slice(&first_body).expect("decode first friend request page");
+
+    assert_eq!(
+        first_payload
+            .items
+            .iter()
+            .map(|item| item["target_identity_id"]
+                .as_str()
+                .expect("target identity id"))
+            .collect::<Vec<_>>(),
+        vec![targets[2].as_str(), targets[1].as_str()]
+    );
+    assert_eq!(first_payload.next_cursor.as_deref(), Some("2"));
+
+    let second_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/friends/requests?identity_id={actor}&direction=outbound&limit=2&cursor=2"
+        ))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[actor.as_str()]),
+        )
+        .body(Body::empty())
+        .expect("build second friend request page");
+    let second_response = app
+        .oneshot(second_request)
+        .await
+        .expect("second friend request page response");
+    assert_eq!(second_response.status(), StatusCode::OK);
+    let second_body = to_bytes(second_response.into_body(), usize::MAX)
+        .await
+        .expect("read second friend request page");
+    let second_payload: FriendRequestPage =
+        serde_json::from_slice(&second_body).expect("decode second friend request page");
+
+    assert_eq!(second_payload.items.len(), 1);
+    assert_eq!(second_payload.items[0]["target_identity_id"], targets[0]);
+    assert_eq!(second_payload.next_cursor, None);
+}
+
+#[tokio::test]
 async fn fanout_friends_only_uses_db_friendship_state() {
     let Some(app) = app_with_database().await else {
         return;

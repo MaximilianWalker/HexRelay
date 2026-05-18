@@ -22,6 +22,9 @@ use axum::{
 };
 
 use crate::infra::db::repos::{auth_repo, dm_repo};
+#[cfg(test)]
+use crate::transport::http::pagination::page_vec;
+use crate::transport::http::pagination::{parse_offset_page, trim_page};
 
 #[cfg(test)]
 use crate::domain::friends::service::apply_friend_request_transition;
@@ -119,6 +122,7 @@ pub async fn list_friend_requests(
     Query(query): Query<FriendRequestListQuery>,
 ) -> ApiResult<Json<FriendRequestPage>> {
     validate_friend_request_list_query(&query)?;
+    let page = parse_offset_page(query.cursor.clone(), query.limit)?;
     let actor_identity = auth.identity_id;
 
     if query.identity_id != actor_identity {
@@ -143,10 +147,16 @@ pub async fn list_friend_requests(
         }
     };
 
-    let items = friends_repo::list_friend_requests(pool, &query)
-        .await
-        .map_err(map_friend_request_db_error)?;
-    Ok(Json(FriendRequestPage { items }))
+    let mut items = friends_repo::list_friend_requests(
+        pool,
+        &query,
+        page.fetch_limit(),
+        page.storage_offset()?,
+    )
+    .await
+    .map_err(map_friend_request_db_error)?;
+    let next_cursor = trim_page(&mut items, page);
+    Ok(Json(FriendRequestPage { items, next_cursor }))
 }
 
 #[cfg(test)]
@@ -154,6 +164,7 @@ fn list_friend_requests_in_memory(
     state: AppState,
     query: FriendRequestListQuery,
 ) -> ApiResult<Json<FriendRequestPage>> {
+    let page = parse_offset_page(query.cursor.clone(), query.limit)?;
     let guard = state
         .friend_requests
         .read()
@@ -173,8 +184,9 @@ fn list_friend_requests_in_memory(
         .collect();
 
     items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    let (items, next_cursor) = page_vec(items, page);
 
-    Ok(Json(FriendRequestPage { items }))
+    Ok(Json(FriendRequestPage { items, next_cursor }))
 }
 
 pub async fn accept_friend_request(

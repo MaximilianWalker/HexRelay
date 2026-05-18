@@ -1,5 +1,3 @@
-use std::collections::{BTreeSet, HashSet};
-
 use axum::{
     extract::{Query, State},
     Json,
@@ -16,7 +14,10 @@ use crate::{
     },
     shared::errors::{internal_error, ApiResult},
     state::AppState,
-    transport::http::middleware::{auth::AuthSession, authorization::AuthorizedServerMembership},
+    transport::http::{
+        middleware::{auth::AuthSession, authorization::AuthorizedServerMembership},
+        pagination::{page_vec, parse_offset_page, trim_page},
+    },
 };
 
 pub async fn list_servers(
@@ -24,6 +25,8 @@ pub async fn list_servers(
     auth: AuthSession,
     Query(query): Query<ServerListQuery>,
 ) -> ApiResult<Json<ServerListResponse>> {
+    let page = parse_offset_page(query.cursor.clone(), query.limit)?;
+    let search = normalize_search(query.search.as_deref());
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
             "storage_unavailable",
@@ -31,27 +34,24 @@ pub async fn list_servers(
         )
     })?;
 
-    let mut items = servers_repo::list_servers_for_identity(pool, &auth.identity_id)
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to list servers"))?;
+    let mut items = servers_repo::list_servers_for_identity(
+        pool,
+        servers_repo::ServerListParams {
+            identity_id: &auth.identity_id,
+            search: search.as_deref(),
+            favorites_only: query.favorites_only.unwrap_or(false),
+            unread_only: query.unread_only.unwrap_or(false),
+            muted_only: query.muted_only.unwrap_or(false),
+            limit: page.fetch_limit(),
+            offset: page.storage_offset()?,
+        },
+    )
+    .await
+    .map_err(|_| internal_error("storage_unavailable", "failed to list servers"))?;
 
-    if query.favorites_only.unwrap_or(false) {
-        items.retain(|item| item.favorite);
-    }
-    if query.unread_only.unwrap_or(false) {
-        items.retain(|item| item.unread > 0);
-    }
-    if query.muted_only.unwrap_or(false) {
-        items.retain(|item| item.muted);
-    }
-    if let Some(search) = query.search.as_ref() {
-        if !search.trim().is_empty() {
-            let needle = search.to_lowercase();
-            items.retain(|item| item.name.to_lowercase().contains(&needle));
-        }
-    }
+    let next_cursor = trim_page(&mut items, page);
 
-    Ok(Json(ServerListResponse { items }))
+    Ok(Json(ServerListResponse { items, next_cursor }))
 }
 
 pub async fn get_server(
@@ -84,61 +84,32 @@ pub async fn list_contacts(
     auth: AuthSession,
     Query(query): Query<ContactListQuery>,
 ) -> ApiResult<Json<ContactListResponse>> {
+    let page = parse_offset_page(query.cursor.clone(), query.limit)?;
+    let search = normalize_search(query.search.as_deref());
+
     if let Some(pool) = state.db_pool.as_ref() {
         let identity_id = auth.identity_id;
 
-        let rows = directory_repo::list_contact_relationships(pool, &identity_id)
-            .await
-            .map_err(|_| {
-                internal_error(
-                    "storage_unavailable",
-                    "failed to list contact relationships",
-                )
-            })?;
+        let mut items = directory_repo::list_contact_summaries_for_identity(
+            pool,
+            directory_repo::ContactListParams {
+                identity_id: &identity_id,
+                search: search.as_deref(),
+                unread_only: query.unread_only.unwrap_or(false),
+                favorites_only: query.favorites_only.unwrap_or(false),
+                limit: page.fetch_limit(),
+                offset: page.storage_offset()?,
+            },
+        )
+        .await
+        .map_err(|_| {
+            internal_error(
+                "storage_unavailable",
+                "failed to list contact relationships",
+            )
+        })?;
 
-        let mut contacts = BTreeSet::new();
-        let mut inbound_pending = HashSet::new();
-        let mut outbound_pending = HashSet::new();
-
-        for row in rows {
-            let requester = row.requester_identity_id;
-            let target = row.target_identity_id;
-            let status = row.status;
-
-            let requester_is_self = requester == identity_id;
-            let peer = if requester_is_self {
-                target
-            } else {
-                requester.clone()
-            };
-            if peer.is_empty() {
-                continue;
-            }
-
-            if status == "accepted" {
-                contacts.insert(peer.clone());
-            } else if status == "pending" {
-                contacts.insert(peer.clone());
-                if requester_is_self {
-                    outbound_pending.insert(peer);
-                } else {
-                    inbound_pending.insert(peer);
-                }
-            }
-        }
-
-        let mut items = contacts
-            .into_iter()
-            .map(|id| ContactSummary {
-                id: id.clone(),
-                name: id.clone(),
-                status: "offline".to_string(),
-                unread: 0,
-                favorite: false,
-                inbound_request: inbound_pending.contains(&id),
-                pending_request: outbound_pending.contains(&id),
-            })
-            .collect::<Vec<_>>();
+        let next_cursor = trim_page(&mut items, page);
 
         if let Some(redis_client) = state.presence_redis_client.as_ref() {
             let contact_ids = items
@@ -157,8 +128,11 @@ pub async fn list_contacts(
             }
         }
 
-        apply_contact_filters(&mut items, &query);
-        return Ok(Json(ContactListResponse { items }));
+        if query.online_only.unwrap_or(false) {
+            items.retain(|item| item.status == "online");
+        }
+
+        return Ok(Json(ContactListResponse { items, next_cursor }));
     }
 
     let mut items = vec![
@@ -201,7 +175,15 @@ pub async fn list_contacts(
     ];
 
     apply_contact_filters(&mut items, &query);
-    Ok(Json(ContactListResponse { items }))
+    let (items, next_cursor) = page_vec(items, page);
+    Ok(Json(ContactListResponse { items, next_cursor }))
+}
+
+fn normalize_search(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 fn apply_contact_filters(items: &mut Vec<ContactSummary>, query: &ContactListQuery) {
