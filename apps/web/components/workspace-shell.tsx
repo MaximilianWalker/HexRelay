@@ -167,6 +167,11 @@ export function WorkspaceShell({
   const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
   const profileSnapshot = useSyncExternalStore(subscribeWorkspacePreferences, readProfileSnapshot, () => DEFAULT_PROFILE);
   const contentTabsRef = useRef<HTMLDivElement | null>(null);
+  const contentTabOverflowUpdateRef = useRef<{
+    frame: number | null;
+    timeout: number | null;
+    settledTimeout: number | null;
+  }>({ frame: null, timeout: null, settledTimeout: null });
   const [contentTabScrollState, setContentTabScrollState] = useState<ContentTabScrollState>(
     EMPTY_CONTENT_TAB_SCROLL_STATE,
   );
@@ -272,11 +277,35 @@ export function WorkspaceShell({
     );
   }, []);
 
+  const clearScheduledContentTabOverflowUpdate = useCallback(() => {
+    const scheduled = contentTabOverflowUpdateRef.current;
+    if (scheduled.frame !== null) {
+      window.cancelAnimationFrame(scheduled.frame);
+    }
+    if (scheduled.timeout !== null) {
+      window.clearTimeout(scheduled.timeout);
+    }
+    if (scheduled.settledTimeout !== null) {
+      window.clearTimeout(scheduled.settledTimeout);
+    }
+
+    scheduled.frame = null;
+    scheduled.timeout = null;
+    scheduled.settledTimeout = null;
+  }, []);
+
   const scheduleContentTabOverflowUpdate = useCallback(() => {
-    window.requestAnimationFrame(updateContentTabOverflow);
-    window.setTimeout(updateContentTabOverflow, 0);
-    window.setTimeout(updateContentTabOverflow, 120);
-  }, [updateContentTabOverflow]);
+    clearScheduledContentTabOverflowUpdate();
+    contentTabOverflowUpdateRef.current.frame = window.requestAnimationFrame(updateContentTabOverflow);
+    contentTabOverflowUpdateRef.current.timeout = window.setTimeout(updateContentTabOverflow, 0);
+    contentTabOverflowUpdateRef.current.settledTimeout = window.setTimeout(updateContentTabOverflow, 120);
+  }, [clearScheduledContentTabOverflowUpdate, updateContentTabOverflow]);
+
+  useEffect(() => {
+    return () => {
+      clearScheduledContentTabOverflowUpdate();
+    };
+  }, [clearScheduledContentTabOverflowUpdate]);
 
   const setContentTabsNode = useCallback((node: HTMLDivElement | null) => {
     contentTabsRef.current = node;
@@ -664,7 +693,7 @@ export function WorkspaceShell({
                 <IconChevronLeft className={styles.tabScrollIcon} aria-hidden="true" />
               </button>
             ) : null}
-            <div aria-label={`${title} tabs`} className={styles.tabs} ref={setContentTabsNode} role="tablist">
+            <div aria-label={`${title} sections`} className={styles.tabs} ref={setContentTabsNode}>
               {tabs.map((tab) => {
                 const TabIcon = tab.icon;
                 const active = tab.id === activeTabId;
@@ -681,25 +710,22 @@ export function WorkspaceShell({
 
                 return handleTabSelect ? (
                   <button
-                    aria-selected={active}
+                    aria-pressed={active}
                     className={tabClassName}
                     data-tab-id={tab.id}
                     key={tab.id}
                     onClick={handleTabSelect}
                     ref={active ? activeContentTabRef : undefined}
-                    role="tab"
                     type="button"
                   >
                     {tabContent}
                   </button>
                 ) : (
                   <div
-                    aria-selected={active}
                     className={tabClassName}
                     data-tab-id={tab.id}
                     key={tab.id}
                     ref={active ? activeContentTabRef : undefined}
-                    role="tab"
                   >
                     {tabContent}
                   </div>

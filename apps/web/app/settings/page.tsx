@@ -269,7 +269,7 @@ function SettingPanel({
   children: ReactNode;
 }) {
   return (
-    <section aria-label={category.label} className={settingsStyles.panel} role="tabpanel">
+    <section aria-label={category.label} className={settingsStyles.panel}>
       <div className={settingsStyles.settingList}>{children}</div>
     </section>
   );
