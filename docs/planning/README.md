@@ -6,20 +6,21 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-18
 - Source of truth: `docs/planning/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery implementation plan.
+- Latest meaningful change: 2026-05-18 added the approval-pending contact-invite redemption implementation plan.
 
 - `Status: ready` means this index is the canonical planning router, not that every deferred runtime or release-readiness gap is closed; check the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` before planning against unsettled behavior.
 
 ## Contents
 
 - Iteration boards index (canonical execution planning source): `docs/planning/iterations/README.md`
+- Contact invite redemption implementation plan: `docs/planning/contact-invite-redemption-implementation-plan.md`
 - DM encrypted-envelope delivery execution plan: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 - DM workspace delivery implementation plan: `docs/planning/dm-workspace-delivery-implementation-plan.md`
 - Navigation implementation plan: `docs/planning/navigation-implementation-plan.md`
