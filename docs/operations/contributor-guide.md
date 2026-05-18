@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-17
+- last_updated: 2026-05-18
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-05-17 added the Windows parity CI gate to the contributor validation baseline.
+- Latest meaningful change: 2026-05-18 routed cargo-audit ignore policy through one scripted source.
 
 ## Purpose
 
@@ -61,16 +61,15 @@
 
 ## Security Tooling Baseline
 
-- `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
+- `cargo-audit` is pinned to `0.22.0` via `scripts/cargo-audit-policy.mjs audit` and the platform-specific `scripts/ensure-cargo-audit.*` helpers.
 - `npm run security` currently covers the fast Rust dependency audit path only; it is not full CI security parity by itself.
 - Full CI security parity additionally includes:
-  - `bash scripts/validate-cargo-audit-ignore.sh`
+  - `node scripts/cargo-audit-policy.mjs check`
+  - `node scripts/cargo-audit-policy.mjs validate`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error --exclude node_modules --exclude target`
-- Temporary cargo-audit ignore exceptions must pass `scripts/validate-cargo-audit-ignore.sh` expiry checks in CI.
-- Current ignore-expiry policy covers:
-  - `RUSTSEC-2023-0071`
-  - `RUSTSEC-2026-0049`
+- Temporary cargo-audit ignore exceptions must be defined only in `scripts/cargo-audit-policy.mjs` and must pass its expiry checks in CI.
+- Inspect the active temporary ignore list with `node scripts/cargo-audit-policy.mjs list`.
 - If `npm run setup` fails installing `cargo-audit` because Rust is too old, run `rustup update stable` and retry setup.
 
 ## CI Expectations
@@ -95,6 +94,8 @@ Non-localizable CI checks:
 
 Required local checks (run before opening PR):
 - `npm run security`
+- `node scripts/cargo-audit-policy.mjs check`
+- `node scripts/cargo-audit-policy.mjs validate`
 - `npm run test`
 - `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
@@ -113,6 +114,8 @@ Run from repository root:
 
 ```bash
 npm run security
+node scripts/cargo-audit-policy.mjs check
+node scripts/cargo-audit-policy.mjs validate
 npm run test
 DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
 BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD 2>/dev/null || git rev-parse HEAD~1)
@@ -123,7 +126,6 @@ HEAD_SHA=$(git rev-parse HEAD)
 bash scripts/test-contract-parity.sh
 ./scripts/validate-dm-transport-policy.sh
 ./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
-bash scripts/validate-cargo-audit-ignore.sh
 python -m pip install semgrep
 semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
 npm --prefix apps/web audit --omit=dev --audit-level=high
