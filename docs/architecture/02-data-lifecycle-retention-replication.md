@@ -6,14 +6,14 @@
 - Owner: Architecture and API maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-18
 - Source of truth: `docs/architecture/02-data-lifecycle-retention-replication.md`
 
 ## Quick Context
 
 - Purpose: define where data lives, who is authoritative, and how retention/reconciliation behaves.
 - Primary edit location: update when persistence boundaries or retention policy semantics change.
-- Latest meaningful change: 2026-05-11 defined executable DM delivery-metadata retention and abuse-control defaults for server-node encrypted-envelope delivery while keeping plaintext/private keys client-only.
+- Latest meaningful change: 2026-05-18 bounded operational DM delivery logs to redacted fingerprints, aggregate counts, and delivery-metadata retention windows.
 
 ## Persistence Boundary Matrix
 
@@ -52,6 +52,13 @@
 - Outbound forwarding purge deletes expired `forwarded` rows and terminal `failed` rows with no future retry schedule. Queued or retry-scheduled rows remain until retry resolution or later expiry.
 - Delivery metadata retention stores no plaintext, private keys, recipient-device endpoint hints, LAN/WAN addresses, pairing payloads, or direct-transport state.
 - Abuse controls for DM delivery are identity/node scoped rate limits over dispatch, catch-up, ack, and authenticated node-forward ingress; they operate on request counts and policy state, not plaintext inspection.
+
+## Operational DM Delivery Logs
+
+- Routine API and realtime DM delivery logs must not emit raw `message_id`, `thread_id`, `recipient_identity_id`, `identity_id`, `device_id`, `envelope_id`, ciphertext, private keys, or device secrets.
+- When operators need delivery correlation, logs may emit deterministic SHA-256-derived short fingerprints in `*_fingerprint` fields plus aggregate outcome counts. These fingerprints are operational metadata, not durable delivery state.
+- Operational logs that include DM delivery fingerprints or aggregate delivery outcome counts must be retained no longer than the associated delivery-metadata retention window: 30 days by default for fanout dispatch/ack diagnostics and 7 days by default for outbound forwarding diagnostics.
+- Exported log archives, incident bundles, and third-party log sinks must apply the same retention and deletion bounds before leaving the operator-controlled environment.
 
 ## Related Documents
 

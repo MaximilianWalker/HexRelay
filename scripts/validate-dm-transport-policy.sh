@@ -10,6 +10,7 @@ config_forbidden_pattern='(dm[-_ ]?plain[-_ ]?text|plain[-_ ]?text[-_ ]?dm|clear
 contract_forbidden_pattern='(dm_?plain_?text|plain_?text_?dm|clear_?text_?dm|dm_?clear_?text|server_?readable_?dm|dm_?server_?readable|dm_?decrypt_?on_?server|dm_?server_?decrypt|dm_?server_?side_?decrypt(ion)?|dm_?private_?key|dm_?private_?key_?(upload|custody|escrow)|dm_?key_?escrow|dm_?unencrypted_?(mailbox|relay|payload|storage)|unencrypted_?dm_?(mailbox|relay|payload|storage)|plain_?text_?relay|clear_?text_?relay|dm_?plain_?text_?relay|dm_?clear_?text_?relay)'
 direct_dm_forbidden_pattern='(direct[-_ ]?only|direct[-_ ]?peer|DirectPeerTransport|dm[-_ ]?lan[-_ ]?discovery|dm\.lan_discovery|pairing[-_ ]?envelope|/dm/connectivity|endpoint[-_ ]?cards?|DmEndpointCard|wan[-_ ]?wizard|DmWanWizard|parallel[-_ ]?dial|DmParallelDial|DmConnectivityPreflight|dm_pairing|dm_lan_presence|dm_pairing_nonces)'
 contact_qr_forbidden_pattern='(QRCodeSVG|qrcode\.react|IconQrcode|link \+ QR|QR code)'
+dm_raw_log_metadata_pattern='(message_id|thread_id|recipient_identity_id|identity_id|device_id)[[:space:]]*=[[:space:]]*%'
 
 matches=""
 
@@ -132,8 +133,16 @@ if [ -n "${contact_qr_matches}" ]; then
   matches+="${contact_qr_matches}"$'\n'
 fi
 
+dm_raw_log_metadata_matches="$(grep -RInE "${dm_raw_log_metadata_pattern}" \
+  "services/api-rs/src/domain/dm/realtime.rs" \
+  "services/realtime-rs/src/domain/dms.rs" \
+  || true)"
+if [ -n "${dm_raw_log_metadata_matches}" ]; then
+  matches+="${dm_raw_log_metadata_matches}"$'\n'
+fi
+
 if [ -n "${matches}" ]; then
-  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired node-bypassing DM surfaces, or contact-invite QR UI."
+  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired node-bypassing DM surfaces, contact-invite QR UI, or raw DM delivery metadata logs."
   echo "These terms are disallowed for DM E2EE envelope delivery policy:"
   printf '%s' "${matches}"
   exit 1

@@ -139,8 +139,8 @@ pub async fn publish_dm_envelope_dispatched(
     )
     .await;
     info!(
-        message_id = %summary.message_id,
-        recipient_identity_id = %summary.recipient_identity_id,
+        message_fingerprint = %dm_log_fingerprint(&summary.message_id),
+        recipient_fingerprint = %dm_log_fingerprint(&summary.recipient_identity_id),
         target_device_count = summary.target_device_count,
         queued_device_count = summary.queued_device_ids.len(),
         pending_device_count = summary.pending_device_ids.len(),
@@ -204,9 +204,9 @@ pub async fn handle_dm_envelope_ack(
         Ok(response) => {
             warn!(
                 status = %response.status(),
-                message_id = %data.message_id,
-                recipient_identity_id = %data.recipient_identity_id,
-                device_id = %data.device_id,
+                message_fingerprint = %dm_log_fingerprint(&data.message_id),
+                recipient_fingerprint = %dm_log_fingerprint(&data.recipient_identity_id),
+                device_fingerprint = %dm_log_fingerprint(&data.device_id),
                 "DM envelope ack upstream returned non-success status"
             );
             crate::domain::events::service::build_error_event(
@@ -217,9 +217,9 @@ pub async fn handle_dm_envelope_ack(
         Err(error) => {
             warn!(
                 error = %error,
-                message_id = %data.message_id,
-                recipient_identity_id = %data.recipient_identity_id,
-                device_id = %data.device_id,
+                message_fingerprint = %dm_log_fingerprint(&data.message_id),
+                recipient_fingerprint = %dm_log_fingerprint(&data.recipient_identity_id),
+                device_fingerprint = %dm_log_fingerprint(&data.device_id),
                 "DM envelope ack upstream request failed"
             );
             crate::domain::events::service::build_error_event(
@@ -293,8 +293,8 @@ pub async fn verify_dm_device_binding(
         Ok(response) => {
             warn!(
                 status = %response.status(),
-                identity_id = %session_identity_id,
-                device_id = %device_id,
+                identity_fingerprint = %dm_log_fingerprint(session_identity_id),
+                device_fingerprint = %dm_log_fingerprint(device_id),
                 "DM device proof upstream returned non-success status"
             );
             (
@@ -308,8 +308,8 @@ pub async fn verify_dm_device_binding(
         Err(error) => {
             warn!(
                 error = %error,
-                identity_id = %session_identity_id,
-                device_id = %device_id,
+                identity_fingerprint = %dm_log_fingerprint(session_identity_id),
+                device_fingerprint = %dm_log_fingerprint(device_id),
                 "DM device proof upstream request failed"
             );
             (
@@ -369,9 +369,9 @@ async fn dispatch_dm_envelopes_locally(
                         *device_state = DeviceDispatchState::Saturated;
                     }
                     warn!(
-                        recipient_identity_id = %recipient_identity_id,
-                        connection_id = %connection_id,
-                        device_id = %device_id,
+                        recipient_fingerprint = %dm_log_fingerprint(recipient_identity_id),
+                        connection_fingerprint = %dm_log_fingerprint(connection_id),
+                        device_fingerprint = %dm_log_fingerprint(device_id),
                         "DM envelope outbound queue saturated; keeping websocket registered"
                     );
                 }
@@ -696,6 +696,11 @@ fn lower_hex(bytes: &[u8]) -> String {
     output
 }
 
+fn dm_log_fingerprint(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    lower_hex(&digest[..8])
+}
+
 #[derive(Debug)]
 struct DmAckError {
     code: &'static str,
@@ -926,6 +931,16 @@ mod tests {
         let wrong_device =
             parse_dm_envelope_ack(raw, "usr-recipient", Some("phone-main")).unwrap_err();
         assert_eq!(wrong_device.code, "event_device_mismatch");
+    }
+
+    #[test]
+    fn dm_log_fingerprint_redacts_raw_value() {
+        let fingerprint = dm_log_fingerprint("test-value");
+
+        assert_eq!(fingerprint, "5b1406fffc9de553");
+        assert_ne!(fingerprint, "test-value");
+        assert_eq!(fingerprint.len(), 16);
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     fn test_state() -> AppState {

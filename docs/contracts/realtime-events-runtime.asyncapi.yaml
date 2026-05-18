@@ -48,6 +48,11 @@ info:
     to the API bridge with target counts plus queued, pending, no-connection,
     unverified, saturated, and stale-connection buckets; websocket clients still
     receive only their own verified-device `dm.envelope.dispatched` payloads.
+    Routine realtime DM dispatch, ack, device-proof, and saturated-queue logs
+    expose only aggregate outcome counts plus redacted `*_fingerprint`
+    correlation fields; raw DM message, thread, recipient, device, ciphertext,
+    and secret values are not emitted by those operational logging paths and no
+    realtime event schema changes are introduced.
     For non-presence replay streams, when present, late-joining profile devices receive
     missed supported events before new live transitions only for recipients that had an
     active profiled connection when the original event was published.
