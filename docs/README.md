@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-18 documented DM operational log redaction and retention bounds.
+- Latest meaningful change: 2026-05-18 documented DM operational log redaction, retention, and runtime-contract bounds.
 
 ## Purpose
 

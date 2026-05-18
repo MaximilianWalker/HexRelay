@@ -32,9 +32,14 @@ info:
     delivery and does not guarantee durable retry. DM delivery uses server-node
     P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
     contracts must not expose node-bypassing DM bootstrap or plaintext relay
-    behavior. App-to-node dedicated-server administration starts with a public
-    node connection descriptor plus an authenticated capabilities endpoint;
-    admin/owner status is returned only after normal session auth.
+    behavior. Routine API-side DM dispatch logs for the NodeClientTransport
+    bridge expose only aggregate outcome counts plus redacted `*_fingerprint`
+    correlation fields; raw DM message, thread, recipient, device, ciphertext,
+    and secret values are not emitted by that operational logging path and no
+    REST payload schema changes are introduced. App-to-node dedicated-server
+    administration starts with a public node connection descriptor plus an
+    authenticated capabilities endpoint; admin/owner status is returned only
+    after normal session auth.
 servers:
   - url: https://api.hexrelay.local
 paths:
