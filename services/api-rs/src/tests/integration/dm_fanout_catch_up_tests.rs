@@ -8,6 +8,8 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, http::HeaderValue, Message as WsMessage},
 };
 
+use crate::infra::db::repos::dm_repo;
+
 type WsStream =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -100,6 +102,41 @@ async fn catch_up(app: &axum::Router, token: &str, device_id: &str) -> serde_jso
         .await
         .expect("read catch-up body");
     serde_json::from_slice(&body).expect("decode catch-up body")
+}
+
+async fn catch_up_page(
+    app: &axum::Router,
+    token: &str,
+    device_id: &str,
+    cursor: Option<&str>,
+    limit: u32,
+) -> serde_json::Value {
+    let mut payload = serde_json::json!({
+        "device_id": device_id,
+        "device_secret": device_secret(device_id),
+        "limit": limit,
+    });
+    if let Some(cursor) = cursor {
+        payload["cursor"] = serde_json::json!(cursor);
+    }
+
+    let catch_up = Request::builder()
+        .method("POST")
+        .uri("/dm/fanout/catch-up")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .expect("build paged fanout catch-up request");
+    let response = app
+        .clone()
+        .oneshot(catch_up)
+        .await
+        .expect("paged fanout catch-up response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read paged catch-up body");
+    serde_json::from_slice(&body).expect("decode paged catch-up body")
 }
 
 async fn ack_dm_envelope(
@@ -547,6 +584,132 @@ async fn dm_realtime_dispatch_requires_verified_device_secret() {
 }
 
 #[tokio::test]
+async fn fanout_catch_up_paginates_from_request_cursor() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let message_ids = [
+        unique_message_id("msg-page-a"),
+        unique_message_id("msg-page-b"),
+        unique_message_id("msg-page-c"),
+    ];
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    heartbeat_device(&app, &tokens[recipient.as_str()], "desktop-main", true).await;
+
+    for message_id in &message_ids {
+        dispatch_dm(
+            &app,
+            &tokens[sender.as_str()],
+            &recipient,
+            message_id,
+            "enc:paged-catch-up",
+        )
+        .await;
+    }
+
+    let first_page =
+        catch_up_page(&app, &tokens[recipient.as_str()], "desktop-main", None, 1).await;
+    assert_eq!(first_page["replay_count"], 1);
+    assert_eq!(first_page["next_cursor"], "1");
+    assert_eq!(first_page["items"][0]["cursor"], "1");
+    assert_eq!(
+        first_page["items"][0]["message_id"],
+        message_ids[0].as_str()
+    );
+
+    let second_page = catch_up_page(
+        &app,
+        &tokens[recipient.as_str()],
+        "desktop-main",
+        Some("1"),
+        1,
+    )
+    .await;
+    assert_eq!(second_page["replay_count"], 1);
+    assert_eq!(second_page["next_cursor"], "2");
+    assert_eq!(second_page["items"][0]["cursor"], "2");
+    assert_eq!(
+        second_page["items"][0]["message_id"],
+        message_ids[1].as_str()
+    );
+}
+
+#[tokio::test]
+async fn fanout_catch_up_next_cursor_advances_past_deduped_rows() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let message_id = unique_message_id("msg-page-dup");
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    heartbeat_device(&app, &tokens[recipient.as_str()], "desktop-main", true).await;
+
+    dispatch_dm(
+        &app,
+        &tokens[sender.as_str()],
+        &recipient,
+        &message_id,
+        "enc:paged-duplicate",
+    )
+    .await;
+
+    let records = dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, 0, 10)
+        .await
+        .expect("list delivery records");
+    assert_eq!(records.len(), 1);
+
+    let mut tx = pool.begin().await.expect("begin duplicate delivery tx");
+    let duplicate_cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, &recipient)
+        .await
+        .expect("advance duplicate delivery cursor");
+    let duplicate = crate::models::DmFanoutDeliveryRecord {
+        cursor: duplicate_cursor,
+        ..records[0].clone()
+    };
+    dm_repo::append_dm_fanout_delivery_record_in_tx(
+        &mut tx,
+        &recipient,
+        &records[0].thread_id,
+        &duplicate,
+    )
+    .await
+    .expect("append duplicate delivery record");
+    tx.commit().await.expect("commit duplicate delivery tx");
+
+    let first_page =
+        catch_up_page(&app, &tokens[recipient.as_str()], "desktop-main", None, 2).await;
+    assert_eq!(first_page["replay_count"], 1);
+    assert_eq!(first_page["items"][0]["cursor"], "1");
+    assert_eq!(first_page["next_cursor"], duplicate_cursor.to_string());
+    assert_eq!(
+        first_page["deduped_message_ids"]
+            .as_array()
+            .expect("deduped ids")
+            .len(),
+        1
+    );
+
+    let next_page = catch_up_page(
+        &app,
+        &tokens[recipient.as_str()],
+        "desktop-main",
+        Some(first_page["next_cursor"].as_str().expect("next cursor")),
+        2,
+    )
+    .await;
+    assert_eq!(next_page["reason_code"], "fanout_catch_up_no_missed");
+    assert_eq!(next_page["replay_count"], 0);
+    assert_eq!(next_page["next_cursor"], duplicate_cursor.to_string());
+}
+
+#[tokio::test]
 async fn fanout_catch_up_replays_messages_for_late_activated_device() {
     let sender = unique_identity("usr-nora-k");
     let recipient = unique_identity("usr-jules-p");
@@ -937,6 +1100,91 @@ async fn fanout_ack_does_not_skip_prior_unacked_envelopes() {
     );
     assert_eq!(post_contiguous_ack["replay_count"], 0);
     assert_eq!(post_contiguous_ack["next_cursor"], "2");
+}
+
+#[tokio::test]
+async fn fanout_ack_concurrent_out_of_order_advances_cursor() {
+    let sender = unique_identity("usr-nora-k");
+    let recipient = unique_identity("usr-jules-p");
+    let first_message_id = unique_message_id("msg-concurrent-a");
+    let second_message_id = unique_message_id("msg-concurrent-b");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[sender.as_str(), recipient.as_str()]).await
+    else {
+        return;
+    };
+    let app = set_dm_policy_anyone(app, &tokens[recipient.as_str()]).await;
+    heartbeat_device(&app, &tokens[recipient.as_str()], "desktop-main", true).await;
+
+    dispatch_dm(
+        &app,
+        &tokens[sender.as_str()],
+        &recipient,
+        &first_message_id,
+        "enc:concurrent-a",
+    )
+    .await;
+    dispatch_dm(
+        &app,
+        &tokens[sender.as_str()],
+        &recipient,
+        &second_message_id,
+        "enc:concurrent-b",
+    )
+    .await;
+
+    let initial = catch_up(&app, &tokens[recipient.as_str()], "desktop-main").await;
+    assert_eq!(initial["replay_count"], 2);
+    let items = initial["items"].as_array().expect("catch-up items");
+    let first = &items[0];
+    let second = &items[1];
+    let first_envelope_id = first["envelope_id"]
+        .as_str()
+        .expect("envelope id")
+        .to_string();
+    let first_message_id = first["message_id"]
+        .as_str()
+        .expect("message id")
+        .to_string();
+    let first_thread_id = first["thread_id"].as_str().expect("thread id").to_string();
+    let first_cursor = first["cursor"].as_str().expect("cursor").to_string();
+    let second_envelope_id = second["envelope_id"]
+        .as_str()
+        .expect("envelope id")
+        .to_string();
+    let second_message_id = second["message_id"]
+        .as_str()
+        .expect("message id")
+        .to_string();
+    let second_thread_id = second["thread_id"].as_str().expect("thread id").to_string();
+    let second_cursor = second["cursor"].as_str().expect("cursor").to_string();
+
+    let second_ack = ack_dm_envelope(
+        &app,
+        &second_envelope_id,
+        &second_message_id,
+        &second_thread_id,
+        &recipient,
+        "desktop-main",
+        &second_cursor,
+    );
+    let first_ack = ack_dm_envelope(
+        &app,
+        &first_envelope_id,
+        &first_message_id,
+        &first_thread_id,
+        &recipient,
+        "desktop-main",
+        &first_cursor,
+    );
+    let ((second_status, _), (first_status, _)) = tokio::join!(second_ack, first_ack);
+    assert_eq!(second_status, StatusCode::ACCEPTED);
+    assert_eq!(first_status, StatusCode::ACCEPTED);
+
+    let post_ack = catch_up(&app, &tokens[recipient.as_str()], "desktop-main").await;
+    assert_eq!(post_ack["reason_code"], "fanout_catch_up_no_missed");
+    assert_eq!(post_ack["replay_count"], 0);
+    assert_eq!(post_ack["next_cursor"], "2");
 }
 
 #[tokio::test]
