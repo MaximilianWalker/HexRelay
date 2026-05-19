@@ -598,11 +598,14 @@
 }
 
 .tabBar {
+  --active-tab-mask-left: 0px;
+  --active-tab-mask-width: 0px;
+
   position: relative;
   z-index: 2;
   display: flex;
   align-items: flex-end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   min-width: 0;
   border: 1px solid var(--content-border);
@@ -615,17 +618,36 @@
   padding: 8px 10px 0;
 }
 
+.tabBar::after {
+  position: absolute;
+  bottom: -1px;
+  left: var(--active-tab-mask-left);
+  z-index: 5;
+  width: var(--active-tab-mask-width);
+  height: 1px;
+  background: var(--content-surface);
+  content: "";
+  pointer-events: none;
+}
+
 .tabs {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: flex-end;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
+  flex: 1 1 0;
+  flex-wrap: nowrap;
   gap: 3px;
   min-width: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding-bottom: 0;
+  scroll-behavior: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tabActions {
@@ -644,6 +666,7 @@
   align-items: center;
   gap: 7px;
   appearance: none;
+  flex: 0 0 auto;
   border: 1px solid rgba(177, 205, 231, 0.72);
   border-bottom: 0;
   border-radius: 12px 12px 0 0;
@@ -658,27 +681,28 @@
   line-height: 1;
 }
 
-button.tab {
+.tabButton {
   cursor: pointer;
 }
 
-button.tab:hover {
+.tabButton:hover {
   background: rgba(247, 251, 255, 0.94);
   color: #173f61;
 }
 
-button.tab:focus-visible {
+.tabButton:focus-visible {
   outline: 2px solid #23689a;
   outline-offset: 2px;
 }
 
 .tabActive {
   z-index: 2;
-  margin-bottom: 0;
   border-color: var(--content-border);
+  border-bottom: 1px solid var(--content-surface);
   background: var(--content-surface);
   box-shadow: none;
   color: #123f62;
+  margin-bottom: -1px;
 }
 
 .tabActive::before {
@@ -705,6 +729,39 @@ button.tab:focus-visible {
 .tabLabel {
   position: relative;
   z-index: 3;
+}
+
+.tabScrollButton {
+  display: inline-flex;
+  width: 28px;
+  height: 34px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(177, 205, 231, 0.72);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: rgba(247, 251, 255, 0.9);
+  color: #275174;
+  cursor: pointer;
+}
+
+.tabScrollButton:disabled {
+  color: #91a9bc;
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.tabScrollButton:not(:disabled):hover,
+.tabScrollButton:not(:disabled):focus-visible {
+  background: #fff;
+  color: #123f62;
+}
+
+.tabScrollIcon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.9;
 }
 
 .body {
@@ -790,11 +847,12 @@ button.tab:focus-visible {
 
   .tabBar {
     align-items: flex-end;
+    flex-wrap: wrap;
   }
 
+  .tabScrollButton,
   .tabs {
     order: 2;
-    flex-basis: 100%;
   }
 
   .mobileTabs {
