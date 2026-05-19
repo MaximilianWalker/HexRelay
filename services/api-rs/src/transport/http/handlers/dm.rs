@@ -4,7 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use ring::digest;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -12,7 +12,7 @@ use tracing::warn;
 
 use crate::domain::auth::validation::is_valid_identity_id;
 use crate::domain::block_mute::service::is_blocked_bidirectional;
-use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo, servers_repo};
+use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo};
 use crate::transport::http::middleware::rate_limit;
 use crate::{
     domain::dm::forwarding::{
@@ -23,10 +23,14 @@ use crate::{
         DM_OUTBOUND_FORWARD_MAX_ATTEMPTS,
     },
     domain::dm::realtime::{dispatch_dm_envelope, DispatchDmEnvelopeInput},
+    domain::dm::service::{
+        current_dm_policy, dm_interaction_policy_decision, dm_policy_from_update,
+        load_dm_profile_device, DmInteractionPolicyDecision,
+    },
     domain::dm::validation::{
-        validate_device_id, validate_device_secret, validate_dm_policy_update,
-        validate_fanout_catch_up, validate_fanout_dispatch, validate_profile_device_heartbeat,
-        DM_OFFLINE_DELIVERY_MODE, DM_PROFILE_DEVICE_ID_MAX_LENGTH,
+        validate_dm_envelope_ack_internal, validate_dm_policy_update, validate_fanout_catch_up,
+        validate_fanout_dispatch, validate_profile_device_heartbeat,
+        validate_profile_device_secret_input, DmEnvelopeAckValidationInput,
     },
     models::{
         ApiError, DmFanoutCatchUpItem, DmFanoutCatchUpRequest, DmFanoutCatchUpResponse,
@@ -83,23 +87,7 @@ pub async fn get_dm_policy(
     axum::extract::State(state): axum::extract::State<AppState>,
     auth: AuthSession,
 ) -> ApiResult<Json<DmPolicy>> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        let policy = dm_repo::get_dm_policy(pool, &auth.identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))?
-            .unwrap_or_else(default_dm_policy);
-        return Ok(Json(policy));
-    }
-
-    let default = default_dm_policy();
-    let policy = state
-        .dm_policies
-        .read()
-        .expect("acquire dm policy read lock")
-        .get(&auth.identity_id)
-        .cloned()
-        .unwrap_or(default);
-    Ok(Json(policy))
+    Ok(Json(current_dm_policy(&state, &auth.identity_id).await?))
 }
 
 pub async fn update_dm_policy(
@@ -111,11 +99,7 @@ pub async fn update_dm_policy(
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_dm_policy_update(&payload)?;
 
-    let normalized = payload.inbound_policy.trim().to_string();
-    let policy = DmPolicy {
-        inbound_policy: normalized,
-        offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
-    };
+    let policy = dm_policy_from_update(&payload);
 
     if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::upsert_dm_policy(pool, &auth.identity_id, &policy)
@@ -881,7 +865,16 @@ pub async fn ack_dm_envelope_internal(
         ));
     }
 
-    let cursor = validate_dm_envelope_ack_internal(&payload)?;
+    let cursor = validate_dm_envelope_ack_internal(DmEnvelopeAckValidationInput {
+        envelope_id: &payload.envelope_id,
+        message_id: &payload.message_id,
+        thread_id: &payload.thread_id,
+        recipient_identity_id: &payload.recipient_identity_id,
+        device_id: &payload.device_id,
+        ack_status: &payload.ack_status,
+        received_at: &payload.received_at,
+        delivery_cursor: &payload.delivery_cursor,
+    })?;
     let ack_rate_key = format!(
         "{}:{}",
         payload.recipient_identity_id.trim(),
@@ -1162,30 +1155,6 @@ async fn apply_dm_delivery_metadata_retention(state: &AppState) -> ApiResult<()>
     Ok(())
 }
 
-fn default_dm_policy() -> DmPolicy {
-    DmPolicy {
-        inbound_policy: "friends_only".to_string(),
-        offline_delivery_mode: DM_OFFLINE_DELIVERY_MODE.to_string(),
-    }
-}
-
-async fn current_dm_policy(state: &AppState, identity_id: &str) -> ApiResult<DmPolicy> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        return dm_repo::get_dm_policy(pool, identity_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))
-            .map(|policy| policy.unwrap_or_else(default_dm_policy));
-    }
-
-    Ok(state
-        .dm_policies
-        .read()
-        .expect("acquire dm policy read lock")
-        .get(identity_id)
-        .cloned()
-        .unwrap_or_else(default_dm_policy))
-}
-
 fn profile_devices_to_response(
     devices: &std::collections::HashMap<String, DmProfileDeviceRecord>,
     now_epoch: i64,
@@ -1212,170 +1181,6 @@ fn profile_devices_to_response(
     items
 }
 
-async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        return friends_repo::are_friends(pool, a, b).await.map_err(|_| {
-            internal_error(
-                "friendship_lookup_failed",
-                "failed to evaluate friendship state for DM policy",
-            )
-        });
-    }
-
-    Ok(state
-        .friend_requests
-        .read()
-        .expect("acquire friend request read lock")
-        .values()
-        .any(|record| {
-            record.status == "accepted"
-                && ((record.requester_identity_id == a && record.target_identity_id == b)
-                    || (record.requester_identity_id == b && record.target_identity_id == a))
-        }))
-}
-
-enum DmInteractionPolicyDecision {
-    Allowed,
-    BlockedFriendsOnly,
-    BlockedSameServer,
-    BlockedUnknown,
-}
-
-async fn dm_interaction_policy_decision(
-    state: &AppState,
-    sender_identity_id: &str,
-    recipient_identity_id: &str,
-) -> ApiResult<DmInteractionPolicyDecision> {
-    let policy = current_dm_policy(state, recipient_identity_id).await?;
-
-    match policy.inbound_policy.as_str() {
-        "anyone" => Ok(DmInteractionPolicyDecision::Allowed),
-        "friends_only" => {
-            if is_friend(state, sender_identity_id, recipient_identity_id).await? {
-                Ok(DmInteractionPolicyDecision::Allowed)
-            } else {
-                Ok(DmInteractionPolicyDecision::BlockedFriendsOnly)
-            }
-        }
-        "same_server" => {
-            if let Some(pool) = state.db_pool.as_ref() {
-                if servers_repo::identities_share_server(
-                    pool,
-                    sender_identity_id,
-                    recipient_identity_id,
-                )
-                .await
-                .map_err(|_| {
-                    internal_error(
-                        "storage_unavailable",
-                        "failed to evaluate shared-server DM policy",
-                    )
-                })? {
-                    Ok(DmInteractionPolicyDecision::Allowed)
-                } else {
-                    Ok(DmInteractionPolicyDecision::BlockedSameServer)
-                }
-            } else {
-                Ok(DmInteractionPolicyDecision::BlockedSameServer)
-            }
-        }
-        _ => Ok(DmInteractionPolicyDecision::BlockedUnknown),
-    }
-}
-
-fn validate_dm_envelope_ack_internal(payload: &DmEnvelopeAckInternalRequest) -> ApiResult<u64> {
-    if payload.envelope_id.trim().is_empty() || payload.envelope_id.len() > 128 {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "envelope_id must be non-empty and <= 128 chars",
-        ));
-    }
-    if trimmed_invalid(&payload.envelope_id) {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "envelope_id must not include leading or trailing whitespace",
-        ));
-    }
-
-    for (field, value) in [
-        ("message_id", payload.message_id.as_str()),
-        ("thread_id", payload.thread_id.as_str()),
-    ] {
-        if value.trim().is_empty() || value.len() > 128 {
-            return Err(bad_request(
-                "dm_ack_invalid",
-                match field {
-                    "message_id" => "message_id must be non-empty and <= 128 chars",
-                    _ => "thread_id must be non-empty and <= 128 chars",
-                },
-            ));
-        }
-        if trimmed_invalid(value) {
-            return Err(bad_request(
-                "dm_ack_invalid",
-                match field {
-                    "message_id" => "message_id must not include leading or trailing whitespace",
-                    _ => "thread_id must not include leading or trailing whitespace",
-                },
-            ));
-        }
-    }
-
-    if !is_valid_identity_id(&payload.recipient_identity_id) {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "recipient_identity_id must be 3-64 chars using letters, numbers, _ or -",
-        ));
-    }
-
-    let device_id = payload.device_id.trim();
-    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "device_id must be non-empty and <= 64 chars",
-        ));
-    }
-    if trimmed_invalid(&payload.device_id) {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "device_id must not include leading or trailing whitespace",
-        ));
-    }
-
-    if payload.ack_status != "received" {
-        return Err(bad_request("dm_ack_invalid", "ack_status must be received"));
-    }
-
-    DateTime::parse_from_rfc3339(payload.received_at.trim())
-        .map_err(|_| bad_request("dm_ack_invalid", "received_at must be an RFC3339 date-time"))?;
-    if trimmed_invalid(&payload.received_at) {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "received_at must not include leading or trailing whitespace",
-        ));
-    }
-
-    let cursor = payload
-        .delivery_cursor
-        .trim()
-        .parse::<u64>()
-        .map_err(|_| bad_request("dm_ack_invalid", "delivery_cursor must be numeric"))?;
-    if cursor == 0 {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "delivery_cursor must be greater than zero",
-        ));
-    }
-    if trimmed_invalid(&payload.delivery_cursor) {
-        return Err(bad_request(
-            "dm_ack_invalid",
-            "delivery_cursor must not include leading or trailing whitespace",
-        ));
-    }
-
-    Ok(cursor)
-}
-
 fn internal_token_valid(state: &AppState, headers: &HeaderMap) -> bool {
     headers
         .get("x-hexrelay-internal-token")
@@ -1383,35 +1188,6 @@ fn internal_token_valid(state: &AppState, headers: &HeaderMap) -> bool {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         == Some(state.channel_dispatch_internal_token.as_str())
-}
-
-async fn load_dm_profile_device(
-    state: &AppState,
-    identity_id: &str,
-    device_id: &str,
-) -> ApiResult<Option<DmProfileDeviceRecord>> {
-    if let Some(pool) = state.db_pool.as_ref() {
-        return dm_repo::get_dm_profile_device(pool, identity_id, device_id)
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load profile device"));
-    }
-
-    Ok(state
-        .dm_profile_devices
-        .read()
-        .expect("acquire dm profile devices read lock")
-        .get(identity_id)
-        .and_then(|devices| devices.get(device_id))
-        .cloned())
-}
-
-fn validate_profile_device_secret_input(device_id: &str, device_secret: &str) -> ApiResult<()> {
-    validate_device_id(device_id, "profile_device_invalid")?;
-    validate_device_secret(device_secret, "profile_device_invalid")
-}
-
-fn trimmed_invalid(value: &str) -> bool {
-    value.trim() != value
 }
 
 fn device_secret_hash(value: &str) -> String {

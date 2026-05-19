@@ -1,3 +1,5 @@
+use chrono::DateTime;
+
 use crate::{
     models::{
         DmFanoutCatchUpRequest, DmFanoutDispatchRequest, DmPolicyUpdate,
@@ -16,6 +18,18 @@ pub const DM_FANOUT_MESSAGE_ID_MAX_LENGTH: usize = 128;
 pub const DM_FANOUT_CIPHERTEXT_MAX_LENGTH: usize = 8192;
 pub const DM_FANOUT_CATCH_UP_DEFAULT_LIMIT: u32 = 50;
 pub const DM_FANOUT_CATCH_UP_MAX_LIMIT: u32 = 100;
+
+#[derive(Debug, Clone, Copy)]
+pub struct DmEnvelopeAckValidationInput<'a> {
+    pub envelope_id: &'a str,
+    pub message_id: &'a str,
+    pub thread_id: &'a str,
+    pub recipient_identity_id: &'a str,
+    pub device_id: &'a str,
+    pub ack_status: &'a str,
+    pub received_at: &'a str,
+    pub delivery_cursor: &'a str,
+}
 
 pub fn validate_dm_policy_update(payload: &DmPolicyUpdate) -> ApiResult<()> {
     let value = payload.inbound_policy.trim();
@@ -43,6 +57,11 @@ pub fn validate_profile_device_heartbeat(
     validate_device_secret(&payload.device_secret, "profile_device_invalid")?;
 
     Ok(())
+}
+
+pub fn validate_profile_device_secret_input(device_id: &str, device_secret: &str) -> ApiResult<()> {
+    validate_device_id(device_id, "profile_device_invalid")?;
+    validate_device_secret(device_secret, "profile_device_invalid")
 }
 
 pub fn validate_fanout_dispatch(payload: &DmFanoutDispatchRequest) -> ApiResult<()> {
@@ -149,6 +168,101 @@ pub fn validate_fanout_catch_up(payload: &DmFanoutCatchUpRequest) -> ApiResult<(
     Ok((limit, cursor))
 }
 
+pub fn validate_dm_envelope_ack_internal(
+    input: DmEnvelopeAckValidationInput<'_>,
+) -> ApiResult<u64> {
+    if input.envelope_id.trim().is_empty() || input.envelope_id.len() > 128 {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "envelope_id must be non-empty and <= 128 chars",
+        ));
+    }
+    if trimmed_invalid(input.envelope_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "envelope_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    for (field, value) in [
+        ("message_id", input.message_id),
+        ("thread_id", input.thread_id),
+    ] {
+        if value.trim().is_empty() || value.len() > 128 {
+            return Err(bad_request(
+                "dm_ack_invalid",
+                match field {
+                    "message_id" => "message_id must be non-empty and <= 128 chars",
+                    _ => "thread_id must be non-empty and <= 128 chars",
+                },
+            ));
+        }
+        if trimmed_invalid(value) {
+            return Err(bad_request(
+                "dm_ack_invalid",
+                match field {
+                    "message_id" => "message_id must not include leading or trailing whitespace",
+                    _ => "thread_id must not include leading or trailing whitespace",
+                },
+            ));
+        }
+    }
+
+    if !is_valid_identity_id(input.recipient_identity_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "recipient_identity_id must be 3-64 chars using letters, numbers, _ or -",
+        ));
+    }
+
+    let device_id = input.device_id.trim();
+    if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "device_id must be non-empty and <= 64 chars",
+        ));
+    }
+    if trimmed_invalid(input.device_id) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "device_id must not include leading or trailing whitespace",
+        ));
+    }
+
+    if input.ack_status != "received" {
+        return Err(bad_request("dm_ack_invalid", "ack_status must be received"));
+    }
+
+    DateTime::parse_from_rfc3339(input.received_at.trim())
+        .map_err(|_| bad_request("dm_ack_invalid", "received_at must be an RFC3339 date-time"))?;
+    if trimmed_invalid(input.received_at) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "received_at must not include leading or trailing whitespace",
+        ));
+    }
+
+    let cursor = input
+        .delivery_cursor
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| bad_request("dm_ack_invalid", "delivery_cursor must be numeric"))?;
+    if cursor == 0 {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "delivery_cursor must be greater than zero",
+        ));
+    }
+    if trimmed_invalid(input.delivery_cursor) {
+        return Err(bad_request(
+            "dm_ack_invalid",
+            "delivery_cursor must not include leading or trailing whitespace",
+        ));
+    }
+
+    Ok(cursor)
+}
+
 pub fn validate_device_id(value: &str, code: &'static str) -> ApiResult<()> {
     let device_id = value.trim();
     if device_id.is_empty() || device_id.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH {
@@ -193,6 +307,10 @@ pub fn validate_device_secret(value: &str, code: &'static str) -> ApiResult<()> 
     Ok(())
 }
 
+fn trimmed_invalid(value: &str) -> bool {
+    value.trim() != value
+}
+
 #[cfg(test)]
 mod tests {
     use crate::models::{
@@ -201,8 +319,9 @@ mod tests {
     };
 
     use super::{
-        validate_dm_policy_update, validate_fanout_catch_up, validate_fanout_dispatch,
-        validate_profile_device_heartbeat,
+        validate_dm_envelope_ack_internal, validate_dm_policy_update, validate_fanout_catch_up,
+        validate_fanout_dispatch, validate_profile_device_heartbeat,
+        validate_profile_device_secret_input, DmEnvelopeAckValidationInput,
     };
 
     #[test]
@@ -243,6 +362,12 @@ mod tests {
             active: true,
         };
         assert!(validate_profile_device_heartbeat(&invalid).is_err());
+    }
+
+    #[test]
+    fn validates_profile_device_secret_input() {
+        assert!(validate_profile_device_secret_input("desktop-1", "secret-desktop-1").is_ok());
+        assert!(validate_profile_device_secret_input(" desktop-1", "secret-desktop-1").is_err());
     }
 
     #[test]
@@ -303,5 +428,55 @@ mod tests {
             limit: Some(0),
         };
         assert!(validate_fanout_catch_up(&invalid_limit).is_err());
+    }
+
+    #[test]
+    fn validates_internal_ack_payload() {
+        let cursor = match validate_dm_envelope_ack_internal(DmEnvelopeAckValidationInput {
+            envelope_id: "env-1",
+            message_id: "msg-1",
+            thread_id: "thread-1",
+            recipient_identity_id: "alice",
+            device_id: "desktop-1",
+            ack_status: "received",
+            received_at: "2026-05-19T00:00:00Z",
+            delivery_cursor: "42",
+        }) {
+            Ok(cursor) => cursor,
+            Err(_) => panic!("valid internal ack"),
+        };
+
+        assert_eq!(cursor, 42);
+    }
+
+    #[test]
+    fn rejects_internal_ack_whitespace_and_zero_cursor() {
+        assert!(
+            validate_dm_envelope_ack_internal(DmEnvelopeAckValidationInput {
+                envelope_id: " env-1",
+                message_id: "msg-1",
+                thread_id: "thread-1",
+                recipient_identity_id: "alice",
+                device_id: "desktop-1",
+                ack_status: "received",
+                received_at: "2026-05-19T00:00:00Z",
+                delivery_cursor: "42",
+            })
+            .is_err()
+        );
+
+        assert!(
+            validate_dm_envelope_ack_internal(DmEnvelopeAckValidationInput {
+                envelope_id: "env-1",
+                message_id: "msg-1",
+                thread_id: "thread-1",
+                recipient_identity_id: "alice",
+                device_id: "desktop-1",
+                ack_status: "received",
+                received_at: "2026-05-19T00:00:00Z",
+                delivery_cursor: "0",
+            })
+            .is_err()
+        );
     }
 }
