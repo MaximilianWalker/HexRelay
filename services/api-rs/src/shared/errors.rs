@@ -1,6 +1,8 @@
-use axum::{http::StatusCode, Json};
+use axum::http::StatusCode;
 
 use crate::models::ApiError;
+
+use super::extractors::Json;
 
 pub type ApiResult<T> = Result<T, (StatusCode, Json<ApiError>)>;
 

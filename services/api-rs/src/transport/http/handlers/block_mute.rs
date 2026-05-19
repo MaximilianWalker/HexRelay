@@ -1,7 +1,6 @@
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
-    Json,
 };
 use chrono::Utc;
 
@@ -11,7 +10,10 @@ use crate::{
         BlockListResponse, BlockRecord, BlockUserRequest, MuteListResponse, MuteRecord,
         MuteUserRequest,
     },
-    shared::errors::{conflict, ApiResult},
+    shared::{
+        errors::{conflict, ApiResult},
+        extractors::Json,
+    },
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };

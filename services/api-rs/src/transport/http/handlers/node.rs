@@ -1,11 +1,11 @@
-use axum::{extract::State, Json};
+use axum::extract::State;
 
 use crate::{
     models::{
         NodeAdministrationStatus, NodeAuthEndpoints, NodeCapabilitiesResponse,
         NodeConnectionResponse,
     },
-    shared::errors::ApiResult,
+    shared::{errors::ApiResult, extractors::Json},
     state::AppState,
     transport::http::middleware::auth::AuthSession,
 };

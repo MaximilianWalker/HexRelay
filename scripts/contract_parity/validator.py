@@ -19,6 +19,7 @@ API_SURFACE_FILES = [
     "services/api-rs/src/app/router.rs",
     "services/api-rs/src/domain/**/*.rs",
     "services/api-rs/src/shared/errors.rs",
+    "services/api-rs/src/shared/extractors.rs",
     "services/api-rs/src/transport/http/middleware/auth.rs",
     "services/api-rs/src/transport/http/middleware/authorization.rs",
     "services/api-rs/src/transport/http/middleware/rate_limit.rs",
@@ -108,6 +109,7 @@ def main(argv: list[str]) -> int:
     api_runtime_error_codes = engine.extract_api_runtime_error_codes(
         "services/api-rs/src/domain/**/*.rs",
         "services/api-rs/src/shared/errors.rs",
+        "services/api-rs/src/shared/extractors.rs",
         "services/api-rs/src/transport/http/middleware/auth.rs",
         "services/api-rs/src/transport/http/middleware/authorization.rs",
         "services/api-rs/src/transport/http/middleware/rate_limit.rs",

@@ -1,9 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use axum::{
-    extract::{Query, State},
-    Json,
-};
+use axum::extract::State;
 
 use crate::{
     infra::db::repos::discovery_repo,
@@ -11,7 +8,10 @@ use crate::{
         DiscoveryUserListQuery, DiscoveryUserListResponse, DiscoveryUserRecord,
         DiscoveryUserSummary,
     },
-    shared::errors::{bad_request, internal_error, too_many_requests, ApiResult},
+    shared::{
+        errors::{bad_request, internal_error, too_many_requests, ApiResult},
+        extractors::{Json, Query},
+    },
     state::AppState,
     transport::http::{middleware::auth::AuthSession, middleware::rate_limit::allow_distributed},
 };

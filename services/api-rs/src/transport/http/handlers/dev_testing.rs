@@ -2,7 +2,6 @@ use axum::{
     extract::State,
     http::{header::SET_COOKIE, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use chrono::{Duration, Utc};
 use rand::RngCore;
@@ -13,7 +12,10 @@ use crate::{
     app::state::AppState,
     infra::crypto::session_token::issue_session_token,
     models::ApiError,
-    shared::errors::{bad_request, forbidden, internal_error, ApiResult},
+    shared::{
+        errors::{bad_request, forbidden, internal_error, ApiResult},
+        extractors::Json,
+    },
 };
 
 const SESSION_COOKIE_NAME: &str = "hexrelay_session";

@@ -1,16 +1,15 @@
 use std::collections::BTreeSet;
 
-use axum::{
-    extract::{Path, State},
-    http::HeaderMap,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap};
 use serde::Serialize;
 
 use crate::{
     domain::block_mute::service::is_blocked_bidirectional,
     infra::db::repos::directory_repo,
-    shared::errors::{internal_error, unauthorized, ApiResult},
+    shared::{
+        errors::{internal_error, unauthorized, ApiResult},
+        extractors::{Json, Path},
+    },
     state::AppState,
 };
 

@@ -11,6 +11,7 @@ mod dm_fanout_catch_up_tests;
 mod dm_fanout_tests;
 mod dm_policy_tests;
 mod dm_threads_tests;
+mod extractor_rejection_tests;
 mod friends_tests;
 mod invites_tests;
 mod node_tests;
