@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::infra::crypto::session_token::issue_session_token;
+use crate::infra::db::repos::dm_history_repo;
 
 const DEFAULT_PROFILE: &str = "dm-basic";
 const SESSION_COOKIE_NAME: &str = "hexrelay_session";
@@ -1538,6 +1539,8 @@ async fn seed_dm_thread(
         .execute(&mut **tx)
         .await?;
     }
+
+    dm_history_repo::refresh_dm_thread_last_message_in_tx(tx, &thread.thread_id).await?;
 
     Ok(())
 }
