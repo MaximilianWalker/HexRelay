@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
+use crate::shared::metrics::ServerChannelDispatchOutcome;
 use crate::state::AppState;
 
 const INTERNAL_CHANNEL_MESSAGE_CREATED_PATH: &str = "/internal/channels/messages/created";
@@ -464,7 +465,7 @@ fn dispatch_server_channel_payload(
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
 
-    let outcome = send_via_node_dispatch_with_provenance(
+    let dispatch_result = send_via_node_dispatch_with_provenance(
         CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
         RealtimeNodeDispatchSender {
@@ -480,7 +481,22 @@ fn dispatch_server_channel_payload(
             "dispatch server channel event via NodeClientTransport: {}",
             error.code.as_str()
         )
-    })?;
+    });
+
+    let outcome = match dispatch_result {
+        Ok(outcome) => {
+            state
+                .metrics
+                .record_server_channel_dispatch(ServerChannelDispatchOutcome::Enqueued);
+            outcome
+        }
+        Err(error) => {
+            state
+                .metrics
+                .record_server_channel_dispatch(ServerChannelDispatchOutcome::Failed);
+            return Err(error);
+        }
+    };
 
     debug!(
         mode = outcome.provenance.mode.as_str(),

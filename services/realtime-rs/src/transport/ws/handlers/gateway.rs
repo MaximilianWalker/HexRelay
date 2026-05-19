@@ -16,7 +16,10 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
+use crate::{
+    metrics::WebsocketUpgradeOutcome,
+    state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState},
+};
 
 const MAX_DEVICE_ID_LEN: usize = 64;
 const MIN_DEVICE_SECRET_LEN: usize = 16;
@@ -35,6 +38,9 @@ pub async fn ws_handler(
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     if !is_allowed_origin(&state, &headers) {
+        state
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::OriginDisallowed);
         warn!("rejected websocket upgrade due to disallowed origin");
         return ws_rejection(
             StatusCode::FORBIDDEN,
@@ -51,6 +57,9 @@ pub async fn ws_handler(
         state.ws_rate_limit_window_seconds,
     );
     if !allowed {
+        state
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::RateLimited);
         warn!(rate_key = %rate_key, "rejected websocket upgrade due to connect rate limit");
         return ws_rejection(
             StatusCode::TOO_MANY_REQUESTS,
@@ -60,6 +69,9 @@ pub async fn ws_handler(
     }
 
     if apply_dev_fault(&state).await {
+        state
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::DevFaultDrop);
         warn!("rejected websocket upgrade due to dev fault drop");
         return ws_rejection(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -72,6 +84,9 @@ pub async fn ws_handler(
     let session = match validate_session(&state, &headers).await {
         Some(value) => value,
         None => {
+            state
+                .metrics
+                .record_websocket_upgrade(WebsocketUpgradeOutcome::SessionInvalid);
             warn!("rejected websocket upgrade due to failed session validation");
             return ws_rejection(
                 StatusCode::UNAUTHORIZED,
@@ -85,6 +100,9 @@ pub async fn ws_handler(
     let device_secret = websocket_device_secret(&headers);
 
     if !try_acquire_connection_slot(&state, &session.identity_id).await {
+        state
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::ConnectionCapReached);
         warn!(
             identity_id = %session.identity_id,
             "rejected websocket upgrade due to identity connection cap"
@@ -105,6 +123,9 @@ pub async fn ws_handler(
     ws.on_failed_upgrade(move |error| {
         let state = state_for_failed_upgrade.clone();
         let identity_id = identity_for_failed_upgrade.clone();
+        state
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::FailedAfterSlot);
         warn!(
             identity_id = %identity_id,
             error = %error,
@@ -115,6 +136,9 @@ pub async fn ws_handler(
         });
     })
     .on_upgrade(move |socket| {
+        state_for_upgrade
+            .metrics
+            .record_websocket_upgrade(WebsocketUpgradeOutcome::Accepted);
         handle_socket(
             state_for_upgrade,
             socket,

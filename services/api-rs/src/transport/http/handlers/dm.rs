@@ -40,6 +40,7 @@ use crate::{
         bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
         ApiResult,
     },
+    shared::metrics::DmDispatchOutcome,
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -287,6 +288,19 @@ pub async fn run_dm_active_fanout(
     headers: HeaderMap,
     Json(payload): Json<DmFanoutDispatchRequest>,
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
+    let outcome = run_dm_active_fanout_inner(state.clone(), auth, headers, payload).await;
+    state
+        .metrics
+        .record_dm_dispatch(dm_dispatch_metric_outcome(&outcome));
+    outcome
+}
+
+async fn run_dm_active_fanout_inner(
+    state: AppState,
+    auth: AuthSession,
+    headers: HeaderMap,
+    payload: DmFanoutDispatchRequest,
+) -> ApiResult<Json<DmFanoutDispatchResponse>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     validate_fanout_dispatch(&payload)?;
     enforce_dm_rate_limit(
@@ -325,6 +339,22 @@ pub async fn run_dm_active_fanout(
     .await?;
 
     Ok(Json(response))
+}
+
+fn dm_dispatch_metric_outcome(
+    outcome: &ApiResult<Json<DmFanoutDispatchResponse>>,
+) -> DmDispatchOutcome {
+    match outcome {
+        Ok(response) if response.0.status == "blocked" => DmDispatchOutcome::Blocked,
+        Ok(response)
+            if response.0.delivery_state == "forwarded"
+                || response.0.reason_code == "fanout_forwarded_to_static_peer" =>
+        {
+            DmDispatchOutcome::Forwarded
+        }
+        Ok(_) => DmDispatchOutcome::Accepted,
+        Err(_) => DmDispatchOutcome::Failed,
+    }
 }
 
 async fn forward_dm_envelope_to_destination_node(

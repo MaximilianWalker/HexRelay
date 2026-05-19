@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-19
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-15 documented JSON request media-type contract-parity coverage.
+- Latest meaningful change: 2026-05-19 documented runtime metrics scrape surfaces for API and realtime alerting.
 
 ## Purpose
 
@@ -25,10 +25,12 @@
 - Runtime REST node-administration bootstrap uses `GET /node/connection` for public endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity owner/admin capability reporting.
 - Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, durable explicit static-peer destination node forwarding, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime REST dispatch paths that cross the shared `NodeClientTransport` boundary emit stable snake-case provenance mode/profile/reason-code telemetry without changing REST payload schemas.
+- Runtime REST exposes `GET /metrics` as Prometheus text for auth verification, session validation, encrypted DM dispatch, and server-channel realtime dispatch enqueue outcomes.
 - Runtime auth transport: HttpOnly `hexrelay_session` cookie or `Authorization: Bearer` token; `x-csrf-token` double-submit is enforced only for cookie-authenticated mutation endpoints.
 - Spec-required OpenAPI/AsyncAPI `info.version` fields use `unversioned` and must not be treated as compatibility or rollout signals.
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling now supports authenticated recipient-targeted live delivery to active websocket sessions for accepted contacts, while DM ciphertext envelopes support recipient-device dispatch and ack over realtime.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime.asyncapi.yaml`
+- Realtime runtime exposes `GET /metrics` as Prometheus text for websocket upgrade outcomes and protected DM/server-channel dispatch route outcomes; the endpoint is documented in the runtime realtime contract description because it supports gateway observability rather than websocket event schemas.
 - Crypto profile baseline: `docs/contracts/crypto-profile.md`
 
 ## Contract Parity Status
