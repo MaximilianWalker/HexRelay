@@ -11,6 +11,7 @@ use crate::{
     infra::crypto::session_token::validate_session_token,
     models::ApiError,
     shared::errors::{internal_error, unauthorized},
+    shared::metrics::AuthSessionValidationOutcome,
     state::AppState,
 };
 
@@ -55,6 +56,9 @@ where
             .and_then(parse_bearer_token);
 
         let Some((token, transport)) = select_auth_token(cookie_token, bearer_token) else {
+            app_state
+                .metrics
+                .record_auth_session_validation(AuthSessionValidationOutcome::Rejected);
             return Err(unauthorized(
                 "session_invalid",
                 "missing session cookie or authorization header",
@@ -62,16 +66,19 @@ where
         };
 
         let auth_input = {
-            let claims =
-                validate_session_token(&token, &app_state.session_signing_keys).ok_or({
-                    (
-                        StatusCode::UNAUTHORIZED,
-                        Json(ApiError {
-                            code: "session_invalid",
-                            message: "invalid bearer token",
-                        }),
-                    )
-                })?;
+            let Some(claims) = validate_session_token(&token, &app_state.session_signing_keys)
+            else {
+                app_state
+                    .metrics
+                    .record_auth_session_validation(AuthSessionValidationOutcome::Rejected);
+                return Err((
+                    StatusCode::UNAUTHORIZED,
+                    Json(ApiError {
+                        code: "session_invalid",
+                        message: "invalid bearer token",
+                    }),
+                ));
+            };
 
             AuthInput {
                 session_id: claims.session_id,
@@ -81,15 +88,34 @@ where
         };
 
         let session = if let Some(pool) = app_state.db_pool.as_ref() {
-            resolve_db_session(pool, &auth_input).await?
+            match resolve_db_session(pool, &auth_input).await {
+                Ok(session) => session,
+                Err(error) => {
+                    app_state
+                        .metrics
+                        .record_auth_session_validation(AuthSessionValidationOutcome::Rejected);
+                    return Err(error);
+                }
+            }
         } else {
             #[cfg(test)]
             {
-                resolve_memory_session(&app_state, &auth_input)?
+                match resolve_memory_session(&app_state, &auth_input) {
+                    Ok(session) => session,
+                    Err(error) => {
+                        app_state
+                            .metrics
+                            .record_auth_session_validation(AuthSessionValidationOutcome::Rejected);
+                        return Err(error);
+                    }
+                }
             }
 
             #[cfg(not(test))]
             {
+                app_state
+                    .metrics
+                    .record_auth_session_validation(AuthSessionValidationOutcome::Rejected);
                 return Err(crate::shared::errors::internal_error(
                     "storage_unavailable",
                     "session validation requires configured database pool",
@@ -97,6 +123,9 @@ where
             }
         };
 
+        app_state
+            .metrics
+            .record_auth_session_validation(AuthSessionValidationOutcome::Accepted);
         Ok(Self {
             session_id: session.session_id,
             identity_id: session.identity_id,
@@ -352,7 +381,10 @@ mod tests {
     use crate::{
         infra::crypto::session_token::issue_session_token, models::SessionRecord, state::AppState,
     };
-    use axum::http::HeaderMap;
+    use axum::{
+        extract::FromRequestParts,
+        http::{HeaderMap, Request},
+    };
     use chrono::{Duration, Utc};
 
     #[test]
@@ -537,5 +569,58 @@ mod tests {
 
         assert_eq!(claims.session_id, "sess-issued");
         assert_eq!(claims.identity_id, "usr-issued");
+    }
+
+    #[tokio::test]
+    async fn auth_extractor_records_session_validation_metrics() {
+        let state = AppState::default();
+        let session_id = "sess-metric".to_string();
+        let identity_id = "usr-metric".to_string();
+        let expires_at = Utc::now() + Duration::hours(1);
+        state.sessions.write().expect("session lock").insert(
+            session_id.clone(),
+            SessionRecord {
+                identity_id: identity_id.clone(),
+                expires_at,
+            },
+        );
+        let secret = state
+            .session_signing_keys
+            .get(&state.active_signing_key_id)
+            .expect("active key exists");
+        let token = issue_session_token(
+            &session_id,
+            &identity_id,
+            expires_at.timestamp(),
+            &state.active_signing_key_id,
+            secret,
+        );
+
+        let (mut parts, _) = Request::builder()
+            .header("authorization", format!("Bearer {token}"))
+            .body(())
+            .expect("build request")
+            .into_parts();
+        let auth = match AuthSession::from_request_parts(&mut parts, &state).await {
+            Ok(auth) => auth,
+            Err(_) => panic!("auth session resolves"),
+        };
+        assert_eq!(auth.session_id, session_id);
+
+        let (mut parts, _) = Request::builder()
+            .body(())
+            .expect("build missing auth request")
+            .into_parts();
+        assert!(AuthSession::from_request_parts(&mut parts, &state)
+            .await
+            .is_err());
+
+        let rendered = state.metrics.render_prometheus();
+        assert!(
+            rendered.contains("hexrelay_api_auth_session_validation_total{outcome=\"accepted\"} 1")
+        );
+        assert!(
+            rendered.contains("hexrelay_api_auth_session_validation_total{outcome=\"rejected\"} 1")
+        );
     }
 }

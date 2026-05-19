@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-19
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-node only and that realtime websocket abuse controls remain process-local.
+- Latest meaningful change: 2026-05-19 tied SLO breach evidence to API and realtime `/metrics` scrape snapshots.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -191,7 +191,8 @@ npm --prefix apps/web run e2e:smoke
 
 ## SLO Breach Response
 
-- Trigger: KPI/SLO thresholds violated in benchmark profile.
+- Trigger: KPI/SLO thresholds violated in benchmark profile, or an alert rule backed by API/realtime `/metrics` counters fires during a benchmark or smoke run.
+- Evidence: preserve benchmark outputs plus API and realtime `/metrics` scrape snapshots covering the breach window.
 - Action: open remediation task in active iteration board before sign-off.
 
 ## CI Security and Evidence Baseline

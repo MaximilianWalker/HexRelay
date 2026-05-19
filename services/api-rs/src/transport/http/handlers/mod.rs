@@ -7,6 +7,7 @@ pub mod dm;
 pub mod friends;
 pub mod health;
 pub mod invites;
+pub mod metrics;
 pub mod node;
 pub mod presence;
 pub mod server_channels;

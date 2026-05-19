@@ -17,6 +17,10 @@ info:
     limiter.
     Realtime websocket limiter and auth-cache key derivation uses deterministic hashing
     so limiter/cache behavior remains stable across process restarts and instances.
+    The realtime service exposes Prometheus text counters at `GET /metrics`
+    for websocket upgrade outcomes plus protected DM and server-channel dispatch
+    route outcomes so dashboards and alert rules can track gateway health without
+    adding public websocket event fields.
     When outage-grace auth fallback is enabled, cached websocket session reuse remains
     bounded by both cache age and the upstream session expiry returned by
     `/auth/sessions/validate`.

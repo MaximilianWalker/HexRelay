@@ -29,6 +29,7 @@ use crate::{
         bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
         ApiResult,
     },
+    shared::metrics::AuthVerifyOutcome,
     state::AppState,
     transport::http::middleware::{
         auth::{csrf_cookie_name, enforce_csrf_for_cookie_auth, session_cookie_name, AuthSession},
@@ -255,6 +256,21 @@ pub async fn verify_auth_challenge(
     headers: HeaderMap,
     peer_addr: Option<ConnectInfo<SocketAddr>>,
     Json(payload): Json<AuthVerifyRequest>,
+) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
+    let outcome = verify_auth_challenge_inner(state.clone(), headers, peer_addr, payload).await;
+    state.metrics.record_auth_verify(if outcome.is_ok() {
+        AuthVerifyOutcome::Issued
+    } else {
+        AuthVerifyOutcome::Rejected
+    });
+    outcome
+}
+
+async fn verify_auth_challenge_inner(
+    state: AppState,
+    headers: HeaderMap,
+    peer_addr: Option<ConnectInfo<SocketAddr>>,
+    payload: AuthVerifyRequest,
 ) -> ApiResult<(HeaderMap, Json<AuthVerifyResponse>)> {
     validate_auth_verify_request(&payload)?;
 

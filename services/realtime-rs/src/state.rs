@@ -9,6 +9,7 @@ use communication_core::StaticPeerRegistry;
 use serde::Serialize;
 use tokio::sync::{mpsc::Sender, Mutex};
 
+use crate::metrics::RealtimeMetrics;
 use crate::transport::ws::middleware::rate_limit::RateLimiter;
 
 #[derive(Clone)]
@@ -26,6 +27,7 @@ pub struct AppState {
     pub allowed_origins: Vec<String>,
     pub trust_proxy_headers: bool,
     pub http_client: reqwest::Client,
+    pub metrics: Arc<RealtimeMetrics>,
     pub channel_dispatch_internal_token: String,
     pub presence_watcher_internal_token: String,
     pub presence_redis_client: Option<redis::Client>,
@@ -96,6 +98,7 @@ impl AppState {
             allowed_origins,
             trust_proxy_headers,
             http_client,
+            metrics: Arc::default(),
             channel_dispatch_internal_token,
             presence_watcher_internal_token,
             presence_redis_client,

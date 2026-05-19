@@ -22,6 +22,10 @@ info:
     with snake-case mode/profile/reason-code values (`dm_envelope_node_route_selected`,
     `server_channel_route_selected`, `presence_route_selected`) without adding
     fields to REST request or response bodies.
+    The API service exposes Prometheus text counters at `GET /metrics` for
+    auth verification, session validation, encrypted DM dispatch, and
+    server-channel realtime dispatch enqueue outcomes so SLO dashboards and
+    alert rules can use runtime-owned signals.
     Server-channel realtime dispatch records internal accepted-summary telemetry
     for queued, no-connection, saturated-queue, and stale-cleanup outcomes while
     scoping recipients to effective channel read permission and preserving the
@@ -54,6 +58,28 @@ paths:
                   value:
                     service: api-rs
                     status: ok
+  /metrics:
+    get:
+      summary: Service metrics scrape endpoint
+      description: |
+        Prometheus text exposition for bounded, low-cardinality API service
+        counters. Current counters cover auth verification, session validation,
+        encrypted DM dispatch, and server-channel realtime dispatch enqueue
+        outcomes.
+      responses:
+        '200':
+          description: Prometheus text metrics for API service outcomes.
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                apiMetrics:
+                  summary: API service exposes alertable counters
+                  value: |
+                    # HELP hexrelay_api_auth_session_validation_total API session validations by outcome.
+                    # TYPE hexrelay_api_auth_session_validation_total counter
+                    hexrelay_api_auth_session_validation_total{outcome="accepted"} 42
   /node/connection:
     get:
       summary: Resolve node connection metadata for the app

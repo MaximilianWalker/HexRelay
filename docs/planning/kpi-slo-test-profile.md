@@ -6,14 +6,14 @@
 - Owner: Platform and delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-04
+- last_updated: 2026-05-19
 - Source of truth: `docs/planning/kpi-slo-test-profile.md`
 
 ## Quick Context
 
 - Purpose: define one fixed test profile so KPI/SLO results are comparable across iterations.
 - Primary edit location: update this file when benchmark environment or load profile changes.
-- Latest meaningful change: 2026-05-04 linked the local runtime testing plan as the complementary fixture, multi-instance, and network simulation authority.
+- Latest meaningful change: 2026-05-19 required API and realtime `/metrics` scrape snapshots in KPI/SLO evidence packs.
 
 ## Fixed Test Profile
 
@@ -27,7 +27,7 @@
 ## KPI/SLO Evidence Rules
 
 - Run each benchmark scenario at least 3 times and report median + p95.
-- Store raw outputs and summarized metrics in the iteration evidence pack.
+- Store raw outputs, summarized benchmark metrics, and API/realtime `/metrics` scrape snapshots in the iteration evidence pack.
 - Any failed target requires a linked remediation task before iteration sign-off.
 - For voice and screen share under NAT constraints, follow the procedure and thresholds in `docs/planning/turn-nat-test-profile.md`.
 

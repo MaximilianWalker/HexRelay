@@ -17,6 +17,7 @@ use crate::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
         FriendRequestRecord, InviteRecord, RegisteredIdentityKey, SessionRecord,
     },
+    shared::metrics::ApiMetrics,
     transport::http::middleware::rate_limit::RateLimiter,
 };
 
@@ -49,6 +50,7 @@ pub struct AppState {
     pub node_forwarding_nonces: Arc<RwLock<HashMap<String, i64>>>,
     pub node_owner_identity_ids: Arc<HashSet<String>>,
     pub local_node_identity: Option<LocalNodeIdentity>,
+    pub metrics: Arc<ApiMetrics>,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
     pub dm_retention: ApiDmRetentionConfig,
@@ -113,6 +115,7 @@ impl AppState {
             node_forwarding_nonces: Arc::default(),
             node_owner_identity_ids: Arc::default(),
             local_node_identity: None,
+            metrics: Arc::default(),
             rate_limiter: RateLimiter::default(),
             rate_limits,
             dm_retention: ApiDmRetentionConfig::default(),

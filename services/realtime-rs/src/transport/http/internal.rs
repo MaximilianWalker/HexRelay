@@ -16,6 +16,9 @@ use crate::{
     domain::dms::{
         publish_dm_envelope_dispatched, DmEnvelopeDispatchSummary, PublishDmEnvelopeInput,
     },
+    metrics::{
+        DmEnvelopeDispatchOutcome, ServerChannelDispatchEvent, ServerChannelDispatchOutcome,
+    },
     state::DevFaultConfig,
 };
 
@@ -104,6 +107,10 @@ pub async fn publish_channel_message_created_internal(
     Json(payload): Json<ChannelMessageCreatedDispatchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
+        state.metrics.record_server_channel_dispatch(
+            ServerChannelDispatchEvent::Created,
+            ServerChannelDispatchOutcome::AuthFailed,
+        );
         return internal_error_response(
             StatusCode::UNAUTHORIZED,
             "internal_auth_required",
@@ -125,14 +132,24 @@ pub async fn publish_channel_message_created_internal(
     )
     .await
     {
-        Ok(summary) => (
-            StatusCode::ACCEPTED,
-            Json(serde_json::json!(ChannelMessageDispatchResponse {
-                status: "accepted",
-                summary,
-            })),
-        ),
+        Ok(summary) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Created,
+                ServerChannelDispatchOutcome::Accepted,
+            );
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!(ChannelMessageDispatchResponse {
+                    status: "accepted",
+                    summary,
+                })),
+            )
+        }
         Err(error) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Created,
+                ServerChannelDispatchOutcome::Failed,
+            );
             internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
         }
     }
@@ -144,6 +161,10 @@ pub async fn publish_channel_message_updated_internal(
     Json(payload): Json<ChannelMessageUpdatedDispatchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
+        state.metrics.record_server_channel_dispatch(
+            ServerChannelDispatchEvent::Updated,
+            ServerChannelDispatchOutcome::AuthFailed,
+        );
         return internal_error_response(
             StatusCode::UNAUTHORIZED,
             "internal_auth_required",
@@ -165,14 +186,24 @@ pub async fn publish_channel_message_updated_internal(
     )
     .await
     {
-        Ok(summary) => (
-            StatusCode::ACCEPTED,
-            Json(serde_json::json!(ChannelMessageDispatchResponse {
-                status: "accepted",
-                summary,
-            })),
-        ),
+        Ok(summary) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Updated,
+                ServerChannelDispatchOutcome::Accepted,
+            );
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!(ChannelMessageDispatchResponse {
+                    status: "accepted",
+                    summary,
+                })),
+            )
+        }
         Err(error) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Updated,
+                ServerChannelDispatchOutcome::Failed,
+            );
             internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
         }
     }
@@ -184,6 +215,10 @@ pub async fn publish_channel_message_deleted_internal(
     Json(payload): Json<ChannelMessageDeletedDispatchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
+        state.metrics.record_server_channel_dispatch(
+            ServerChannelDispatchEvent::Deleted,
+            ServerChannelDispatchOutcome::AuthFailed,
+        );
         return internal_error_response(
             StatusCode::UNAUTHORIZED,
             "internal_auth_required",
@@ -205,14 +240,24 @@ pub async fn publish_channel_message_deleted_internal(
     )
     .await
     {
-        Ok(summary) => (
-            StatusCode::ACCEPTED,
-            Json(serde_json::json!(ChannelMessageDispatchResponse {
-                status: "accepted",
-                summary,
-            })),
-        ),
+        Ok(summary) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Deleted,
+                ServerChannelDispatchOutcome::Accepted,
+            );
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!(ChannelMessageDispatchResponse {
+                    status: "accepted",
+                    summary,
+                })),
+            )
+        }
         Err(error) => {
+            state.metrics.record_server_channel_dispatch(
+                ServerChannelDispatchEvent::Deleted,
+                ServerChannelDispatchOutcome::Failed,
+            );
             internal_error_response(StatusCode::BAD_GATEWAY, "channel_dispatch_failed", &error)
         }
     }
@@ -224,6 +269,9 @@ pub async fn publish_dm_envelope_dispatched_internal(
     Json(payload): Json<DmEnvelopeDispatchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     if !internal_token_valid(&state, &headers) {
+        state
+            .metrics
+            .record_dm_envelope_dispatch(DmEnvelopeDispatchOutcome::AuthFailed);
         return internal_error_response(
             StatusCode::UNAUTHORIZED,
             "internal_auth_required",
@@ -247,14 +295,22 @@ pub async fn publish_dm_envelope_dispatched_internal(
     )
     .await
     {
-        Ok(summary) => (
-            StatusCode::ACCEPTED,
-            Json(serde_json::json!(DmEnvelopeDispatchResponse {
-                status: "accepted",
-                summary,
-            })),
-        ),
+        Ok(summary) => {
+            state
+                .metrics
+                .record_dm_envelope_dispatch(DmEnvelopeDispatchOutcome::Accepted);
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!(DmEnvelopeDispatchResponse {
+                    status: "accepted",
+                    summary,
+                })),
+            )
+        }
         Err(error) => {
+            state
+                .metrics
+                .record_dm_envelope_dispatch(DmEnvelopeDispatchOutcome::Invalid);
             internal_error_response(StatusCode::BAD_REQUEST, "dm_dispatch_invalid", &error)
         }
     }
@@ -408,7 +464,8 @@ mod tests {
 
     #[tokio::test]
     async fn dm_envelope_dispatch_internal_returns_target_summary() {
-        let app = crate::app::build_app(test_state(false));
+        let state = test_state(false);
+        let app = crate::app::build_app(state.clone());
         let request = Request::builder()
             .method("POST")
             .uri("/internal/dm/envelopes/dispatch")
@@ -436,11 +493,16 @@ mod tests {
             payload["summary"]["no_connection_device_ids"],
             serde_json::json!(["desktop-main", "phone-main"])
         );
+        assert!(state
+            .metrics
+            .render_prometheus()
+            .contains("hexrelay_realtime_dm_envelope_dispatch_total{outcome=\"accepted\"} 1"));
     }
 
     #[tokio::test]
     async fn channel_dispatch_internal_returns_target_summary() {
-        let app = crate::app::build_app(test_state(false));
+        let state = test_state(false);
+        let app = crate::app::build_app(state.clone());
         let request = Request::builder()
             .method("POST")
             .uri("/internal/channels/messages/created")
@@ -468,6 +530,9 @@ mod tests {
             payload["summary"]["queued_recipient_ids"],
             serde_json::json!([])
         );
+        assert!(state.metrics.render_prometheus().contains(
+            "hexrelay_realtime_server_channel_dispatch_total{event=\"created\",outcome=\"accepted\"} 1"
+        ));
     }
     #[tokio::test]
     async fn dev_faults_require_enable_flag_and_internal_token() {
