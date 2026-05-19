@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
     env,
-    net::{IpAddr, SocketAddr},
+    net::SocketAddr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use communication_core::{
+    config::{is_loopback_host, parse_allowed_browser_origins, BrowserOriginPolicy},
     ed25519_public_key_hex, verify_peer_invite_ed25519, DescriptorValidationContext,
     Ed25519DescriptorVerifier, NodeDescriptor, PeerInviteEnvelope, PeerInviteValidationContext,
     StaticPeerRegistry,
@@ -182,11 +183,16 @@ impl ApiConfig {
             )?,
         };
 
-        let allowed_origins = allowed_origins_raw
-            .split(',')
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .collect::<Vec<_>>();
+        let origin_policy = if environment == "production" {
+            BrowserOriginPolicy::Production
+        } else {
+            BrowserOriginPolicy::Development
+        };
+        let allowed_origins = parse_allowed_browser_origins(
+            "API_ALLOWED_ORIGINS",
+            &allowed_origins_raw,
+            origin_policy,
+        )?;
 
         if database_url.trim().is_empty() {
             return Err("Invalid API_DATABASE_URL. Value must not be empty".to_string());
@@ -208,12 +214,6 @@ impl ApiConfig {
 
         if realtime_base_url.trim().is_empty() {
             return Err("Invalid API_REALTIME_BASE_URL. Value must not be empty".to_string());
-        }
-
-        if allowed_origins.is_empty() {
-            return Err(
-                "Invalid API_ALLOWED_ORIGINS. Must contain at least one origin".to_string(),
-            );
         }
 
         if enable_dev_testing {
@@ -238,12 +238,8 @@ impl ApiConfig {
             }
 
             for origin in &allowed_origins {
-                let parsed_origin = Url::parse(origin).map_err(|_| {
-                    format!(
-                        "Invalid API_ALLOWED_ORIGINS entry '{}'. Expected absolute URL",
-                        origin
-                    )
-                })?;
+                let parsed_origin =
+                    Url::parse(origin).expect("validated allowed origin should parse");
                 if !is_loopback_host(parsed_origin.host_str()) {
                     return Err(
                         "Invalid API_ENABLE_DEV_TESTING. API_ALLOWED_ORIGINS must be loopback-only when dev testing is enabled"
@@ -382,21 +378,6 @@ impl ApiConfig {
             rate_limits,
             dm_retention,
         })
-    }
-}
-
-fn is_loopback_host(host: Option<&str>) -> bool {
-    let Some(host) = host else {
-        return false;
-    };
-
-    if host.eq_ignore_ascii_case("localhost") {
-        return true;
-    }
-
-    match host.parse::<IpAddr>() {
-        Ok(ip) => ip.is_loopback(),
-        Err(_) => false,
     }
 }
 
@@ -1412,6 +1393,85 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("API_ENABLE_DEV_TESTING"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_rejects_non_loopback_http_allowed_origin() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("production")),
+                ("API_ALLOWED_ORIGINS", Some("http://app.example.com")),
+                (
+                    "API_DATABASE_URL",
+                    Some("postgres://hexrelay:pw@db.example.com:5432/hexrelay_prod"),
+                ),
+                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+                ("API_SESSION_COOKIE_SECURE", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEYS",
+                    Some("primary:production-secret-key-1234567890"),
+                ),
+                ("API_SESSION_SIGNING_KEY_ID", Some("primary")),
+                (
+                    "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("prod-channel-dispatch-token-1234"),
+                ),
+                (
+                    "API_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("prod-presence-watcher-token-1234"),
+                ),
+            ],
+            || {
+                let err = match ApiConfig::from_env() {
+                    Ok(_) => panic!("production non-loopback http origin should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("API_ALLOWED_ORIGINS"));
+                assert!(err.contains("Non-loopback browser origins must use https"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_accepts_https_and_loopback_http_allowed_origins() {
+        with_api_env(
+            &[
+                ("API_ENVIRONMENT", Some("production")),
+                (
+                    "API_ALLOWED_ORIGINS",
+                    Some("https://app.example.com,http://127.0.0.1:3002"),
+                ),
+                (
+                    "API_DATABASE_URL",
+                    Some("postgres://hexrelay:pw@db.example.com:5432/hexrelay_prod"),
+                ),
+                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+                ("API_SESSION_COOKIE_SECURE", Some("true")),
+                (
+                    "API_SESSION_SIGNING_KEYS",
+                    Some("primary:production-secret-key-1234567890"),
+                ),
+                ("API_SESSION_SIGNING_KEY_ID", Some("primary")),
+                (
+                    "API_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("prod-channel-dispatch-token-1234"),
+                ),
+                (
+                    "API_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("prod-presence-watcher-token-1234"),
+                ),
+            ],
+            || {
+                let config = ApiConfig::from_env().expect("production config should load");
+                assert_eq!(
+                    config.allowed_origins,
+                    vec![
+                        "https://app.example.com".to_string(),
+                        "http://127.0.0.1:3002".to_string()
+                    ]
+                );
             },
         );
     }
