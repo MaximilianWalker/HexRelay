@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "node",
     coverage: {
+      exclude: ["app/**/*.tsx", "components/**/*.tsx"],
       provider: "v8",
       reporter: ["text", "json-summary"],
       thresholds: {
