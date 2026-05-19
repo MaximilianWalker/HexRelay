@@ -474,26 +474,26 @@ jobs:
 
             for i in $(seq 1 "$attempts"); do
               if ! kill -0 "$pid" 2>/dev/null; then
-                echo "${name} process exited before health check passed"
+                echo "${name} process exited before readiness check passed"
                 [ -f "$log_file" ] && tail -n 200 "$log_file" || true
                 return 1
               fi
 
               if curl -fsS "$url" > /dev/null; then
-                echo "${name} health ok on attempt ${i}" >> health-checks.log
+                echo "${name} readiness ok on attempt ${i}" >> health-checks.log
                 return 0
               fi
 
               sleep 1
             done
 
-            echo "${name} health timeout after ${attempts}s: ${url}"
+            echo "${name} readiness timeout after ${attempts}s: ${url}"
             [ -f "$log_file" ] && tail -n 200 "$log_file" || true
             return 1
           }
 
-          wait_for_http "api" "http://${API_HOST}:${API_PORT}/health" "$API_PID" "api.log" 180
-          wait_for_http "realtime" "http://${API_HOST}:${REALTIME_PORT}/health" "$REALTIME_PID" "realtime.log" 180
+          wait_for_http "api" "http://${API_HOST}:${API_PORT}/ready" "$API_PID" "api.log" 180
+          wait_for_http "realtime" "http://${API_HOST}:${REALTIME_PORT}/ready" "$REALTIME_PID" "realtime.log" 180
 
           export SMOKE_HEALTH_TIMEOUT_MS=60000
           npm --prefix apps/web run e2e:smoke | tee smoke-e2e.log

@@ -8,7 +8,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use futures::{stream::StreamExt, SinkExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -25,6 +25,140 @@ const DROP_DEBT_EPSILON: f64 = 1.0e-12;
 
 pub async fn health() -> &'static str {
     "ok"
+}
+
+pub async fn ready(State(state): State<AppState>) -> (StatusCode, Json<ReadinessResponse>) {
+    let mut checks = Vec::new();
+    let mut ready = true;
+
+    push_check(
+        &mut checks,
+        "presence_redis",
+        optional_redis_ready(&state).await,
+    );
+    push_check(
+        &mut checks,
+        "api_ready",
+        api_endpoint_ready(&state, "/ready", api_ready_status).await,
+    );
+    push_check(
+        &mut checks,
+        "api_session_validation",
+        api_endpoint_ready(
+            &state,
+            "/auth/sessions/validate",
+            api_session_validation_ready_status,
+        )
+        .await,
+    );
+
+    for check in &checks {
+        if check.status == "failed" {
+            ready = false;
+        }
+    }
+
+    let status = if ready { "ready" } else { "blocked" };
+    let code = if ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        code,
+        Json(ReadinessResponse {
+            service: "realtime-rs",
+            status,
+            checks,
+        }),
+    )
+}
+
+#[derive(Serialize)]
+pub struct ReadinessCheck {
+    pub name: &'static str,
+    pub status: &'static str,
+    pub detail: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ReadinessResponse {
+    pub service: &'static str,
+    pub status: &'static str,
+    pub checks: Vec<ReadinessCheck>,
+}
+
+fn push_check(
+    checks: &mut Vec<ReadinessCheck>,
+    name: &'static str,
+    result: Result<Option<String>, String>,
+) {
+    match result {
+        Ok(None) => checks.push(ReadinessCheck {
+            name,
+            status: "ok",
+            detail: None,
+        }),
+        Ok(Some(detail)) => checks.push(ReadinessCheck {
+            name,
+            status: "skipped",
+            detail: Some(detail),
+        }),
+        Err(detail) => checks.push(ReadinessCheck {
+            name,
+            status: "failed",
+            detail: Some(detail),
+        }),
+    }
+}
+
+async fn optional_redis_ready(state: &AppState) -> Result<Option<String>, String> {
+    let Some(client) = state.presence_redis_client.as_ref() else {
+        return Ok(Some("presence Redis is not configured".to_string()));
+    };
+
+    let mut connection = client
+        .get_multiplexed_tokio_connection()
+        .await
+        .map_err(|error| format!("open Redis connection: {error}"))?;
+    let _: String = redis::cmd("PING")
+        .query_async(&mut connection)
+        .await
+        .map_err(|error| format!("Redis PING failed: {error}"))?;
+
+    Ok(None)
+}
+
+async fn api_endpoint_ready<F>(
+    state: &AppState,
+    path: &str,
+    ready_status: F,
+) -> Result<Option<String>, String>
+where
+    F: Fn(StatusCode) -> bool,
+{
+    let url = format!("{}{}", state.api_base_url.trim_end_matches('/'), path);
+    let response = state
+        .http_client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("{path} request failed: {error}"))?;
+    let status = response.status();
+    if ready_status(status) {
+        Ok(None)
+    } else {
+        Err(format!("{path} returned {status}"))
+    }
+}
+
+fn api_ready_status(status: StatusCode) -> bool {
+    status.is_success()
+}
+
+fn api_session_validation_ready_status(status: StatusCode) -> bool {
+    status.is_success() || status == StatusCode::UNAUTHORIZED
 }
 
 pub async fn ws_handler(
@@ -1097,14 +1231,20 @@ async fn release_connection_slot_after_failed_upgrade(state: AppState, identity_
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_validated_session, dispatch_recipient_signal,
+        cache_validated_session, dispatch_recipient_signal, ready,
         release_connection_slot_after_failed_upgrade, should_drop_dev_fault, stable_hash,
         websocket_device_id, websocket_device_secret, SignalDispatchSummary,
     };
     use crate::state::{AppState, ConnectionSenderEntry, DevFaultConfig, DevFaultState};
-    use axum::http::{HeaderMap, HeaderValue};
+    use axum::{
+        extract::State,
+        http::{HeaderMap, HeaderValue, StatusCode},
+        routing::get,
+        Router,
+    };
     use chrono::{Duration as ChronoDuration, Utc};
     use std::collections::HashMap;
+    use tokio::net::TcpListener;
     use tokio::sync::mpsc;
     use tokio::time::{sleep, Duration};
 
@@ -1126,6 +1266,44 @@ mod tests {
             10000,
         )
         .expect("build state")
+    }
+
+    #[derive(Clone)]
+    struct ApiReadinessStubState {
+        ready_status: StatusCode,
+        validate_status: StatusCode,
+    }
+
+    async fn start_api_readiness_stub(
+        ready_status: StatusCode,
+        validate_status: StatusCode,
+    ) -> String {
+        async fn api_ready(State(state): State<ApiReadinessStubState>) -> StatusCode {
+            state.ready_status
+        }
+
+        async fn validate(State(state): State<ApiReadinessStubState>) -> StatusCode {
+            state.validate_status
+        }
+
+        let app = Router::new()
+            .route("/ready", get(api_ready))
+            .route("/auth/sessions/validate", get(validate))
+            .with_state(ApiReadinessStubState {
+                ready_status,
+                validate_status,
+            });
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind readiness stub listener");
+        let address = listener.local_addr().expect("read readiness stub address");
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("serve readiness stub API");
+        });
+
+        format!("http://{}", address)
     }
 
     #[test]
@@ -1281,6 +1459,61 @@ mod tests {
         assert_eq!(cache.len(), 1);
         assert!(!cache.contains_key("k1"));
         assert!(cache.contains_key("k2"));
+    }
+
+    #[tokio::test]
+    async fn readiness_accepts_api_ready_and_session_validation_surface() {
+        let api_base = start_api_readiness_stub(StatusCode::OK, StatusCode::UNAUTHORIZED).await;
+        let state = test_state();
+        let state = AppState {
+            api_base_url: api_base,
+            ..state
+        };
+
+        let (status, payload) = ready(State(state)).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(payload.0.status, "ready");
+        assert!(payload
+            .0
+            .checks
+            .iter()
+            .any(|check| check.name == "presence_redis" && check.status == "skipped"));
+        assert!(payload
+            .0
+            .checks
+            .iter()
+            .any(|check| check.name == "api_ready" && check.status == "ok"));
+        assert!(payload
+            .0
+            .checks
+            .iter()
+            .any(|check| { check.name == "api_session_validation" && check.status == "ok" }));
+    }
+
+    #[tokio::test]
+    async fn readiness_blocks_when_api_ready_is_unavailable() {
+        let api_base =
+            start_api_readiness_stub(StatusCode::SERVICE_UNAVAILABLE, StatusCode::UNAUTHORIZED)
+                .await;
+        let state = test_state();
+        let state = AppState {
+            api_base_url: api_base,
+            ..state
+        };
+
+        let (status, payload) = ready(State(state)).await;
+
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(payload.0.status, "blocked");
+        assert!(payload.0.checks.iter().any(|check| {
+            check.name == "api_ready"
+                && check.status == "failed"
+                && check
+                    .detail
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("/ready returned 503"))
+        }));
     }
 
     #[tokio::test]

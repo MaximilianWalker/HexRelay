@@ -6,6 +6,10 @@ info:
   description: |
     Runtime realtime contract currently implemented by `services/realtime-rs`.
     This contract only includes event types supported in live websocket routing.
+    The realtime HTTP `/health` and `/ready` probes are operational liveness
+    and readiness surfaces outside this AsyncAPI event schema; `/ready` checks
+    optional Redis replay/presence reachability plus API `/ready` and
+    `/auth/sessions/validate` upstream reachability.
     Current signaling operations support authenticated sender validation plus
     recipient-targeted live delivery to active websocket sessions for an accepted
     contact target identity. Sender-visible success remains a realtime-gateway

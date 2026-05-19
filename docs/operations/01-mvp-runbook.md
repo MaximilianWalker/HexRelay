@@ -6,7 +6,7 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-10
+- last_updated: 2026-05-19
 - Source of truth: `docs/operations/01-mvp-runbook.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-node only and that realtime websocket abuse controls remain process-local.
+- Latest meaningful change: 2026-05-19 split shallow `/health` liveness from dependency-aware `/ready` startup readiness for API and realtime services.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -43,8 +43,8 @@
 - Minimum environment: see `docs/reference/runtime-config-reference.md` for the complete variable inventory and production validation rules.
 - Startup sequence:
   1. Start database dependencies.
-  2. Start API service and verify `GET /health` returns 200.
-  3. Start realtime service and verify `GET /health` returns 200.
+  2. Start API service and verify `GET /ready` returns 200.
+  3. Start realtime service and verify `GET /ready` returns 200.
   4. Execute smoke path (`apps/web/scripts/e2e-smoke.mjs` or CI equivalent) before exposing service.
      - Smoke/bootstrap note: current smoke identity bootstrap requires `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` for the smoke environment only; keep the default fail-closed outside smoke/bootstrap flows.
   5. If voice/TURN scenarios are in scope, validate coturn reachability with the constrained-network profile (`docs/planning/turn-nat-test-profile.md`).
@@ -55,13 +55,13 @@
 - Startup sequence:
   1. `npm run setup`
   2. `npm run run`
-  3. Verify `curl -fsS "http://127.0.0.1:8080/health"`
-  4. Verify `curl -fsS "http://127.0.0.1:8081/health"`
+  3. Verify `curl -fsS "http://127.0.0.1:8080/ready"`
+  4. Verify `curl -fsS "http://127.0.0.1:8081/ready"`
   5. Run `npm --prefix apps/web run e2e:smoke`
      - If smoke needs fresh public identity bootstrap, set `API_ALLOW_PUBLIC_IDENTITY_REGISTRATION=true` only for that local smoke session.
 - Triage baseline:
-  - If API health fails, inspect local API service output first.
-  - If realtime health fails, inspect local realtime output and API `/auth/sessions/validate` path.
+  - If API readiness fails, inspect local API service output and database/Redis dependency state first.
+  - If realtime readiness fails, inspect local realtime output and API `/ready` plus `/auth/sessions/validate` paths.
   - If smoke fails, capture command output and compare with CI artifacts under `evidence/ci/<run_id>/`.
 
 ### Dedicated Server Bring-Up (Command Baseline)
@@ -78,10 +78,10 @@ set -a; source services/api-rs/.env; source services/realtime-rs/.env; set +a
 cargo run --manifest-path services/api-rs/Cargo.toml
 ```
 
-3. In a second shell, verify API health:
+3. In a second shell, verify API readiness:
 
 ```bash
-curl -fsS "http://$API_BIND/health"
+curl -fsS "http://$API_BIND/ready"
 ```
 
 4. Start realtime service:
@@ -90,10 +90,10 @@ curl -fsS "http://$API_BIND/health"
 cargo run --manifest-path services/realtime-rs/Cargo.toml
 ```
 
-5. In a third shell, verify realtime health:
+5. In a third shell, verify realtime readiness:
 
 ```bash
-curl -fsS "http://$REALTIME_BIND/health"
+curl -fsS "http://$REALTIME_BIND/ready"
 ```
 
 6. Run smoke validation against running services:
@@ -135,7 +135,7 @@ npm --prefix apps/web run e2e:smoke
   - If temporary API auth availability issues are confirmed, operators may enable a short grace window to allow only recently validated websocket sessions while upstream auth recovers.
   - Keep grace windows short and disable immediately after upstream auth stabilizes.
 - Post-restart validation:
-  - API and realtime `/health` probes return 200.
+  - API and realtime `/ready` probes return 200; `/health` remains available as shallow liveness.
   - Session validate endpoint works with existing active `hexrelay_session` cookie.
   - Realtime websocket auth handshake passes with valid session cookie (`hexrelay_session`).
 
@@ -155,7 +155,7 @@ npm --prefix apps/web run e2e:smoke
 - Release decision owner: current sprint technical owner (record explicit primary and backup names in deployment PR).
 - Abort conditions (no rollout/continue rollout):
   - any required CI job failure on candidate commit,
-  - health check failure after startup retries,
+  - readiness check failure after startup retries,
   - smoke e2e failure,
   - migration checksum mismatch or migration apply failure.
 - Immediate rollback triggers (after rollout begins):
@@ -185,7 +185,7 @@ npm --prefix apps/web run e2e:smoke
 - Store restore drill artifacts under `evidence/operations/restore-drills/<YYYY-MM-DD>/`.
 - Minimum required files:
   - `restore-commands.txt` (executed commands in order)
-  - `health-checks.txt` (`/health` and smoke outputs)
+  - `health-checks.txt` (`/ready` and smoke outputs)
   - `migration-state.txt` (`schema_migrations` checksum snapshot)
   - `incident-notes.md` (what failed, what was fixed, final status)
 

@@ -54,6 +54,53 @@ paths:
                   value:
                     service: api-rs
                     status: ok
+  /ready:
+    get:
+      summary: Service readiness probe
+      description: |
+        Dependency-aware readiness gate for startup and smoke validation. The
+        API checks database reachability and, when configured, Redis-backed
+        presence dependency reachability. `/health` remains a shallow liveness
+        probe.
+      responses:
+        '200':
+          description: API service and configured dependencies are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              examples:
+                readyApi:
+                  summary: API service reports all required dependencies ready
+                  value:
+                    service: api-rs
+                    status: ready
+                    checks:
+                      - name: database
+                        status: ok
+                        detail: null
+                      - name: presence_redis
+                        status: skipped
+                        detail: presence Redis is not configured
+        '503':
+          description: API service is live but one or more readiness dependencies are blocked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              examples:
+                blockedApi:
+                  summary: API database dependency blocks readiness
+                  value:
+                    service: api-rs
+                    status: blocked
+                    checks:
+                      - name: database
+                        status: failed
+                        detail: database probe failed
+                      - name: presence_redis
+                        status: skipped
+                        detail: presence Redis is not configured
   /node/connection:
     get:
       summary: Resolve node connection metadata for the app
@@ -2997,6 +3044,34 @@ components:
           type: string
         status:
           type: string
+    ReadinessCheck:
+      type: object
+      required: [name, status, detail]
+      properties:
+        name:
+          type: string
+          enum: [database, presence_redis]
+        status:
+          type: string
+          enum: [ok, skipped, failed]
+        detail:
+          type:
+            - string
+            - 'null'
+    ReadinessResponse:
+      type: object
+      required: [service, status, checks]
+      properties:
+        service:
+          type: string
+          enum: [api-rs]
+        status:
+          type: string
+          enum: [ready, blocked]
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadinessCheck'
     NodeConnectionResponse:
       type: object
       required:

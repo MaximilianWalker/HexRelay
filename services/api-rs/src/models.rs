@@ -444,6 +444,20 @@ pub struct HealthResponse {
 }
 
 #[derive(Serialize)]
+pub struct ReadinessCheck {
+    pub name: &'static str,
+    pub status: &'static str,
+    pub detail: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ReadinessResponse {
+    pub service: &'static str,
+    pub status: &'static str,
+    pub checks: Vec<ReadinessCheck>,
+}
+
+#[derive(Serialize)]
 pub struct NodeConnectionResponse {
     pub service: &'static str,
     pub node_id: String,

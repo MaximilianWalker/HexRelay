@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-19
 - Source of truth: `docs/reference/runtime-config-reference.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical runtime environment/config reference for `services/api-rs` and `services/realtime-rs`.
 - Primary edit location: update this file whenever `services/*/src/config.rs` or `services/*/.env.example` changes.
-- Latest meaningful change: 2026-05-11 added app-mediated node administration bootstrap allowlists and the API local node identity generation tooling for private server-node meshes.
+- Latest meaningful change: 2026-05-19 clarified that realtime startup preflight now uses API readiness, not only shallow health.
 
 ## Purpose
 
@@ -87,7 +87,7 @@
 | `REALTIME_BIND` | `127.0.0.1:8081` | required | host:port bind address |
 | `REALTIME_ENVIRONMENT` | `development` | required | `development` or `production` |
 | `REALTIME_API_BASE_URL` | `http://127.0.0.1:8080` | required | absolute URL; non-loopback hosts must use `https` |
-| `REALTIME_REQUIRE_API_HEALTH_ON_START` | `true` | optional | fail startup if API health is unavailable |
+| `REALTIME_REQUIRE_API_HEALTH_ON_START` | `true` | optional | legacy-named switch that fails startup if API `/ready` or session-validation reachability is unavailable |
 | `REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN` | dev default token | must be non-default | authorizes protected internal channel publish ingress |
 | `REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN` | dev default token | must be non-default | outbound watcher lookup credential toward API |
 | `REALTIME_PRESENCE_REDIS_URL` | unset | optional config knob | enables Redis-backed presence/replay authority; required for the reviewed dedicated single-node deployment baseline |

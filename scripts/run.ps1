@@ -375,14 +375,14 @@ function Start-RuntimeInstance {
     $apiProcess = Start-CmdProcess -WorkingDirectory $Root -EnvVars $apiEnv -Command 'cargo.exe run -p api-rs --bin api-rs' -Name 'api-rs' -LogDir $instanceLogDir
     [void]$StartedProcesses.Add($apiProcess)
     Wait-Until -Label "$instanceId api" -Probe {
-        Test-HttpOk "$apiBaseUrl/health"
+        Test-HttpOk "$apiBaseUrl/ready"
     }
 
     Write-Host "[run.ps1] Starting $instanceId realtime service"
     $realtimeProcess = Start-CmdProcess -WorkingDirectory $Root -EnvVars $realtimeEnv -Command 'cargo.exe run -p realtime-rs' -Name 'realtime-rs' -LogDir $instanceLogDir
     [void]$StartedProcesses.Add($realtimeProcess)
     Wait-Until -Label "$instanceId realtime" -Probe {
-        Test-HttpOk "$realtimeBaseUrl/health"
+        Test-HttpOk "$realtimeBaseUrl/ready"
     }
 
     Write-Host "[run.ps1] Starting $instanceId web dev server"
@@ -571,8 +571,8 @@ try {
     while ($true) {
         foreach ($instance in $stateInstances) {
             $checks = @(
-                @{ Key = "$($instance.id):api"; Label = "$($instance.id) API"; Ok = (Test-HttpOk "$($instance.apiUrl)/health") },
-                @{ Key = "$($instance.id):realtime"; Label = "$($instance.id) realtime"; Ok = (Test-HttpOk "$($instance.realtimeUrl)/health") },
+                @{ Key = "$($instance.id):api"; Label = "$($instance.id) API"; Ok = (Test-HttpOk "$($instance.apiUrl)/ready") },
+                @{ Key = "$($instance.id):realtime"; Label = "$($instance.id) realtime"; Ok = (Test-HttpOk "$($instance.realtimeUrl)/ready") },
                 @{ Key = "$($instance.id):web"; Label = "$($instance.id) web"; Ok = (Test-WebReady -Url $instance.webUrl) }
             )
 
@@ -583,7 +583,7 @@ try {
                 else {
                     $failureCounts[$check.Key] += 1
                     if ($failureCounts[$check.Key] -ge 15) {
-                        throw "[run.ps1] $($check.Label) health check failed after startup"
+                        throw "[run.ps1] $($check.Label) readiness check failed after startup"
                     }
                 }
             }

@@ -28,7 +28,7 @@ use crate::{
             accept_friend_request, cancel_friend_request, create_friend_request,
             decline_friend_request, get_friend_request_bootstrap, list_friend_requests,
         },
-        health::health,
+        health::{health, ready},
         invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
         node::{get_node_capabilities, get_node_connection},
         presence::list_presence_watchers,
@@ -58,6 +58,7 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/ready", get(ready))
         .route("/node/connection", get(get_node_connection))
         .route("/node/capabilities", get(get_node_capabilities))
         .route("/identity/keys/register", post(register_identity_key))

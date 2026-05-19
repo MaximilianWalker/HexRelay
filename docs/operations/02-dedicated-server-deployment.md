@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: needs-detail
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-19
 - Source of truth: `docs/operations/02-dedicated-server-deployment.md`
 
 ## Quick Context
 
 - Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, administration surface, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-05-11 clarified that dedicated server delivery is a separate headless service/package path and that administration is performed through the normal HexRelay app for authorized admins using the app-to-node capability contract.
+- Latest meaningful change: 2026-05-19 aligned dedicated bring-up evidence with dependency-aware `/ready` readiness probes.
 
 ## Purpose
 
@@ -113,11 +113,11 @@
 2. Provision Redis before starting either service; the reviewed dedicated baseline depends on it for realtime replay/presence convergence.
 3. Start `api-rs` with the production `API_DATABASE_URL` and required auth/internal-token settings.
 4. Watch `api-rs` startup logs and do not continue until startup succeeds; a migration checksum mismatch or SQL apply error is a hard stop, not a warning.
-5. Verify `GET /health` on the API endpoint only after `api-rs` has completed startup.
-6. Start `realtime-rs` only after the API health probe is green.
-7. Verify `GET /health` on the realtime endpoint.
+5. Verify `GET /ready` on the API endpoint only after `api-rs` has completed startup.
+6. Start `realtime-rs` only after the API readiness probe is green.
+7. Verify `GET /ready` on the realtime endpoint.
 8. Run remote smoke with explicit dedicated-deployment URLs/origin.
-9. Record operator evidence for API health, realtime health, smoke, and the migration state snapshot referenced by the runbook restore contract.
+9. Record operator evidence for API readiness, realtime readiness, smoke, and the migration state snapshot referenced by the runbook restore contract.
 
 ### Failure Handling
 
@@ -169,17 +169,17 @@ npm --prefix apps/web run e2e:smoke
 1. Provision Postgres and Redis.
 2. Prepare environment values for `api-rs` and `realtime-rs` using `docs/reference/runtime-config-reference.md`.
 3. Start `api-rs` and wait for database initialization to complete successfully.
-4. Verify `GET /health` on the API endpoint.
+4. Verify `GET /ready` on the API endpoint.
 5. Start `realtime-rs`.
-6. Verify `GET /health` on the realtime endpoint.
+6. Verify `GET /ready` on the realtime endpoint.
 7. Run remote smoke with explicit dedicated-deployment URLs/origin.
-8. Record operator evidence for health, smoke, migration state, and config review.
+8. Record operator evidence for readiness, smoke, migration state, and config review.
 
 ### Deployment Checklist Sign-Off
 
 - Confirm the rollout matches the validated baseline shape: one `api-rs` instance and one `realtime-rs` instance.
 - Confirm `api-rs` completed database initialization successfully before starting `realtime-rs`.
-- Confirm `GET /health` succeeds for both services before smoke.
+- Confirm `GET /ready` succeeds for both services before smoke.
 - Confirm remote smoke passes with the dedicated deployment URLs and origin.
 - Confirm ingress/origin/TLS settings match the deployed browser-facing hosts.
 - Confirm the deployment evidence includes the migration state snapshot required by `docs/operations/01-mvp-runbook.md`.

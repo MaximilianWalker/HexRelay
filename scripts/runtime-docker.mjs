@@ -742,8 +742,8 @@ async function waitFor(label, probe, attempts = 600) {
 async function waitForStack() {
   await waitFor("toxiproxy", () => httpOk(`${toxiproxyUrl}/version`));
   for (const instance of instances) {
-    await waitFor(`${instance.id} api`, () => httpOk(`${instance.apiUrl}/health`));
-    await waitFor(`${instance.id} realtime`, () => httpOk(`${instance.realtimeUrl}/health`));
+    await waitFor(`${instance.id} api`, () => httpOk(`${instance.apiUrl}/ready`));
+    await waitFor(`${instance.id} realtime`, () => httpOk(`${instance.realtimeUrl}/ready`));
     await waitFor(`${instance.id} web`, async () => {
       return (await httpOk(instance.webUrl)) || (await httpOk(`${instance.webUrl}/onboarding/identity`));
     });
