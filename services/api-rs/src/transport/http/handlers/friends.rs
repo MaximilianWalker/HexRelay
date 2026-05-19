@@ -9,16 +9,18 @@ use crate::{
         DmProfileDeviceSummary, FriendRequestCreateRequest, FriendRequestListQuery,
         FriendRequestPage, FriendRequestRecord, IdentityBootstrapBundle,
     },
-    shared::errors::{bad_request, conflict, forbidden, unauthorized, ApiResult},
+    shared::{
+        errors::{bad_request, conflict, forbidden, unauthorized, ApiResult},
+        extractors::{Json, Path, Query},
+    },
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
 
 use crate::shared::errors::internal_error;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
-    Json,
 };
 
 use crate::infra::db::repos::{auth_repo, dm_repo};
@@ -181,7 +183,7 @@ pub async fn accept_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
     headers: HeaderMap,
-    axum::extract::Path(request_id): axum::extract::Path<String>,
+    Path(request_id): Path<String>,
 ) -> ApiResult<Json<FriendRequestRecord>> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
@@ -243,7 +245,7 @@ pub async fn decline_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
     headers: HeaderMap,
-    axum::extract::Path(request_id): axum::extract::Path<String>,
+    Path(request_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
@@ -307,7 +309,7 @@ pub async fn cancel_friend_request(
     State(state): State<AppState>,
     auth: AuthSession,
     headers: HeaderMap,
-    axum::extract::Path(request_id): axum::extract::Path<String>,
+    Path(request_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     enforce_csrf_for_cookie_auth(&auth, &headers)?;
     let actor_identity = auth.identity_id;
@@ -370,7 +372,7 @@ fn cancel_friend_request_in_memory(
 pub async fn get_friend_request_bootstrap(
     State(state): State<AppState>,
     auth: AuthSession,
-    axum::extract::Path(request_id): axum::extract::Path<String>,
+    Path(request_id): Path<String>,
 ) -> ApiResult<Json<IdentityBootstrapBundle>> {
     let actor_identity = auth.identity_id;
 

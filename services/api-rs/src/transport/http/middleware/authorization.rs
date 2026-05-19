@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use axum::{
     async_trait,
-    extract::{FromRef, FromRequestParts, Path},
+    extract::{FromRef, FromRequestParts},
     http::{request::Parts, StatusCode},
-    Json,
 };
 use tracing::{debug, info, warn};
 
@@ -12,7 +11,10 @@ use crate::{
     infra::db::repos::server_channels_repo::{self, ServerChannelPermission},
     infra::db::repos::servers_repo,
     models::ApiError,
-    shared::errors::{forbidden, internal_error},
+    shared::{
+        errors::{forbidden, internal_error},
+        extractors::{Json, Path},
+    },
     state::AppState,
     transport::http::middleware::auth::AuthSession,
 };

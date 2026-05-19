@@ -1,9 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
-use axum::{
-    extract::{Query, State},
-    Json,
-};
+use axum::extract::State;
 
 use crate::{
     infra::{
@@ -14,7 +11,10 @@ use crate::{
         ContactListQuery, ContactListResponse, ContactSummary, ServerDetailResponse,
         ServerListQuery, ServerListResponse,
     },
-    shared::errors::{internal_error, ApiResult},
+    shared::{
+        errors::{internal_error, ApiResult},
+        extractors::{Json, Query},
+    },
     state::AppState,
     transport::http::middleware::{auth::AuthSession, authorization::AuthorizedServerMembership},
 };

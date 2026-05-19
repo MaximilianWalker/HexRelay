@@ -2,7 +2,6 @@ use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts},
     http::{request::Parts, HeaderMap, StatusCode},
-    Json,
 };
 use chrono::Utc;
 use sqlx::Row;
@@ -10,7 +9,10 @@ use sqlx::Row;
 use crate::{
     infra::crypto::session_token::validate_session_token,
     models::ApiError,
-    shared::errors::{internal_error, unauthorized},
+    shared::{
+        errors::{internal_error, unauthorized},
+        extractors::Json,
+    },
     state::AppState,
 };
 

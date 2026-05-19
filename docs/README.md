@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-17
+- last_updated: 2026-05-19
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-17 routed the Windows parity CI gate through contributor validation guidance.
+- Latest meaningful change: 2026-05-19 refreshed runtime REST contract coverage for extractor rejection `ApiError` envelopes.
 
 ## Purpose
 

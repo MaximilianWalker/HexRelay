@@ -4070,6 +4070,7 @@ components:
             - blocked_user
             - bootstrap_incomplete
             - bootstrap_not_available
+            - content_type_unsupported
             - invite_invalid
             - internal_token_invalid
             - invite_expired
@@ -4086,6 +4087,8 @@ components:
             - rate_limited
             - storage_unavailable
             - rate_limiter_unavailable
+            - request_body_invalid
+            - request_body_too_large
             - identity_registration_disabled
             - identity_exists
             - friend_request_exists
@@ -4096,6 +4099,7 @@ components:
             - cursor_out_of_range
             - dev_testing_disabled
             - limit_invalid
+            - query_invalid
             - message_content_invalid
             - message_deleted
             - message_edit_forbidden
@@ -4132,6 +4136,7 @@ components:
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied
+            - path_invalid
             - testing_identity_mismatch
             - testing_identity_missing
             - testing_profile_unknown

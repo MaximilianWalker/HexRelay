@@ -1,8 +1,7 @@
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
-    Json,
 };
 use chrono::{DateTime, TimeZone, Utc};
 use ring::digest;
@@ -36,9 +35,12 @@ use crate::{
         DmThreadListQuery, DmThreadMarkReadRequest, DmThreadMarkReadResponse,
         DmThreadMessageListQuery, DmThreadPage,
     },
-    shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
-        ApiResult,
+    shared::{
+        errors::{
+            bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
+            ApiResult,
+        },
+        extractors::{Json, Path, Query},
     },
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},

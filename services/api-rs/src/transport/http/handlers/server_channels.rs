@@ -1,7 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
-    Json,
 };
 use chrono::Utc;
 use tracing::{debug, info, warn};
@@ -21,7 +20,10 @@ use crate::{
         ServerChannelMessageCreateRequest, ServerChannelMessageEditRequest,
         ServerChannelMessageListQuery, ServerChannelMessagePage,
     },
-    shared::errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
+    shared::{
+        errors::{bad_request, conflict, forbidden, internal_error, ApiResult},
+        extractors::{Json, Path, Query},
+    },
     state::AppState,
     transport::http::middleware::{
         auth::{enforce_csrf_for_cookie_auth, AuthSession},

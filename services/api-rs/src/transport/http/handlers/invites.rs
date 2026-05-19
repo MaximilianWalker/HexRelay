@@ -1,7 +1,6 @@
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
-    Json,
 };
 use chrono::Utc;
 use ring::digest::{digest, SHA256};
@@ -21,8 +20,9 @@ use crate::{
         ContactInviteRedeemRequest, FriendRequestCreateRequest, FriendRequestRecord,
         InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
-    shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, ApiResult,
+    shared::{
+        errors::{bad_request, conflict, forbidden, internal_error, too_many_requests, ApiResult},
+        extractors::Json,
     },
     state::AppState,
     transport::http::middleware::{

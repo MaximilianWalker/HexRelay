@@ -2,7 +2,6 @@ use axum::{
     extract::ConnectInfo,
     extract::State,
     http::{header::SET_COOKIE, HeaderMap, HeaderValue, StatusCode},
-    Json,
 };
 use chrono::{Duration, Utc};
 use rand::RngCore;
@@ -25,9 +24,12 @@ use crate::{
         AuthChallengeRequest, AuthChallengeResponse, AuthVerifyRequest, AuthVerifyResponse,
         IdentityKeyRegistrationRequest, SessionRevokeRequest, SessionValidateResponse,
     },
-    shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
-        ApiResult,
+    shared::{
+        errors::{
+            bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
+            ApiResult,
+        },
+        extractors::Json,
     },
     state::AppState,
     transport::http::middleware::{
