@@ -832,6 +832,18 @@ pub async fn ack_dm_fanout_delivery_device(
     .execute(&mut *tx)
     .await?;
 
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_device_cursors (identity_id, device_id, cursor, updated_at)
+        VALUES ($1, $2, 0, NOW())
+        ON CONFLICT (identity_id, device_id) DO NOTHING
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(device_id)
+    .execute(&mut *tx)
+    .await?;
+
     let current_cursor = sqlx::query(
         "
         SELECT cursor
@@ -842,14 +854,13 @@ pub async fn ack_dm_fanout_delivery_device(
     )
     .bind(recipient_identity_id)
     .bind(device_id)
-    .fetch_optional(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?
-    .map(|row| row.try_get::<i64, _>("cursor"))
-    .transpose()?
-    .map(u64::try_from)
-    .transpose()
-    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?
-    .unwrap_or(0);
+    .try_get::<i64, _>("cursor")
+    .and_then(|cursor| {
+        u64::try_from(cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))
+    })?;
 
     let current_cursor_i64 = i64::try_from(current_cursor)
         .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;

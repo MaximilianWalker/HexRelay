@@ -826,6 +826,8 @@ pub async fn run_dm_fanout_catch_up(
     let mut seen_delivery_keys = HashSet::new();
     let mut response_cursor = effective_cursor;
     for entry in &entries {
+        response_cursor = entry.cursor;
+
         let dedupe_key = (
             entry.message_id.clone(),
             entry.sender_identity_id.clone(),
@@ -845,7 +847,6 @@ pub async fn run_dm_fanout_catch_up(
             ciphertext: entry.ciphertext.clone(),
             source_device_id: entry.source_device_id.clone(),
         });
-        response_cursor = entry.cursor;
 
         if items.len() >= limit as usize {
             break;
