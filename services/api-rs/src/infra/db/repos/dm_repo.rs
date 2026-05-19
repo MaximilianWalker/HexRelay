@@ -359,45 +359,84 @@ pub async fn append_dm_fanout_delivery_record_in_tx(
     Ok(())
 }
 
-pub async fn list_dm_fanout_delivery_records(
+pub async fn list_dm_fanout_delivery_records_page(
     pool: &PgPool,
     identity_id: &str,
+    after_cursor: u64,
+    limit: u32,
 ) -> Result<Vec<DmFanoutDeliveryRecord>, sqlx::Error> {
+    let after_cursor = i64::try_from(after_cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;
+    let limit = i64::from(limit);
+    let rows = sqlx::query(
+        "
+        SELECT cursor, thread_id, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
+        FROM dm_fanout_delivery_log
+        WHERE identity_id = $1 AND cursor > $2
+        ORDER BY cursor ASC
+        LIMIT $3
+        ",
+    )
+    .bind(identity_id)
+    .bind(after_cursor)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(map_dm_fanout_delivery_row).collect()
+}
+
+pub async fn list_pending_dm_fanout_delivery_records(
+    pool: &PgPool,
+    identity_id: &str,
+    device_id: &str,
+    after_cursor: u64,
+    limit: u32,
+) -> Result<Vec<DmFanoutDeliveryRecord>, sqlx::Error> {
+    let after_cursor = i64::try_from(after_cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;
+    let limit = i64::from(limit);
     let rows = sqlx::query(
         "
         SELECT cursor, thread_id, message_id, sender_identity_id, ciphertext, source_device_id, delivery_state, reachability_state, delivered_device_ids
         FROM dm_fanout_delivery_log
         WHERE identity_id = $1
+          AND cursor > $2
+          AND NOT (delivered_device_ids @> to_jsonb(ARRAY[$3::TEXT]))
         ORDER BY cursor ASC
+        LIMIT $4
         ",
     )
     .bind(identity_id)
+    .bind(after_cursor)
+    .bind(device_id)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|row| {
-            let cursor = row.try_get::<i64, _>("cursor")?;
-            let delivered_device_ids_json =
-                row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
-            let delivered_device_ids =
-                serde_json::from_value::<Vec<String>>(delivered_device_ids_json).map_err(|_| {
-                    sqlx::Error::Protocol("invalid delivered_device_ids json".into())
-                })?;
-            Ok(DmFanoutDeliveryRecord {
-                cursor: u64::try_from(cursor)
-                    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
-                thread_id: row.try_get::<String, _>("thread_id")?,
-                message_id: row.try_get::<String, _>("message_id")?,
-                sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
-                ciphertext: row.try_get::<String, _>("ciphertext")?,
-                source_device_id: row.try_get::<Option<String>, _>("source_device_id")?,
-                delivery_state: row.try_get::<String, _>("delivery_state")?,
-                reachability_state: row.try_get::<String, _>("reachability_state")?,
-                delivered_device_ids,
-            })
-        })
-        .collect()
+    rows.into_iter().map(map_dm_fanout_delivery_row).collect()
+}
+
+fn map_dm_fanout_delivery_row(
+    row: sqlx::postgres::PgRow,
+) -> Result<DmFanoutDeliveryRecord, sqlx::Error> {
+    let cursor = row.try_get::<i64, _>("cursor")?;
+    let delivered_device_ids_json = row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
+    let delivered_device_ids = serde_json::from_value::<Vec<String>>(delivered_device_ids_json)
+        .map_err(|_| sqlx::Error::Protocol("invalid delivered_device_ids json".into()))?;
+
+    Ok(DmFanoutDeliveryRecord {
+        cursor: u64::try_from(cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?,
+        thread_id: row.try_get::<String, _>("thread_id")?,
+        message_id: row.try_get::<String, _>("message_id")?,
+        sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
+        ciphertext: row.try_get::<String, _>("ciphertext")?,
+        source_device_id: row.try_get::<Option<String>, _>("source_device_id")?,
+        delivery_state: row.try_get::<String, _>("delivery_state")?,
+        reachability_state: row.try_get::<String, _>("reachability_state")?,
+        delivered_device_ids,
+    })
 }
 
 pub async fn purge_expired_dm_delivery_metadata(
@@ -793,6 +832,18 @@ pub async fn ack_dm_fanout_delivery_device(
     .execute(&mut *tx)
     .await?;
 
+    sqlx::query(
+        "
+        INSERT INTO dm_fanout_device_cursors (identity_id, device_id, cursor, updated_at)
+        VALUES ($1, $2, 0, NOW())
+        ON CONFLICT (identity_id, device_id) DO NOTHING
+        ",
+    )
+    .bind(recipient_identity_id)
+    .bind(device_id)
+    .execute(&mut *tx)
+    .await?;
+
     let current_cursor = sqlx::query(
         "
         SELECT cursor
@@ -803,48 +854,39 @@ pub async fn ack_dm_fanout_delivery_device(
     )
     .bind(recipient_identity_id)
     .bind(device_id)
-    .fetch_optional(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?
-    .map(|row| row.try_get::<i64, _>("cursor"))
-    .transpose()?
-    .map(u64::try_from)
-    .transpose()
-    .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?
-    .unwrap_or(0);
+    .try_get::<i64, _>("cursor")
+    .and_then(|cursor| {
+        u64::try_from(cursor)
+            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))
+    })?;
 
-    let rows = sqlx::query(
+    let current_cursor_i64 = i64::try_from(current_cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?;
+    let contiguous_cursor = sqlx::query_scalar::<_, i64>(
         "
-        SELECT cursor, delivered_device_ids
-        FROM dm_fanout_delivery_log
-        WHERE identity_id = $1 AND cursor > $2
-        ORDER BY cursor ASC
-        FOR UPDATE
+        WITH RECURSIVE contiguous(cursor) AS (
+            SELECT $2::BIGINT
+            UNION ALL
+            SELECT log.cursor
+            FROM contiguous previous
+            JOIN dm_fanout_delivery_log log
+              ON log.identity_id = $1
+             AND log.cursor = previous.cursor + 1
+             AND log.delivered_device_ids @> to_jsonb(ARRAY[$3::TEXT])
+        )
+        SELECT MAX(cursor) FROM contiguous
         ",
     )
     .bind(recipient_identity_id)
-    .bind(
-        i64::try_from(current_cursor)
-            .map_err(|_| sqlx::Error::Protocol("cursor too large for storage".into()))?,
-    )
-    .fetch_all(&mut *tx)
+    .bind(current_cursor_i64)
+    .bind(device_id)
+    .fetch_one(&mut *tx)
     .await?;
 
-    let mut contiguous_cursor = current_cursor;
-    for row in rows {
-        let row_cursor = row.try_get::<i64, _>("cursor")?;
-        let row_cursor = u64::try_from(row_cursor)
-            .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?;
-        if row_cursor != contiguous_cursor + 1 {
-            break;
-        }
-        let row_device_ids_json = row.try_get::<serde_json::Value, _>("delivered_device_ids")?;
-        let row_device_ids = serde_json::from_value::<Vec<String>>(row_device_ids_json)
-            .map_err(|_| sqlx::Error::Protocol("invalid delivered_device_ids json".into()))?;
-        if !row_device_ids.iter().any(|value| value == device_id) {
-            break;
-        }
-        contiguous_cursor = row_cursor;
-    }
+    let contiguous_cursor = u64::try_from(contiguous_cursor)
+        .map_err(|_| sqlx::Error::Protocol("cursor must be non-negative".into()))?;
 
     if contiguous_cursor > current_cursor {
         sqlx::query(
