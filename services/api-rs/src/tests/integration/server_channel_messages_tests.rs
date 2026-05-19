@@ -1518,6 +1518,93 @@ async fn deleted_server_channel_messages_remain_visible_as_tombstones() {
     assert!(items[1]["deleted_at"].is_string());
 }
 
+#[tokio::test]
+async fn server_message_retention_tombstones_expired_channel_history() {
+    let Some(pool) = prepared_database_pool().await else {
+        return;
+    };
+
+    let server_id = format!("srv-retention-{}", Uuid::new_v4().simple());
+    let channel_id = format!("chn-retention-{}", Uuid::new_v4().simple());
+    let member_id = unique_identity("usr-retention-member");
+    let teammate_id = unique_identity("usr-retention-teammate");
+    let expired_message_id = format!("scm-retention-old-{}", Uuid::new_v4().simple());
+    let fresh_message_id = format!("scm-retention-new-{}", Uuid::new_v4().simple());
+    let expired_created_at = (Utc::now() - Duration::days(2))
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    let fresh_created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let expired_mentions = [teammate_id.as_str()];
+
+    seed_server_channel(
+        &pool,
+        &server_id,
+        "Retention",
+        &channel_id,
+        "general",
+        &[&member_id, &teammate_id],
+        &[
+            (
+                &expired_message_id,
+                &member_id,
+                1,
+                "expired content",
+                None,
+                &expired_mentions,
+                &expired_created_at,
+                None,
+                None,
+            ),
+            (
+                &fresh_message_id,
+                &teammate_id,
+                2,
+                "fresh content",
+                None,
+                &[],
+                &fresh_created_at,
+                None,
+                None,
+            ),
+        ],
+    )
+    .await;
+    let updated = servers_repo::set_server_message_retention_policy(&pool, &server_id, Some(1))
+        .await
+        .expect("set server retention policy");
+    assert!(updated);
+
+    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/servers/{server_id}/channels/{channel_id}/messages?limit=2"
+        ))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build list request");
+
+    let response = app.oneshot(request).await.expect("list response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read list body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode list body");
+    let items = payload["items"].as_array().expect("items array");
+
+    assert_eq!(items[0]["message_id"], fresh_message_id);
+    assert_eq!(items[0]["content"], "fresh content");
+    assert!(items[0]["deleted_at"].is_null());
+
+    assert_eq!(items[1]["message_id"], expired_message_id);
+    assert_eq!(items[1]["content"], "");
+    assert_eq!(items[1]["mentions"], serde_json::json!([]));
+    assert!(items[1]["deleted_at"].is_string());
+}
+
 async fn start_api_http_server(state: AppState) -> String {
     let app = build_app(state);
     let listener = TcpListener::bind("127.0.0.1:0")

@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-19
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-05-11 added DM delivery metadata retention and abuse-control defaults for server-node P2P encrypted-envelope delivery.
+- Latest meaningful change: 2026-05-19 mapped server-channel message retention to per-server storage and tombstone enforcement.
 
 ## Override Precedence
 
@@ -50,7 +50,7 @@
 | `server.device_sync.replay_retention_hours` | `72` | integer >= 1 | server |
 | `discovery.listing_visibility` | `private` | `private`, `public` | server |
 | `storage.quota_mb` | `null` | integer >= 100 or `null` | server |
-| `retention.message_days` | `null` | integer >= 1 or `null` | server |
+| `retention.message_days` | `null` | integer >= 1 or `null`; persisted as `servers.retention_message_days` | server |
 | `ui.server_nav_mode` | `sidebar` | `sidebar`, `topbar` | device |
 | `ui.server_nav_visibility` | `expanded` | `expanded`, `collapsed`, `hidden` | device |
 | `runtime.mode` | `desktop_local` | `desktop_local`, `dedicated_server` | deployment |
