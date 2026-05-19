@@ -6,14 +6,14 @@
 - Owner: Delivery and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-13
+- last_updated: 2026-05-19
 - Source of truth: `docs/testing/01-mvp-verification-matrix.md`
 
 ## Quick Context
 
 - Purpose: bind requirements to verification evidence for deterministic iteration sign-off.
 - Primary edit location: update when requirement/task coverage or evidence format changes.
-- Latest meaningful change: 2026-05-13 linked navigation evidence expectations to the approval-pending navigation implementation plan.
+- Latest meaningful change: 2026-05-19 added deterministic web render regression coverage to Navigation and hubs verification.
 
 ## Requirement to Evidence Matrix
 
@@ -27,7 +27,7 @@
 | Server-channel/presence multi-device convergence | T3.3.2, T4.3.4 | Server event fanout + hydration report | Tests verify channel/presence events hydrate all profile devices via per-device cursor after reconnect/late activation | `evidence/iteration-02/profile-device-sync/<YYYY-MM-DD>/` |
 | Local runtime testing adoption | PH-01-PH-07 | Durable evidence bundle with fixture seed summaries, runtime smoke outputs, network simulation event logs, and browser scenario notes under `outputs/` | `cargo test -p api-rs fixture`; `npm --prefix apps/web run test`; `npm run test:runtime`; `npm run test:network`; `node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir <path>` | `evidence/local-runtime-testing/fixtures/<run-id>/`; `evidence/local-runtime-testing/runtime/<profile>/<run-id>/`; `evidence/local-runtime-testing/network/<profile>/<scenario>/<run-id>/`; `evidence/local-runtime-testing/browser/<scenario>/<run-id>/` |
 | E2EE DM (1:1 + group) | T4.5.1-T4.5.4 | Ciphertext-envelope delivery assertion + client-only decrypt success + offline catch-up report | Crypto conformance checklist and E2EE integration suite pass without server-side plaintext/private-key custody | `evidence/iteration-02/messaging-e2ee/<YYYY-MM-DD>/` |
-| Navigation and hubs | T4.6.1-T4.6.4 | UI checklist with screenshots (desktop + mobile) | Manual checklist completed against `docs/product/07-ui-navigation-spec.md` and `docs/product/08-screen-state-spec.md` | `evidence/iteration-02/navigation/<YYYY-MM-DD>/` |
+| Navigation and hubs | T4.6.1-T4.6.4 | Web render regression output + UI checklist screenshots (desktop + mobile) | `npm --prefix apps/web run test:coverage` covers workspace navigation, onboarding, contacts, and DM session-required render states; manual checklist remains required against `docs/product/07-ui-navigation-spec.md` and `docs/product/08-screen-state-spec.md` | `evidence/iteration-02/navigation/<YYYY-MM-DD>/` |
 | Voice/screen share | T5.1.1-T5.3.1 | KPI profile run report (join success, reconnect, jitter) | TURN/NAT profile procedure passes with required metrics captured | `evidence/iteration-03/voice/turn-nat/<scenario-id>/` |
 | Migration and reconciliation | T7.1.2, T7.5.1-T7.5.5 | Migration scenario evidence (LAN/file/cutover) | Migration validation template completed with forward, rerun, rollback, and integrity checks | `evidence/migrations/<migration-name>.md` |
 | Observability/SLO alerts | T8.1.1, T8.2.1 | Dashboard export + fault-injection alert report | Observability evidence template completed with alert and recovery timestamps | `evidence/operations/observability/<YYYY-MM-DD>/` |
