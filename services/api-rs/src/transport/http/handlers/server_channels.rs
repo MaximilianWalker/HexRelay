@@ -50,6 +50,7 @@ pub async fn list_server_channel_messages(
             "server channel history requires configured database pool",
         )
     })?;
+    apply_server_message_retention(pool, &channel_membership.server_id).await?;
 
     let mut items = server_channels_repo::list_server_channel_messages(
         pool,
@@ -135,6 +136,7 @@ pub async fn create_server_channel_message(
     let author_id = channel_membership.identity_id.clone();
 
     require_channel_send_permission(pool, &server_id, &channel_id, &author_id).await?;
+    apply_server_message_retention(pool, &server_id).await?;
 
     let created_at = current_timestamp();
     let message = server_channels_repo::create_server_channel_message(
@@ -186,6 +188,7 @@ pub async fn edit_server_channel_message(
         &channel_membership.identity_id,
     )
     .await?;
+    apply_server_message_retention(pool, &server_id).await?;
 
     let edited_at = current_timestamp();
     let result = server_channels_repo::update_server_channel_message(
@@ -257,6 +260,7 @@ pub async fn soft_delete_server_channel_message(
         &channel_membership.identity_id,
     )
     .await?;
+    apply_server_message_retention(pool, &server_id).await?;
 
     let deleted_at = current_timestamp();
     let result = server_channels_repo::soft_delete_server_channel_message(
@@ -297,6 +301,33 @@ pub async fn soft_delete_server_channel_message(
     }
 
     Ok(Json(message))
+}
+
+async fn apply_server_message_retention(pool: &sqlx::PgPool, server_id: &str) -> ApiResult<()> {
+    let summary = server_channels_repo::apply_server_message_retention(pool, server_id, Utc::now())
+        .await
+        .map_err(|error| {
+            warn!(
+                server_id = %server_id,
+                error = %error,
+                "failed to apply server message retention"
+            );
+            internal_error(
+                "storage_unavailable",
+                "failed to apply server message retention",
+            )
+        })?;
+
+    if summary.tombstoned_messages > 0 {
+        info!(
+            server_id = %server_id,
+            tombstoned_messages = summary.tombstoned_messages,
+            deleted_mentions = summary.deleted_mentions,
+            "applied server message retention"
+        );
+    }
+
+    Ok(())
 }
 
 async fn notify_channel_message_created(

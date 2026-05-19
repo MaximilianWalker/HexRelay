@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 
 use crate::models::{ServerChannelMessage, ServerChannelSummary};
@@ -72,6 +73,11 @@ pub struct UpdateServerChannelMessageResult {
 pub struct SoftDeleteServerChannelMessageResult {
     pub message: ServerChannelMessage,
     pub changed: bool,
+}
+
+pub struct ServerMessageRetentionSummary {
+    pub tombstoned_messages: u64,
+    pub deleted_mentions: u64,
 }
 
 pub enum CreateServerChannelMessageError {
@@ -469,6 +475,55 @@ pub async fn list_server_channel_messages(
         .map(map_server_channel_message_row)
         .collect::<Result<Vec<_>, _>>()
         .map(Some)
+}
+
+pub async fn apply_server_message_retention(
+    pool: &PgPool,
+    server_id: &str,
+    applied_at: DateTime<Utc>,
+) -> Result<ServerMessageRetentionSummary, sqlx::Error> {
+    let row = sqlx::query(
+        "
+        WITH expired AS (
+            UPDATE server_channel_messages m
+            SET content = '',
+                deleted_at = $2
+            FROM server_channels c
+            INNER JOIN servers s ON s.server_id = c.server_id
+            WHERE m.channel_id = c.channel_id
+              AND s.server_id = $1
+              AND s.retention_message_days IS NOT NULL
+              AND m.deleted_at IS NULL
+              AND m.created_at < $2 - (s.retention_message_days::DOUBLE PRECISION * INTERVAL '1 day')
+            RETURNING m.message_id
+        ),
+        deleted_mentions AS (
+            DELETE FROM server_channel_message_mentions mentions
+            USING expired
+            WHERE mentions.message_id = expired.message_id
+            RETURNING mentions.message_id
+        )
+        SELECT
+            (SELECT COUNT(*) FROM expired) AS tombstoned_messages,
+            (SELECT COUNT(*) FROM deleted_mentions) AS deleted_mentions
+        ",
+    )
+    .bind(server_id)
+    .bind(applied_at)
+    .fetch_one(pool)
+    .await?;
+
+    let tombstoned_messages = row.try_get::<i64, _>("tombstoned_messages")?;
+    let deleted_mentions = row.try_get::<i64, _>("deleted_mentions")?;
+
+    Ok(ServerMessageRetentionSummary {
+        tombstoned_messages: u64::try_from(tombstoned_messages).map_err(|_| {
+            sqlx::Error::Protocol("retention tombstone count must be non-negative".into())
+        })?,
+        deleted_mentions: u64::try_from(deleted_mentions).map_err(|_| {
+            sqlx::Error::Protocol("retention mention count must be non-negative".into())
+        })?,
+    })
 }
 
 pub async fn identity_has_server_channel_permission(

@@ -976,16 +976,17 @@ paths:
       responses:
         '200':
           description: >-
-            Server-channel message history page. Deleted messages remain visible as
-            tombstone records in `items`, and `next_cursor` is only present when
-            older history still exists beyond the returned page.
+            Server-channel message history page. Deleted and retention-expired
+            messages remain visible as tombstone records in `items`, and
+            `next_cursor` is only present when older history still exists beyond
+            the returned page.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerChannelMessagePage'
               examples:
                 historyPageWithTombstone:
-                  summary: History page keeps deleted messages visible as tombstones
+                  summary: History page keeps deleted or retained-expired messages visible as tombstones
                   value:
                     items:
                       - message_id: scm-3

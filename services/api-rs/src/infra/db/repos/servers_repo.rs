@@ -60,6 +60,26 @@ pub async fn insert_server_membership(
     Ok(())
 }
 
+pub async fn set_server_message_retention_policy(
+    pool: &PgPool,
+    server_id: &str,
+    message_days: Option<i32>,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "
+        UPDATE servers
+        SET retention_message_days = $2
+        WHERE server_id = $1
+        ",
+    )
+    .bind(server_id)
+    .bind(message_days)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn identities_share_server(
     pool: &PgPool,
     identity_a: &str,

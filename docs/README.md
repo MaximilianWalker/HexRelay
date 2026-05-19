@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-19 clarified DM fanout catch-up scanned-cursor contract semantics.
+- Latest meaningful change: 2026-05-19 documented executable server-channel message retention tombstones.
 
 ## Purpose
 

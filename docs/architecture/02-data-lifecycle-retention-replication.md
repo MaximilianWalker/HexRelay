@@ -6,14 +6,14 @@
 - Owner: Architecture and API maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-19
 - Source of truth: `docs/architecture/02-data-lifecycle-retention-replication.md`
 
 ## Quick Context
 
 - Purpose: define where data lives, who is authoritative, and how retention/reconciliation behaves.
 - Primary edit location: update when persistence boundaries or retention policy semantics change.
-- Latest meaningful change: 2026-05-11 defined executable DM delivery-metadata retention and abuse-control defaults for server-node encrypted-envelope delivery while keeping plaintext/private keys client-only.
+- Latest meaningful change: 2026-05-19 added executable per-server channel-message retention policy storage and tombstone enforcement.
 
 ## Persistence Boundary Matrix
 
@@ -27,15 +27,15 @@
 | E2EE DM envelopes | sender/recipient clients + server node/message node in the server-node P2P network | yes (encrypted local cache and decrypted local view after client decrypt) | yes (ciphertext envelopes only) | canonical encrypted DM history should not expire merely because delivery is delayed or completed; plaintext remains client-only |
 | DM outbound server-node forwarding attempts | origin server node | optional cache | yes (ciphertext envelope plus minimal routing/transport state only) | retry/failure bookkeeping, attempt count, next-attempt schedule, and terminal transport state are origin-node state; forwarded/terminal-failed metadata is purgeable after the outbound forwarding retention window |
 | DM per-device sync cursor/receipt state | profile devices + server node/message node in the server-node P2P network | yes | yes (minimal delivery metadata only) | used for late-device replay, idempotent dedupe, delivery-state convergence, retention, and abuse controls; fanout delivery metadata is purgeable after the delivery-log retention window once all registered profile devices have converged, or after expiry when no profile device is registered |
-| Server channel messages | server | optional cache | yes | subject to server retention policy |
+| Server channel messages | server | optional cache | yes | subject to `servers.retention_message_days`; expired rows are retained as tombstones with content and mentions scrubbed |
 | Server channel/presence per-device cursor state | server + profile devices | yes (cache) | yes (cursor metadata) | required for late-device hydration and reconnect convergence |
 | Session tokens | server | yes (session storage) | yes | revocable and expirable |
 | Migration bundle metadata | migrating user | yes | no bundle plaintext | signed+encrypted bundle only |
 
 ## Retention Baseline
 
-- Server retention defaults can be `null` (forever) or bounded by `retention.message_days`.
-- Delete operations must emit deterministic tombstone semantics for sync/reconcile paths.
+- Server retention defaults can be `null` (forever) or bounded by `retention.message_days`, represented in storage as `servers.retention_message_days`.
+- Delete and retention operations must emit deterministic tombstone semantics for sync/reconcile paths; server-channel retention scrubs expired message content and mentions while preserving the message id, sequence, timestamps, and `deleted_at` tombstone marker.
 - Replica purge behavior follows explicit server policy and must not violate signed-profile authority model.
 - DM canonical encrypted-envelope history should remain durable according to retention policy; bounded retention applies to replay acceleration state, retry bookkeeping, and transient transport metadata rather than silently discarding accepted messages.
 - DM outbound server-node forwarding attempts may be retained only as long as needed for retry, diagnostics, abuse control, and reconciliation; retry scheduling uses bounded attempt counts plus exponential backoff with stable jitter, and must not expand into plaintext storage or recipient-device endpoint tracking.
