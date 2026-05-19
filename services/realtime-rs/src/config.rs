@@ -1,10 +1,11 @@
 use std::{
     env,
-    net::{IpAddr, SocketAddr},
+    net::SocketAddr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use communication_core::{
+    config::{is_loopback_host, parse_allowed_browser_origins, BrowserOriginPolicy},
     DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor, StaticPeerRegistry,
 };
 use reqwest::Url;
@@ -57,11 +58,16 @@ impl RealtimeConfig {
             .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
         let allowed_origins_raw = env::var("REALTIME_ALLOWED_ORIGINS")
             .unwrap_or_else(|_| "http://localhost:3002,http://127.0.0.1:3002".to_string());
-        let allowed_origins = allowed_origins_raw
-            .split(',')
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .collect::<Vec<_>>();
+        let origin_policy = if environment == "production" {
+            BrowserOriginPolicy::Production
+        } else {
+            BrowserOriginPolicy::Development
+        };
+        let allowed_origins = parse_allowed_browser_origins(
+            "REALTIME_ALLOWED_ORIGINS",
+            &allowed_origins_raw,
+            origin_policy,
+        )?;
         let require_api_health_on_start =
             parse_bool_env("REALTIME_REQUIRE_API_HEALTH_ON_START", true)?;
         let channel_dispatch_internal_token = env::var("REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN")
@@ -95,12 +101,6 @@ impl RealtimeConfig {
 
         if api_base_url.trim().is_empty() {
             return Err("Invalid REALTIME_API_BASE_URL. Value must not be empty".to_string());
-        }
-
-        if allowed_origins.is_empty() {
-            return Err(
-                "Invalid REALTIME_ALLOWED_ORIGINS. Must contain at least one origin".to_string(),
-            );
         }
 
         if channel_dispatch_internal_token.trim().len() < 16 {
@@ -294,21 +294,6 @@ fn parse_i64_env(key: &str, default: i64) -> Result<i64, String> {
                 }
             }),
         Err(_) => Ok(default),
-    }
-}
-
-fn is_loopback_host(host: Option<&str>) -> bool {
-    let Some(host) = host else {
-        return false;
-    };
-
-    if host.eq_ignore_ascii_case("localhost") {
-        return true;
-    }
-
-    match host.parse::<IpAddr>() {
-        Ok(ip) => ip.is_loopback(),
-        Err(_) => false,
     }
 }
 
@@ -720,6 +705,71 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_rejects_non_loopback_http_allowed_origin() {
+        with_realtime_env(
+            &[
+                ("REALTIME_ENVIRONMENT", Some("production")),
+                (
+                    "REALTIME_API_BASE_URL",
+                    Some("https://realtime.example.com"),
+                ),
+                ("REALTIME_ALLOWED_ORIGINS", Some("http://app.example.com")),
+                (
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("production-channel-dispatch-token-12345"),
+                ),
+                (
+                    "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("production-presence-watcher-token-12345"),
+                ),
+            ],
+            || {
+                let err = match RealtimeConfig::from_env() {
+                    Ok(_) => panic!("production non-loopback http origin should fail"),
+                    Err(err) => err,
+                };
+                assert!(err.contains("REALTIME_ALLOWED_ORIGINS"));
+                assert!(err.contains("Non-loopback browser origins must use https"));
+            },
+        );
+    }
+
+    #[test]
+    fn production_accepts_https_and_loopback_http_allowed_origins() {
+        with_realtime_env(
+            &[
+                ("REALTIME_ENVIRONMENT", Some("production")),
+                (
+                    "REALTIME_API_BASE_URL",
+                    Some("https://realtime.example.com"),
+                ),
+                (
+                    "REALTIME_ALLOWED_ORIGINS",
+                    Some("https://app.example.com,http://127.0.0.1:3002"),
+                ),
+                (
+                    "REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN",
+                    Some("production-channel-dispatch-token-12345"),
+                ),
+                (
+                    "REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN",
+                    Some("production-presence-watcher-token-12345"),
+                ),
+            ],
+            || {
+                let config = RealtimeConfig::from_env().expect("production config should parse");
+                assert_eq!(
+                    config.allowed_origins,
+                    vec![
+                        "https://app.example.com".to_string(),
+                        "http://127.0.0.1:3002".to_string()
+                    ]
+                );
             },
         );
     }
