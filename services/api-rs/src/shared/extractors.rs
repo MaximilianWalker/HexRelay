@@ -129,26 +129,47 @@ impl<T> DerefMut for Path<T> {
 }
 
 fn map_json_rejection(rejection: JsonRejection) -> (StatusCode, Json<ApiError>) {
-    let (code, message) = match rejection.status() {
+    match rejection.status() {
         StatusCode::UNSUPPORTED_MEDIA_TYPE => (
-            "content_type_unsupported",
-            "request content type must be application/json",
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                code: "content_type_unsupported",
+                message: "request content type must be application/json",
+            }),
         ),
-        StatusCode::PAYLOAD_TOO_LARGE => ("request_body_too_large", "request body is too large"),
-        _ => ("request_body_invalid", "request body must be valid JSON"),
-    };
-
-    api_error(code, message)
+        StatusCode::PAYLOAD_TOO_LARGE => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                code: "request_body_too_large",
+                message: "request body is too large",
+            }),
+        ),
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                code: "request_body_invalid",
+                message: "request body must be valid JSON",
+            }),
+        ),
+    }
 }
 
 fn map_query_rejection(_rejection: QueryRejection) -> (StatusCode, Json<ApiError>) {
-    api_error("query_invalid", "query parameters are invalid")
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ApiError {
+            code: "query_invalid",
+            message: "query parameters are invalid",
+        }),
+    )
 }
 
 fn map_path_rejection(_rejection: PathRejection) -> (StatusCode, Json<ApiError>) {
-    api_error("path_invalid", "path parameters are invalid")
-}
-
-fn api_error(code: &'static str, message: &'static str) -> (StatusCode, Json<ApiError>) {
-    (StatusCode::BAD_REQUEST, Json(ApiError { code, message }))
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ApiError {
+            code: "path_invalid",
+            message: "path parameters are invalid",
+        }),
+    )
 }

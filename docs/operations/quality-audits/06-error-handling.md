@@ -22,7 +22,7 @@
 
 | ID | Priority | Status | Summary | Resolution evidence | Resolved |
 |---|---|---|---|---|---|
-| QA-06-20260513-unmapped-extractor-rejections | P2 | fixed | REST extractor failures now use the shared `ApiError` response shape. | Added shared `Json`, `Query`, and `Path` wrappers in `services/api-rs/src/shared/extractors.rs` that map Axum JSON/query/path rejection failures into stable JSON `ApiError` codes, migrated REST handlers/middleware to those wrappers, documented the new error codes in `docs/contracts/runtime-rest.openapi.yaml`, and added `services/api-rs/src/tests/integration/extractor_rejection_tests.rs`; `cargo test -p api-rs --all-features extractor_rejection -- --nocapture` failed before the fix and passes after it. | 2026-05-19 |
+| QA-06-20260513-unmapped-extractor-rejections | P2 | fixed | REST extractor failures now use the shared `ApiError` response shape. | Added shared `Json`, `Query`, and `Path` wrappers in `services/api-rs/src/shared/extractors.rs` that map Axum JSON/query/path rejection failures into stable JSON `ApiError` codes, migrated REST handlers/middleware to those wrappers, documented the new error codes in `docs/contracts/runtime-rest.openapi.yaml`, extended contract parity to include the shared extractor module in API error-code inventory, and added `services/api-rs/src/tests/integration/extractor_rejection_tests.rs`; `cargo test -p api-rs --all-features extractor_rejection -- --nocapture` failed before the fix and passes after it. | 2026-05-19 |
 
 ## Run History
 
