@@ -21,6 +21,15 @@ pub fn internal_error(code: &str, message: &str) -> (axum::http::StatusCode, axu
     )
 }
 
+pub fn storage_error(
+    _context: &str,
+    code: &str,
+    message: &str,
+    _error: &str,
+) -> (axum::http::StatusCode, axum::Json<ApiError>) {
+    internal_error(code, message)
+}
+
 pub struct ApiError {
     pub code: &'static str,
     pub message: &'static str,

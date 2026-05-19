@@ -22,7 +22,8 @@ use crate::{
         InviteCreateRequest, InviteCreateResponse, InviteRedeemRequest, InviteRedeemResponse,
     },
     shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, ApiResult,
+        bad_request, conflict, forbidden, internal_error, storage_error, too_many_requests,
+        ApiResult,
     },
     state::AppState,
     transport::http::middleware::{
@@ -108,7 +109,14 @@ pub async fn create_invite(
             },
         )
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to persist invite"))?;
+        .map_err(|error| {
+            storage_error(
+                "invites.create.persist_invite",
+                "storage_unavailable",
+                "failed to persist invite",
+                error,
+            )
+        })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -194,14 +202,25 @@ pub async fn redeem_invite(
     }
 
     if let Some(pool) = state.db_pool.as_ref() {
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to start invite tx"))?;
+        let mut tx = pool.begin().await.map_err(|error| {
+            storage_error(
+                "invites.redeem.start_transaction",
+                "storage_unavailable",
+                "failed to start invite tx",
+                error,
+            )
+        })?;
 
         let row = invites_repo::load_invite_for_update(&mut *tx, &token_hash)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to read invite"))?
+            .map_err(|error| {
+                storage_error(
+                    "invites.redeem.read_invite",
+                    "storage_unavailable",
+                    "failed to read invite",
+                    error,
+                )
+            })?
             .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
         if row.node_fingerprint != payload.node_fingerprint {
@@ -225,11 +244,23 @@ pub async fn redeem_invite(
 
         invites_repo::increment_invite_use(&mut *tx, &token_hash)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
+            .map_err(|error| {
+                storage_error(
+                    "invites.redeem.update_invite",
+                    "storage_unavailable",
+                    "failed to update invite",
+                    error,
+                )
+            })?;
 
-        tx.commit()
-            .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to commit invite"))?;
+        tx.commit().await.map_err(|error| {
+            storage_error(
+                "invites.redeem.commit",
+                "storage_unavailable",
+                "failed to commit invite",
+                error,
+            )
+        })?;
 
         return Ok(Json(InviteRedeemResponse { accepted: true }));
     }
@@ -373,14 +404,25 @@ pub async fn redeem_contact_invite(
         }
     };
 
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to start invite tx"))?;
+    let mut tx = pool.begin().await.map_err(|error| {
+        storage_error(
+            "invites.contact_redeem.start_transaction",
+            "storage_unavailable",
+            "failed to start invite tx",
+            error,
+        )
+    })?;
 
     let row = invites_repo::load_invite_for_update(&mut *tx, &token_hash)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to read invite"))?
+        .map_err(|error| {
+            storage_error(
+                "invites.contact_redeem.read_invite",
+                "storage_unavailable",
+                "failed to read invite",
+                error,
+            )
+        })?
         .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
     let inviter_identity_id = row
@@ -415,7 +457,14 @@ pub async fn redeem_contact_invite(
 
     invites_repo::increment_invite_use(&mut *tx, &token_hash)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
+        .map_err(|error| {
+            storage_error(
+                "invites.contact_redeem.update_invite",
+                "storage_unavailable",
+                "failed to update invite",
+                error,
+            )
+        })?;
 
     let friend_request = friends_repo::create_friend_request_in_tx(
         &mut tx,
@@ -427,9 +476,14 @@ pub async fn redeem_contact_invite(
     .await
     .map_err(map_friend_request_db_error)?;
 
-    tx.commit()
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to commit invite"))?;
+    tx.commit().await.map_err(|error| {
+        storage_error(
+            "invites.contact_redeem.commit",
+            "storage_unavailable",
+            "failed to commit invite",
+            error,
+        )
+    })?;
 
     Ok(Json(friend_request))
 }
@@ -450,7 +504,30 @@ fn map_friend_request_db_error(
         }
     }
 
-    internal_error("storage_failure", "friend request storage failure")
+    match error {
+        FriendRequestRepoError::Sql(error) => storage_error(
+            "invites.contact_redeem.create_friend_request",
+            "storage_failure",
+            "friend request storage failure",
+            error,
+        ),
+        FriendRequestRepoError::TransitionInvalid => {
+            tracing::error!(
+                storage_context = "invites.contact_redeem.create_friend_request",
+                error_kind = "transition_invalid",
+                "friend request storage operation failed"
+            );
+            internal_error("storage_failure", "friend request storage failure")
+        }
+        FriendRequestRepoError::ActorNotAuthorized => {
+            tracing::error!(
+                storage_context = "invites.contact_redeem.create_friend_request",
+                error_kind = "actor_not_authorized",
+                "friend request storage operation failed"
+            );
+            internal_error("storage_failure", "friend request storage failure")
+        }
+    }
 }
 
 async fn allow_rate_limit(

@@ -4060,6 +4060,9 @@ components:
             $ref: '#/components/schemas/MuteRecord'
     ApiError:
       type: object
+      description: |
+        Client-safe error envelope. Storage-backed server failures preserve source
+        causes in server logs while exposing only documented codes and messages.
       required: [code, message]
       properties:
         code:

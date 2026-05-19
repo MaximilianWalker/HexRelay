@@ -10,7 +10,7 @@ use sqlx::Row;
 use crate::{
     infra::crypto::session_token::validate_session_token,
     models::ApiError,
-    shared::errors::{internal_error, unauthorized},
+    shared::errors::{storage_error, unauthorized},
     state::AppState,
 };
 
@@ -194,7 +194,14 @@ async fn resolve_db_session(
     .bind(&input.session_id)
     .fetch_optional(pool)
     .await
-    .map_err(|_| internal_error("storage_unavailable", "session lookup failed"))?
+    .map_err(|error| {
+        storage_error(
+            "auth_session.resolve_db_session",
+            "storage_unavailable",
+            "session lookup failed",
+            error,
+        )
+    })?
     .ok_or({
         (
             StatusCode::UNAUTHORIZED,

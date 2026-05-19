@@ -37,8 +37,8 @@ use crate::{
         DmThreadMessageListQuery, DmThreadPage,
     },
     shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
-        ApiResult,
+        bad_request, conflict, forbidden, internal_error, storage_error, too_many_requests,
+        unauthorized, ApiResult,
     },
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
@@ -86,7 +86,14 @@ pub async fn get_dm_policy(
     if let Some(pool) = state.db_pool.as_ref() {
         let policy = dm_repo::get_dm_policy(pool, &auth.identity_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))?
+            .map_err(|error| {
+                storage_error(
+                    "dm.get_policy.load_policy",
+                    "storage_unavailable",
+                    "failed to load dm policy",
+                    error,
+                )
+            })?
             .unwrap_or_else(default_dm_policy);
         return Ok(Json(policy));
     }
@@ -120,7 +127,14 @@ pub async fn update_dm_policy(
     if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::upsert_dm_policy(pool, &auth.identity_id, &policy)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to persist dm policy"))?;
+            .map_err(|error| {
+                storage_error(
+                    "dm.update_policy.persist_policy",
+                    "storage_unavailable",
+                    "failed to persist dm policy",
+                    error,
+                )
+            })?;
     }
 
     state
@@ -155,8 +169,13 @@ pub async fn heartbeat_dm_profile_device(
     let devices = if let Some(pool) = state.db_pool.as_ref() {
         let upserted = dm_repo::upsert_dm_profile_device(pool, &identity_id, &record)
             .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to persist profile device")
+            .map_err(|error| {
+                storage_error(
+                    "dm.profile_device_heartbeat.persist_device",
+                    "storage_unavailable",
+                    "failed to persist profile device",
+                    error,
+                )
             })?;
         if !upserted {
             return Err(unauthorized(
@@ -166,7 +185,14 @@ pub async fn heartbeat_dm_profile_device(
         }
         dm_repo::list_dm_profile_devices(pool, &identity_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
+            .map_err(|error| {
+                storage_error(
+                    "dm.profile_device_heartbeat.load_devices",
+                    "storage_unavailable",
+                    "failed to load profile devices",
+                    error,
+                )
+            })?
             .into_iter()
             .map(|record| (record.device_id.clone(), record))
             .collect::<std::collections::HashMap<_, _>>()
@@ -358,10 +384,12 @@ async fn forward_dm_envelope_to_destination_node(
         },
     )
     .await
-    .map_err(|_| {
-        internal_error(
+    .map_err(|error| {
+        storage_error(
+            "dm.forward_outbound.queue_attempt",
             "storage_unavailable",
             "failed to persist dm outbound forwarding attempt",
+            error,
         )
     })?;
 
@@ -391,10 +419,12 @@ async fn forward_dm_envelope_to_destination_node(
                 &payload.message_id,
             )
             .await
-            .map_err(|_| {
-                internal_error(
+            .map_err(|error| {
+                storage_error(
+                    "dm.forward_outbound.mark_succeeded",
                     "storage_unavailable",
                     "failed to persist dm outbound forwarding success",
+                    error,
                 )
             })?;
             if !updated {
@@ -473,7 +503,14 @@ async fn accept_dm_envelope_for_local_recipient(
 
     let sender_exists = auth_repo::identity_exists(pool, sender_identity_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to load sender identity"))?;
+        .map_err(|error| {
+            storage_error(
+                "dm.accept_local.load_sender_identity",
+                "storage_unavailable",
+                "failed to load sender identity",
+                error,
+            )
+        })?;
     if !sender_exists {
         return Err(bad_request(
             "fanout_invalid",
@@ -483,7 +520,14 @@ async fn accept_dm_envelope_for_local_recipient(
 
     let recipient_exists = auth_repo::identity_exists(pool, recipient_identity_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to load recipient identity"))?;
+        .map_err(|error| {
+            storage_error(
+                "dm.accept_local.load_recipient_identity",
+                "storage_unavailable",
+                "failed to load recipient identity",
+                error,
+            )
+        })?;
     if !recipient_exists {
         return Err(bad_request(
             "fanout_invalid",
@@ -537,7 +581,14 @@ async fn accept_dm_envelope_for_local_recipient(
 
     let profile_devices = dm_repo::list_dm_profile_devices(pool, recipient_identity_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to load profile devices"))?
+        .map_err(|error| {
+            storage_error(
+                "dm.accept_local.load_profile_devices",
+                "storage_unavailable",
+                "failed to load profile devices",
+                error,
+            )
+        })?
         .into_iter()
         .map(|record| (record.device_id.clone(), record))
         .collect::<std::collections::HashMap<_, _>>();
@@ -578,10 +629,12 @@ async fn accept_dm_envelope_for_local_recipient(
     let reachability_state = reachability_state.to_string();
     let reason_code = "fanout_pending_delivery".to_string();
 
-    let mut tx = pool.begin().await.map_err(|_| {
-        internal_error(
+    let mut tx = pool.begin().await.map_err(|error| {
+        storage_error(
+            "dm.accept_local.start_transaction",
             "storage_unavailable",
             "failed to start dm acceptance transaction",
+            error,
         )
     })?;
     let thread_id = dm_history_repo::ensure_direct_dm_thread_in_tx(
@@ -590,10 +643,24 @@ async fn accept_dm_envelope_for_local_recipient(
         recipient_identity_id,
     )
     .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to ensure dm thread"))?;
+    .map_err(|error| {
+        storage_error(
+            "dm.accept_local.ensure_thread",
+            "storage_unavailable",
+            "failed to ensure dm thread",
+            error,
+        )
+    })?;
     let seq = dm_history_repo::next_dm_message_seq_in_tx(&mut tx, &thread_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to allocate dm message seq"))?;
+        .map_err(|error| {
+            storage_error(
+                "dm.accept_local.allocate_message_seq",
+                "storage_unavailable",
+                "failed to allocate dm message seq",
+                error,
+            )
+        })?;
     let created_at = Utc::now().to_rfc3339();
     dm_history_repo::insert_dm_message_in_tx(
         &mut tx,
@@ -618,14 +685,23 @@ async fn accept_dm_envelope_for_local_recipient(
                 "message_id already exists for an accepted DM",
             )
         }
-        _ => internal_error(
+        other => storage_error(
+            "dm.accept_local.persist_message_history",
             "storage_unavailable",
             "failed to persist dm message history",
+            other,
         ),
     })?;
     let cursor = dm_repo::advance_dm_fanout_stream_head_in_tx(&mut tx, recipient_identity_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to advance fanout cursor"))?;
+        .map_err(|error| {
+            storage_error(
+                "dm.accept_local.advance_fanout_cursor",
+                "storage_unavailable",
+                "failed to advance fanout cursor",
+                error,
+            )
+        })?;
     let delivery_record = DmFanoutDeliveryRecord {
         cursor,
         thread_id: thread_id.clone(),
@@ -644,16 +720,20 @@ async fn accept_dm_envelope_for_local_recipient(
         &delivery_record,
     )
     .await
-    .map_err(|_| {
-        internal_error(
+    .map_err(|error| {
+        storage_error(
+            "dm.accept_local.persist_delivery_metadata",
             "storage_unavailable",
             "failed to persist dm delivery metadata",
+            error,
         )
     })?;
-    tx.commit().await.map_err(|_| {
-        internal_error(
+    tx.commit().await.map_err(|error| {
+        storage_error(
+            "dm.accept_local.commit_transaction",
             "storage_unavailable",
             "failed to commit dm acceptance transaction",
+            error,
         )
     })?;
 
@@ -754,7 +834,14 @@ pub async fn run_dm_fanout_catch_up(
     let last_cursor = if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::get_dm_fanout_device_cursor(pool, &identity_id, &device_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load fanout cursor"))?
+            .map_err(|error| {
+                storage_error(
+                    "dm.catch_up.load_device_cursor",
+                    "storage_unavailable",
+                    "failed to load fanout cursor",
+                    error,
+                )
+            })?
     } else {
         state
             .dm_fanout_device_cursors
@@ -770,8 +857,13 @@ pub async fn run_dm_fanout_catch_up(
     let tail_cursor = if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::get_dm_fanout_stream_head(pool, &identity_id)
             .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to load fanout stream head")
+            .map_err(|error| {
+                storage_error(
+                    "dm.catch_up.load_stream_head",
+                    "storage_unavailable",
+                    "failed to load fanout stream head",
+                    error,
+                )
             })?
     } else {
         let delivery_log = state
@@ -794,8 +886,13 @@ pub async fn run_dm_fanout_catch_up(
     let entries = if let Some(pool) = state.db_pool.as_ref() {
         dm_repo::list_dm_fanout_delivery_records(pool, &identity_id)
             .await
-            .map_err(|_| {
-                internal_error("storage_unavailable", "failed to load fanout delivery log")
+            .map_err(|error| {
+                storage_error(
+                    "dm.catch_up.load_delivery_log",
+                    "storage_unavailable",
+                    "failed to load fanout delivery log",
+                    error,
+                )
             })?
     } else {
         state
@@ -923,7 +1020,14 @@ pub async fn ack_dm_envelope_internal(
         cursor,
     )
     .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to persist dm envelope ack"))?;
+    .map_err(|error| {
+        storage_error(
+            "dm.ack.persist_envelope_ack",
+            "storage_unavailable",
+            "failed to persist dm envelope ack",
+            error,
+        )
+    })?;
 
     if !acked {
         return Err(bad_request(
@@ -958,7 +1062,12 @@ pub async fn list_dm_threads(
     .await
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => bad_request("cursor_invalid", "unknown dm thread cursor"),
-        _ => internal_error("storage_unavailable", "failed to list dm threads"),
+        other => storage_error(
+            "dm.threads.list",
+            "storage_unavailable",
+            "failed to list dm threads",
+            other,
+        ),
     })?;
 
     let has_more = items.len() > limit;
@@ -999,7 +1108,14 @@ pub async fn list_dm_thread_messages(
         limit,
     )
     .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to list dm thread messages"))?
+    .map_err(|error| {
+        storage_error(
+            "dm.thread_messages.list",
+            "storage_unavailable",
+            "failed to list dm thread messages",
+            error,
+        )
+    })?
     .ok_or({
         (
             StatusCode::NOT_FOUND,
@@ -1058,7 +1174,14 @@ pub async fn mark_dm_thread_read(
         body.last_read_seq,
     )
     .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to mark dm thread as read"))?
+    .map_err(|error| {
+        storage_error(
+            "dm.thread_mark_read",
+            "storage_unavailable",
+            "failed to mark dm thread as read",
+            error,
+        )
+    })?
     .ok_or((
         StatusCode::NOT_FOUND,
         Json(ApiError {
@@ -1152,10 +1275,12 @@ async fn apply_dm_delivery_metadata_retention(state: &AppState) -> ApiResult<()>
         - chrono::Duration::seconds(state.dm_retention.outbound_forwarding_log_retention_seconds);
     dm_repo::purge_expired_dm_delivery_metadata(pool, delivery_cutoff, outbound_cutoff)
         .await
-        .map_err(|_| {
-            internal_error(
+        .map_err(|error| {
+            storage_error(
+                "dm.retention.purge_delivery_metadata",
                 "storage_unavailable",
                 "failed to apply DM delivery metadata retention",
+                error,
             )
         })?;
 
@@ -1173,7 +1298,14 @@ async fn current_dm_policy(state: &AppState, identity_id: &str) -> ApiResult<DmP
     if let Some(pool) = state.db_pool.as_ref() {
         return dm_repo::get_dm_policy(pool, identity_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load dm policy"))
+            .map_err(|error| {
+                storage_error(
+                    "dm.current_policy.load_policy",
+                    "storage_unavailable",
+                    "failed to load dm policy",
+                    error,
+                )
+            })
             .map(|policy| policy.unwrap_or_else(default_dm_policy));
     }
 
@@ -1214,12 +1346,16 @@ fn profile_devices_to_response(
 
 async fn is_friend(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
     if let Some(pool) = state.db_pool.as_ref() {
-        return friends_repo::are_friends(pool, a, b).await.map_err(|_| {
-            internal_error(
-                "friendship_lookup_failed",
-                "failed to evaluate friendship state for DM policy",
-            )
-        });
+        return friends_repo::are_friends(pool, a, b)
+            .await
+            .map_err(|error| {
+                storage_error(
+                    "dm.policy.evaluate_friendship",
+                    "friendship_lookup_failed",
+                    "failed to evaluate friendship state for DM policy",
+                    error,
+                )
+            });
     }
 
     Ok(state
@@ -1265,10 +1401,12 @@ async fn dm_interaction_policy_decision(
                     recipient_identity_id,
                 )
                 .await
-                .map_err(|_| {
-                    internal_error(
+                .map_err(|error| {
+                    storage_error(
+                        "dm.policy.evaluate_shared_server",
                         "storage_unavailable",
                         "failed to evaluate shared-server DM policy",
+                        error,
                     )
                 })? {
                     Ok(DmInteractionPolicyDecision::Allowed)
@@ -1393,7 +1531,14 @@ async fn load_dm_profile_device(
     if let Some(pool) = state.db_pool.as_ref() {
         return dm_repo::get_dm_profile_device(pool, identity_id, device_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to load profile device"));
+            .map_err(|error| {
+                storage_error(
+                    "dm.load_profile_device",
+                    "storage_unavailable",
+                    "failed to load profile device",
+                    error,
+                )
+            });
     }
 
     Ok(state

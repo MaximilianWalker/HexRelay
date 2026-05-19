@@ -26,8 +26,8 @@ use crate::{
         IdentityKeyRegistrationRequest, SessionRevokeRequest, SessionValidateResponse,
     },
     shared::errors::{
-        bad_request, conflict, forbidden, internal_error, too_many_requests, unauthorized,
-        ApiResult,
+        bad_request, conflict, forbidden, internal_error, storage_error, too_many_requests,
+        unauthorized, ApiResult,
     },
     state::AppState,
     transport::http::middleware::{
@@ -64,7 +64,14 @@ pub async fn register_identity_key(
             &payload.algorithm,
         )
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to persist identity key"))?;
+        .map_err(|error| {
+            storage_error(
+                "auth.register_identity_key.persist_identity_key",
+                "storage_unavailable",
+                "failed to persist identity key",
+                error,
+            )
+        })?;
 
         if !inserted {
             return Err(conflict(
@@ -174,7 +181,14 @@ pub async fn issue_auth_challenge(
     let identity_exists = if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::identity_exists(pool, &payload.identity_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to read identity keys"))?
+            .map_err(|error| {
+                storage_error(
+                    "auth.issue_challenge.read_identity_keys",
+                    "storage_unavailable",
+                    "failed to read identity keys",
+                    error,
+                )
+            })?
     } else {
         #[cfg(not(test))]
         {
@@ -209,7 +223,14 @@ pub async fn issue_auth_challenge(
                 challenge_expires_at,
             )
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to persist challenge"))?;
+            .map_err(|error| {
+                storage_error(
+                    "auth.issue_challenge.persist_challenge",
+                    "storage_unavailable",
+                    "failed to persist challenge",
+                    error,
+                )
+            })?;
 
             return Ok(Json(AuthChallengeResponse {
                 challenge_id,
@@ -306,7 +327,14 @@ pub async fn verify_auth_challenge(
     let challenge_record = if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::consume_auth_challenge(pool, &payload.challenge_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to read challenge"))?
+            .map_err(|error| {
+                storage_error(
+                    "auth.verify.consume_challenge",
+                    "storage_unavailable",
+                    "failed to read challenge",
+                    error,
+                )
+            })?
             .ok_or_else(auth_verify_failure)?
     } else {
         #[cfg(not(test))]
@@ -339,7 +367,14 @@ pub async fn verify_auth_challenge(
     let key_record = if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::get_identity_key(pool, &payload.identity_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to read identity key"))?
+            .map_err(|error| {
+                storage_error(
+                    "auth.verify.read_identity_key",
+                    "storage_unavailable",
+                    "failed to read identity key",
+                    error,
+                )
+            })?
             .ok_or_else(auth_verify_failure)?
     } else {
         #[cfg(not(test))]
@@ -393,7 +428,14 @@ pub async fn verify_auth_challenge(
     if let Some(pool) = state.db_pool.as_ref() {
         auth_repo::insert_session(pool, &session_id, &identity_id, expires_at)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to persist session"))?;
+            .map_err(|error| {
+                storage_error(
+                    "auth.verify.persist_session",
+                    "storage_unavailable",
+                    "failed to persist session",
+                    error,
+                )
+            })?;
     } else {
         #[cfg(not(test))]
         {
@@ -484,7 +526,14 @@ pub async fn revoke_session(
     if let Some(pool) = state.db_pool.as_ref() {
         let updated = auth_repo::revoke_session(pool, &payload.session_id)
             .await
-            .map_err(|_| internal_error("storage_unavailable", "failed to revoke session"))?;
+            .map_err(|error| {
+                storage_error(
+                    "auth.revoke_session",
+                    "storage_unavailable",
+                    "failed to revoke session",
+                    error,
+                )
+            })?;
 
         if !updated {
             return Err(bad_request("session_invalid", "session_id is invalid"));
