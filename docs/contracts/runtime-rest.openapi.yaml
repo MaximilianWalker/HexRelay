@@ -34,7 +34,11 @@ info:
     contracts must not expose node-bypassing DM bootstrap or plaintext relay
     behavior. App-to-node dedicated-server administration starts with a public
     node connection descriptor plus an authenticated capabilities endpoint;
-    admin/owner status is returned only after normal session auth.
+    admin/owner status is returned only after normal session auth. DM policy
+    defaults, inbound policy decisions, profile-device lookup, and internal
+    ACK/profile-device request validation are domain-owned implementation
+    details; this preserves the existing REST route payloads, auth, status
+    codes, and error-code semantics.
 servers:
   - url: https://api.hexrelay.local
 paths:
