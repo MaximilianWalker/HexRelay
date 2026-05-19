@@ -104,6 +104,10 @@ const MIGRATIONS: &[Migration] = &[
         "0025_server_roles_and_channel_permissions",
         include_str!("../migrations/0025_server_roles_and_channel_permissions.sql"),
     ),
+    (
+        "0026_dm_thread_last_message_summary",
+        include_str!("../migrations/0026_dm_thread_last_message_summary.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
@@ -219,16 +223,46 @@ async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), 
 #[cfg(test)]
 mod tests {
     use std::{
-        env,
+        collections::BTreeSet,
+        env, fs,
         sync::atomic::{AtomicU64, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
 
     use ring::digest::{digest, SHA256};
 
-    use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations};
+    use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations, MIGRATIONS};
 
     static TEMP_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn migration_registry_covers_all_sql_files() {
+        let migrations_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+        let migration_files = fs::read_dir(&migrations_dir)
+            .expect("read migrations directory")
+            .filter_map(|entry| {
+                let path = entry.expect("read migration entry").path();
+                if path.extension().and_then(|value| value.to_str()) != Some("sql") {
+                    return None;
+                }
+                Some(
+                    path.file_stem()
+                        .expect("migration file stem")
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        let registered = MIGRATIONS
+            .iter()
+            .map(|(version, _)| (*version).to_owned())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            migration_files, registered,
+            "MIGRATIONS must register every SQL migration file"
+        );
+    }
 
     fn skip_service_backed_tests() -> bool {
         env::var("HEXRELAY_SKIP_SERVICE_BACKED_TESTS")
