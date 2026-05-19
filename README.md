@@ -74,11 +74,11 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 
 1. **Terminal A**: run `npm run setup` once.
 2. **Terminal A**: run `npm run start -- --runtime-profile single` (keep it running; this starts local API/realtime/web processes).
-3. **Terminal B**: run `npm run status` or verify API and realtime health using the URLs printed by `npm run start`.
+3. **Terminal B**: run `npm run status` or verify API and realtime readiness using the URLs printed by `npm run start` plus `/ready`.
 4. **Terminal C**: open the printed web URL and continue with local testing.
 5. **Terminal D**: run `npm run test`.
 
-Expected result: `npm run start` prints a ready stack summary with API/realtime/web URLs, health checks return success on those printed URLs, and tests pass before starting feature implementation.
+Expected result: `npm run start` prints a ready stack summary with API/realtime/web URLs, readiness checks return success on those printed URLs plus `/ready`, and tests pass before starting feature implementation.
 - Contributor workflow and PR expectations: `docs/operations/contributor-guide.md`
 - Local toolchain prerequisites: `docs/operations/dev-prerequisites.md`
 - Delivery change history and status transitions: `docs/planning/05-iteration-log.md`

@@ -6,14 +6,14 @@
 - Owner: API and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-19
 - Source of truth: `docs/contracts/README.md`
 
 ## Quick Context
 
 - Primary routing index for contract authority and runtime-vs-target-state separation.
 - Update this file when contract authority or contract artifact scope changes.
-- Latest meaningful change: 2026-05-15 documented JSON request media-type contract-parity coverage.
+- Latest meaningful change: 2026-05-19 documented runtime readiness probe separation from shallow liveness.
 
 ## Purpose
 
@@ -22,6 +22,7 @@
 ## Current Runtime Contracts
 
 - REST runtime baseline: `docs/contracts/runtime-rest.openapi.yaml`
+- Runtime REST exposes shallow `GET /health` liveness and dependency-aware `GET /ready` API readiness for startup/smoke gates.
 - Runtime REST node-administration bootstrap uses `GET /node/connection` for public endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity owner/admin capability reporting.
 - Runtime REST DM schemas describe server-node P2P E2EE envelope fanout, durable explicit static-peer destination node forwarding, catch-up, and internal ack persistence only; recipient-device pairing, LAN/WAN connectivity, endpoint-card, preflight, and parallel-dial routes are intentionally absent.
 - Runtime REST dispatch paths that cross the shared `NodeClientTransport` boundary emit stable snake-case provenance mode/profile/reason-code telemetry without changing REST payload schemas.
@@ -29,6 +30,7 @@
 - Spec-required OpenAPI/AsyncAPI `info.version` fields use `unversioned` and must not be treated as compatibility or rollout signals.
 - Some runtime endpoints remain intentionally provisional while tracked in `docs/operations/readiness-corrections-log.md`; call signaling now supports authenticated recipient-targeted live delivery to active websocket sessions for accepted contacts, while DM ciphertext envelopes support recipient-device dispatch and ack over realtime.
 - Realtime runtime baseline: `docs/contracts/realtime-events-runtime.asyncapi.yaml`
+- Realtime HTTP `/health` and `/ready` are operational probes outside the AsyncAPI event schema; `/ready` checks configured Redis and API upstream readiness/session-validation reachability.
 - Crypto profile baseline: `docs/contracts/crypto-profile.md`
 
 ## Contract Parity Status

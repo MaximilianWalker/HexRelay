@@ -12,12 +12,13 @@ use crate::{
         publish_dm_envelope_dispatched_internal, reset_dev_faults_internal,
         set_dev_faults_internal,
     },
-    transport::ws::handlers::{health, ws_handler},
+    transport::ws::handlers::{health, ready, ws_handler},
 };
 
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/ready", get(ready))
         .route(
             "/internal/channels/messages/created",
             post(publish_channel_message_created_internal),

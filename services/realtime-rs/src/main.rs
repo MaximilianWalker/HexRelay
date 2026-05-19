@@ -105,8 +105,8 @@ async fn wait_for_api_readiness(api_base_url: &str) -> Result<(), String> {
 
     wait_for_api_endpoint(
         &client,
-        &format!("{api_base_url}/health"),
-        "api health check",
+        &format!("{api_base_url}/ready"),
+        "api readiness check",
         MAX_WAIT,
         RETRY_SLEEP,
         |status| status.is_success(),
@@ -165,7 +165,7 @@ mod tests {
         health_status: StatusCode,
         validate_status: StatusCode,
     ) -> String {
-        async fn health(State(state): State<ApiReadinessStubState>) -> StatusCode {
+        async fn ready(State(state): State<ApiReadinessStubState>) -> StatusCode {
             state.health_status
         }
 
@@ -174,7 +174,7 @@ mod tests {
         }
 
         let app = Router::new()
-            .route("/health", get(health))
+            .route("/ready", get(ready))
             .route("/auth/sessions/validate", get(validate))
             .with_state(ApiReadinessStubState {
                 health_status,

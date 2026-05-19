@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-26
+- last_updated: 2026-05-19
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-04-26 aligned the local Node baseline with the checked-in `.nvmrc` and package engine constraints.
+- Latest meaningful change: 2026-05-19 aligned local curl prerequisite wording with `/ready` service readiness checks.
 
 ## Purpose
 
@@ -27,7 +27,7 @@
 - Docker Engine: 24.x or newer.
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
 - Bash: required for repository scripts in `scripts/*.sh`.
-- curl: required for local health checks used by `scripts/run.sh`.
+- curl: required for local readiness checks used by `scripts/run.sh`.
 - Python: 3.10+ (required for local Semgrep parity command in contributor guide).
 - pip: bundled with Python installation and required to install Semgrep locally.
 

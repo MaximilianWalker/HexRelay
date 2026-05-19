@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-17
+- last_updated: 2026-05-19
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-05-17 added the Windows parity CI gate to the contributor validation baseline.
+- Latest meaningful change: 2026-05-19 aligned local happy-path checks with `/ready` readiness probes.
 
 ## Purpose
 
@@ -148,7 +148,7 @@ npm --prefix apps/web run build
 
 1. `npm run setup`
 2. `npm run run`
-3. Verify `curl -fsS "http://127.0.0.1:8080/health"` and `curl -fsS "http://127.0.0.1:8081/health"`
+3. Verify `curl -fsS "http://127.0.0.1:8080/ready"` and `curl -fsS "http://127.0.0.1:8081/ready"`
 4. `npm --prefix apps/web run e2e:smoke`
 5. If startup or smoke fails, follow `docs/operations/01-mvp-runbook.md` recovery and rollback sections.
 

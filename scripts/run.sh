@@ -221,7 +221,7 @@ EOF
   bash "$api_launcher" >"$log_dir/api-rs.stdout.log" 2>"$log_dir/api-rs.stderr.log" &
   api_pid=$!
   STARTED_PIDS+=("$api_pid")
-  wait_for "$instance_id api" http_ok "$api_url/health"
+  wait_for "$instance_id api" http_ok "$api_url/ready"
 
   echo "[run] Starting $instance_id realtime service"
   cat >"$realtime_launcher" <<EOF
@@ -237,7 +237,7 @@ EOF
   bash "$realtime_launcher" >"$log_dir/realtime-rs.stdout.log" 2>"$log_dir/realtime-rs.stderr.log" &
   realtime_pid=$!
   STARTED_PIDS+=("$realtime_pid")
-  wait_for "$instance_id realtime" http_ok "$realtime_url/health"
+  wait_for "$instance_id realtime" http_ok "$realtime_url/ready"
 
   echo "[run] Starting $instance_id web dev server"
   runtime_tsconfig_dir="$ROOT/apps/web/.runtime-tsconfig"
@@ -293,8 +293,8 @@ while true; do
       key="$instance_id:$service"
       ok=1
       case "$service" in
-        api) http_ok "$api_url/health" || ok=0 ;;
-        realtime) http_ok "$realtime_url/health" || ok=0 ;;
+        api) http_ok "$api_url/ready" || ok=0 ;;
+        realtime) http_ok "$realtime_url/ready" || ok=0 ;;
         web) web_ready "$web_url" || ok=0 ;;
       esac
 
@@ -303,7 +303,7 @@ while true; do
       else
         FAILURES["$key"]=$((FAILURES["$key"] + 1))
         if [[ "${FAILURES["$key"]}" -ge 15 ]]; then
-          echo "[run] ERROR: $instance_id $service health check failed after startup" >&2
+          echo "[run] ERROR: $instance_id $service readiness check failed after startup" >&2
           exit 1
         fi
       fi
