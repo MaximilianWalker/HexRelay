@@ -67,6 +67,7 @@ def extract_api_runtime_error_codes(*patterns: str) -> str:
             if path.is_file():
                 text = path.read_text()
                 codes.update(re.findall(r'\b(?:bad_request|unauthorized|forbidden|conflict|too_many_requests|internal_error)\(\s*"([^"]+)"', text, re.S))
+                codes.update(re.findall(r'\bstorage_error\(\s*"[^"]+"\s*,\s*"([^"]+)"', text, re.S))
                 codes.update(re.findall(r'ApiError\s*\{\s*code:\s*"([^"]+)"', text, re.S))
 
     return "\n".join(sorted(codes))
@@ -1384,7 +1385,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             return False
 
         body = function.get('body', '')
-        if 'internal_error(' in body:
+        if 'internal_error(' in body or 'storage_error(' in body:
             return True
 
         helper_ids = resolve_local_helper_ids(body, function, local_lookup)

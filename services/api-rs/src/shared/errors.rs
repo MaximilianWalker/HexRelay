@@ -36,3 +36,40 @@ pub fn internal_error(code: &'static str, message: &'static str) -> (StatusCode,
         Json(ApiError { code, message }),
     )
 }
+
+pub fn storage_error<E>(
+    context: &'static str,
+    code: &'static str,
+    message: &'static str,
+    error: E,
+) -> (StatusCode, Json<ApiError>)
+where
+    E: std::fmt::Display,
+{
+    tracing::error!(
+        storage_context = context,
+        error = %error,
+        "storage operation failed"
+    );
+    internal_error(code, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::storage_error;
+    use axum::{http::StatusCode, Json};
+
+    #[test]
+    fn storage_error_preserves_client_safe_response() {
+        let (status, Json(error)) = storage_error(
+            "test.storage",
+            "storage_unavailable",
+            "storage unavailable",
+            "database timeout",
+        );
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(error.code, "storage_unavailable");
+        assert_eq!(error.message, "storage unavailable");
+    }
+}

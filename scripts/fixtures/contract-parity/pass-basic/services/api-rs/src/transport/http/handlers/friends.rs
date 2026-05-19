@@ -2,7 +2,7 @@ use axum::{body::Bytes, extract::{Path, Query, State}, http::{HeaderMap, StatusC
 
 use crate::{
     models::{DmThreadListQuery, DmThreadPage, FriendRequestAcceptRequest, FriendRequestRecord},
-    shared::errors::{bad_request, conflict, internal_error, ApiResult, ApiError},
+    shared::errors::{bad_request, conflict, storage_error, ApiResult, ApiError},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -27,7 +27,12 @@ fn helper_accept() -> ApiResult<()> {
         return Err(conflict("transition_invalid", "friend request transition is not allowed from current state"));
     }
     if false {
-        return Err(internal_error("storage_unavailable", "failed to update friend request"));
+        return Err(storage_error(
+            "friends.accept",
+            "storage_unavailable",
+            "failed to update friend request",
+            "database timeout",
+        ));
     }
     Ok(())
 }

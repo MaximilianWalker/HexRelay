@@ -13,6 +13,16 @@ pub enum FriendRequestRepoError {
     ActorNotAuthorized,
 }
 
+impl std::fmt::Display for FriendRequestRepoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sql(error) => write!(f, "{error}"),
+            Self::TransitionInvalid => f.write_str("friend request transition invalid"),
+            Self::ActorNotAuthorized => f.write_str("friend request actor not authorized"),
+        }
+    }
+}
+
 impl From<sqlx::Error> for FriendRequestRepoError {
     fn from(value: sqlx::Error) -> Self {
         Self::Sql(value)
