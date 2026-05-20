@@ -1,5 +1,5 @@
 const TEST_ALLOWED_ORIGIN: &str = "http://localhost:3002";
-const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+const TEST_SERVER_ID: &str = "hexrelay-local-server";
 
 pub(super) use std::{
     collections::{BTreeMap, HashMap},

@@ -33,9 +33,9 @@ let jsonOutputMode = false;
 
 const instances = [
   {
-    id: "alice-node",
+    id: "alice-server",
     seedPersona: "alice.primary",
-    containerName: "hexrelay-runtime-alice-node",
+    containerName: "hexrelay-runtime-alice-server",
     apiContainerName: "hexrelay-runtime-alice-api",
     realtimeContainerName: "hexrelay-runtime-alice-realtime",
     webContainerName: "hexrelay-runtime-alice-web",
@@ -48,9 +48,9 @@ const instances = [
     webUrl: "http://127.0.0.1:3002",
   },
   {
-    id: "bob-node",
+    id: "bob-server",
     seedPersona: "bob.primary",
-    containerName: "hexrelay-runtime-bob-node",
+    containerName: "hexrelay-runtime-bob-server",
     apiContainerName: "hexrelay-runtime-bob-api",
     realtimeContainerName: "hexrelay-runtime-bob-realtime",
     webContainerName: "hexrelay-runtime-bob-web",
@@ -67,38 +67,38 @@ const instances = [
 const toxiproxyProxies = [
   {
     name: "alice-to-bob-api",
-    sourceId: "alice-node",
-    targetId: "bob-node",
+    sourceId: "alice-server",
+    targetId: "bob-server",
     kind: "api",
     listen: "0.0.0.0:28080",
-    upstream: "bob-node:8080",
+    upstream: "bob-server:8080",
     url: "http://toxiproxy:28080",
   },
   {
     name: "alice-to-bob-realtime",
-    sourceId: "alice-node",
-    targetId: "bob-node",
+    sourceId: "alice-server",
+    targetId: "bob-server",
     kind: "realtime",
     listen: "0.0.0.0:28081",
-    upstream: "bob-node:8081",
+    upstream: "bob-server:8081",
     url: "http://toxiproxy:28081",
   },
   {
     name: "bob-to-alice-api",
-    sourceId: "bob-node",
-    targetId: "alice-node",
+    sourceId: "bob-server",
+    targetId: "alice-server",
     kind: "api",
     listen: "0.0.0.0:28180",
-    upstream: "alice-node:8080",
+    upstream: "alice-server:8080",
     url: "http://toxiproxy:28180",
   },
   {
     name: "bob-to-alice-realtime",
-    sourceId: "bob-node",
-    targetId: "alice-node",
+    sourceId: "bob-server",
+    targetId: "alice-server",
     kind: "realtime",
     listen: "0.0.0.0:28181",
-    upstream: "alice-node:8081",
+    upstream: "alice-server:8081",
     url: "http://toxiproxy:28181",
   },
 ];
@@ -397,12 +397,12 @@ function assertPeerReachability(expectedReachable, label) {
     {
       from: alice,
       to: bob,
-      ok: appHealthFromContainer(alice.containerName, "http://bob-node:8080/health"),
+      ok: appHealthFromContainer(alice.containerName, "http://bob-server:8080/health"),
     },
     {
       from: bob,
       to: alice,
-      ok: appHealthFromContainer(bob.containerName, "http://alice-node:8080/health"),
+      ok: appHealthFromContainer(bob.containerName, "http://alice-server:8080/health"),
     },
   ];
 
@@ -499,7 +499,7 @@ function assertOfflineSmoke(applyResult, resetResult) {
   const [alice] = instances;
   requireChangedSmokeEvent(
     applyResult,
-    "offline-alice disconnects alice-node from the simulation network",
+    "offline-alice disconnects alice-server from the simulation network",
     (event) => event.type === "disconnect"
       && event.target === alice.id
       && event.containerName === alice.containerName
@@ -508,7 +508,7 @@ function assertOfflineSmoke(applyResult, resetResult) {
   );
   requireChangedSmokeEvent(
     resetResult,
-    "offline-alice reset reconnects alice-node to the simulation network",
+    "offline-alice reset reconnects alice-server to the simulation network",
     (event) => event.type === "connect"
       && event.containerName === alice.containerName
       && event.networkName === networkName,
@@ -567,34 +567,34 @@ function assertPartitionSmoke(applyResult, resetResult) {
 function assertToxiproxyLatencySmoke(applyResult, resetResult) {
   requireChangedSmokeEvent(
     applyResult,
-    "high-latency applies Toxiproxy latency to alice-node API peer link",
+    "high-latency applies Toxiproxy latency to alice-server API peer link",
     (event) => event.type === "toxiproxy"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-api"
       && event.toxicType === "latency"
       && event.attributes?.latency === 250,
   );
   requireChangedSmokeEvent(
     applyResult,
-    "high-latency applies Toxiproxy latency to alice-node realtime peer link",
+    "high-latency applies Toxiproxy latency to alice-server realtime peer link",
     (event) => event.type === "toxiproxy"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-realtime"
       && event.toxicType === "latency"
       && event.attributes?.latency === 250,
   );
   requireChangedSmokeEvent(
     resetResult,
-    "high-latency reset clears Toxiproxy latency from alice-node API peer link",
+    "high-latency reset clears Toxiproxy latency from alice-server API peer link",
     (event) => event.type === "toxiproxy-reset"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-api",
   );
   requireChangedSmokeEvent(
     resetResult,
-    "high-latency reset clears Toxiproxy latency from alice-node realtime peer link",
+    "high-latency reset clears Toxiproxy latency from alice-server realtime peer link",
     (event) => event.type === "toxiproxy-reset"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-realtime",
   );
 }
@@ -602,34 +602,34 @@ function assertToxiproxyLatencySmoke(applyResult, resetResult) {
 function assertToxiproxyTimeoutSmoke(applyResult, resetResult) {
   requireChangedSmokeEvent(
     applyResult,
-    "packet-loss applies Toxiproxy timeout toxicity to alice-node API peer link",
+    "packet-loss applies Toxiproxy timeout toxicity to alice-server API peer link",
     (event) => event.type === "toxiproxy"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-api"
       && event.toxicType === "timeout"
       && event.toxicity === 1,
   );
   requireChangedSmokeEvent(
     applyResult,
-    "packet-loss applies Toxiproxy timeout toxicity to alice-node realtime peer link",
+    "packet-loss applies Toxiproxy timeout toxicity to alice-server realtime peer link",
     (event) => event.type === "toxiproxy"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-realtime"
       && event.toxicType === "timeout"
       && event.toxicity === 1,
   );
   requireChangedSmokeEvent(
     resetResult,
-    "packet-loss reset clears Toxiproxy timeout from alice-node API peer link",
+    "packet-loss reset clears Toxiproxy timeout from alice-server API peer link",
     (event) => event.type === "toxiproxy-reset"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-api",
   );
   requireChangedSmokeEvent(
     resetResult,
-    "packet-loss reset clears Toxiproxy timeout from alice-node realtime peer link",
+    "packet-loss reset clears Toxiproxy timeout from alice-server realtime peer link",
     (event) => event.type === "toxiproxy-reset"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.proxyName === "alice-to-bob-realtime",
   );
 }
@@ -637,9 +637,9 @@ function assertToxiproxyTimeoutSmoke(applyResult, resetResult) {
 function assertAppFaultSmoke(applyResult, resetResult) {
   requireChangedSmokeEvent(
     applyResult,
-    "flaky-mobile applies realtime app faults to alice-node",
+    "flaky-mobile applies realtime app faults to alice-server",
     (event) => event.type === "app-fault"
-      && event.target === "alice-node"
+      && event.target === "alice-server"
       && event.config?.delay_ms === 200
       && event.config?.drop_rate === 0.05
       && event.config?.disconnect_after_seconds === 45
@@ -647,9 +647,9 @@ function assertAppFaultSmoke(applyResult, resetResult) {
   );
   requireChangedSmokeEvent(
     resetResult,
-    "flaky-mobile reset restores realtime app faults on alice-node",
+    "flaky-mobile reset restores realtime app faults on alice-server",
     (event) => event.type === "app-fault-reset"
-      && event.target === "alice-node",
+      && event.target === "alice-server",
   );
 }
 
@@ -803,11 +803,11 @@ function printResult(result, json) {
   }
 }
 
-function seedProfile(profileName, node) {
+function seedProfile(profileName, server) {
   composeWithProfiles(["tools"], [
     "run",
     "--rm",
-    `${node}-seed`,
+    `${server}-seed`,
     "cargo",
     "run",
     "-p",
@@ -942,29 +942,29 @@ async function smoke(options) {
       assertToxiproxyPeerReachability(true, "partition reset");
       appendEvidenceEvent(evidenceDir, { type: "observe", profile: "partition-alice-bob", phase: "reset", check: "peer-reachability", reachable: true });
       appendEvidenceEvent(evidenceDir, { type: "observe", profile: "partition-alice-bob", phase: "reset", check: "toxiproxy-peer-reachability", reachable: true });
-      const latencyApply = runNetworkJson(["--profile", "high-latency", "--target", "alice-node"]);
+      const latencyApply = runNetworkJson(["--profile", "high-latency", "--target", "alice-server"]);
       appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "high-latency", result: latencyApply });
-      assertToxiproxyLatency("alice-node", 150);
-      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "high-latency", check: "toxiproxy-latency", target: "alice-node", minimumMs: 150 });
+      assertToxiproxyLatency("alice-server", 150);
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "high-latency", check: "toxiproxy-latency", target: "alice-server", minimumMs: 150 });
       const latencyReset = runNetworkJson(["--reset"]);
       appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "high-latency", result: latencyReset });
       assertToxiproxyLatencySmoke(latencyApply, latencyReset);
-      await assertToxiproxyNoToxics("alice-node", "latency reset");
+      await assertToxiproxyNoToxics("alice-server", "latency reset");
       await waitForStack();
       assertToxiproxyPeerReachability(true, "latency reset");
       appendEvidenceEvent(evidenceDir, { type: "observe", profile: "high-latency", phase: "reset", check: "toxiproxy-clear-and-reachability", reachable: true });
-      const timeoutApply = runNetworkJson(["--profile", "packet-loss", "--target", "alice-node"]);
+      const timeoutApply = runNetworkJson(["--profile", "packet-loss", "--target", "alice-server"]);
       appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "packet-loss", result: timeoutApply });
-      assertToxiproxyBlocked("alice-node", "packet-loss");
-      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "packet-loss", check: "toxiproxy-blocked", target: "alice-node" });
+      assertToxiproxyBlocked("alice-server", "packet-loss");
+      appendEvidenceEvent(evidenceDir, { type: "observe", profile: "packet-loss", check: "toxiproxy-blocked", target: "alice-server" });
       const timeoutReset = runNetworkJson(["--reset"]);
       appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "packet-loss", result: timeoutReset });
       assertToxiproxyTimeoutSmoke(timeoutApply, timeoutReset);
-      await assertToxiproxyNoToxics("alice-node", "timeout reset");
+      await assertToxiproxyNoToxics("alice-server", "timeout reset");
       await waitForStack();
       assertToxiproxyPeerReachability(true, "timeout reset");
       appendEvidenceEvent(evidenceDir, { type: "observe", profile: "packet-loss", phase: "reset", check: "toxiproxy-clear-and-reachability", reachable: true });
-      const appFaultApply = runNetworkJson(["--profile", "flaky-mobile", "--target", "alice-node"]);
+      const appFaultApply = runNetworkJson(["--profile", "flaky-mobile", "--target", "alice-server"]);
       appendEvidenceEvent(evidenceDir, { type: "network-apply", profile: "flaky-mobile", result: appFaultApply });
       const appFaultReset = runNetworkJson(["--reset"]);
       appendEvidenceEvent(evidenceDir, { type: "network-reset", profile: "flaky-mobile", result: appFaultReset });

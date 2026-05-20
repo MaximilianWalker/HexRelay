@@ -297,7 +297,7 @@ struct InviteFixture {
     token_hash: String,
     mode: String,
     creator_identity_id: String,
-    node_fingerprint: String,
+    server_id: String,
     expires_at: Option<String>,
     max_uses: Option<i32>,
     uses: i32,
@@ -793,9 +793,9 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
             )));
         }
         require_identity(&identity_ids, &invite.creator_identity_id, "invite creator")?;
-        if invite.node_fingerprint.trim().is_empty() {
+        if invite.server_id.trim().is_empty() {
             return Err(DevSeedError::Config(format!(
-                "invite '{}' requires node_fingerprint",
+                "invite '{}' requires server_id",
                 invite.invite_id
             )));
         }
@@ -822,7 +822,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
 
     if scenario.servers.len() > 1 {
         return Err(DevSeedError::Config(
-            "server fixtures seed one local server node at a time".to_string(),
+            "server fixtures seed one local server at a time".to_string(),
         ));
     }
 
@@ -1228,7 +1228,7 @@ async fn seed_invite(
             token,
             mode,
             creator_identity_id,
-            node_fingerprint,
+            server_id,
             expires_at,
             max_uses,
             uses,
@@ -1239,7 +1239,7 @@ async fn seed_invite(
         SET invite_id = EXCLUDED.invite_id,
             mode = EXCLUDED.mode,
             creator_identity_id = EXCLUDED.creator_identity_id,
-            node_fingerprint = EXCLUDED.node_fingerprint,
+            server_id = EXCLUDED.server_id,
             expires_at = EXCLUDED.expires_at,
             max_uses = EXCLUDED.max_uses,
             uses = EXCLUDED.uses,
@@ -1250,7 +1250,7 @@ async fn seed_invite(
     .bind(&invite.token_hash)
     .bind(&invite.mode)
     .bind(&invite.creator_identity_id)
-    .bind(&invite.node_fingerprint)
+    .bind(&invite.server_id)
     .bind(invite.expires_at.as_deref())
     .bind(invite.max_uses)
     .bind(invite.uses)

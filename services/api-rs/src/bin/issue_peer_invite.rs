@@ -1,5 +1,5 @@
 use api_rs::{
-    config::{parse_i64_env, parse_required_local_node_identity},
+    config::{parse_i64_env, parse_required_local_server_identity},
     domain::peer_invites::{
         current_epoch_seconds, issue_peer_invite, peer_invite_issue_usage,
         PeerInviteIssueCliOptions, DEFAULT_PEER_INVITE_MAX_TTL_SECONDS,
@@ -41,15 +41,15 @@ fn run() -> Result<(), String> {
         ));
     }
 
-    let expected_node_id = std::env::var("API_NODE_FINGERPRINT")
+    let expected_server_id = std::env::var("API_SERVER_ID")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let local_identity = parse_required_local_node_identity(
-        "API_LOCAL_NODE_DESCRIPTOR_JSON",
-        "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+    let local_identity = parse_required_local_server_identity(
+        "API_LOCAL_SERVER_DESCRIPTOR_JSON",
+        "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
         configured_max_ttl_seconds,
-        expected_node_id.as_deref(),
+        expected_server_id.as_deref(),
     )?;
     let issued_at_epoch_seconds = current_epoch_seconds().map_err(|error| error.to_string())?;
     let envelope = issue_peer_invite(

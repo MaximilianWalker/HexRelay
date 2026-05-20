@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-node authority model and local node fingerprint binding.
+- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-to-server authority model and local server id binding.
 
 ## Organization Decision
 
@@ -51,12 +51,12 @@
 - Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
-- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets and Toxiproxy inter-node links.
+- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `local_server`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, `server_roles`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, fanout, catch-up, and profile-device APIs exist; the browser DM route exists, while full end-to-end client encryption remains incremental.
-- The DM envelope delivery guardrail is active and must not be weakened by testing features: message nodes may carry/store ciphertext envelopes only, while plaintext and private keys remain client/device-only.
-- API integration coverage includes a local two-node HTTP smoke that runs two API routers, signs node-forwarded DM envelopes, forwards over actual HTTP, and verifies DB-backed encrypted-envelope acceptance plus sender-side outbound forwarding state.
+- The DM envelope delivery guardrail is active and must not be weakened by testing features: message servers may carry/store ciphertext envelopes only, while plaintext and private keys remain client/device-only.
+- API integration coverage includes a local two-server HTTP smoke that runs two API routers, signs server-forwarded DM envelopes, forwards over actual HTTP, and verifies DB-backed encrypted-envelope acceptance plus sender-side outbound forwarding state.
 
 ## Guiding Principles
 
@@ -142,7 +142,7 @@
 
 ### Server and Channel Data
 
-- Create one shared test server fixture. The JSON template keeps a stable fixture id, but the seed CLI binds it to the configured local node fingerprint at seed time, defaulting to `hexrelay-local-fingerprint`.
+- Create one shared test server fixture. The JSON template keeps a stable fixture id, but the seed CLI binds it to the configured local server id at seed time, defaulting to `hexrelay-local-server`.
 - Add Alice, Bob, and Carol as members with varied `favorite`, `muted`, and `unread_count` values.
 - Create at least two text channels, for example `general` and `ops-lab`.
 - Seed server channel messages with mentions and one reply where constraints allow it.
@@ -273,7 +273,7 @@ npm run reset-dev-db -- --profile all --yes
 
 ### Objective
 
-- Start more than one local HexRelay instance for connection and multi-node testing.
+- Start more than one local HexRelay instance for connection and multi-server testing.
 - Avoid manual port edits.
 - Keep instance logs and lifecycle clear.
 
@@ -282,8 +282,8 @@ npm run reset-dev-db -- --profile all --yes
 | File | Purpose |
 |---|---|
 | `scripts/runtime-profiles/single.json` | One API, one realtime, one web |
-| `scripts/runtime-profiles/dual.json` | Alice node plus Bob node |
-| `scripts/runtime-profiles/triple.json` | Alice, Bob, and Carol/Dave edge node |
+| `scripts/runtime-profiles/dual.json` | Alice server plus Bob server |
+| `scripts/runtime-profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
 
 ### Runtime Profile Shape
 
@@ -292,14 +292,14 @@ npm run reset-dev-db -- --profile all --yes
   "name": "dual",
   "instances": [
     {
-      "id": "alice-node",
+      "id": "alice-server",
       "apiPort": 18080,
       "realtimePort": 18081,
       "webPort": 3002,
       "seedPersona": "alice.primary"
     },
     {
-      "id": "bob-node",
+      "id": "bob-server",
       "apiPort": 18180,
       "realtimePort": 18181,
       "webPort": 3012,
@@ -338,15 +338,15 @@ npm run reset-dev-db -- --profile all --yes
 
 - Normal development remains host-process based through `npm run start`.
 - Docker runtime testing is reserved for heavier runtime/network scenarios and CI-style validation.
-- `infra/docker-compose.runtime-test.yml` starts per-node Postgres, Redis, MinIO, and two runtime nodes.
-- Each runtime node has API, realtime, and web containers sharing a node network namespace.
+- `infra/docker-compose.runtime-test.yml` starts per-server Postgres, Redis, MinIO, and two runtime servers.
+- Each runtime server has API, realtime, and web containers sharing a server network namespace.
 - Runtime-test host ports are bound to `127.0.0.1` only.
-- `alice-node` exposes API `18080`, realtime `18081`, and web `3002` on loopback.
-- `bob-node` exposes API `18180`, realtime `18181`, and web `3012` on loopback.
-- Nodes attach to per-node infra networks plus one shared simulation network so Docker network partitions do not sever local Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path through shared infra.
-- `.local-run/runtime-state.json` records `containerName` and simulation `networkName` metadata so `npm run network` can resolve `alice-node` and `bob-node` as Docker targets.
+- `alice-server` exposes API `18080`, realtime `18081`, and web `3002` on loopback.
+- `bob-server` exposes API `18180`, realtime `18181`, and web `3012` on loopback.
+- Servers attach to per-server infra networks plus one shared simulation network so Docker network partitions do not sever local Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path through shared infra.
+- `.local-run/runtime-state.json` records `containerName` and simulation `networkName` metadata so `npm run network` can resolve `alice-server` and `bob-server` as Docker targets.
 - Docker runtime seeding prints dev session cookies/headers, but the web Settings testing-profile picker remains disabled in this stack because API dev-testing endpoints require loopback-only API/database binds.
-- `runtime:docker -- up --seed-profile <profile>` seeds both Alice and Bob node databases.
+- `runtime:docker -- up --seed-profile <profile>` seeds both Alice and Bob server databases.
 
 ### Docker Runtime Commands
 
@@ -392,7 +392,7 @@ node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/
 | `scripts/network-profiles/normal.json` | Clear all shaping and partitions |
 | `scripts/network-profiles/high-latency.json` | Add fixed latency to selected target |
 | `scripts/network-profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
-| `scripts/network-profiles/offline-alice.json` | Disconnect Alice node from selected network |
+| `scripts/network-profiles/offline-alice.json` | Disconnect Alice server from selected network |
 | `scripts/network-profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
 | `scripts/network-profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
 
@@ -425,14 +425,14 @@ npm run network -- --reset
 - Record applied network profile state under `.local-run/network-state.json`.
 - `network --reset --force` is reserved for runtime cleanup after failed Docker smoke paths and may remove stale local network-state metadata after best-effort restore.
 - Current `single`/`dual`/`triple` runtime profiles launch host processes, so Docker network actions fail safe for those host-process instance IDs.
-- The Docker runtime test stack writes container metadata for `alice-node` and `bob-node`, so Docker-backed profiles can apply against those instance IDs.
+- The Docker runtime test stack writes container metadata for `alice-server` and `bob-server`, so Docker-backed profiles can apply against those instance IDs.
 - Docker-backed profiles act on the runtime simulation network, not the infra network.
-- Infra dependencies are per-node; Alice and Bob do not share Postgres, Redis, MinIO, or an infra network with each other.
+- Infra dependencies are per-server; Alice and Bob do not share Postgres, Redis, MinIO, or an infra network with each other.
 
 ### Toxiproxy Peer Links
 
 - Use Toxiproxy in the Docker runtime stack for latency, jitter, and timeout-based TCP simulations.
-- Runtime state records Toxiproxy proxy metadata so `network --profile high-latency --target alice-node` applies to Alice's proxied peer links.
+- Runtime state records Toxiproxy proxy metadata so `network --profile high-latency --target alice-server` applies to Alice's proxied peer links.
 - `packet-loss` is a deterministic timeout approximation, not packet-level loss.
 - Toxiproxy profiles require Docker runtime targets; host-process runtime profiles fail safe.
 - Keep Toxiproxy reset deterministic by deleting active toxics recorded in `.local-run/network-state.json`.
@@ -448,7 +448,7 @@ npm run network -- --reset
 ### DM Envelope Delivery Guardrail
 
 - Network simulation must not add server-readable plaintext, private-key custody, unencrypted mailboxing, or plaintext relay behavior to DM runtime behavior.
-- Optional node-to-node failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-node delivery.
+- Optional server-to-server failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-server delivery.
 - Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
 - The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
 
@@ -575,7 +575,7 @@ npm run network -- --reset
 | PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
 | PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
 | PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
-| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime-docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime nodes expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
+| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime-docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime servers expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
 
 ### PH-06 Tasks
 
@@ -623,7 +623,7 @@ Critical path:
 | DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
 | DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
 | DEC-04 | Network simulation | Docker controls plus Toxiproxy plus app-level dev faults | Keeps Windows/Linux behavior Docker-only and deterministic | Toxiproxy is TCP-level rather than packet-level shaping |
-| DEC-05 | DM transport | Validate encrypted-envelope message-node delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or node-bypassing client DM transport/bootstrap surfaces |
+| DEC-05 | DM transport | Validate encrypted-envelope message-server delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or server-bypassing client DM transport/bootstrap surfaces |
 | DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
 
 ## Risks and Mitigations
@@ -660,7 +660,7 @@ Critical path:
 - `status` reports every instance and health URL.
 - `stop` cleans every tracked local process.
 - `network --profile offline-alice` makes Alice unreachable or disconnected in a visible way.
-- `network --profile partition-alice-bob` degrades node/realtime connectivity without introducing plaintext/key custody, unencrypted relay behavior, or node-bypassing DM transport.
+- `network --profile partition-alice-bob` degrades server/realtime connectivity without introducing plaintext/key custody, unencrypted relay behavior, or server-bypassing DM transport.
 - `network --reset` restores normal connectivity.
 - Dev session bootstrap is unavailable or inert outside development mode.
 - Production builds do not expose test profile controls.

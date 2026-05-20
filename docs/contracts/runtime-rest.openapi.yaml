@@ -7,19 +7,19 @@ info:
     This artifact defines currently implemented REST behavior and must be
     updated when runtime endpoint payloads, auth semantics, or error codes change.
     Auth challenge/verify distributed rate-limit key derivation uses deterministic
-    source fingerprint hashing so enforcement remains consistent across instances.
+    source key hashing so enforcement remains consistent across instances.
     Distributed counter cleanup runs at most once per process/window epoch to avoid
     per-request cleanup amplification while preserving stale-window pruning.
     Server membership and server-channel authorization decisions emit structured
-    allow/deny/failure logs for node-owner debugging without changing response
+    allow/deny/failure logs for server-owner debugging without changing response
     contracts.
     Server-channel message edit/delete author-authorization decisions also emit
-    structured allow/deny/failure logs for node-owner debugging without changing
+    structured allow/deny/failure logs for server-owner debugging without changing
     response contracts.
-    Realtime/presence integration uses the shared communication-core node-client
+    Realtime/presence integration uses the shared communication-core server-client
     adapter boundary without changing REST route or payload contracts.
-    Shared NodeClientTransport dispatch paths emit stable provenance telemetry
-    with snake-case mode/profile/reason-code values (`dm_envelope_node_route_selected`,
+    Shared ServerClientTransport dispatch paths emit stable provenance telemetry
+    with snake-case mode/profile/reason-code values (`dm_envelope_server_route_selected`,
     `server_channel_route_selected`, `presence_route_selected`) without adding
     fields to REST request or response bodies.
     Server-channel realtime dispatch records internal accepted-summary telemetry
@@ -29,11 +29,11 @@ info:
     handed to the internal realtime routes through a bounded per-process FIFO
     queue so persisted create/update/delete notifications are issued in adapter
     order; REST success remains non-transactional with downstream realtime
-    delivery and does not guarantee durable retry. DM delivery uses server-node
+    delivery and does not guarantee durable retry. DM delivery uses server-to-server
     P2P E2EE ciphertext envelopes plus minimal delivery metadata; runtime
-    contracts must not expose node-bypassing DM bootstrap or plaintext relay
-    behavior. App-to-node dedicated-server administration starts with a public
-    node connection descriptor plus an authenticated capabilities endpoint;
+    contracts must not expose server-bypassing DM bootstrap or plaintext relay
+    behavior. App-to-server dedicated-server administration starts with a public
+    server connection descriptor plus an authenticated capabilities endpoint;
     admin/owner status is returned only after normal session auth.
 servers:
   - url: https://api.hexrelay.local
@@ -54,43 +54,43 @@ paths:
                   value:
                     service: api-rs
                     status: ok
-  /node/connection:
+  /server/connection:
     get:
-      summary: Resolve node connection metadata for the app
+      summary: Resolve server connection metadata for the app
       description: |
-        Public app-to-node connection contract. The response lets the app verify
+        Public app-to-server connection contract. The response lets the app verify
         that a manually entered or invite-provided endpoint is a HexRelay API
-        node and locate the auth/capability endpoints without exposing
+        server and locate the auth/capability endpoints without exposing
         admin-only state. This endpoint is not a discovery listing and does not
         imply peering, relay, delivery, or management permission.
       responses:
         '200':
-          description: Node connection metadata for a known endpoint.
+          description: Server connection metadata for a known endpoint.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NodeConnectionResponse'
+                $ref: '#/components/schemas/ServerConnectionResponse'
               examples:
-                localNodeConnection:
-                  summary: App can verify node identity and auth endpoint paths
+                localServerConnection:
+                  summary: App can verify server identity and auth endpoint paths
                   value:
                     service: api-rs
-                    node_id: hexrelay-local-fingerprint
-                    node_fingerprint: hexrelay-local-fingerprint
+                    server_id: hexrelay-local-server
+                    server_public_key: null
                     runtime_api: hexrelay_runtime_rest
                     auth_endpoints:
                       challenge: /auth/challenge
                       verify: /auth/verify
                       session_validate: /auth/sessions/validate
-                    capabilities_endpoint: /node/capabilities
-  /node/capabilities:
+                    capabilities_endpoint: /server/capabilities
+  /server/capabilities:
     get:
-      summary: Resolve authenticated app capabilities on the connected node
+      summary: Resolve authenticated app capabilities on the connected server
       description: |
-        Authenticated app-to-node capability contract used after normal
+        Authenticated app-to-server capability contract used after normal
         challenge/verify or existing session validation. The response tells the
-        app which node capabilities are available to the signed-in identity and
-        whether that identity currently has node-owner or node-admin authority.
+        app which server capabilities are available to the signed-in identity and
+        whether that identity currently has server-owner or server-admin authority.
         LAN proximity, discoverability, invite-only status, or private hosting
         do not affect this decision.
       security:
@@ -102,40 +102,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NodeCapabilitiesResponse'
+                $ref: '#/components/schemas/ServerCapabilitiesResponse'
               examples:
-                nodeOwner:
+                serverOwner:
                   summary: Configured owner receives owner and admin capabilities
                   value:
-                    node_id: node-private-a
-                    node_fingerprint: node-private-a
+                    server_id: server-private-a
+                    server_public_key: '8f2f4b16c6a1e0b5f2c1d0e5a7b8c9d00112233445566778899aabbccddeeff0'
                     identity_id: usr-owner
                     capabilities:
-                      - node_connect
+                      - server_connect
                       - auth_session
                       - realtime_connect
                       - dm_encrypted_envelope
-                      - node_admin
-                      - node_operator
-                      - node_owner
+                      - server_admin
+                      - server_operator
+                      - server_owner
                     administration:
-                      is_node_owner: true
-                      is_node_admin: true
-                      scopes: [node_admin, node_operator, node_owner]
+                      is_server_owner: true
+                      is_server_admin: true
+                      scopes: [server_admin, server_operator, server_owner]
                 regularMember:
                   summary: Authenticated non-admin can connect without management authority
                   value:
-                    node_id: node-private-a
-                    node_fingerprint: node-private-a
+                    server_id: server-private-a
+                    server_public_key: '8f2f4b16c6a1e0b5f2c1d0e5a7b8c9d00112233445566778899aabbccddeeff0'
                     identity_id: usr-member
                     capabilities:
-                      - node_connect
+                      - server_connect
                       - auth_session
                       - realtime_connect
                       - dm_encrypted_envelope
                     administration:
-                      is_node_owner: false
-                      is_node_admin: false
+                      is_server_owner: false
+                      is_server_admin: false
                       scopes: []
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -636,11 +636,11 @@ paths:
                   value:
                     code: invite_invalid
                     message: invite token is invalid
-                fingerprintMismatch:
-                  summary: Token is bound to another node fingerprint
+                serverMismatch:
+                  summary: Token is bound to another server id
                   value:
-                    code: fingerprint_mismatch
-                    message: invite node fingerprint mismatch
+                    code: server_mismatch
+                    message: invite server id mismatch
                 inviteExpired:
                   summary: Token has expired
                   value:
@@ -812,7 +812,7 @@ paths:
   /servers:
     get:
       summary: List servers for authenticated identity
-      description: Returns the connected node/server summary for the authenticated identity when that identity has local membership. The app may aggregate multiple joined server nodes across endpoints, but one API runtime only authorizes its own node fingerprint as the server id. Backing storage is the singleton `local_server` plus node-local membership/channel/role/message tables, not many server authorities inside one runtime database.
+      description: Returns the connected server summary for the authenticated identity when that identity has local membership. The app may aggregate multiple joined servers across endpoints, but one API runtime only authorizes its own `server_id`. Backing storage is the singleton `local_server` plus server-local membership/channel/role/message tables, not many server authorities inside one runtime database.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -839,19 +839,19 @@ paths:
       responses:
         '200':
           description: >-
-            Connected-node server summary after favorites/unread/muted/search
+            Connected-server summary after favorites/unread/muted/search
             filters are applied. Multi-server app views aggregate this shape
-            across joined node endpoints.
+            across joined server endpoints.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerListResponse'
               examples:
                 filteredServers:
-                  summary: Filtered connected-node server summary for the authenticated identity
+                  summary: Filtered connected-server summary for the authenticated identity
                   value:
                     items:
-                      - id: hexrelay-local-fingerprint
+                      - id: hexrelay-local-server
                         name: Shared Lab
                         unread: 3
                         favorite: true
@@ -875,7 +875,7 @@ paths:
   /servers/{server_id}:
     get:
       summary: Get a single joined server for authenticated identity
-      description: Returns the connected node/server summary only when `server_id` matches the connected node fingerprint and the authenticated identity has persisted membership for that node. Non-members or requests for a different node id receive deterministic `403 server_access_denied` without exposing extra membership state.
+      description: Returns the connected server summary only when `server_id` matches the connected server id and the authenticated identity has persisted membership for that server. Non-members or requests for a different server id receive deterministic `403 server_access_denied` without exposing extra membership state.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -911,7 +911,7 @@ paths:
   /servers/{server_id}/channels:
     get:
       summary: List channels for an authorized server member
-      description: Returns persisted channels for the connected node/server only when `server_id` matches the connected node fingerprint and the authenticated identity has membership in that node. When role permissions are configured for a channel, the list includes only channels where at least one assigned role grants read access; channels without configured role permissions keep the current member-readable default. Results use stable creation order and expose the current `last_message_seq` cursor baseline for each channel.
+      description: Returns persisted channels for the connected server only when `server_id` matches the connected server id and the authenticated identity has membership in that server. When role permissions are configured for a channel, the list includes only channels where at least one assigned role grants read access; channels without configured role permissions keep the current member-readable default. Results use stable creation order and expose the current `last_message_seq` cursor baseline for each channel.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -947,7 +947,7 @@ paths:
   /servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages for an authorized member
-      description: Returns persisted server-channel messages only when `server_id` matches the connected node fingerprint, the authenticated identity has membership in that node, the requested `channel_id` belongs to that same node/server, and any configured channel role permissions grant the caller read access. Authentication and requested-server membership are verified before channel existence is evaluated, so unauthenticated requests return `401 session_invalid` without exposing channel-id existence. Authenticated member requests for unknown channel ids return `404 channel_not_found`, while non-local server ids, cross-server path mismatches, or configured read-permission denial fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
+      description: Returns persisted server-channel messages only when `server_id` matches the connected server id, the authenticated identity has membership in that server, the requested `channel_id` belongs to that same server, and any configured channel role permissions grant the caller read access. Authentication and requested-server membership are verified before channel existence is evaluated, so unauthenticated requests return `401 session_invalid` without exposing channel-id existence. Authenticated member requests for unknown channel ids return `404 channel_not_found`, while non-local server ids, cross-server path mismatches, or configured read-permission denial fail with deterministic `403 server_access_denied`. Results are ordered by descending `channel_seq` and use the last returned `channel_seq` as a strictly exclusive string cursor.
       security:
         - CookieAuth: []
         - BearerAuth: []
@@ -1048,8 +1048,8 @@ paths:
       summary: Create a server-channel message for an authorized member
       description: >-
         Persists a new server-channel message for an authenticated server member
-        when `server_id` matches the connected node fingerprint and the requested
-        `channel_id` belongs to that same connected node/server, optionally linking
+        when `server_id` matches the connected server id and the requested
+        `channel_id` belongs to that same connected server, optionally linking
         a same-channel reply target and persisted
         mention identities. When role permissions are configured for the channel,
         at least one assigned role must grant both read and send access; channels
@@ -1062,7 +1062,7 @@ paths:
         deterministic `403 server_access_denied`. Successful writes best-effort
         fan out `channel.message.created` over realtime delivery to current
         channel-read-authorized server members, routed through the shared
-        `NodeClientTransport` adapter path using borrowed request serialization
+        `ServerClientTransport` adapter path using borrowed request serialization
         on the API side. REST success is
         not transactional with downstream realtime delivery: dispatch happens
         after persistence, downstream failures are logged, and no durable retry
@@ -1187,9 +1187,9 @@ paths:
       summary: Edit a server-channel message for an authorized author
       description: >-
         Updates the message content and replacement mention set for an existing
-        server-channel message when `server_id` matches the connected node
-        fingerprint, the authenticated identity is both a member of that node/server,
-        the requested `channel_id` belongs to that same node/server,
+        server-channel message when `server_id` matches the connected server
+        server id, the authenticated identity is both a member of that server,
+        the requested `channel_id` belongs to that same server,
         the caller is the original message author, and any configured channel
         role permissions grant send access. Authentication and
         requested-server membership are verified before channel existence is
@@ -1200,7 +1200,7 @@ paths:
         `403 server_access_denied`.
         Successful non-noop edits best-effort fan out `channel.message.updated`
         over realtime delivery to current channel-read-authorized server
-        members, routed through the shared `NodeClientTransport` adapter path.
+        members, routed through the shared `ServerClientTransport` adapter path.
         REST success is not
         transactional with downstream realtime delivery: dispatch happens after
         persistence, downstream failures are logged, and no durable retry is
@@ -1350,9 +1350,9 @@ paths:
       summary: Soft-delete a server-channel message for an authorized author
       description: >-
         Soft-deletes a server-channel message when `server_id` matches the
-        connected node fingerprint, the authenticated identity is both a member
-        of that node/server, the requested `channel_id` belongs to that
-        same node/server, the caller is the original author, and any configured
+        connected server id, the authenticated identity is both a member
+        of that server, the requested `channel_id` belongs to that
+        same server, the caller is the original author, and any configured
         channel role permissions grant send access. Authentication and
         requested-server membership are verified before channel existence is
         evaluated, so unauthenticated requests return `401 session_invalid`
@@ -1362,7 +1362,7 @@ paths:
         `403 server_access_denied`.
         First-time deletes best-effort fan out `channel.message.deleted` over
         realtime delivery to current channel-read-authorized server members,
-        routed through the shared `NodeClientTransport` adapter path, while
+        routed through the shared `ServerClientTransport` adapter path, while
         repeated deletes remain
         idempotent without duplicate fanout. REST success is not transactional
         with downstream realtime delivery: dispatch happens after persistence,
@@ -1632,58 +1632,58 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /internal/dm/envelopes/forward:
     post:
-      summary: Receive authenticated server-node forwarded DM envelope
+      summary: Receive authenticated server-to-server forwarded DM envelope
       description: >-
-        Internal server-node endpoint for authenticated static-peer encrypted DM
+        Internal server-to-server endpoint for authenticated static-peer encrypted DM
         envelope forwarding. The sender signs the exact JSON request body with
-        its node identity key; the receiver validates the origin descriptor,
+        its server identity key; the receiver validates the origin descriptor,
         static-peer allowlist membership, timestamp window, nonce replay guard,
-        destination node id, and local delivery policy before handing the
+        destination server id, and local delivery policy before handing the
         encrypted envelope to the same local-recipient fanout acceptance path
         used by `/dm/fanout/dispatch`.
       parameters:
         - in: header
-          name: x-hexrelay-node-id
+          name: x-hexrelay-server-id
           required: true
           schema:
             type: string
-          description: Origin server-node id matching `origin_node_descriptor.node_id`.
+          description: Origin server id matching `origin_server_descriptor.server_id`.
         - in: header
-          name: x-hexrelay-node-descriptor-id
+          name: x-hexrelay-server-descriptor-id
           required: true
           schema:
             type: string
-          description: Origin descriptor id matching `origin_node_descriptor.descriptor_id`.
+          description: Origin descriptor id matching `origin_server_descriptor.descriptor_id`.
         - in: header
-          name: x-hexrelay-node-signature-algorithm
+          name: x-hexrelay-server-signature-algorithm
           required: true
           schema:
             type: string
             enum: [ed25519]
         - in: header
-          name: x-hexrelay-node-signature-timestamp
+          name: x-hexrelay-server-signature-timestamp
           required: true
           schema:
             type: string
-          description: Unix epoch seconds used in the node-forward request signature.
+          description: Unix epoch seconds used in the server-forward request signature.
         - in: header
-          name: x-hexrelay-node-signature-nonce
+          name: x-hexrelay-server-signature-nonce
           required: true
           schema:
             type: string
           description: Per-origin nonce rejected on replay within the accepted timestamp window.
         - in: header
-          name: x-hexrelay-node-signature
+          name: x-hexrelay-server-signature
           required: true
           schema:
             type: string
-          description: Hex-encoded Ed25519 signature over the canonical node-forward request payload.
+          description: Hex-encoded Ed25519 signature over the canonical server-forward request payload.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NodeForwardDmEnvelopeRequest'
+              $ref: '#/components/schemas/ServerForwardDmEnvelopeRequest'
       responses:
         '200':
           description: Forwarded encrypted envelope accepted for local-recipient delivery.
@@ -1696,29 +1696,29 @@ paths:
                   value:
                     status: accepted
                     reason_code: fanout_pending_delivery
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     delivery_state: pending_delivery
                     reachability_state: unknown
                     fanout_count: 0
                     delivered_device_ids: []
                     skipped_device_ids: []
         '400':
-          description: Node-forward request body or route shape is invalid.
+          description: Server-forward request body or route shape is invalid.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
               examples:
-                nodeForwardInvalid:
+                serverForwardInvalid:
                   value:
-                    code: node_forward_invalid
-                    message: node-forwarded DM envelope body must be valid JSON
+                    code: server_forward_invalid
+                    message: server-forwarded DM envelope body must be valid JSON
                 routeUnsupported:
                   value:
-                    code: node_forward_route_unsupported
-                    message: only direct static-peer node forwarding is supported
+                    code: server_forward_route_unsupported
+                    message: only direct static-peer server forwarding is supported
         '401':
-          description: Node-forward signature, descriptor, or static-peer authorization failed.
+          description: Server-forward signature, descriptor, or static-peer authorization failed.
           content:
             application/json:
               schema:
@@ -1726,18 +1726,18 @@ paths:
               examples:
                 signatureMissing:
                   value:
-                    code: node_forward_signature_missing
-                    message: node forwarding signature headers are required
+                    code: server_forward_signature_missing
+                    message: server forwarding signature headers are required
                 signatureInvalid:
                   value:
-                    code: node_forward_signature_invalid
-                    message: node forwarding signature could not be verified
+                    code: server_forward_signature_invalid
+                    message: server forwarding signature could not be verified
                 peerNotAllowed:
                   value:
-                    code: node_forward_peer_not_allowed
-                    message: origin node is not an allowed static peer
+                    code: server_forward_peer_not_allowed
+                    message: origin server is not an allowed static peer
         '403':
-          description: Receiver local node policy refuses this forward.
+          description: Receiver local server policy refuses this forward.
           content:
             application/json:
               schema:
@@ -1745,8 +1745,8 @@ paths:
               examples:
                 destinationMismatch:
                   value:
-                    code: node_forward_destination_mismatch
-                    message: node-forwarded DM envelope destination does not match this node
+                    code: server_forward_destination_mismatch
+                    message: server-forwarded DM envelope destination does not match this server
         '409':
           description: Forwarding nonce or accepted message id conflicts with existing state.
           content:
@@ -1756,8 +1756,8 @@ paths:
               examples:
                 replay:
                   value:
-                    code: node_forward_replay
-                    message: node forwarding signature nonce has already been used
+                    code: server_forward_replay
+                    message: server forwarding signature nonce has already been used
                 messageIdConflict:
                   value:
                     code: fanout_message_id_conflict
@@ -2009,13 +2009,13 @@ paths:
     post:
       summary: Fanout incoming DM payload to active devices of recipient profile
       description: >-
-        Profile-device convergence primitive for server-node P2P E2EE DM
-        envelopes. When `destination_node_id` is omitted or points at the
-        local node, success means the encrypted DM payload is durably accepted
+        Profile-device convergence primitive for server-to-server P2P E2EE DM
+        envelopes. When `destination_server_id` is omitted or points at the
+        local server, success means the encrypted DM payload is durably accepted
         into canonical DM history plus delivery metadata before active-device
-        delivery is evaluated. When `destination_node_id` points at a configured
-        static peer, the envelope is authenticated and forwarded server-node to
-        server-node; the destination node performs local recipient acceptance.
+        delivery is evaluated. When `destination_server_id` points at a configured
+        static peer, the envelope is authenticated and forwarded server-to-server to
+        server-to-server; the destination server performs local recipient acceptance.
         Failed static-peer handoff attempts are durably recorded with bounded
         retry metadata and driven by the API runtime retry worker when local
         static-peer forwarding prerequisites are configured, until the handoff
@@ -2040,9 +2040,9 @@ paths:
             history and durable delivery metadata; active-device realtime
             dispatch is attempted asynchronously, and delivered devices are
             recorded only after recipient-device ack. Static-peer forwarding
-            success means the origin node durably recorded the outbound
+            success means the origin server durably recorded the outbound
             forwarding attempt and handed the encrypted envelope to the
-            destination server node; it does not imply final recipient-device
+            destination server; it does not imply final recipient-device
             delivery. Previously failed static-peer handoff attempts are retried
             asynchronously by the API runtime worker from the durable outbound
             forwarding log when local forwarding prerequisites are configured.
@@ -2052,11 +2052,11 @@ paths:
                 $ref: '#/components/schemas/DmFanoutDispatchResponse'
               examples:
                 acceptedForDelivery:
-                  summary: Message is durably accepted for server-node P2P delivery while active-device dispatch remains pending
+                  summary: Message is durably accepted for server-to-server P2P delivery while active-device dispatch remains pending
                   value:
                     status: accepted
                     reason_code: fanout_pending_delivery
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     delivery_state: pending_delivery
                     reachability_state: unknown
                     fanout_count: 0
@@ -2067,18 +2067,18 @@ paths:
                   value:
                     status: accepted
                     reason_code: fanout_pending_delivery
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     delivery_state: pending_delivery
                     reachability_state: unreachable
                     fanout_count: 0
                     delivered_device_ids: []
                     skipped_device_ids: []
                 forwardedToStaticPeer:
-                  summary: Message envelope is durably recorded and handed to an explicit destination server node
+                  summary: Message envelope is durably recorded and handed to an explicit destination server
                   value:
                     status: accepted
                     reason_code: fanout_forwarded_to_static_peer
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     delivery_state: forwarded
                     reachability_state: unknown
                     fanout_count: 0
@@ -2118,7 +2118,7 @@ paths:
     post:
       summary: Replay missed DM payloads for a late-activated profile device
       description: >-
-        Profile-device convergence replay for server-node P2P E2EE DM
+        Profile-device convergence replay for server-to-server P2P E2EE DM
         envelopes. Canonical accepted DM history and delivery metadata persist
         when configured storage is available without exposing plaintext content.
         Catch-up throttling is identity-scoped across profile devices, while
@@ -2148,7 +2148,7 @@ paths:
                   value:
                     status: ready
                     reason_code: fanout_catch_up_ok
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     device_id: phone-main
                     replay_count: 1
                     next_cursor: '1'
@@ -2165,7 +2165,7 @@ paths:
                   value:
                     status: ready
                     reason_code: fanout_catch_up_no_missed
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     device_id: phone-main
                     replay_count: 0
                     next_cursor: '2'
@@ -2176,7 +2176,7 @@ paths:
                   value:
                     status: blocked
                     reason_code: fanout_device_inactive
-                    transport_profile: encrypted_envelope_node
+                    transport_profile: encrypted_envelope_server
                     device_id: desktop-main
                     replay_count: 0
                     next_cursor: '0'
@@ -3000,12 +3000,12 @@ components:
           type: string
         status:
           type: string
-    NodeConnectionResponse:
+    ServerConnectionResponse:
       type: object
       required:
         - service
-        - node_id
-        - node_fingerprint
+        - server_id
+        - server_public_key
         - runtime_api
         - auth_endpoints
         - capabilities_endpoint
@@ -3013,21 +3013,22 @@ components:
         service:
           type: string
           enum: [api-rs]
-        node_id:
+        server_id:
           type: string
-          description: Local node descriptor id when configured, otherwise the configured node fingerprint.
-        node_fingerprint:
+          description: Stable server identity used by invite and endpoint verification flows.
+        server_public_key:
           type: string
-          description: Deployment identity marker used by invite and endpoint verification flows.
+          nullable: true
+          description: Hex-encoded Ed25519 server public key when the runtime has a configured signed server identity.
         runtime_api:
           type: string
           enum: [hexrelay_runtime_rest]
         auth_endpoints:
-          $ref: '#/components/schemas/NodeAuthEndpoints'
+          $ref: '#/components/schemas/ServerAuthEndpoints'
         capabilities_endpoint:
           type: string
-          enum: [/node/capabilities]
-    NodeAuthEndpoints:
+          enum: [/server/capabilities]
+    ServerAuthEndpoints:
       type: object
       required: [challenge, verify, session_validate]
       properties:
@@ -3040,57 +3041,58 @@ components:
         session_validate:
           type: string
           enum: [/auth/sessions/validate]
-    NodeCapabilitiesResponse:
+    ServerCapabilitiesResponse:
       type: object
       required:
-        - node_id
-        - node_fingerprint
+        - server_id
+        - server_public_key
         - identity_id
         - capabilities
         - administration
       properties:
-        node_id:
+        server_id:
           type: string
-        node_fingerprint:
+        server_public_key:
           type: string
+          nullable: true
         identity_id:
           type: string
         capabilities:
           type: array
           items:
-            $ref: '#/components/schemas/NodeCapability'
+            $ref: '#/components/schemas/ServerCapability'
         administration:
-          $ref: '#/components/schemas/NodeAdministrationStatus'
-    NodeAdministrationStatus:
+          $ref: '#/components/schemas/ServerAdministrationStatus'
+    ServerAdministrationStatus:
       type: object
-      required: [is_node_owner, is_node_admin, scopes]
+      required: [is_server_owner, is_server_admin, scopes]
       properties:
-        is_node_owner:
+        is_server_owner:
           type: boolean
-        is_node_admin:
+        is_server_admin:
           type: boolean
         scopes:
           type: array
           items:
-            $ref: '#/components/schemas/NodeCapability'
+            $ref: '#/components/schemas/ServerCapability'
           description: Administrative capability subset for the authenticated identity.
-    NodeCapability:
+    ServerCapability:
       type: string
       enum:
-        - node_connect
+        - server_connect
         - auth_session
         - realtime_connect
         - dm_encrypted_envelope
-        - node_admin
-        - node_operator
-        - node_owner
+        - server_admin
+        - server_operator
+        - server_owner
     ServerSummary:
       type: object
       required: [id, name, unread, favorite, muted]
       properties:
         id:
           type: string
-          description: Connected node/server fingerprint. In the current architecture a user-facing server maps to one server runtime/node authority.
+          description: Connected server id. In the current architecture a user-facing server maps to one server runtime authority.
         name:
           type: string
         unread:
@@ -3361,12 +3363,12 @@ components:
           minLength: 1
           maxLength: 64
           nullable: true
-        destination_node_id:
+        destination_server_id:
           type: string
           minLength: 1
           maxLength: 128
           nullable: true
-          description: Optional destination server-node id. Omit for local-recipient delivery; provide a configured static peer node id to forward the encrypted envelope server-node to server-node.
+          description: Optional destination server id. Omit for local-recipient delivery; provide a configured static peer server id to forward the encrypted envelope server-to-server.
     DmFanoutDispatchResponse:
       type: object
       required:
@@ -3387,11 +3389,11 @@ components:
           enum: [fanout_pending_delivery, fanout_forwarded_to_static_peer, fanout_policy_blocked, fanout_same_server_context_required, fanout_blocked_user]
         transport_profile:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
         delivery_state:
           type: string
           enum: [pending_delivery, forwarded, rejected]
-          description: For static-peer forwarding, `forwarded` means the outbound server-node handoff succeeded and was recorded by the origin node; retry-scheduled failures are driven asynchronously from the durable outbound forwarding log, and recipient-device delivery remains ack-backed and destination-owned.
+          description: For static-peer forwarding, `forwarded` means the outbound server-to-server handoff succeeded and was recorded by the origin server; retry-scheduled failures are driven asynchronously from the durable outbound forwarding log, and recipient-device delivery remains ack-backed and destination-owned.
         reachability_state:
           type: string
           enum: [unreachable, blocked, unknown]
@@ -3451,11 +3453,11 @@ components:
         source_device_id:
           type: string
           nullable: true
-    NodeDescriptor:
+    ServerDescriptor:
       type: object
       required:
-        - node_id
-        - node_public_key
+        - server_id
+        - server_public_key
         - descriptor_id
         - issued_at_epoch_seconds
         - expires_at_epoch_seconds
@@ -3471,11 +3473,11 @@ components:
         - trust_labels
         - signature
       properties:
-        node_id:
+        server_id:
           type: string
-        node_public_key:
+        server_public_key:
           type: string
-          description: Hex-encoded Ed25519 node public key.
+          description: Hex-encoded Ed25519 server public key.
         descriptor_id:
           type: string
         issued_at_epoch_seconds:
@@ -3528,12 +3530,12 @@ components:
               enum: [ed25519]
             value:
               type: string
-    NodeForwardDmEnvelopeRequest:
+    ServerForwardDmEnvelopeRequest:
       type: object
       required:
         - route_kind
-        - origin_node_descriptor
-        - destination_node_id
+        - origin_server_descriptor
+        - destination_server_id
         - message_id
         - thread_id
         - sender_identity_id
@@ -3546,13 +3548,13 @@ components:
         route_kind:
           type: string
           enum: [static_peer_direct]
-        origin_node_descriptor:
-          $ref: '#/components/schemas/NodeDescriptor'
-        destination_node_id:
+        origin_server_descriptor:
+          $ref: '#/components/schemas/ServerDescriptor'
+        destination_server_id:
           type: string
           minLength: 1
           maxLength: 128
-        relay_node_id:
+        relay_server_id:
           type: string
           nullable: true
           description: Reserved for future relay routes; direct forwarding requires this to be omitted or null.
@@ -3672,7 +3674,7 @@ components:
             [fanout_catch_up_ok, fanout_catch_up_no_missed, fanout_device_unknown, fanout_device_inactive]
         transport_profile:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
         device_id:
           type: string
         replay_count:
@@ -3972,11 +3974,11 @@ components:
           nullable: true
     InviteRedeemRequest:
       type: object
-      required: [token, node_fingerprint]
+      required: [token, server_id]
       properties:
         token:
           type: string
-        node_fingerprint:
+        server_id:
           type: string
     InviteCreateResponse:
       type: object
@@ -4078,7 +4080,7 @@ components:
             - internal_token_invalid
             - invite_expired
             - invite_exhausted
-            - fingerprint_mismatch
+            - server_mismatch
             - identity_invalid
             - public_key_invalid
             - algorithm_invalid
@@ -4120,19 +4122,19 @@ components:
             - fanout_invalid
             - fanout_forwarding_failed
             - fanout_message_id_conflict
-            - node_forward_delivery_disabled
-            - node_forward_descriptor_mismatch
-            - node_forward_destination_mismatch
-            - node_forward_invalid
-            - node_forward_local_identity_required
-            - node_forward_node_mismatch
-            - node_forward_nonce_invalid
-            - node_forward_peer_not_allowed
-            - node_forward_replay
-            - node_forward_route_unsupported
-            - node_forward_signature_invalid
-            - node_forward_signature_missing
-            - node_forward_timestamp_invalid
+            - server_forward_delivery_disabled
+            - server_forward_descriptor_mismatch
+            - server_forward_destination_mismatch
+            - server_forward_invalid
+            - server_forward_local_identity_required
+            - server_forward_server_mismatch
+            - server_forward_nonce_invalid
+            - server_forward_peer_not_allowed
+            - server_forward_replay
+            - server_forward_route_unsupported
+            - server_forward_signature_invalid
+            - server_forward_signature_missing
+            - server_forward_timestamp_invalid
             - friendship_lookup_failed
             - last_read_seq_invalid
             - server_access_denied

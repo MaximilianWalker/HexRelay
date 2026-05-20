@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-19
+- last_updated: 2026-05-20
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-19 clarified DM fanout catch-up scanned-cursor contract semantics.
+- Latest meaningful change: 2026-05-20 aligned documentation routing with the server authority terminology refactor.
 
 ## Purpose
 
@@ -42,8 +42,8 @@
 | Local runtime testing operational quickstart | `docs/operations/local-runtime-testing-quickstart.md` | Platform/QA maintainers | Local fixture, runtime-profile, Docker runtime, network simulation, or troubleshooting workflow changes |
 | Configuration defaults and override precedence | `docs/product/09-configuration-defaults-register.md` | Product/platform maintainers | Product/policy default values, ranges, or override policy changes |
 | Product clarifications and open questions | `docs/product/03-clarifications.md` | Product maintainers | Any assumption is resolved, added, or materially changed |
-| DM encrypted-envelope delivery solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM delivery policy, server-node/message-node envelope semantics, node-bypassing DM surface retirement, or acceptance criteria change |
-| DM encrypted-envelope delivery execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM delivery sequencing, task gates, node-bypassing DM surface retirement work, or acceptance evidence changes |
+| DM encrypted-envelope delivery solution authority | `docs/product/10-infra-free-dm-connectivity-proposals.md` | Product/realtime maintainers | DM delivery policy, server-to-server/message-server envelope semantics, server-bypassing DM surface retirement, or acceptance criteria change |
+| DM encrypted-envelope delivery execution planning authority | `docs/planning/infra-free-dm-connectivity-execution-plan.md` | Delivery/core/realtime maintainers | DM delivery sequencing, task gates, server-bypassing DM surface retirement work, or acceptance evidence changes |
 | Dependencies and risk register | `docs/product/04-dependencies-risks.md` | Product/architecture maintainers | Dependency status or risk severity/mitigation changes |
 | Iteration execution planning | `docs/planning/iterations/README.md` | Delivery maintainers | Task sequencing, ownership, dependencies, or status changes |
 | KPI/SLO benchmark environment profile | `docs/planning/kpi-slo-test-profile.md` | Platform maintainers | Test environment assumptions, load profile, or benchmark matrix changes |
@@ -52,11 +52,11 @@
 | Iteration-level change log | `docs/planning/05-iteration-log.md` | Delivery maintainers | Scope, sequencing, status, or decision changes during execution |
 | Data lifecycle and retention boundaries | `docs/architecture/02-data-lifecycle-retention-replication.md` | Architecture/API maintainers | Persistence ownership, retention, or reconciliation rules change |
 | Rust service migration baseline and file mapping | `docs/architecture/03-rust-service-migration-baseline.md` | Architecture maintainers | Rust service module migration scope, baseline evidence, or mapping changes |
-| Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, server-node policy graph, discovery/peering/relay/delivery rules, DM/server transport divergence, or networking rollout phases change |
+| Communication networking layer architecture and implementation divergence | `docs/architecture/04-communication-networking-layer-plan.md` | Architecture/core/realtime maintainers | Shared communication-layer boundaries, server-to-server policy graph, discovery/peering/relay/delivery rules, DM/server transport divergence, or networking rollout phases change |
 | MVP operational runbook | `docs/operations/01-mvp-runbook.md` | Platform maintainers | Incident/recovery/backup procedures change |
 | Dedicated-server deployment baseline | `docs/operations/02-dedicated-server-deployment.md` | Platform maintainers | Dedicated operator bring-up, ingress, administration surface, remote smoke, or deployment-scope assumptions change |
 | Release packaging and artifact model | `docs/operations/03-release-packaging.md` | Platform maintainers | Supported release targets, desktop/server artifact boundaries, administration-surface packaging, installer formats, or signing expectations change |
-| Private server-node mesh bootstrap | `docs/operations/private-mesh-bootstrap.md` | Platform maintainers | Private mesh node identity, peer invite, static peer, or revocation operations change |
+| Private server-to-server mesh bootstrap | `docs/operations/private-mesh-bootstrap.md` | Platform maintainers | Private mesh server identity, peer invite, static peer, or revocation operations change |
 | Local development prerequisites | `docs/operations/dev-prerequisites.md` | Platform maintainers | Required local tooling versions or setup flow changes |
 | Migration evidence template | `docs/operations/migration-validation-template.md` | Delivery/platform maintainers | Migration evidence fields, required artifacts, or validator contract changes |
 | Readiness corrections and recurrence prevention log | `docs/operations/readiness-corrections-log.md` | Maintainers | Any readiness fix lands or a previously closed finding regresses |

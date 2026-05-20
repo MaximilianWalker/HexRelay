@@ -13,7 +13,7 @@
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 UX decisions and aligned navigation terminology with the accepted server-node authority model.
+- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 UX decisions and aligned navigation terminology with the accepted server authority model.
 
 ## Design Direction
 
@@ -73,7 +73,7 @@
 ### Global Hubs
 
 - `Servers Hub` requirements:
-  - searchable card and list layouts over joined server nodes
+  - searchable card and list layouts over joined servers
   - filters: favorites, unread, muted
   - row/card primary action opens the server
   - row/card menu actions include pin/unpin, settings when available, and destructive leave flow when approved by the final UX package
@@ -94,7 +94,7 @@
 - Search is case-insensitive and keyboard-focusable from hubs.
 - Empty states must include a next action (join server, create server, add friend, start DM).
 - Selected destination from a hub must deep-link directly into target workspace.
-- Servers Hub aggregates joined server nodes from app connection/membership state; it is not evidence that one API runtime owns every listed server.
+- Servers Hub aggregates joined servers from app connection/membership state; it is not evidence that one API runtime owns every listed server.
 - Hub filters and sort preferences persist per user.
 - Servers Hub and Contacts Hub use the same card/list, filter, selection, and action-menu model with only the entity noun changing.
 - Destructive bulk actions require a confirmation modal that shows selected count and selected item names.

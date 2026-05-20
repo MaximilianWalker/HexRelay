@@ -12,14 +12,14 @@ pub enum TransportError {
     SendFailed,
 }
 
-pub trait NodeClientTransport {
+pub trait ServerClientTransport {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError>;
     fn send(&self, envelope: &SendEnvelope) -> Result<(), TransportError>;
 }
 
-pub struct UnsupportedNodeClientTransport;
+pub struct UnsupportedServerClientTransport;
 
-impl NodeClientTransport for UnsupportedNodeClientTransport {
+impl ServerClientTransport for UnsupportedServerClientTransport {
     fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
         Err(TransportError::ConnectFailed)
     }
@@ -29,24 +29,24 @@ impl NodeClientTransport for UnsupportedNodeClientTransport {
     }
 }
 
-pub trait NodeDispatch {
+pub trait ServerDispatch {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError>;
 }
 
-pub struct DispatchingNodeClientTransport<D> {
+pub struct DispatchingServerClientTransport<D> {
     mode: CommunicationMode,
     dispatch: D,
 }
 
-impl<D> DispatchingNodeClientTransport<D> {
+impl<D> DispatchingServerClientTransport<D> {
     pub fn new(mode: CommunicationMode, dispatch: D) -> Self {
         Self { mode, dispatch }
     }
 }
 
-impl<D> NodeClientTransport for DispatchingNodeClientTransport<D>
+impl<D> ServerClientTransport for DispatchingServerClientTransport<D>
 where
-    D: NodeDispatch,
+    D: ServerDispatch,
 {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
         if intent.mode != self.mode {
@@ -55,7 +55,7 @@ where
 
         Ok(PolicyEngine::build_provenance(
             intent.mode,
-            TransportProfile::NodeClient,
+            TransportProfile::ServerClient,
         ))
     }
 
@@ -68,28 +68,34 @@ where
     }
 }
 
-pub fn send_via_node_dispatch<D>(
+pub fn send_via_server_dispatch<D>(
     mode: CommunicationMode,
     policy: PolicyContext,
     dispatch: D,
     payload: Vec<u8>,
 ) -> Result<(), CommunicationError>
 where
-    D: NodeDispatch,
+    D: ServerDispatch,
 {
-    CommunicationRouter::new(policy, DispatchingNodeClientTransport::new(mode, dispatch))
-        .send(&SendEnvelope { mode, payload })
+    CommunicationRouter::new(
+        policy,
+        DispatchingServerClientTransport::new(mode, dispatch),
+    )
+    .send(&SendEnvelope { mode, payload })
 }
 
-pub fn send_via_node_dispatch_with_provenance<D>(
+pub fn send_via_server_dispatch_with_provenance<D>(
     mode: CommunicationMode,
     policy: PolicyContext,
     dispatch: D,
     payload: Vec<u8>,
 ) -> Result<DispatchOutcome, CommunicationError>
 where
-    D: NodeDispatch,
+    D: ServerDispatch,
 {
-    CommunicationRouter::new(policy, DispatchingNodeClientTransport::new(mode, dispatch))
-        .send_with_provenance(&SendEnvelope { mode, payload })
+    CommunicationRouter::new(
+        policy,
+        DispatchingServerClientTransport::new(mode, dispatch),
+    )
+    .send_with_provenance(&SendEnvelope { mode, payload })
 }

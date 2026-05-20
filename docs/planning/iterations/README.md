@@ -34,12 +34,12 @@
 | Multi-persona support and switching | T2.1.3 |
 | Mandatory recovery phrase onboarding | T2.1.4 |
 | Invite create/redeem with mode/expiration/max-uses | T2.2.1 |
-| Join fingerprint verification (fail closed) | T2.4.1 |
+| Join server identity verification (fail closed) | T2.4.1 |
 | Friends/block/mute/presence | T3.1.1, T3.1.2, T3.2.1, T3.3.1 |
 | Global/shared-server user discovery with abuse controls | T3.4.1 |
 | Shared communication networking layer abstraction (mode routing, adapters, diagnostics model) | T4.0.1, T4.0.2, T4.0.3, T4.3.3 |
 | DM/group DM encrypted-envelope delivery + server-channel messaging primitives | T4.1.1, T4.1.7, T4.3.1, T4.3.2, T4.6.5 |
-| E2EE DM delivery stack (policy, relationship bootstrap, server-node/message-node delivery, metadata, node-bypassing DM surface retirement) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8, T4.1.11 |
+| E2EE DM delivery stack (policy, relationship bootstrap, server-to-server/message-server delivery, metadata, server-bypassing DM surface retirement) | T4.1.3, T4.1.4, T4.1.5, T4.1.6, T4.1.7, T4.1.8, T4.1.11 |
 | Multi-device eventual sync for DM and server communication | T4.1.9, T4.1.10, T4.3.4, T3.3.2 |
 | DM inbound policy defaults and user overrides | T4.1.2 |
 | E2EE 1:1 DM | T4.5.1, T4.5.2 |

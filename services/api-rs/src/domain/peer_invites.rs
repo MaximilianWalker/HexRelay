@@ -5,13 +5,13 @@ use std::{
 
 use communication_core::{
     sign_peer_invite_ed25519_pkcs8, verify_peer_invite_ed25519, DescriptorValidationContext,
-    DiscoveryPath, Ed25519DescriptorVerifier, NodeDescriptor, NodeSignature,
-    NodeSignatureAlgorithm, PeerInvite, PeerInviteEnvelope, PeerInviteSignatureError,
-    PeerInviteValidationContext, PeerInviteValidationError, PeeringPolicy,
+    DiscoveryPath, Ed25519DescriptorVerifier, PeerInvite, PeerInviteEnvelope,
+    PeerInviteSignatureError, PeerInviteValidationContext, PeerInviteValidationError,
+    PeeringPolicy, ServerDescriptor, ServerSignature, ServerSignatureAlgorithm,
 };
 use uuid::Uuid;
 
-use crate::domain::node_identity::LocalNodeIdentity;
+use crate::domain::server_identity::LocalServerIdentity;
 
 pub const DEFAULT_PEER_INVITE_TTL_SECONDS: i64 = 3_600;
 pub const DEFAULT_PEER_INVITE_MAX_TTL_SECONDS: i64 = 86_400;
@@ -20,7 +20,7 @@ pub const DEFAULT_PEER_INVITE_MAX_USES: u32 = 1;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerInviteIssueOptions {
     pub invite_id: Option<String>,
-    pub subject_node_id: Option<String>,
+    pub subject_server_id: Option<String>,
     pub allow_unbound: bool,
     pub ttl_seconds: i64,
     pub max_ttl_seconds: i64,
@@ -64,7 +64,7 @@ impl PeerInviteIssueCliOptions {
         I: IntoIterator<Item = String>,
     {
         let mut invite_id = None;
-        let mut subject_node_id = None;
+        let mut subject_server_id = None;
         let mut allow_unbound = false;
         let mut ttl_seconds = DEFAULT_PEER_INVITE_TTL_SECONDS;
         let mut max_ttl_seconds_override = None;
@@ -82,10 +82,10 @@ impl PeerInviteIssueCliOptions {
                         )
                     })?);
                 }
-                "--subject-node-id" => {
-                    subject_node_id = Some(args.next().ok_or_else(|| {
+                "--subject-server-id" => {
+                    subject_server_id = Some(args.next().ok_or_else(|| {
                         PeerInviteIssueError::InvalidArgs(
-                            "--subject-node-id requires a value".to_string(),
+                            "--subject-server-id requires a value".to_string(),
                         )
                     })?);
                 }
@@ -138,18 +138,18 @@ impl PeerInviteIssueCliOptions {
             ));
         }
 
-        if subject_node_id
+        if subject_server_id
             .as_deref()
             .is_some_and(|value| value.trim().is_empty())
         {
             return Err(PeerInviteIssueError::InvalidArgs(
-                "--subject-node-id must not be empty".to_string(),
+                "--subject-server-id must not be empty".to_string(),
             ));
         }
 
-        if subject_node_id.is_none() && !allow_unbound {
+        if subject_server_id.is_none() && !allow_unbound {
             return Err(PeerInviteIssueError::InvalidArgs(
-                "--subject-node-id is required unless --allow-unbound is set".to_string(),
+                "--subject-server-id is required unless --allow-unbound is set".to_string(),
             ));
         }
 
@@ -174,7 +174,7 @@ impl PeerInviteIssueCliOptions {
         Ok(Self {
             issue_options: PeerInviteIssueOptions {
                 invite_id,
-                subject_node_id,
+                subject_server_id,
                 allow_unbound,
                 ttl_seconds,
                 max_ttl_seconds: effective_max_ttl_seconds,
@@ -188,11 +188,11 @@ impl PeerInviteIssueCliOptions {
 }
 
 pub fn peer_invite_issue_usage() -> &'static str {
-    "Usage: issue_peer_invite --subject-node-id NODE_ID [--invite-id ID] [--ttl-seconds 3600] [--max-ttl-seconds 86400] [--discovery-path private_allowlist] [--max-uses 1|--unlimited-uses] [--compact]\n       issue_peer_invite --allow-unbound [same options]"
+    "Usage: issue_peer_invite --subject-server-id SERVER_ID [--invite-id ID] [--ttl-seconds 3600] [--max-ttl-seconds 86400] [--discovery-path private_allowlist] [--max-uses 1|--unlimited-uses] [--compact]\n       issue_peer_invite --allow-unbound [same options]"
 }
 
 pub fn issue_peer_invite(
-    local_identity: &LocalNodeIdentity,
+    local_identity: &LocalServerIdentity,
     options: &PeerInviteIssueOptions,
     issued_at_epoch_seconds: i64,
 ) -> Result<PeerInviteEnvelope, PeerInviteIssueError> {
@@ -209,16 +209,16 @@ pub fn issue_peer_invite(
         .unwrap_or_else(|| format!("peer-invite-{}", Uuid::new_v4().simple()));
     let mut invite = PeerInvite {
         invite_id,
-        issuer_node_id: local_identity.descriptor.node_id.clone(),
+        issuer_server_id: local_identity.descriptor.server_id.clone(),
         issuer_descriptor_id: local_identity.descriptor.descriptor_id.clone(),
-        subject_node_id: options.subject_node_id.clone(),
+        subject_server_id: options.subject_server_id.clone(),
         issued_at_epoch_seconds,
         expires_at_epoch_seconds: issued_at_epoch_seconds + options.ttl_seconds,
         discovery_path: options.discovery_path,
         peering_policy: PeeringPolicy::InviteToken,
         max_uses: options.max_uses,
-        signature: NodeSignature {
-            algorithm: NodeSignatureAlgorithm::Ed25519,
+        signature: ServerSignature {
+            algorithm: ServerSignatureAlgorithm::Ed25519,
             value: String::new(),
         },
     };
@@ -231,7 +231,7 @@ pub fn issue_peer_invite(
         now_epoch_seconds: issued_at_epoch_seconds,
         max_ttl_seconds: options.max_ttl_seconds,
         revoked_invite_ids: Vec::new(),
-        expected_subject_node_id: options.subject_node_id.clone(),
+        expected_subject_server_id: options.subject_server_id.clone(),
     };
     invite
         .validate(&local_identity.descriptor, &context)
@@ -270,18 +270,18 @@ fn validate_issue_options(options: &PeerInviteIssueOptions) -> Result<(), PeerIn
     }
 
     if options
-        .subject_node_id
+        .subject_server_id
         .as_deref()
         .is_some_and(|value| value.trim().is_empty())
     {
         return Err(PeerInviteIssueError::InvalidArgs(
-            "subject_node_id must not be empty".to_string(),
+            "subject_server_id must not be empty".to_string(),
         ));
     }
 
-    if options.subject_node_id.is_none() && !options.allow_unbound {
+    if options.subject_server_id.is_none() && !options.allow_unbound {
         return Err(PeerInviteIssueError::InvalidArgs(
-            "subject_node_id is required unless allow_unbound is true".to_string(),
+            "subject_server_id is required unless allow_unbound is true".to_string(),
         ));
     }
 
@@ -303,7 +303,7 @@ fn validate_issue_options(options: &PeerInviteIssueOptions) -> Result<(), PeerIn
 }
 
 fn validate_issuer_descriptor(
-    descriptor: &NodeDescriptor,
+    descriptor: &ServerDescriptor,
     now_epoch_seconds: i64,
     max_ttl_seconds: i64,
 ) -> Result<(), PeerInviteIssueError> {
@@ -316,7 +316,7 @@ fn validate_issuer_descriptor(
         .validate_with_signature(&context, &Ed25519DescriptorVerifier)
         .map_err(|error| {
             PeerInviteIssueError::DescriptorInvalid(format!(
-                "local node descriptor '{}' is invalid: {error:?}",
+                "local server descriptor '{}' is invalid: {error:?}",
                 descriptor.descriptor_id
             ))
         })?;
@@ -373,20 +373,20 @@ mod tests {
     };
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, verify_peer_invite_ed25519,
-        DiscoveryPath, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, NodeDescriptor,
-        NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy, StoragePolicy,
+        DiscoveryPath, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, PeeringPolicy,
+        RelayPolicy, ServerDescriptor, ServerSignature, ServerSignatureAlgorithm, StoragePolicy,
     };
     use ring::{rand::SystemRandom, signature::Ed25519KeyPair};
 
-    use crate::domain::node_identity::LocalNodeIdentity;
+    use crate::domain::server_identity::LocalServerIdentity;
 
-    fn local_identity() -> LocalNodeIdentity {
+    fn local_identity() -> LocalServerIdentity {
         let pkcs8 =
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
-        let mut descriptor = NodeDescriptor {
-            node_id: "node-inviter".to_string(),
-            node_public_key: public_key,
+        let mut descriptor = ServerDescriptor {
+            server_id: "server-inviter".to_string(),
+            server_public_key: public_key,
             descriptor_id: "descriptor-inviter".to_string(),
             issued_at_epoch_seconds: 1_700_000_000,
             expires_at_epoch_seconds: 1_700_000_600,
@@ -396,20 +396,20 @@ mod tests {
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec!["https://node-inviter.example".to_string()],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            addresses: vec!["https://server-inviter.example".to_string()],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
             revocation_pointer: None,
-            signature: NodeSignature {
-                algorithm: NodeSignatureAlgorithm::Ed25519,
+            signature: ServerSignature {
+                algorithm: ServerSignatureAlgorithm::Ed25519,
                 value: String::new(),
             },
         };
         descriptor.signature.value =
             sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
 
-        LocalNodeIdentity {
+        LocalServerIdentity {
             descriptor,
             private_key_pkcs8: pkcs8.as_ref().to_vec(),
         }
@@ -418,7 +418,7 @@ mod tests {
     fn default_options() -> PeerInviteIssueOptions {
         PeerInviteIssueOptions {
             invite_id: Some("peer-invite-test".to_string()),
-            subject_node_id: Some("node-recipient".to_string()),
+            subject_server_id: Some("server-recipient".to_string()),
             allow_unbound: false,
             ttl_seconds: 300,
             max_ttl_seconds: DEFAULT_PEER_INVITE_MAX_TTL_SECONDS,
@@ -435,10 +435,10 @@ mod tests {
 
         assert_eq!(envelope.invite.invite_id, "peer-invite-test");
         assert_eq!(
-            envelope.invite.subject_node_id.as_deref(),
-            Some("node-recipient")
+            envelope.invite.subject_server_id.as_deref(),
+            Some("server-recipient")
         );
-        assert_eq!(envelope.invite.issuer_node_id, "node-inviter");
+        assert_eq!(envelope.invite.issuer_server_id, "server-inviter");
         assert_eq!(envelope.invite.max_uses, Some(1));
         verify_peer_invite_ed25519(&envelope.invite, &envelope.issuer_descriptor)
             .expect("signature verifies");
@@ -450,19 +450,19 @@ mod tests {
             .expect_err("missing subject should fail");
         assert!(err
             .to_string()
-            .contains("--subject-node-id is required unless --allow-unbound is set"));
+            .contains("--subject-server-id is required unless --allow-unbound is set"));
 
         let parsed = PeerInviteIssueCliOptions::parse(["--allow-unbound".to_string()])
             .expect("unbound is explicit");
-        assert!(parsed.issue_options.subject_node_id.is_none());
+        assert!(parsed.issue_options.subject_server_id.is_none());
         assert!(parsed.issue_options.allow_unbound);
     }
 
     #[test]
     fn rejects_ttl_above_configured_limit() {
         let err = PeerInviteIssueCliOptions::parse([
-            "--subject-node-id".to_string(),
-            "node-recipient".to_string(),
+            "--subject-server-id".to_string(),
+            "server-recipient".to_string(),
             "--ttl-seconds".to_string(),
             "120".to_string(),
             "--max-ttl-seconds".to_string(),

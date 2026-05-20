@@ -1,30 +1,30 @@
 use super::*;
 
 #[tokio::test]
-async fn node_connection_returns_public_app_connection_contract() {
+async fn server_connection_returns_public_app_connection_contract() {
     let app = build_app(AppState::default());
 
     let request = Request::builder()
         .method("GET")
-        .uri("/node/connection")
+        .uri("/server/connection")
         .body(Body::empty())
-        .expect("build node connection request");
+        .expect("build server connection request");
 
     let response = app
         .oneshot(request)
         .await
-        .expect("node connection response");
+        .expect("server connection response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read node connection body");
+        .expect("read server connection body");
     let payload: serde_json::Value =
-        serde_json::from_slice(&body).expect("decode node connection body");
+        serde_json::from_slice(&body).expect("decode server connection body");
 
     assert_eq!(payload["service"], "api-rs");
-    assert_eq!(payload["node_id"], TEST_NODE_FINGERPRINT);
-    assert_eq!(payload["node_fingerprint"], TEST_NODE_FINGERPRINT);
+    assert_eq!(payload["server_id"], TEST_SERVER_ID);
+    assert_eq!(payload["server_id"], TEST_SERVER_ID);
     assert_eq!(payload["runtime_api"], "hexrelay_runtime_rest");
     assert_eq!(payload["auth_endpoints"]["challenge"], "/auth/challenge");
     assert_eq!(payload["auth_endpoints"]["verify"], "/auth/verify");
@@ -32,37 +32,37 @@ async fn node_connection_returns_public_app_connection_contract() {
         payload["auth_endpoints"]["session_validate"],
         "/auth/sessions/validate"
     );
-    assert_eq!(payload["capabilities_endpoint"], "/node/capabilities");
+    assert_eq!(payload["capabilities_endpoint"], "/server/capabilities");
     assert!(payload.get("administration").is_none());
 }
 
 #[tokio::test]
-async fn node_capabilities_require_authenticated_identity() {
+async fn server_capabilities_require_authenticated_identity() {
     let app = build_app(AppState::default());
 
     let request = Request::builder()
         .method("GET")
-        .uri("/node/capabilities")
+        .uri("/server/capabilities")
         .body(Body::empty())
-        .expect("build node capabilities request");
+        .expect("build server capabilities request");
 
     let response = app
         .oneshot(request)
         .await
-        .expect("node capabilities response");
+        .expect("server capabilities response");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read node capabilities error body");
+        .expect("read server capabilities error body");
     let payload: serde_json::Value =
-        serde_json::from_slice(&body).expect("decode node capabilities error body");
+        serde_json::from_slice(&body).expect("decode server capabilities error body");
     assert_eq!(payload["code"], "session_invalid");
 }
 
 #[tokio::test]
-async fn node_capabilities_report_configured_owner_admin_and_member_permissions() {
-    let (app, tokens) = app_with_node_scope_sessions(
+async fn server_capabilities_report_configured_owner_admin_and_member_permissions() {
+    let (app, tokens) = app_with_server_scope_sessions(
         &["usr-owner"],
         &["usr-admin"],
         &["usr-owner", "usr-admin", "usr-member"],
@@ -70,27 +70,27 @@ async fn node_capabilities_report_configured_owner_admin_and_member_permissions(
 
     let owner = get_capabilities(app.clone(), &tokens["usr-owner"]).await;
     assert_eq!(owner["identity_id"], "usr-owner");
-    assert_eq!(owner["administration"]["is_node_owner"], true);
-    assert_eq!(owner["administration"]["is_node_admin"], true);
-    assert_contains(&owner["capabilities"], "node_owner");
-    assert_contains(&owner["capabilities"], "node_admin");
-    assert_contains(&owner["administration"]["scopes"], "node_owner");
+    assert_eq!(owner["administration"]["is_server_owner"], true);
+    assert_eq!(owner["administration"]["is_server_admin"], true);
+    assert_contains(&owner["capabilities"], "server_owner");
+    assert_contains(&owner["capabilities"], "server_admin");
+    assert_contains(&owner["administration"]["scopes"], "server_owner");
 
     let admin = get_capabilities(app.clone(), &tokens["usr-admin"]).await;
     assert_eq!(admin["identity_id"], "usr-admin");
-    assert_eq!(admin["administration"]["is_node_owner"], false);
-    assert_eq!(admin["administration"]["is_node_admin"], true);
-    assert_contains(&admin["capabilities"], "node_admin");
-    assert_contains(&admin["administration"]["scopes"], "node_operator");
-    assert_not_contains(&admin["capabilities"], "node_owner");
+    assert_eq!(admin["administration"]["is_server_owner"], false);
+    assert_eq!(admin["administration"]["is_server_admin"], true);
+    assert_contains(&admin["capabilities"], "server_admin");
+    assert_contains(&admin["administration"]["scopes"], "server_operator");
+    assert_not_contains(&admin["capabilities"], "server_owner");
 
     let member = get_capabilities(app, &tokens["usr-member"]).await;
     assert_eq!(member["identity_id"], "usr-member");
-    assert_eq!(member["administration"]["is_node_owner"], false);
-    assert_eq!(member["administration"]["is_node_admin"], false);
-    assert_contains(&member["capabilities"], "node_connect");
+    assert_eq!(member["administration"]["is_server_owner"], false);
+    assert_eq!(member["administration"]["is_server_admin"], false);
+    assert_contains(&member["capabilities"], "server_connect");
     assert_contains(&member["capabilities"], "auth_session");
-    assert_not_contains(&member["capabilities"], "node_admin");
+    assert_not_contains(&member["capabilities"], "server_admin");
     assert_eq!(
         member["administration"]["scopes"]
             .as_array()
@@ -100,19 +100,19 @@ async fn node_capabilities_report_configured_owner_admin_and_member_permissions(
     );
 }
 
-fn app_with_node_scope_sessions(
+fn app_with_server_scope_sessions(
     owner_identity_ids: &[&str],
     admin_identity_ids: &[&str],
     session_identity_ids: &[&str],
 ) -> (axum::Router, HashMap<String, String>) {
     let state = test_state_with_public_identity_registration()
-        .with_node_owner_identity_ids(
+        .with_server_owner_identity_ids(
             owner_identity_ids
                 .iter()
                 .map(|value| (*value).to_string())
                 .collect(),
         )
-        .with_node_admin_identity_ids(
+        .with_server_admin_identity_ids(
             admin_identity_ids
                 .iter()
                 .map(|value| (*value).to_string())
@@ -124,7 +124,7 @@ fn app_with_node_scope_sessions(
         let mut sessions = state
             .sessions
             .write()
-            .expect("acquire session write lock for node tests");
+            .expect("acquire session write lock for server tests");
 
         for identity_id in session_identity_ids {
             let expires_at = Utc::now() + Duration::hours(1);
@@ -148,7 +148,7 @@ fn app_with_node_scope_sessions(
                     state
                         .session_signing_keys
                         .get(&state.active_signing_key_id)
-                        .expect("active signing key for node tests"),
+                        .expect("active signing key for server tests"),
                 ),
             );
         }
@@ -160,21 +160,21 @@ fn app_with_node_scope_sessions(
 async fn get_capabilities(app: axum::Router, bearer_token: &str) -> serde_json::Value {
     let request = Request::builder()
         .method("GET")
-        .uri("/node/capabilities")
+        .uri("/server/capabilities")
         .header("authorization", format!("Bearer {bearer_token}"))
         .body(Body::empty())
-        .expect("build node capabilities request");
+        .expect("build server capabilities request");
 
     let response = app
         .oneshot(request)
         .await
-        .expect("node capabilities response");
+        .expect("server capabilities response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read node capabilities body");
-    serde_json::from_slice(&body).expect("decode node capabilities body")
+        .expect("read server capabilities body");
+    serde_json::from_slice(&body).expect("decode server capabilities body")
 }
 
 fn assert_contains(values: &serde_json::Value, expected: &str) {

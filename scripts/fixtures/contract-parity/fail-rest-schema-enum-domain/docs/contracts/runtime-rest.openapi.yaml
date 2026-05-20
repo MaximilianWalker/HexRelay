@@ -202,7 +202,7 @@ components:
             [fanout_catch_up_ok, fanout_catch_up_no_missed, fanout_device_unknown, fanout_device_inactive]
         transport_profile:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
         device_id:
           type: string
         replay_count:

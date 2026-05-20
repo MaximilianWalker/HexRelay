@@ -6,7 +6,7 @@ Rust realtime/signaling service scaffold for HexRelay.
 
 - Runs as server-side realtime logic in both supported modes:
   - desktop local-first mode (local sidecar/runtime component)
-  - dedicated server mode (headless node deployment)
+  - dedicated server mode (headless server deployment)
 - Never shipped as client-bundled browser code.
 
 ## Authority

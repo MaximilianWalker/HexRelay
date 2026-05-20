@@ -28,7 +28,7 @@ export type DmProfileDeviceHeartbeatResponse = {
 export type DmFanoutCatchUpResponse = {
   status: "ready" | "blocked";
   reason_code: string;
-  transport_profile: "encrypted_envelope_node";
+  transport_profile: "encrypted_envelope_server";
   device_id: string;
   replay_count: number;
   next_cursor: string;
@@ -589,7 +589,7 @@ export async function catchUpDmFanout(input: {
 
 export async function redeemInvite(input: {
   token: string;
-  nodeFingerprint: string;
+  serverId: string;
 }): Promise<ApiResult<{ accepted: boolean }>> {
   const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/invites/redeem`, {
     method: "POST",
@@ -598,7 +598,7 @@ export async function redeemInvite(input: {
     },
     body: JSON.stringify({
       token: input.token,
-      node_fingerprint: input.nodeFingerprint,
+      server_id: input.serverId,
     }),
   });
 

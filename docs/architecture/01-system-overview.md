@@ -13,7 +13,7 @@
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime/node authority and implemented singleton local-server API storage.
+- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime authority and implemented singleton local-server API storage.
 
 ## Purpose
 
@@ -25,12 +25,12 @@
 
 - `desktop local-first`
   - default product mode
-  - user runs UI plus at least one local API/realtime server node on loopback
+  - user runs UI plus at least one local API/realtime server on loopback
   - local browser access and embedded desktop window both target the same local runtime
 - `dedicated server`
   - advanced optional mode
   - operator runs headless API/realtime services for remote clients
-  - authorized admins manage the node through the normal HexRelay app connected to the node endpoint
+  - authorized admins manage the server through the normal HexRelay app connected to the server endpoint
   - external ingress/TLS and deployment hardening become operator responsibilities
 
 Detailed mode authority:
@@ -41,8 +41,8 @@ Detailed mode authority:
 - `apps/web`
   - browser-facing UI layer
   - talks to API over HTTP and realtime over websocket
-  - renders permission-gated user and admin surfaces when the connected node authorizes them
-  - may aggregate multiple joined server nodes in app state, but does not become the authority for those servers
+  - renders permission-gated user and admin surfaces when the connected server authorizes them
+  - may aggregate multiple joined servers in app state, but does not become the authority for those servers
 - `services/api-rs`
   - HTTP control plane
   - auth/session validation, invites, friends, DM encrypted-envelope metadata/storage, connected-server/channel persistence, policy checks
@@ -50,17 +50,17 @@ Detailed mode authority:
   - websocket/runtime fanout plane
   - websocket auth validation, live event fanout, replay hydration, presence and server-channel event delivery
 - `Postgres`
-  - durable node-authoritative relational state
+  - durable server-authoritative relational state
   - API rate-limit counters when DB-backed enforcement is available
 - `Redis`
   - ephemeral/shared runtime state for presence snapshots, replay logs, cursors, and pubsub fanout coordination
 - object storage
   - durable blob/media storage when enabled by feature scope
-- server-node P2P DM path
-  - server nodes/message nodes form a dynamic policy graph for discovery, peering, relay, and delivery
-  - nodes can be local-only, LAN-only, private online, allowlisted, or public opt-in
-  - nodes may act as origin, delivery, relay, or discoverable nodes depending on local policy
-  - nodes store/forward E2EE DM envelopes plus minimal delivery metadata only
+- server-to-server P2P DM path
+  - servers/message servers form a dynamic policy graph for discovery, peering, relay, and delivery
+  - servers can be local-only, LAN-only, private online, allowlisted, or public opt-in
+  - servers may act as origin, delivery, relay, or discoverable servers depending on local policy
+  - servers store/forward E2EE DM envelopes plus minimal delivery metadata only
   - never stores DM plaintext or client private keys
 
 ## Topology by Mode
@@ -70,18 +70,18 @@ Detailed mode authority:
 - UI, API, and realtime all run on the user machine.
 - Loopback is the main trust boundary for local service exposure.
 - Postgres/Redis may still run locally as supporting runtime dependencies.
-- Each local server is still a distinct node authority with its own node identity and state boundary.
-- The desktop app may supervise multiple local server runtimes for convenience, but it must treat them as separate nodes rather than many servers inside one app-owned database.
+- Each local server is still a distinct server authority with its own server identity and state boundary.
+- The desktop app may supervise multiple local server runtimes for convenience, but it must treat them as separate servers rather than many servers inside one app-owned database.
 
 ### Dedicated Server
 
 - API and realtime run as separate headless services.
 - Browser clients connect remotely through operator-managed ingress.
-- Each dedicated server deployment owns one node identity and one server-authoritative data boundary.
+- Each dedicated server deployment owns one server identity and one server-authoritative data boundary.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
-- The dedicated server artifact does not ship a separate standalone admin UI by default; node owners/admins use the normal HexRelay app to connect to local, LAN, private online, or public nodes.
-- Admin/operator capabilities are exposed only through authenticated API surfaces and node permissions; discoverability or LAN placement must not grant management access by itself.
-- Dedicated server runtimes may participate as peers in the server-node P2P network; clients still attach to nodes rather than forming DM transport paths between recipient devices.
+- The dedicated server artifact does not ship a separate standalone admin UI by default; server owners/admins use the normal HexRelay app to connect to local, LAN, private online, or public servers.
+- Admin/operator capabilities are exposed only through authenticated API surfaces and server permissions; discoverability or LAN placement must not grant management access by itself.
+- Dedicated server runtimes may participate as peers in the server-to-server network; clients still attach to servers rather than forming DM transport paths between recipient devices.
 - A dedicated server may be hosted online and still remain private, non-discoverable, non-relaying, or invite-only.
 - P2P participation is policy-scoped. Discovery, peering, relay, delivery, and durable encrypted storage are separate permissions.
 
@@ -99,13 +99,13 @@ Detailed mode authority:
   - default trust boundary for desktop local-first mode
 - `operator ingress`
   - dedicated deployments must provide TLS termination and header sanitization
-  - remote admin access uses the same authenticated app-to-node boundary and must be explicitly permission-gated
-- `server-node P2P DM path`
-  - server nodes may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
+  - remote admin access uses the same authenticated app-to-server boundary and must be explicitly permission-gated
+- `server-to-server P2P DM path`
+  - servers may authorize, store, and fan out ciphertext envelopes plus minimal delivery metadata only
   - server must not decrypt DM content, receive private keys, or provide an unencrypted DM mailbox/relay
-  - discovery must expose only signed descriptors allowed by the discovered node's current policy
+  - discovery must expose only signed descriptors allowed by the discovered server's current policy
   - relay paths are valid only when every hop explicitly allows relay
-  - user-consented introductions can create candidate peers only when the introduced node descriptor permits that sharing
+  - user-consented introductions can create candidate peers only when the introduced server descriptor permits that sharing
 
 Detailed authorities:
 - `docs/contracts/runtime-rest.openapi.yaml`
@@ -118,11 +118,11 @@ Detailed authorities:
 - user/device-authoritative
   - DM plaintext, decrypted views, private keys, and local client encryption state
   - local runtime state in desktop local-first mode
-- node-authoritative
-  - sessions, invites, friends, server memberships, server-channel messages for that node/server authority
-  - encrypted DM envelopes and minimal delivery metadata accepted by a server node/message node in the server-node P2P network
+- server-authoritative
+  - sessions, invites, friends, server memberships, server-channel messages for that server authority
+  - encrypted DM envelopes and minimal delivery metadata accepted by a server/message server in the server-to-server network
   - server-side authz and policy decisions
-  - node descriptors, discovery policy, peering policy, relay policy, and delivery policy for that node
+  - server descriptors, discovery policy, peering policy, relay policy, and delivery policy for that server
 - ephemeral/shared runtime state
   - Redis-backed live cursors, presence snapshots, pubsub coordination, and replay acceleration state
 - replicated but not primary truth
@@ -141,13 +141,13 @@ Detailed authority:
   - watcher resolution is API-backed and live delivery is realtime-driven
 - `Server-channel messaging`
   - write path is API-authoritative and persisted first
-  - API requests are scoped to the connected node/server identity; another server id belongs behind another node endpoint
+  - API requests are scoped to the connected server identity; another server id belongs behind another server endpoint
   - realtime fanout happens afterward through protected internal publish routes
 - `DM delivery`
   - relationship, policy, and public bootstrap material come from API control-plane flows
-  - client encrypts DM payloads before server-node delivery; message nodes in the server-node P2P network store/fan out ciphertext envelopes only
+  - client encrypts DM payloads before server-to-server delivery; message servers in the server-to-server network store/fan out ciphertext envelopes only
   - sender and recipient identities are portable and are not assumed to belong to a permanent primary server
-  - origin, delivery, relay, and discoverable node roles are selected by current node policy and route availability
+  - origin, delivery, relay, and discoverable server roles are selected by current server policy and route availability
   - sender success semantics must mean durable encrypted-envelope acceptance, not merely attempted live fanout
 
 ## Current Guarantees and Non-Guarantees
@@ -166,20 +166,20 @@ Detailed authority:
   - canonical messages should not be discarded just because delivery was delayed or already completed
 - reachability vs presence
   - repeated failed delivery should downgrade current reachability assumptions without deleting the message
-  - live node fanout may fail while durable encrypted-envelope delivery remains healthy, so reachability should not silently redefine canonical message durability
-- server-node network topology
-  - no node needs a global network view
+  - live server fanout may fail while durable encrypted-envelope delivery remains healthy, so reachability should not silently redefine canonical message durability
+- server-to-server network topology
+  - no server needs a global network view
   - small private P2P networks are valid first-class deployments
   - discovery is opt-in and does not imply peering, relay, or delivery permission
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`
-- The API database now uses singleton local-server storage (`local_server` plus node-local membership/channel/role/message tables). One API runtime is one server/node authority; multi-server app views must aggregate distinct node endpoints. See `docs/architecture/adr-0004-server-node-authority.md`.
+- The API database now uses singleton local-server storage (`local_server` plus server-local membership/channel/role/message tables). One API runtime is one server authority; multi-server app views must aggregate distinct server endpoints. See `docs/architecture/adr-0004-server-authority.md`.
 
 ## Detailed Authorities
 
 - runtime modes: `docs/architecture/adr-0002-runtime-deployment-modes.md`
-- server/node authority: `docs/architecture/adr-0004-server-node-authority.md`
+- server authority: `docs/architecture/adr-0004-server-authority.md`
 - stack baseline: `docs/architecture/adr-0001-stack-baseline.md`
 - data ownership/retention: `docs/architecture/02-data-lifecycle-retention-replication.md`
 - communication/networking boundaries: `docs/architecture/04-communication-networking-layer-plan.md`

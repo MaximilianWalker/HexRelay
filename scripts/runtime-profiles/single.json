@@ -3,7 +3,7 @@
   "infraMode": "shared",
   "instances": [
     {
-      "id": "alice-node",
+      "id": "alice-server",
       "apiPort": 18080,
       "realtimePort": 18081,
       "webPort": 3002,

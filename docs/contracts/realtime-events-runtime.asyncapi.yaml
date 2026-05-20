@@ -295,7 +295,7 @@ components:
         event_type: { type: string }
         occurred_at: { type: string, format: date-time }
         correlation_id: { type: string }
-        producer: { type: string, enum: [realtime-gateway, realtime-signaling, realtime-presence, realtime-channel, dm-message-node] }
+        producer: { type: string, enum: [realtime-gateway, realtime-signaling, realtime-presence, realtime-channel, dm-message-server] }
     CallSignalOfferData:
       type: object
       additionalProperties: false
@@ -455,7 +455,7 @@ components:
         delivery_cursor: { type: string, minLength: 1 }
         transport_scope:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
     DmEnvelopeAckData:
       type: object
       additionalProperties: false

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS dm_outbound_forwarding_log (
     sender_identity_id TEXT NOT NULL,
-    destination_node_id TEXT NOT NULL,
+    destination_server_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     thread_id TEXT NOT NULL,
     recipient_identity_id TEXT NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS dm_outbound_forwarding_log (
     forwarded_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (sender_identity_id, destination_node_id, message_id),
+    PRIMARY KEY (sender_identity_id, destination_server_id, message_id),
     CONSTRAINT dm_outbound_forwarding_log_sender_fk
         FOREIGN KEY (sender_identity_id)
         REFERENCES identity_keys(identity_id)
@@ -27,4 +27,4 @@ CREATE INDEX IF NOT EXISTS dm_outbound_forwarding_log_sender_created_idx
     ON dm_outbound_forwarding_log (sender_identity_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS dm_outbound_forwarding_log_destination_state_idx
-    ON dm_outbound_forwarding_log (destination_node_id, forwarding_state);
+    ON dm_outbound_forwarding_log (destination_server_id, forwarding_state);

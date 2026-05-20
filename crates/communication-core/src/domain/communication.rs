@@ -21,13 +21,13 @@ impl CommunicationMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransportProfile {
-    NodeClient,
+    ServerClient,
 }
 
 impl TransportProfile {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::NodeClient => "node_client",
+            Self::ServerClient => "server_client",
         }
     }
 }
@@ -35,7 +35,7 @@ impl TransportProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectTarget {
-    NodeEndpoint { endpoint: String },
+    ServerEndpoint { endpoint: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,7 +66,7 @@ pub struct DispatchOutcome {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommunicationReasonCode {
-    DmEnvelopeNodeRouteSelected,
+    DmEnvelopeServerRouteSelected,
     ServerChannelRouteSelected,
     PresenceRouteSelected,
     ModeDisabled,
@@ -78,7 +78,7 @@ pub enum CommunicationReasonCode {
 impl CommunicationReasonCode {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::DmEnvelopeNodeRouteSelected => "dm_envelope_node_route_selected",
+            Self::DmEnvelopeServerRouteSelected => "dm_envelope_server_route_selected",
             Self::ServerChannelRouteSelected => "server_channel_route_selected",
             Self::PresenceRouteSelected => "presence_route_selected",
             Self::ModeDisabled => "mode_disabled",
@@ -92,7 +92,7 @@ impl CommunicationReasonCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DmTransportPolicy {
-    EncryptedEnvelopeNode,
+    EncryptedEnvelopeServer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,7 +105,7 @@ pub struct PolicyContext {
 impl Default for PolicyContext {
     fn default() -> Self {
         Self {
-            dm_transport_policy: DmTransportPolicy::EncryptedEnvelopeNode,
+            dm_transport_policy: DmTransportPolicy::EncryptedEnvelopeServer,
             enable_server_channel: true,
             enable_presence: true,
         }

@@ -22,7 +22,7 @@ Scope: Iteration 4 (Weeks 10-12) from `docs/product/01-mvp-plan.md`.
 
 ## Goals
 
-- Deliver federation-lite node discovery and portability mechanisms.
+- Deliver federation-lite server discovery and portability mechanisms.
 - Ship profile capsule replication and full migration workflows.
 - Complete reliability/observability and beta hardening gates.
 
@@ -47,13 +47,13 @@ Scope: Iteration 4 (Weeks 10-12) from `docs/product/01-mvp-plan.md`.
 | T7.1.1 | Build JSON export package for account/server data and media index | E7 / S7.1 | L | API | T6.1.1, T6.3.1 | Export artifacts are deterministic and schema-versioned |
 | T7.1.2 | Build import flow with id remapping and conflict handling | E7 / S7.1 | XL | API | T7.1.1 | Import succeeds with conflict policy and dry-run report |
 | T7.2.1 | Implement signed registry parser and periodic fetch | E7 / S7.2 | M | API | T2.1.1, T2.3.1 | Registry entries validate signatures and TTLs |
-| T7.2.2 | Add node discovery UI and server join flow | E7 / S7.2 | L | Web | T7.2.1 | Users can browse/join nodes with fingerprint verification |
-| T7.3.1 | Implement node metadata publishing CLI/docs | E7 / S7.3 | M | Platform | T7.2.1 | Published metadata passes registry schema/signature validation in CLI integration tests |
-| T7.4.1 | Implement signed public profile sync + version conflict handling | E7 / S7.4 | L | API | T2.1.1, T2.3.1 | Latest valid signed public profile converges across nodes |
+| T7.2.2 | Add server discovery UI and server join flow | E7 / S7.2 | L | Web | T7.2.1 | Users can browse/join servers with server identity verification |
+| T7.3.1 | Implement server metadata publishing CLI/docs | E7 / S7.3 | M | Platform | T7.2.1 | Published metadata passes registry schema/signature validation in CLI integration tests |
+| T7.4.1 | Implement signed public profile sync + version conflict handling | E7 / S7.4 | L | API | T2.1.1, T2.3.1 | Latest valid signed public profile converges across servers |
 | T7.4.2 | Implement encrypted private profile replica sync + restore flow | E7 / S7.4 | L | API | T7.4.1 | Private capsule replicas restore correctly on a new device and fail closed on signature/version mismatch |
 | T7.5.1 | Define encrypted migration bundle format (`.hxb`) and verification rules | E7 / S7.5 | M | Core | T7.4.2 | Bundle spec includes encryption, signatures, versioning, integrity checks |
 | T7.5.2 | Implement full migration export (identity/profile/settings/local state/optional media cache) | E7 / S7.5 | XL | Core | T7.5.1 | Export completes with progress and cryptographic integrity report |
-| T7.5.3 | Implement migration import + reconciliation with server state | E7 / S7.5 | XL | API | T7.5.2, T7.1.2 | Import restores state and reconciles missing data from nodes with deterministic conflict logs |
+| T7.5.3 | Implement migration import + reconciliation with server state | E7 / S7.5 | XL | API | T7.5.2, T7.1.2 | Import restores state and reconciles missing data from servers with deterministic conflict logs |
 | T7.5.4 | Implement LAN direct transfer + encrypted file fallback | E7 / S7.5 | L | Core | T7.5.2 | Users can migrate over LAN or manual encrypted file path |
 | T7.5.5 | Implement optional cutover revoke for old device sessions | E7 / S7.5 | M | API | T7.5.3 | User can revoke previous device sessions after successful migration |
 | T8.1.1 | Add OTel traces/metrics and simple dashboard views | E8 / S8.1 | M | Platform | T5.3.1, T6.3.1 | Dashboards expose p95 latency, error rate, auth success, E2EE DM success |
@@ -65,9 +65,9 @@ Scope: Iteration 4 (Weeks 10-12) from `docs/product/01-mvp-plan.md`.
 | Task | Target touchpoints | Validation |
 |---|---|---|
 | T7.1.1-T7.1.2 | Export/import schemas, remapping engine, dry-run reporting | Deterministic export hash and import conflict-policy tests pass |
-| T7.2.1-T7.2.2 | Registry parser/fetcher and discovery UI join flow | Signature/TTL verification suite passes; join flow enforces fingerprint verification |
+| T7.2.1-T7.2.2 | Registry parser/fetcher and discovery UI join flow | Signature/TTL verification suite passes; join flow enforces server identity verification |
 | T7.3.1 | Metadata publishing CLI and schema/signature validators | CLI integration tests confirm valid publish and invalid metadata rejection |
-| T7.4.1-T7.4.2 | Profile sync pipelines and private replica restore flow | Cross-node convergence and fail-closed restore tests pass |
+| T7.4.1-T7.4.2 | Profile sync pipelines and private replica restore flow | Cross-server convergence and fail-closed restore tests pass |
 | T7.5.1-T7.5.5 | Migration bundle spec/export/import/reconciliation/cutover | Three migration scenarios pass (LAN + encrypted file + cutover revoke) |
 | T8.1.1-T8.2.1 | OTel instrumentation, dashboards, alert rules | Staging fault-injection confirms metrics and <= 2 minute alert detection |
 | T8.3.1 | Beta admin/user docs package | Docs review checklist passes for setup, recovery, migration, troubleshooting coverage |
@@ -137,7 +137,7 @@ Week 12:
 ## Iteration 4 Exit Checklist
 
 - Discovery list ingestion and secure join flow are working.
-- Profile capsule replication and restore pass cross-node tests.
+- Profile capsule replication and restore pass cross-server tests.
 - Full migration works in both LAN and encrypted file modes.
 - Cutover revoke successfully invalidates old sessions.
 - Observability and SLO alerting satisfy MVP exit metrics.

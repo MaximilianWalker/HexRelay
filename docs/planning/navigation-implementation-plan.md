@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package and locked the server-node authority clarification.
+- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package and locked the server authority clarification.
 
 ## Approval Boundary
 
@@ -61,22 +61,22 @@ Status: in progress. These decisions were made during the 2026-05-20 UX planning
 
 ### Locked Architecture Clarification
 
-- The user-facing model should treat a HexRelay server as a separate server runtime/node, not as a user-owned client feature.
-- The user app may spawn local server instances for convenience, but each spawned server acts as its own server runtime/node with separate identity and state.
-- Two servers hosted on the same machine should still behave as distinct server instances/nodes.
+- The user-facing model should treat a HexRelay server as a separate server runtime, not as a user-owned client feature.
+- The user app may spawn local server instances for convenience, but each spawned server acts as its own server runtime with separate identity and state.
+- Two servers hosted on the same machine should still behave as distinct server authorities.
 - A server invite should feel like a server join: redeeming it should make the user belong to that server and make the server appear in the Servers Hub.
-- Current API storage uses one `local_server` singleton and node-local membership/channel/role/message tables; it is not a many-servers-in-one-runtime model.
-- Canonical authority: `docs/architecture/adr-0004-server-node-authority.md`.
+- Current API storage uses one `local_server` singleton and server-local membership/channel/role/message tables; it is not a many-servers-in-one-runtime model.
+- Canonical authority: `docs/architecture/adr-0004-server-authority.md`.
 
 ### Architecture Reconfirmation Result
 
-Status: accepted as of 2026-05-20. The architecture now explicitly matches the server-instance model, with a code guardrail keeping API-facing server membership scoped to the connected node/server identity.
+Status: accepted as of 2026-05-20. The architecture now explicitly matches the server-instance model, with a code guardrail keeping API-facing server membership scoped to the connected server identity.
 
-- Matches user direction: `docs/architecture/04-communication-networking-layer-plan.md` says servers are runtime nodes in the server-node P2P network.
+- Matches user direction: `docs/architecture/04-communication-networking-layer-plan.md` says servers are runtimes in the server-to-server network.
 - Matches user direction: `docs/architecture/adr-0002-runtime-deployment-modes.md` keeps service boundaries explicit and treats dedicated server runtime as a separate headless service/package managed through the normal app.
-- Matches user direction: `docs/architecture/01-system-overview.md` makes node-authoritative state live behind API/realtime services and says clients attach to nodes.
-- Matches user direction: `docs/reference/glossary.md` now defines `Server` as a user-facing community backed by one node authority.
-- Schema status: the current API schema has no multi-server `server_id` partition. Runtime authorization and directory listing are scoped to the local node fingerprint and singleton local-server storage.
+- Matches user direction: `docs/architecture/01-system-overview.md` makes server-authoritative state live behind API/realtime services and says clients attach to servers.
+- Matches user direction: `docs/reference/glossary.md` now defines `Server` as a user-facing community backed by one server authority.
+- Schema status: the current API schema has no multi-server `server_id` partition. Runtime authorization and directory listing are scoped to the local server id and singleton local-server storage.
 - Implementation implication: Create/Join Server runtime work must provision/connect server runtimes and persist app-level connection state; it must not add a user-facing flow that creates many independent servers in one API database.
 
 ## Source Authorities
@@ -142,7 +142,7 @@ Plan-only PRs may merge before UX approval because they do not change product be
 - Preserve the existing web data boundaries; prefer existing API client functions and local web state helpers before adding new backend routes.
 - Keep hub and workspace navigation state explicit and serializable so it can be tested without browser-only assumptions.
 - Persist device-scoped navigation preferences separately from user-scoped hub filters.
-- Keep DM transport, endpoint-card, preflight, WAN wizard, and node-bypassing terminology out of navigation UI and tests.
+- Keep DM transport, endpoint-card, preflight, WAN wizard, and server-bypassing terminology out of navigation UI and tests.
 - Treat server-channel and DM delivery summaries as backend state, not navigation labels.
 - Keep desktop and mobile behavior aligned through shared state helpers, with layout-specific rendering only at the component boundary.
 

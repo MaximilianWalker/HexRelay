@@ -3,14 +3,14 @@
   "infraMode": "shared",
   "instances": [
     {
-      "id": "alice-node",
+      "id": "alice-server",
       "apiPort": 18080,
       "realtimePort": 18081,
       "webPort": 3002,
       "seedPersona": "alice.primary"
     },
     {
-      "id": "bob-node",
+      "id": "bob-server",
       "apiPort": 18180,
       "realtimePort": 18181,
       "webPort": 3012,

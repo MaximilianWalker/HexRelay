@@ -23,8 +23,8 @@ Scope: Iteration 3 (Weeks 7-9) from `docs/product/01-mvp-plan.md`.
 ## Goals
 
 - Ship competitive voice channels, 1:1 calls, and screen share lifecycle.
-- Deliver media attachment pipeline with node-owner configurable storage policies.
-- Establish local node-owner controls and logs (no centralized moderation layer).
+- Deliver media attachment pipeline with server-owner configurable storage policies.
+- Establish local server-owner controls and logs (no centralized moderation layer).
 
 ## Status Legend
 
@@ -50,8 +50,8 @@ Scope: Iteration 3 (Weeks 7-9) from `docs/product/01-mvp-plan.md`.
 | T5.3.1 | Implement screen share session lifecycle for calls/channels | E5 / S5.3 | L | Realtime | T5.1.1, T5.2.1 | Users can start/stop/view screen share with role-based access controls and reconnect within 5s after transient disconnect |
 | T6.1.1 | Add attachment upload service with pre-signed URLs | E6 / S6.1 | L | API | T1.1.2 | Pre-signed URL expiry is enforced and retryable uploads succeed >= 95% in staging tests |
 | T6.1.2 | Build attachment UI (upload progress/retry/preview) | E6 / S6.1 | M | Web | T6.1.1 | Users can upload/download files and recover failed transfers with retry success >= 95% in staging tests |
-| T6.2.1 | Add node-owner configurable storage quotas and media policy knobs | E6 / S6.2 | M | API | T6.1.1 | Operators can set optional quotas without product hard cap |
-| T6.3.1 | Implement local kick/ban APIs and local admin event log | E6 / S6.3 | M | API | T6.2.1 | Node owners can enforce local controls and query local logs with actor/target/reason fields |
+| T6.2.1 | Add server-owner configurable storage quotas and media policy knobs | E6 / S6.2 | M | API | T6.1.1 | Operators can set optional quotas without product hard cap |
+| T6.3.1 | Implement local kick/ban APIs and local admin event log | E6 / S6.3 | M | API | T6.2.1 | Server owners can enforce local controls and query local logs with actor/target/reason fields |
 
 ## Task Touchpoints and Validation Gates
 
@@ -130,12 +130,12 @@ Week 9:
 - TURN fallback works in restrictive network tests.
 - Screen share sessions are stable in representative beta conditions.
 - Attachment pipeline enforces policy and handles retry/recovery.
-- Local node-owner controls and logs are usable for day-one community ops.
+- Local server-owner controls and logs are usable for day-one community ops.
 
 ## Execution Notes
 
 - Keep voice state transitions explicit and idempotent.
-- Log node-owner actions with actor, target, and reason codes.
+- Log server-owner actions with actor, target, and reason codes.
 - Avoid storing sensitive media metadata beyond operational requirements.
 - Realtime owns call/screen-share lifecycle tasks (`T5.2.1`, `T5.3.1`); Web consumes stable signaling/state contracts.
 - Tag PRs and commits with task IDs (`T5.x.x`, `T6.x.x`).

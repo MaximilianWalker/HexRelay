@@ -44,7 +44,7 @@ async fn main() {
     };
 
     let state = AppState::new(
-        config.node_fingerprint.clone(),
+        config.server_id.clone(),
         config.allowed_origins.clone(),
         config.active_signing_key_id.clone(),
         config.discovery_denylist.clone(),
@@ -62,9 +62,9 @@ async fn main() {
     .with_public_identity_registration(config.allow_public_identity_registration)
     .with_dev_testing(config.enable_dev_testing)
     .with_static_peer_registry(config.static_peer_registry.clone())
-    .with_local_node_identity(config.local_node_identity.clone())
-    .with_node_owner_identity_ids(config.node_owner_identity_ids.clone())
-    .with_node_admin_identity_ids(config.node_admin_identity_ids.clone())
+    .with_local_server_identity(config.local_server_identity.clone())
+    .with_server_owner_identity_ids(config.server_owner_identity_ids.clone())
+    .with_server_admin_identity_ids(config.server_admin_identity_ids.clone())
     .with_dm_retention(config.dm_retention.clone())
     .with_db_pool(db_pool);
 

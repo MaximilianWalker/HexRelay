@@ -9,10 +9,10 @@ fn exposes_stable_mode_profile_and_reason_code_strings() {
     assert_eq!(CommunicationMode::DmEnvelope.as_str(), "dm_envelope");
     assert_eq!(CommunicationMode::ServerChannel.as_str(), "server_channel");
     assert_eq!(CommunicationMode::Presence.as_str(), "presence");
-    assert_eq!(TransportProfile::NodeClient.as_str(), "node_client");
+    assert_eq!(TransportProfile::ServerClient.as_str(), "server_client");
     assert_eq!(
-        CommunicationReasonCode::DmEnvelopeNodeRouteSelected.as_str(),
-        "dm_envelope_node_route_selected"
+        CommunicationReasonCode::DmEnvelopeServerRouteSelected.as_str(),
+        "dm_envelope_server_route_selected"
     );
     assert_eq!(
         CommunicationReasonCode::ServerChannelRouteSelected.as_str(),
@@ -29,23 +29,23 @@ fn exposes_stable_mode_profile_and_reason_code_strings() {
 }
 
 #[test]
-fn routes_dm_envelope_to_node_client_profile() {
+fn routes_dm_envelope_to_server_client_profile() {
     let policy = PolicyContext::default();
 
     let routed = PolicyEngine::route_mode(CommunicationMode::DmEnvelope, &policy)
         .expect("dm envelope mode should route");
 
-    assert_eq!(routed, TransportProfile::NodeClient);
+    assert_eq!(routed, TransportProfile::ServerClient);
 }
 
 #[test]
-fn routes_server_mode_to_node_client_profile() {
+fn routes_server_mode_to_server_client_profile() {
     let policy = PolicyContext::default();
 
     let routed = PolicyEngine::route_mode(CommunicationMode::ServerChannel, &policy)
         .expect("server channel mode should route");
 
-    assert_eq!(routed, TransportProfile::NodeClient);
+    assert_eq!(routed, TransportProfile::ServerClient);
 }
 
 #[test]
@@ -66,33 +66,35 @@ fn rejects_disabled_server_mode() {
 }
 
 #[test]
-fn validates_node_connect_target_for_routed_profile() {
+fn validates_server_connect_target_for_routed_profile() {
     let intent = ConnectIntent {
         mode: CommunicationMode::DmEnvelope,
-        target: ConnectTarget::NodeEndpoint {
-            endpoint: "https://node.example".to_string(),
+        target: ConnectTarget::ServerEndpoint {
+            endpoint: "https://server.example".to_string(),
         },
     };
 
-    let result = PolicyEngine::validate_connect_intent(TransportProfile::NodeClient, &intent);
+    let result = PolicyEngine::validate_connect_intent(TransportProfile::ServerClient, &intent);
 
     assert_eq!(result, Ok(()));
 }
 
 #[test]
 fn builds_policy_compliant_provenance_for_dm_envelope() {
-    let provenance =
-        PolicyEngine::build_provenance(CommunicationMode::DmEnvelope, TransportProfile::NodeClient);
+    let provenance = PolicyEngine::build_provenance(
+        CommunicationMode::DmEnvelope,
+        TransportProfile::ServerClient,
+    );
 
     assert_eq!(provenance.mode, CommunicationMode::DmEnvelope);
-    assert_eq!(provenance.profile, TransportProfile::NodeClient);
+    assert_eq!(provenance.profile, TransportProfile::ServerClient);
     assert_eq!(
         provenance.reason_code,
-        CommunicationReasonCode::DmEnvelopeNodeRouteSelected
+        CommunicationReasonCode::DmEnvelopeServerRouteSelected
     );
     assert_eq!(
         provenance.policy_assertions,
-        vec!["dm_envelope_node_policy_compliant".to_string()]
+        vec!["dm_envelope_server_policy_compliant".to_string()]
     );
 }
 
@@ -100,11 +102,11 @@ fn builds_policy_compliant_provenance_for_dm_envelope() {
 fn builds_policy_compliant_provenance_for_server_channel() {
     let provenance = PolicyEngine::build_provenance(
         CommunicationMode::ServerChannel,
-        TransportProfile::NodeClient,
+        TransportProfile::ServerClient,
     );
 
     assert_eq!(provenance.mode, CommunicationMode::ServerChannel);
-    assert_eq!(provenance.profile, TransportProfile::NodeClient);
+    assert_eq!(provenance.profile, TransportProfile::ServerClient);
     assert_eq!(
         provenance.reason_code,
         CommunicationReasonCode::ServerChannelRouteSelected
@@ -118,10 +120,10 @@ fn builds_policy_compliant_provenance_for_server_channel() {
 #[test]
 fn builds_policy_compliant_provenance_for_presence() {
     let provenance =
-        PolicyEngine::build_provenance(CommunicationMode::Presence, TransportProfile::NodeClient);
+        PolicyEngine::build_provenance(CommunicationMode::Presence, TransportProfile::ServerClient);
 
     assert_eq!(provenance.mode, CommunicationMode::Presence);
-    assert_eq!(provenance.profile, TransportProfile::NodeClient);
+    assert_eq!(provenance.profile, TransportProfile::ServerClient);
     assert_eq!(
         provenance.reason_code,
         CommunicationReasonCode::PresenceRouteSelected

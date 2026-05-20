@@ -4,7 +4,7 @@ use super::*;
 async fn gets_server_detail_for_authenticated_member_only() {
     let member_id = unique_identity("usr-auth-member");
     let outsider_id = unique_identity("usr-auth-outsider");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
@@ -60,7 +60,7 @@ async fn gets_server_detail_for_authenticated_member_only() {
 async fn lists_server_channels_for_authenticated_member_only() {
     let member_id = unique_identity("usr-channel-auth-member");
     let outsider_id = unique_identity("usr-channel-auth-outsider");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_a = format!("chn-authz-a-{}", uuid::Uuid::new_v4().simple());
     let channel_b = format!("chn-authz-b-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
@@ -143,7 +143,7 @@ async fn lists_server_channels_for_authenticated_member_only() {
 #[tokio::test]
 async fn lists_empty_server_channel_collection_for_member() {
     let member_id = unique_identity("usr-empty-channel-member");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
@@ -170,7 +170,7 @@ async fn lists_empty_server_channel_collection_for_member() {
 #[tokio::test]
 async fn channel_listing_honors_configured_role_read_permissions() {
     let member_id = unique_identity("usr-channel-role-reader");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let readable_channel_id = format!("chn-readable-{}", uuid::Uuid::new_v4().simple());
     let hidden_channel_id = format!("chn-hidden-{}", uuid::Uuid::new_v4().simple());
     let role_id = format!("role-reader-{}", uuid::Uuid::new_v4().simple());
@@ -267,7 +267,7 @@ async fn channel_listing_honors_configured_role_read_permissions() {
 async fn gets_server_detail_for_cookie_authenticated_member_only() {
     let member_id = unique_identity("usr-cookie-member");
     let outsider_id = unique_identity("usr-cookie-outsider");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
@@ -311,7 +311,7 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
 async fn forbids_server_detail_bypass_via_path_switch() {
     let member_id = unique_identity("usr-bypass-member");
     let outsider_id = unique_identity("usr-bypass-outsider");
-    let member_server_id = TEST_NODE_FINGERPRINT.to_string();
+    let member_server_id = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
@@ -340,7 +340,7 @@ async fn forbids_server_detail_bypass_via_path_switch() {
 #[tokio::test]
 async fn server_detail_authorization_survives_auth_reuse_in_handler() {
     let member_id = unique_identity("usr-authz-reuse");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
@@ -368,7 +368,7 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
 #[tokio::test]
 async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
     let member_id = unique_identity("usr-list-scope");
-    let server_a = TEST_NODE_FINGERPRINT.to_string();
+    let server_a = TEST_SERVER_ID.to_string();
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
@@ -473,7 +473,7 @@ async fn rejects_server_list_without_authentication() {
 #[tokio::test]
 async fn rejects_server_detail_without_authentication() {
     let member_id = unique_identity("usr-detail-unauth");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let Some((app, _, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };

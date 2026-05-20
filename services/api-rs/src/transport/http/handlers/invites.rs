@@ -102,7 +102,7 @@ pub async fn create_invite(
                 token_hash: &token_hash,
                 mode: &payload.mode,
                 creator_identity_id: &auth.identity_id,
-                node_fingerprint: &state.node_fingerprint,
+                server_id: &state.server_id,
                 expires_at,
                 max_uses: max_uses.map(|value| value as i32),
             },
@@ -143,7 +143,7 @@ pub async fn create_invite(
                     invite_id: Some(invite_id.clone()),
                     creator_identity_id: Some(auth.identity_id.clone()),
                     mode: payload.mode.clone(),
-                    node_fingerprint: state.node_fingerprint.clone(),
+                    server_id: state.server_id.clone(),
                     expires_at,
                     max_uses,
                     uses: 0,
@@ -182,7 +182,7 @@ pub async fn redeem_invite(
     let allowed = allow_rate_limit(
         &state,
         "invite_redeem",
-        &format!("{}:{}", payload.node_fingerprint, token_hash),
+        &format!("{}:{}", payload.server_id, token_hash),
         state.rate_limits.invite_redeem_per_window,
     )
     .await?;
@@ -204,11 +204,8 @@ pub async fn redeem_invite(
             .map_err(|_| internal_error("storage_unavailable", "failed to read invite"))?
             .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
-        if row.node_fingerprint != payload.node_fingerprint {
-            return Err(bad_request(
-                "fingerprint_mismatch",
-                "invite node fingerprint mismatch",
-            ));
+        if row.server_id != payload.server_id {
+            return Err(bad_request("server_mismatch", "invite server id mismatch"));
         }
 
         if let Some(expires_at) = row.expires_at {
@@ -249,11 +246,8 @@ pub async fn redeem_invite(
             .get_mut(&token_hash)
             .ok_or_else(|| bad_request("invite_invalid", "invite token is invalid"))?;
 
-        if invite.node_fingerprint != payload.node_fingerprint {
-            return Err(bad_request(
-                "fingerprint_mismatch",
-                "invite node fingerprint mismatch",
-            ));
+        if invite.server_id != payload.server_id {
+            return Err(bad_request("server_mismatch", "invite server id mismatch"));
         }
 
         if let Some(expires_at) = invite.expires_at {

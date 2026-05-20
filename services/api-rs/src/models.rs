@@ -73,7 +73,7 @@ pub struct InviteRecord {
     pub invite_id: Option<String>,
     pub creator_identity_id: Option<String>,
     pub mode: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
     pub expires_at: Option<DateTime<Utc>>,
     pub max_uses: Option<u32>,
     pub uses: u32,
@@ -82,7 +82,7 @@ pub struct InviteRecord {
 #[derive(Deserialize)]
 pub struct InviteRedeemRequest {
     pub token: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
 }
 
 #[derive(Serialize)]
@@ -267,7 +267,7 @@ pub struct DmFanoutDispatchRequest {
     pub message_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
-    pub destination_node_id: Option<String>,
+    pub destination_server_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -336,7 +336,7 @@ pub struct DmFanoutDeliveryRecord {
 #[derive(Clone)]
 pub struct DmOutboundForwardRecord {
     pub sender_identity_id: String,
-    pub destination_node_id: String,
+    pub destination_server_id: String,
     pub message_id: String,
     pub thread_id: String,
     pub recipient_identity_id: String,
@@ -444,35 +444,35 @@ pub struct HealthResponse {
 }
 
 #[derive(Serialize)]
-pub struct NodeConnectionResponse {
+pub struct ServerConnectionResponse {
     pub service: &'static str,
-    pub node_id: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
+    pub server_public_key: Option<String>,
     pub runtime_api: &'static str,
-    pub auth_endpoints: NodeAuthEndpoints,
+    pub auth_endpoints: ServerAuthEndpoints,
     pub capabilities_endpoint: &'static str,
 }
 
 #[derive(Serialize)]
-pub struct NodeAuthEndpoints {
+pub struct ServerAuthEndpoints {
     pub challenge: &'static str,
     pub verify: &'static str,
     pub session_validate: &'static str,
 }
 
 #[derive(Serialize)]
-pub struct NodeCapabilitiesResponse {
-    pub node_id: String,
-    pub node_fingerprint: String,
+pub struct ServerCapabilitiesResponse {
+    pub server_id: String,
+    pub server_public_key: Option<String>,
     pub identity_id: String,
     pub capabilities: Vec<&'static str>,
-    pub administration: NodeAdministrationStatus,
+    pub administration: ServerAdministrationStatus,
 }
 
 #[derive(Serialize)]
-pub struct NodeAdministrationStatus {
-    pub is_node_owner: bool,
-    pub is_node_admin: bool,
+pub struct ServerAdministrationStatus {
+    pub is_server_owner: bool,
+    pub is_server_admin: bool,
     pub scopes: Vec<&'static str>,
 }
 

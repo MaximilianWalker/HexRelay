@@ -65,8 +65,8 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Operational quickstart and troubleshooting for local runtime testing: `docs/operations/local-runtime-testing-quickstart.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Validate network simulation profile definitions with `npm run validate:network-profiles`.
-- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-node` or `bob-node`.
-- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
+- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-server` or `bob-server`.
+- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-server`/`bob-server`; stop it with `npm run runtime:docker -- down`.
 - Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
 - Cross-platform direct wrapper commands are documented in `docs/operations/local-runtime-testing-quickstart.md` for both PowerShell and Bash paths.
 

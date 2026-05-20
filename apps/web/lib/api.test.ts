@@ -126,7 +126,7 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             item: {
-              id: "hexrelay-local-fingerprint",
+              id: "hexrelay-local-server",
               name: "Atlas Test Server",
               unread: 2,
               favorite: true,
@@ -174,10 +174,10 @@ describe("api auth transport", () => {
         ),
       );
 
-    const server = await fetchServer({ serverId: "hexrelay-local-fingerprint" });
-    const channels = await fetchServerChannels({ serverId: "hexrelay-local-fingerprint" });
+    const server = await fetchServer({ serverId: "hexrelay-local-server" });
+    const channels = await fetchServerChannels({ serverId: "hexrelay-local-server" });
     const messages = await fetchServerChannelMessages({
-      serverId: "hexrelay-local-fingerprint",
+      serverId: "hexrelay-local-server",
       channelId: "fixture-channel-atlas-general",
       cursor: "3",
       limit: 10,
@@ -189,10 +189,10 @@ describe("api auth transport", () => {
     const [serverUrl, serverInit] = fetchMock.mock.calls[0] ?? [];
     const [channelsUrl, channelsInit] = fetchMock.mock.calls[1] ?? [];
     const [messagesUrl, messagesInit] = fetchMock.mock.calls[2] ?? [];
-    expect(String(serverUrl)).toContain("/servers/hexrelay-local-fingerprint");
-    expect(String(channelsUrl)).toContain("/servers/hexrelay-local-fingerprint/channels");
+    expect(String(serverUrl)).toContain("/servers/hexrelay-local-server");
+    expect(String(channelsUrl)).toContain("/servers/hexrelay-local-server/channels");
     expect(String(messagesUrl)).toContain(
-      "/servers/hexrelay-local-fingerprint/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-server/channels/fixture-channel-atlas-general/messages",
     );
     expect(String(messagesUrl)).toContain("cursor=3");
     expect(String(messagesUrl)).toContain("limit=10");
@@ -221,7 +221,7 @@ describe("api auth transport", () => {
     );
 
     const result = await createServerChannelMessage({
-      serverId: "hexrelay-local-fingerprint",
+      serverId: "hexrelay-local-server",
       channelId: "fixture-channel-atlas-general",
       content: "Checking in with Bob.",
       replyToMessageId: "fixture-server-message-general-003",
@@ -231,7 +231,7 @@ describe("api auth transport", () => {
     expect(result.ok).toBe(true);
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain(
-      "/servers/hexrelay-local-fingerprint/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-server/channels/fixture-channel-atlas-general/messages",
     );
     expect(init?.method).toBe("POST");
     const headers = new Headers(init?.headers ?? {});
@@ -412,7 +412,7 @@ describe("api auth transport", () => {
       signature: "b".repeat(128),
     });
     const invite = await createInvite({ mode: "one_time" });
-    const redeem = await redeemInvite({ token: "inv-1", nodeFingerprint: "node-1" });
+    const redeem = await redeemInvite({ token: "inv-1", serverId: "server-1" });
 
     expect(verify.ok).toBe(true);
     expect(invite.ok).toBe(true);
@@ -588,7 +588,7 @@ describe("api auth transport", () => {
           JSON.stringify({
             status: "ready",
             reason_code: "fanout_catch_up_ok",
-            transport_profile: "encrypted_envelope_node",
+            transport_profile: "encrypted_envelope_server",
             device_id: "web-main",
             replay_count: 1,
             next_cursor: "7",

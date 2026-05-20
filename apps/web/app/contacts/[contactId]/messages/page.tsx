@@ -199,7 +199,7 @@ export default function ContactMessagesPage() {
             {contact?.inboundRequest ? <span className={styles.badge}>Needs approval</span> : null}
           </div>
           <p className={styles.meta}>
-            This node-routed private-message surface will send E2EE envelopes through the server delivery path.
+            This server-routed private-message surface will send E2EE envelopes through the server delivery path.
           </p>
         </aside>
 

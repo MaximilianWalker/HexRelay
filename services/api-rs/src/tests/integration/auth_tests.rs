@@ -52,7 +52,7 @@ async fn rejects_duplicate_identity_registration() {
 #[tokio::test]
 async fn rejects_public_identity_registration_when_disabled() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -327,7 +327,7 @@ async fn keeps_unknown_identity_and_bad_signature_verify_failures_indistinguisha
 #[tokio::test]
 async fn rate_limits_auth_challenge_requests() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -401,7 +401,7 @@ async fn rate_limits_auth_challenge_requests() {
 #[tokio::test]
 async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_trusted() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -477,7 +477,7 @@ async fn rate_limits_auth_challenge_by_x_forwarded_for_when_proxy_headers_truste
 #[tokio::test]
 async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -553,7 +553,7 @@ async fn rate_limits_auth_challenge_by_x_real_ip_when_proxy_headers_trusted() {
 #[tokio::test]
 async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -616,7 +616,7 @@ async fn rate_limits_auth_challenge_source_even_when_identity_changes() {
 #[tokio::test]
 async fn rate_limits_auth_verify_source_even_when_identity_changes() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),

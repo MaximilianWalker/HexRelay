@@ -6,8 +6,8 @@
   "actions": [
     {
       "type": "partition",
-      "source": "alice-node",
-      "target": "bob-node"
+      "source": "alice-server",
+      "target": "bob-server"
     }
   ]
 }

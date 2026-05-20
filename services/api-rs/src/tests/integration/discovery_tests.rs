@@ -216,7 +216,7 @@ async fn discovery_excludes_blocked_users_bidirectionally() {
 #[tokio::test]
 async fn discovery_rate_limits_queries() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -342,7 +342,7 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
     };
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -487,7 +487,7 @@ async fn discovery_trims_scope_before_enum_validation() {
 #[tokio::test]
 async fn discovery_excludes_configured_denylist() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         vec!["usr-denied".to_string()],
@@ -599,7 +599,7 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
     };
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         vec![denied.clone()],

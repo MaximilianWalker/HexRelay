@@ -11,7 +11,7 @@ pub async fn catch_up_dm_fanout(
     Ok(Json(DmFanoutCatchUpResponse {
         status: "ready".to_string(),
         reason_code: "fanout_catch_up_ok".to_string(),
-        transport_profile: "encrypted_envelope_node".to_string(),
+        transport_profile: "encrypted_envelope_server".to_string(),
         device_id: "dev-1".to_string(),
         replay_count: 1,
         next_cursor: "1".to_string(),

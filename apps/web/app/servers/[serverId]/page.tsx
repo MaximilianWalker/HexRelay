@@ -51,7 +51,7 @@ const SEEDED_IDENTITIES: Record<string, { name: string; handle: string }> = {
 };
 
 const PREVIEW_SERVER: ServerSummary = {
-  id: "hexrelay-local-fingerprint",
+  id: "hexrelay-local-server",
   name: "Atlas Test Server",
   unread: 2,
   favorite: true,

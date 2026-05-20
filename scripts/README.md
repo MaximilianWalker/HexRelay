@@ -33,7 +33,7 @@ Network simulation profile files live in `scripts/network-profiles/` and are
 validated with `npm run validate:network-profiles`.
 Apply or reset network simulation state with `npm run network -- --profile <profile>`
 or `npm run network -- --reset`.
-Profiles can target runtime instance IDs, for example `alice-node` or `bob-node`.
+Profiles can target runtime instance IDs, for example `alice-server` or `bob-server`.
 Docker-backed profiles use Docker network controls, Toxiproxy profiles configure
 Docker-only peer-link latency and timeout behavior, and app-fault profiles
 configure dev-only realtime fault hooks.

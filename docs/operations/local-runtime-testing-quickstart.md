@@ -158,14 +158,14 @@ npm run network -- --profile partition-alice-bob
 - Apply a Toxiproxy-backed profile against a runtime target.
 
 ```bash
-npm run network -- --profile high-latency --target alice-node
-npm run network -- --profile packet-loss --target alice-node
+npm run network -- --profile high-latency --target alice-server
+npm run network -- --profile packet-loss --target alice-server
 ```
 
 - Apply a realtime app-fault profile against a runtime target.
 
 ```bash
-npm run network -- --profile flaky-mobile --target alice-node
+npm run network -- --profile flaky-mobile --target alice-server
 ```
 
 - Reset network simulation state after every manual profile run.
@@ -242,7 +242,7 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 | Host-process ports are busy | Another local runtime or app is already running | Run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` |
 | Testing profiles are hidden or inert | `API_ENABLE_DEV_TESTING` is unset or false | Set `API_ENABLE_DEV_TESTING=true` only in local development and restart API/web |
 | Seed/reset refuses the database | Env points at a non-local or production-looking DB | Fix `API_DATABASE_URL` and `API_ENVIRONMENT=development`; do not bypass this for shared data |
-| Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-node` or `bob-node` |
+| Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-server` or `bob-server` |
 | Runtime status is stale | `.local-run/` references old processes | Run the matching stop/down command first; delete stale `.local-run/` files only after confirming no owned process/container is running |
 
 ## Safety Rules
@@ -250,7 +250,7 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 - Keep fixture/session endpoints dev-only.
 - Keep local runtime test ports bound to loopback.
 - Keep seed/reset restricted to local development databases.
-- Do not use network simulation to add node-bypassing DM transport or plaintext relay behavior.
+- Do not use network simulation to add server-bypassing DM transport or plaintext relay behavior.
 - Reset network simulation state after manual failure testing.
 
 ## Related Documents

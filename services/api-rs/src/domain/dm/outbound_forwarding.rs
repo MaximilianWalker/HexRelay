@@ -94,7 +94,7 @@ async fn run_dm_outbound_forward_retry_worker(
 
         if !static_peer_forwarding_ready(&state) {
             debug!(
-                has_local_node_identity = state.local_node_identity.is_some(),
+                has_local_server_identity = state.local_server_identity.is_some(),
                 static_peer_count = state.static_peer_registry.descriptors().len(),
                 "skipping dm outbound forward retries until static-peer forwarding is configured"
             );
@@ -127,7 +127,7 @@ async fn run_dm_outbound_forward_retry_worker(
 }
 
 fn static_peer_forwarding_ready(state: &AppState) -> bool {
-    state.local_node_identity.is_some() && !state.static_peer_registry.descriptors().is_empty()
+    state.local_server_identity.is_some() && !state.static_peer_registry.descriptors().is_empty()
 }
 
 pub async fn retry_due_dm_outbound_forwards(
@@ -155,7 +155,7 @@ pub async fn retry_due_dm_outbound_forwards(
         let Some(attempt_count) = dm_repo::mark_dm_outbound_forward_retry_started(
             pool,
             &record.sender_identity_id,
-            &record.destination_node_id,
+            &record.destination_server_id,
             &record.message_id,
             max_attempts,
             config.stale_attempt_seconds,
@@ -173,7 +173,7 @@ pub async fn retry_due_dm_outbound_forwards(
         let dispatch_result = dispatch_dm_envelope(
             state,
             DispatchDmEnvelopeInput {
-                destination_node_id: Some(&record.destination_node_id),
+                destination_server_id: Some(&record.destination_server_id),
                 message_id: &record.message_id,
                 thread_id: &record.thread_id,
                 sender_identity_id: &record.sender_identity_id,
@@ -192,7 +192,7 @@ pub async fn retry_due_dm_outbound_forwards(
                 let updated = dm_repo::mark_dm_outbound_forward_succeeded(
                     pool,
                     &record.sender_identity_id,
-                    &record.destination_node_id,
+                    &record.destination_server_id,
                     &record.message_id,
                 )
                 .await
@@ -209,7 +209,7 @@ pub async fn retry_due_dm_outbound_forwards(
                 let next_attempt_at = match failure_class {
                     ForwardFailureClass::Retryable => next_retry_attempt_at(
                         Utc::now(),
-                        &record.destination_node_id,
+                        &record.destination_server_id,
                         &record.message_id,
                         attempt_count,
                         max_attempts,
@@ -219,7 +219,7 @@ pub async fn retry_due_dm_outbound_forwards(
                 dm_repo::mark_dm_outbound_forward_failed(
                     pool,
                     &record.sender_identity_id,
-                    &record.destination_node_id,
+                    &record.destination_server_id,
                     &record.message_id,
                     &error_summary,
                     next_attempt_at,
@@ -244,7 +244,7 @@ pub async fn retry_due_dm_outbound_forwards(
 
 pub fn next_retry_attempt_at(
     now: DateTime<Utc>,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
     attempt_count: u32,
     max_attempts: u32,
@@ -259,7 +259,7 @@ pub fn next_retry_attempt_at(
         .saturating_mul(multiplier)
         .min(DM_OUTBOUND_FORWARD_MAX_BACKOFF_SECONDS);
     let jitter_window = (base_delay / 5).max(1);
-    let jitter = (seahash::hash(format!("{destination_node_id}:{message_id}").as_bytes())
+    let jitter = (seahash::hash(format!("{destination_server_id}:{message_id}").as_bytes())
         % u64::try_from(jitter_window + 1).unwrap_or(1)) as i64;
 
     Some(now + ChronoDuration::seconds(base_delay + jitter))
@@ -267,7 +267,7 @@ pub fn next_retry_attempt_at(
 
 pub fn next_retry_attempt_after_failure(
     now: DateTime<Utc>,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
     attempt_count: u32,
     max_attempts: u32,
@@ -276,7 +276,7 @@ pub fn next_retry_attempt_after_failure(
     match classify_forward_failure(error) {
         ForwardFailureClass::Retryable => next_retry_attempt_at(
             now,
-            destination_node_id,
+            destination_server_id,
             message_id,
             attempt_count,
             max_attempts,
@@ -297,10 +297,10 @@ pub fn forwarding_error_summary(error: &str) -> String {
 fn classify_forward_failure(error: &str) -> ForwardFailureClass {
     let normalized = error.to_ascii_lowercase();
     if normalized.starts_with("plan dm envelope route:")
-        || normalized.contains("local node identity")
-        || normalized.contains("local node private key")
-        || normalized.contains("destination node descriptor has no forwarding address")
-        || normalized.contains("destination node descriptor address must")
+        || normalized.contains("local server identity")
+        || normalized.contains("local server private key")
+        || normalized.contains("destination server descriptor has no forwarding address")
+        || normalized.contains("destination server descriptor address must")
         || normalized.contains("rejected with status 400")
         || normalized.contains("rejected with status 401")
         || normalized.contains("rejected with status 403")
@@ -322,15 +322,15 @@ mod tests {
     fn retry_backoff_stops_at_max_attempts() {
         let now = Utc::now();
 
-        assert!(next_retry_attempt_at(now, "node-a", "msg-a", 5, 5).is_none());
+        assert!(next_retry_attempt_at(now, "server-a", "msg-a", 5, 5).is_none());
     }
 
     #[test]
     fn retry_backoff_uses_stable_bounded_jitter() {
         let now = Utc::now();
 
-        let first = next_retry_attempt_at(now, "node-a", "msg-a", 2, 5).expect("next attempt");
-        let second = next_retry_attempt_at(now, "node-a", "msg-a", 2, 5).expect("next attempt");
+        let first = next_retry_attempt_at(now, "server-a", "msg-a", 2, 5).expect("next attempt");
+        let second = next_retry_attempt_at(now, "server-a", "msg-a", 2, 5).expect("next attempt");
 
         assert_eq!(first, second);
         let delay = first - now;
@@ -346,7 +346,7 @@ mod tests {
         );
         assert!(next_retry_attempt_after_failure(
             Utc::now(),
-            "node-a",
+            "server-a",
             "msg-a",
             1,
             5,
@@ -355,7 +355,7 @@ mod tests {
         .is_none());
         assert_eq!(
             classify_forward_failure(
-                "node-forwarded DM envelope rejected with status 500 Internal Server Error"
+                "server-forwarded DM envelope rejected with status 500 Internal Server Error"
             ),
             ForwardFailureClass::Retryable
         );

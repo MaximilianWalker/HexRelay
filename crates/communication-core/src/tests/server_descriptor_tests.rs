@@ -1,7 +1,7 @@
 use crate::domain::{
     DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
-    DmForwardingPolicy, NetworkMode, NodeDescriptor, NodeDescriptorValidationError, NodeSignature,
-    NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy, StoragePolicy,
+    DmForwardingPolicy, NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor,
+    ServerDescriptorValidationError, ServerSignature, ServerSignatureAlgorithm, StoragePolicy,
 };
 
 struct StaticVerifier {
@@ -9,7 +9,7 @@ struct StaticVerifier {
 }
 
 impl DescriptorSignatureVerifier for StaticVerifier {
-    fn verify(&self, _descriptor: &NodeDescriptor) -> bool {
+    fn verify(&self, _descriptor: &ServerDescriptor) -> bool {
         self.valid
     }
 }
@@ -22,10 +22,10 @@ fn validation_context() -> DescriptorValidationContext {
     }
 }
 
-fn descriptor() -> NodeDescriptor {
-    NodeDescriptor {
-        node_id: "node-a".to_string(),
-        node_public_key: "ed25519-node-public-key".to_string(),
+fn descriptor() -> ServerDescriptor {
+    ServerDescriptor {
+        server_id: "server-a".to_string(),
+        server_public_key: "ed25519-server-public-key".to_string(),
         descriptor_id: "descriptor-a".to_string(),
         issued_at_epoch_seconds: 1_000,
         expires_at_epoch_seconds: 1_300,
@@ -35,13 +35,13 @@ fn descriptor() -> NodeDescriptor {
         relay_policy: RelayPolicy::None,
         dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
         storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-        addresses: vec!["https://node-a.example".to_string()],
-        supported_protocols: vec!["hexrelay-node-http".to_string()],
+        addresses: vec!["https://server-a.example".to_string()],
+        supported_protocols: vec!["hexrelay-server-http".to_string()],
         rate_limits: Vec::new(),
         trust_labels: Vec::new(),
-        revocation_pointer: Some("https://node-a.example/revocations".to_string()),
-        signature: NodeSignature {
-            algorithm: NodeSignatureAlgorithm::Ed25519,
+        revocation_pointer: Some("https://server-a.example/revocations".to_string()),
+        signature: ServerSignature {
+            algorithm: ServerSignatureAlgorithm::Ed25519,
             value: "signed-descriptor".to_string(),
         },
     }
@@ -67,7 +67,7 @@ fn rejects_expired_descriptor() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DescriptorExpired)
+        Err(ServerDescriptorValidationError::DescriptorExpired)
     );
 }
 
@@ -80,7 +80,7 @@ fn rejects_descriptor_ttl_over_context_limit() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DescriptorTtlTooLong {
+        Err(ServerDescriptorValidationError::DescriptorTtlTooLong {
             ttl_seconds: 1_000,
             max_seconds: 600,
         })
@@ -98,7 +98,7 @@ fn rejects_revoked_descriptor() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DescriptorRevoked)
+        Err(ServerDescriptorValidationError::DescriptorRevoked)
     );
 }
 
@@ -111,7 +111,7 @@ fn rejects_forged_descriptor_signature() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::SignatureVerificationFailed)
+        Err(ServerDescriptorValidationError::SignatureVerificationFailed)
     );
 }
 
@@ -124,7 +124,7 @@ fn rejects_hidden_descriptor_exposure_through_public_registry() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DiscoveryExposureRefused {
+        Err(ServerDescriptorValidationError::DiscoveryExposureRefused {
             requested_path: DiscoveryPath::PublicRegistry,
             discovery_policy: DiscoveryPolicy::None,
         })
@@ -139,7 +139,7 @@ fn rejects_private_descriptor_exposure_through_user_introduction() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DiscoveryExposureRefused {
+        Err(ServerDescriptorValidationError::DiscoveryExposureRefused {
             requested_path: DiscoveryPath::UserConsentedIntroduction,
             discovery_policy: DiscoveryPolicy::PrivateAllowlist,
         })
@@ -167,7 +167,7 @@ fn rejects_public_discovery_for_private_peer_network_mode() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DiscoveryPolicyConflict {
+        Err(ServerDescriptorValidationError::DiscoveryPolicyConflict {
             network_mode: NetworkMode::PrivatePeers,
             discovery_policy: DiscoveryPolicy::PublicRegistry,
         })
@@ -185,7 +185,7 @@ fn rejects_lan_only_descriptor_with_public_peering() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::PeeringPolicyConflict {
+        Err(ServerDescriptorValidationError::PeeringPolicyConflict {
             network_mode: NetworkMode::LanOnly,
             peering_policy: PeeringPolicy::PublicAuthenticated,
         })
@@ -221,15 +221,17 @@ fn rejects_offline_descriptor_with_dm_forwarding() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::DmForwardingPolicyConflict {
-            relay_policy: RelayPolicy::None,
-            dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
-        })
+        Err(
+            ServerDescriptorValidationError::DmForwardingPolicyConflict {
+                relay_policy: RelayPolicy::None,
+                dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
+            }
+        )
     );
 }
 
 #[test]
-fn rejects_relay_use_when_node_peers_but_refuses_relay() {
+fn rejects_relay_use_when_server_peers_but_refuses_relay() {
     let mut descriptor = descriptor();
     descriptor.peering_policy = PeeringPolicy::InviteToken;
     descriptor.relay_policy = RelayPolicy::None;
@@ -239,7 +241,7 @@ fn rejects_relay_use_when_node_peers_but_refuses_relay() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::RelayRefused {
+        Err(ServerDescriptorValidationError::RelayRefused {
             relay_policy: RelayPolicy::None,
         })
     );
@@ -267,7 +269,7 @@ fn rejects_relay_policy_without_route_forwarding_permission() {
 
     assert_eq!(
         result,
-        Err(NodeDescriptorValidationError::RelayPolicyConflict {
+        Err(ServerDescriptorValidationError::RelayPolicyConflict {
             relay_policy: RelayPolicy::AllowlistedPeers,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
         })

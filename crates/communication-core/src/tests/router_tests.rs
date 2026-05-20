@@ -9,24 +9,24 @@ use crate::domain::{
     SendEnvelope, SessionProvenance, TransportProfile,
 };
 use crate::transport::{
-    send_via_node_dispatch, send_via_node_dispatch_with_provenance, DispatchingNodeClientTransport,
-    NodeClientTransport, NodeDispatch, TransportError,
+    send_via_server_dispatch, send_via_server_dispatch_with_provenance,
+    DispatchingServerClientTransport, ServerClientTransport, ServerDispatch, TransportError,
 };
 
 #[derive(Clone)]
-struct RecordingNodeClient {
+struct RecordingServerClient {
     connect_calls: Arc<AtomicUsize>,
     send_calls: Arc<AtomicUsize>,
 }
 
-impl NodeClientTransport for RecordingNodeClient {
+impl ServerClientTransport for RecordingServerClient {
     fn connect(&self, intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
         self.connect_calls.fetch_add(1, Ordering::SeqCst);
         Ok(SessionProvenance {
             mode: intent.mode,
-            profile: TransportProfile::NodeClient,
-            reason_code: CommunicationReasonCode::DmEnvelopeNodeRouteSelected,
-            policy_assertions: vec!["dm_envelope_node_policy_compliant".to_string()],
+            profile: TransportProfile::ServerClient,
+            reason_code: CommunicationReasonCode::DmEnvelopeServerRouteSelected,
+            policy_assertions: vec!["dm_envelope_server_policy_compliant".to_string()],
         })
     }
 
@@ -37,9 +37,9 @@ impl NodeClientTransport for RecordingNodeClient {
 }
 
 #[derive(Clone)]
-struct FailingNodeClient;
+struct FailingServerClient;
 
-impl NodeClientTransport for FailingNodeClient {
+impl ServerClientTransport for FailingServerClient {
     fn connect(&self, _intent: &ConnectIntent) -> Result<SessionProvenance, TransportError> {
         Err(TransportError::ConnectFailed)
     }
@@ -53,7 +53,7 @@ struct RecordingDispatch {
     payloads: Arc<Mutex<Vec<Vec<u8>>>>,
 }
 
-impl NodeDispatch for RecordingDispatch {
+impl ServerDispatch for RecordingDispatch {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
         self.payloads
             .lock()
@@ -64,37 +64,37 @@ impl NodeDispatch for RecordingDispatch {
 }
 
 #[test]
-fn routes_dm_envelope_connect_through_node_adapter() {
-    let node_connect_calls = Arc::new(AtomicUsize::new(0));
-    let node_send_calls = Arc::new(AtomicUsize::new(0));
+fn routes_dm_envelope_connect_through_server_adapter() {
+    let server_connect_calls = Arc::new(AtomicUsize::new(0));
+    let server_send_calls = Arc::new(AtomicUsize::new(0));
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingNodeClient {
-            connect_calls: Arc::clone(&node_connect_calls),
-            send_calls: node_send_calls,
+        RecordingServerClient {
+            connect_calls: Arc::clone(&server_connect_calls),
+            send_calls: server_send_calls,
         },
     );
 
     let result = router.connect(&ConnectIntent {
         mode: CommunicationMode::DmEnvelope,
-        target: ConnectTarget::NodeEndpoint {
-            endpoint: "https://node.example".to_string(),
+        target: ConnectTarget::ServerEndpoint {
+            endpoint: "https://server.example".to_string(),
         },
     });
 
     assert!(result.is_ok());
-    assert_eq!(node_connect_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server_connect_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
-fn routes_dm_envelope_send_through_node_adapter() {
-    let node_connect_calls = Arc::new(AtomicUsize::new(0));
-    let node_send_calls = Arc::new(AtomicUsize::new(0));
+fn routes_dm_envelope_send_through_server_adapter() {
+    let server_connect_calls = Arc::new(AtomicUsize::new(0));
+    let server_send_calls = Arc::new(AtomicUsize::new(0));
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingNodeClient {
-            connect_calls: node_connect_calls,
-            send_calls: Arc::clone(&node_send_calls),
+        RecordingServerClient {
+            connect_calls: server_connect_calls,
+            send_calls: Arc::clone(&server_send_calls),
         },
     );
 
@@ -104,18 +104,18 @@ fn routes_dm_envelope_send_through_node_adapter() {
     });
 
     assert_eq!(result, Ok(()));
-    assert_eq!(node_send_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server_send_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
 fn send_with_provenance_returns_stable_server_channel_outcome() {
-    let node_connect_calls = Arc::new(AtomicUsize::new(0));
-    let node_send_calls = Arc::new(AtomicUsize::new(0));
+    let server_connect_calls = Arc::new(AtomicUsize::new(0));
+    let server_send_calls = Arc::new(AtomicUsize::new(0));
     let router = CommunicationRouter::new(
         PolicyContext::default(),
-        RecordingNodeClient {
-            connect_calls: node_connect_calls,
-            send_calls: Arc::clone(&node_send_calls),
+        RecordingServerClient {
+            connect_calls: server_connect_calls,
+            send_calls: Arc::clone(&server_send_calls),
         },
     );
 
@@ -126,9 +126,9 @@ fn send_with_provenance_returns_stable_server_channel_outcome() {
         })
         .expect("server channel dispatch should route");
 
-    assert_eq!(node_send_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server_send_calls.load(Ordering::SeqCst), 1);
     assert_eq!(result.provenance.mode.as_str(), "server_channel");
-    assert_eq!(result.provenance.profile.as_str(), "node_client");
+    assert_eq!(result.provenance.profile.as_str(), "server_client");
     assert_eq!(
         result.provenance.reason_code.as_str(),
         "server_channel_route_selected"
@@ -141,12 +141,12 @@ fn send_with_provenance_returns_stable_server_channel_outcome() {
 
 #[test]
 fn maps_transport_connect_failure_to_reason_code() {
-    let router = CommunicationRouter::new(PolicyContext::default(), FailingNodeClient);
+    let router = CommunicationRouter::new(PolicyContext::default(), FailingServerClient);
 
     let result = router.connect(&ConnectIntent {
         mode: CommunicationMode::DmEnvelope,
-        target: ConnectTarget::NodeEndpoint {
-            endpoint: "https://node.invalid".to_string(),
+        target: ConnectTarget::ServerEndpoint {
+            endpoint: "https://server.invalid".to_string(),
         },
     });
 
@@ -155,7 +155,7 @@ fn maps_transport_connect_failure_to_reason_code() {
         Err(CommunicationError {
             code: CommunicationReasonCode::TransportConnectFailed,
             mode: CommunicationMode::DmEnvelope,
-            profile: Some(TransportProfile::NodeClient),
+            profile: Some(TransportProfile::ServerClient),
         })
     );
 }
@@ -166,7 +166,7 @@ fn maps_mode_disabled_to_reason_code() {
         enable_server_channel: false,
         ..PolicyContext::default()
     };
-    let router = CommunicationRouter::new(policy, FailingNodeClient);
+    let router = CommunicationRouter::new(policy, FailingServerClient);
 
     let result = router.send(&SendEnvelope {
         mode: CommunicationMode::ServerChannel,
@@ -184,9 +184,9 @@ fn maps_mode_disabled_to_reason_code() {
 }
 
 #[test]
-fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
+fn dispatching_server_client_transport_rejects_wrong_mode_payload() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport = DispatchingNodeClientTransport::new(
+    let transport = DispatchingServerClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
             payloads: Arc::clone(&payloads),
@@ -203,9 +203,9 @@ fn dispatching_node_client_transport_rejects_wrong_mode_payload() {
 }
 
 #[test]
-fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
+fn dispatching_server_client_transport_rejects_wrong_mode_connect() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport = DispatchingNodeClientTransport::new(
+    let transport = DispatchingServerClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
             payloads: Arc::clone(&payloads),
@@ -214,8 +214,8 @@ fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
 
     let result = transport.connect(&ConnectIntent {
         mode: CommunicationMode::ServerChannel,
-        target: ConnectTarget::NodeEndpoint {
-            endpoint: "https://node.invalid".to_string(),
+        target: ConnectTarget::ServerEndpoint {
+            endpoint: "https://server.invalid".to_string(),
         },
     });
 
@@ -223,9 +223,9 @@ fn dispatching_node_client_transport_rejects_wrong_mode_connect() {
 }
 
 #[test]
-fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
+fn dispatching_server_client_transport_forwards_payload_for_matching_mode() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
-    let transport = DispatchingNodeClientTransport::new(
+    let transport = DispatchingServerClientTransport::new(
         CommunicationMode::Presence,
         RecordingDispatch {
             payloads: Arc::clone(&payloads),
@@ -245,10 +245,10 @@ fn dispatching_node_client_transport_forwards_payload_for_matching_mode() {
 }
 
 #[test]
-fn send_via_node_dispatch_routes_dm_envelope_through_node_client_bootstrap() {
+fn send_via_server_dispatch_routes_dm_envelope_through_server_client_bootstrap() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
 
-    let result = send_via_node_dispatch(
+    let result = send_via_server_dispatch(
         CommunicationMode::DmEnvelope,
         PolicyContext::default(),
         RecordingDispatch {
@@ -265,10 +265,10 @@ fn send_via_node_dispatch_routes_dm_envelope_through_node_client_bootstrap() {
 }
 
 #[test]
-fn send_via_node_dispatch_with_provenance_returns_presence_outcome() {
+fn send_via_server_dispatch_with_provenance_returns_presence_outcome() {
     let payloads = Arc::new(Mutex::new(Vec::new()));
 
-    let result = send_via_node_dispatch_with_provenance(
+    let result = send_via_server_dispatch_with_provenance(
         CommunicationMode::Presence,
         PolicyContext::default(),
         RecordingDispatch {

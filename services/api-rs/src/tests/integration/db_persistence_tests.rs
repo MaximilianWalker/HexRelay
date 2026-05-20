@@ -256,8 +256,8 @@ async fn redeems_db_invite_after_app_restart() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build redeem invite request");
 
@@ -494,7 +494,7 @@ async fn fanout_friends_only_uses_db_friendship_state() {
     assert_eq!(fanout_payload["status"], "accepted");
     assert_eq!(
         fanout_payload["transport_profile"],
-        "encrypted_envelope_node"
+        "encrypted_envelope_server"
     );
 }
 

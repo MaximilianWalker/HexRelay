@@ -3,25 +3,25 @@ use std::fmt;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use communication_core::{
     ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, verify_descriptor_ed25519,
-    DescriptorValidationContext, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, NodeDescriptor,
-    NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy, StoragePolicy,
+    DescriptorValidationContext, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, PeeringPolicy,
+    RelayPolicy, ServerDescriptor, ServerSignature, ServerSignatureAlgorithm, StoragePolicy,
 };
 use ring::{rand::SystemRandom, signature::Ed25519KeyPair};
 use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Clone)]
-pub struct LocalNodeIdentity {
-    pub descriptor: NodeDescriptor,
+pub struct LocalServerIdentity {
+    pub descriptor: ServerDescriptor,
     pub private_key_pkcs8: Vec<u8>,
 }
 
-pub const DEFAULT_NODE_DESCRIPTOR_TTL_SECONDS: i64 = 86_400;
-pub const DEFAULT_NODE_DESCRIPTOR_MAX_TTL_SECONDS: i64 = 86_400;
+pub const DEFAULT_SERVER_DESCRIPTOR_TTL_SECONDS: i64 = 86_400;
+pub const DEFAULT_SERVER_DESCRIPTOR_MAX_TTL_SECONDS: i64 = 86_400;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NodeIdentityGenerateOptions {
-    pub node_id: String,
+pub struct ServerIdentityGenerateOptions {
+    pub server_id: String,
     pub descriptor_id: Option<String>,
     pub ttl_seconds: i64,
     pub max_ttl_seconds: i64,
@@ -38,28 +38,28 @@ pub struct NodeIdentityGenerateOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NodeIdentityGenerateCliOptions {
-    pub generate_options: NodeIdentityGenerateOptions,
+pub struct ServerIdentityGenerateCliOptions {
+    pub generate_options: ServerIdentityGenerateOptions,
     pub ttl_seconds_override: Option<i64>,
     pub max_ttl_seconds_override: Option<i64>,
     pub json_compact: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct GeneratedNodeIdentity {
-    pub api_local_node_descriptor_json: NodeDescriptor,
-    pub api_local_node_private_key_pkcs8_base64: String,
+pub struct GeneratedServerIdentity {
+    pub api_local_server_descriptor_json: ServerDescriptor,
+    pub api_local_server_private_key_pkcs8_base64: String,
 }
 
 #[derive(Debug)]
-pub enum NodeIdentityGenerateError {
+pub enum ServerIdentityGenerateError {
     InvalidArgs(String),
     KeyGenerationFailed,
     Signature(String),
     DescriptorInvalid(String),
 }
 
-impl fmt::Display for NodeIdentityGenerateError {
+impl fmt::Display for ServerIdentityGenerateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidArgs(message) => write!(f, "{message}"),
@@ -70,14 +70,14 @@ impl fmt::Display for NodeIdentityGenerateError {
     }
 }
 
-impl std::error::Error for NodeIdentityGenerateError {}
+impl std::error::Error for ServerIdentityGenerateError {}
 
-impl NodeIdentityGenerateCliOptions {
-    pub fn parse<I>(args: I) -> Result<Self, NodeIdentityGenerateError>
+impl ServerIdentityGenerateCliOptions {
+    pub fn parse<I>(args: I) -> Result<Self, ServerIdentityGenerateError>
     where
         I: IntoIterator<Item = String>,
     {
-        let mut node_id = None;
+        let mut server_id = None;
         let mut descriptor_id = None;
         let mut ttl_seconds_override = None;
         let mut max_ttl_seconds_override = None;
@@ -88,7 +88,7 @@ impl NodeIdentityGenerateCliOptions {
         let mut dm_forwarding_policy = DmForwardingPolicy::LocalRecipientsOnly;
         let mut storage_policy = StoragePolicy::DurableEncryptedEnvelopes;
         let mut addresses = Vec::new();
-        let mut supported_protocols = vec!["hexrelay-node-http".to_string()];
+        let mut supported_protocols = vec!["hexrelay-server-http".to_string()];
         let mut trust_labels = Vec::new();
         let mut revocation_pointer = None;
         let mut json_compact = false;
@@ -96,8 +96,8 @@ impl NodeIdentityGenerateCliOptions {
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--node-id" => {
-                    node_id = Some(next_arg("--node-id", &mut args)?);
+                "--server-id" => {
+                    server_id = Some(next_arg("--server-id", &mut args)?);
                 }
                 "--descriptor-id" => {
                     descriptor_id = Some(next_arg("--descriptor-id", &mut args)?);
@@ -136,7 +136,7 @@ impl NodeIdentityGenerateCliOptions {
                 "--protocol" => {
                     let protocol = next_arg("--protocol", &mut args)?;
                     if supported_protocols.len() == 1
-                        && supported_protocols[0] == "hexrelay-node-http"
+                        && supported_protocols[0] == "hexrelay-server-http"
                     {
                         supported_protocols.clear();
                     }
@@ -148,30 +148,30 @@ impl NodeIdentityGenerateCliOptions {
                 }
                 "--compact" => json_compact = true,
                 "--help" | "-h" => {
-                    return Err(NodeIdentityGenerateError::InvalidArgs(
-                        node_identity_generate_usage().to_string(),
+                    return Err(ServerIdentityGenerateError::InvalidArgs(
+                        server_identity_generate_usage().to_string(),
                     ));
                 }
                 value if value.starts_with('-') => {
-                    return Err(NodeIdentityGenerateError::InvalidArgs(format!(
-                        "unknown node identity option: {value}\n{}",
-                        node_identity_generate_usage()
+                    return Err(ServerIdentityGenerateError::InvalidArgs(format!(
+                        "unknown server identity option: {value}\n{}",
+                        server_identity_generate_usage()
                     )));
                 }
                 value => {
-                    return Err(NodeIdentityGenerateError::InvalidArgs(format!(
+                    return Err(ServerIdentityGenerateError::InvalidArgs(format!(
                         "unexpected positional argument: {value}\n{}",
-                        node_identity_generate_usage()
+                        server_identity_generate_usage()
                     )));
                 }
             }
         }
 
-        let node_id = node_id.ok_or_else(|| {
-            NodeIdentityGenerateError::InvalidArgs("--node-id is required".to_string())
+        let server_id = server_id.ok_or_else(|| {
+            ServerIdentityGenerateError::InvalidArgs("--server-id is required".to_string())
         })?;
 
-        validate_required_arg("--node-id", &node_id)?;
+        validate_required_arg("--server-id", &server_id)?;
         if let Some(descriptor_id) = &descriptor_id {
             validate_required_arg("--descriptor-id", descriptor_id)?;
         }
@@ -186,17 +186,17 @@ impl NodeIdentityGenerateCliOptions {
             validate_positive_i64("--max-ttl-seconds", max_ttl_seconds)?;
         }
         let effective_max_ttl_seconds =
-            max_ttl_seconds_override.unwrap_or(DEFAULT_NODE_DESCRIPTOR_MAX_TTL_SECONDS);
-        let ttl_seconds = ttl_seconds_override.unwrap_or(DEFAULT_NODE_DESCRIPTOR_TTL_SECONDS);
+            max_ttl_seconds_override.unwrap_or(DEFAULT_SERVER_DESCRIPTOR_MAX_TTL_SECONDS);
+        let ttl_seconds = ttl_seconds_override.unwrap_or(DEFAULT_SERVER_DESCRIPTOR_TTL_SECONDS);
         validate_positive_i64("--ttl-seconds", ttl_seconds)?;
         if ttl_seconds > effective_max_ttl_seconds {
-            return Err(NodeIdentityGenerateError::InvalidArgs(format!(
+            return Err(ServerIdentityGenerateError::InvalidArgs(format!(
                 "--ttl-seconds must be less than or equal to --max-ttl-seconds ({effective_max_ttl_seconds})"
             )));
         }
 
-        let generate_options = NodeIdentityGenerateOptions {
-            node_id,
+        let generate_options = ServerIdentityGenerateOptions {
+            server_id,
             descriptor_id,
             ttl_seconds,
             max_ttl_seconds: effective_max_ttl_seconds,
@@ -222,27 +222,27 @@ impl NodeIdentityGenerateCliOptions {
     }
 }
 
-pub fn node_identity_generate_usage() -> &'static str {
-    "Usage: generate_node_identity --node-id NODE_ID --address URL [--descriptor-id ID] [--ttl-seconds 86400] [--network-mode private_peers] [--discovery-policy private_allowlist] [--peering-policy invite_token] [--relay-policy none] [--dm-forwarding-policy local_recipients_only] [--storage-policy durable_encrypted_envelopes] [--protocol hexrelay-node-http] [--trust-label LABEL] [--revocation-pointer URL] [--compact]"
+pub fn server_identity_generate_usage() -> &'static str {
+    "Usage: generate_server_identity --server-id SERVER_ID --address URL [--descriptor-id ID] [--ttl-seconds 86400] [--network-mode private_peers] [--discovery-policy private_allowlist] [--peering-policy invite_token] [--relay-policy none] [--dm-forwarding-policy local_recipients_only] [--storage-policy durable_encrypted_envelopes] [--protocol hexrelay-server-http] [--trust-label LABEL] [--revocation-pointer URL] [--compact]"
 }
 
-pub fn generate_node_identity(
-    options: &NodeIdentityGenerateOptions,
+pub fn generate_server_identity(
+    options: &ServerIdentityGenerateOptions,
     issued_at_epoch_seconds: i64,
-) -> Result<(GeneratedNodeIdentity, LocalNodeIdentity), NodeIdentityGenerateError> {
+) -> Result<(GeneratedServerIdentity, LocalServerIdentity), ServerIdentityGenerateError> {
     validate_generation_options(options)?;
 
     let private_key_pkcs8 = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
-        .map_err(|_| NodeIdentityGenerateError::KeyGenerationFailed)?;
+        .map_err(|_| ServerIdentityGenerateError::KeyGenerationFailed)?;
     let private_key_pkcs8 = private_key_pkcs8.as_ref().to_vec();
-    let node_public_key = ed25519_public_key_hex(&private_key_pkcs8).map_err(|error| {
-        NodeIdentityGenerateError::Signature(format!(
+    let server_public_key = ed25519_public_key_hex(&private_key_pkcs8).map_err(|error| {
+        ServerIdentityGenerateError::Signature(format!(
             "failed to derive generated Ed25519 public key: {error:?}"
         ))
     })?;
-    let mut descriptor = NodeDescriptor {
-        node_id: options.node_id.clone(),
-        node_public_key,
+    let mut descriptor = ServerDescriptor {
+        server_id: options.server_id.clone(),
+        server_public_key,
         descriptor_id: options
             .descriptor_id
             .clone()
@@ -260,15 +260,15 @@ pub fn generate_node_identity(
         rate_limits: Vec::new(),
         trust_labels: options.trust_labels.clone(),
         revocation_pointer: options.revocation_pointer.clone(),
-        signature: NodeSignature {
-            algorithm: NodeSignatureAlgorithm::Ed25519,
+        signature: ServerSignature {
+            algorithm: ServerSignatureAlgorithm::Ed25519,
             value: String::new(),
         },
     };
     descriptor.signature.value = sign_descriptor_ed25519_pkcs8(&descriptor, &private_key_pkcs8)
         .map_err(|error| {
-            NodeIdentityGenerateError::Signature(format!(
-                "failed to sign generated node descriptor: {error:?}"
+            ServerIdentityGenerateError::Signature(format!(
+                "failed to sign generated server descriptor: {error:?}"
             ))
         })?;
     validate_generated_descriptor(
@@ -277,16 +277,16 @@ pub fn generate_node_identity(
         options.max_ttl_seconds,
     )?;
     verify_descriptor_ed25519(&descriptor).map_err(|error| {
-        NodeIdentityGenerateError::Signature(format!(
-            "generated node descriptor signature did not verify: {error:?}"
+        ServerIdentityGenerateError::Signature(format!(
+            "generated server descriptor signature did not verify: {error:?}"
         ))
     })?;
 
-    let output = GeneratedNodeIdentity {
-        api_local_node_descriptor_json: descriptor.clone(),
-        api_local_node_private_key_pkcs8_base64: BASE64.encode(&private_key_pkcs8),
+    let output = GeneratedServerIdentity {
+        api_local_server_descriptor_json: descriptor.clone(),
+        api_local_server_private_key_pkcs8_base64: BASE64.encode(&private_key_pkcs8),
     };
-    let identity = LocalNodeIdentity {
+    let identity = LocalServerIdentity {
         descriptor,
         private_key_pkcs8,
     };
@@ -295,16 +295,16 @@ pub fn generate_node_identity(
 }
 
 fn validate_generation_options(
-    options: &NodeIdentityGenerateOptions,
-) -> Result<(), NodeIdentityGenerateError> {
-    validate_required_arg("node_id", &options.node_id)?;
+    options: &ServerIdentityGenerateOptions,
+) -> Result<(), ServerIdentityGenerateError> {
+    validate_required_arg("server_id", &options.server_id)?;
     if let Some(descriptor_id) = &options.descriptor_id {
         validate_required_arg("descriptor_id", descriptor_id)?;
     }
     validate_positive_i64("ttl_seconds", options.ttl_seconds)?;
     validate_positive_i64("max_ttl_seconds", options.max_ttl_seconds)?;
     if options.ttl_seconds > options.max_ttl_seconds {
-        return Err(NodeIdentityGenerateError::InvalidArgs(
+        return Err(ServerIdentityGenerateError::InvalidArgs(
             "ttl_seconds must not exceed max_ttl_seconds".to_string(),
         ));
     }
@@ -319,18 +319,18 @@ fn validate_generation_options(
 }
 
 fn validate_generated_descriptor(
-    descriptor: &NodeDescriptor,
+    descriptor: &ServerDescriptor,
     now_epoch_seconds: i64,
     max_ttl_seconds: i64,
-) -> Result<(), NodeIdentityGenerateError> {
+) -> Result<(), ServerIdentityGenerateError> {
     let context = DescriptorValidationContext {
         now_epoch_seconds,
         max_ttl_seconds,
         revoked_descriptor_ids: Vec::new(),
     };
     descriptor.validate(&context).map_err(|error| {
-        NodeIdentityGenerateError::DescriptorInvalid(format!(
-            "generated node descriptor '{}' is invalid: {error:?}",
+        ServerIdentityGenerateError::DescriptorInvalid(format!(
+            "generated server descriptor '{}' is invalid: {error:?}",
             descriptor.descriptor_id
         ))
     })?;
@@ -338,37 +338,43 @@ fn validate_generated_descriptor(
     Ok(())
 }
 
-fn next_arg<I>(name: &'static str, args: &mut I) -> Result<String, NodeIdentityGenerateError>
+fn next_arg<I>(name: &'static str, args: &mut I) -> Result<String, ServerIdentityGenerateError>
 where
     I: Iterator<Item = String>,
 {
     args.next()
-        .ok_or_else(|| NodeIdentityGenerateError::InvalidArgs(format!("{name} requires a value")))
+        .ok_or_else(|| ServerIdentityGenerateError::InvalidArgs(format!("{name} requires a value")))
 }
 
-fn parse_i64_arg<I>(name: &'static str, args: &mut I) -> Result<i64, NodeIdentityGenerateError>
+fn parse_i64_arg<I>(name: &'static str, args: &mut I) -> Result<i64, ServerIdentityGenerateError>
 where
     I: Iterator<Item = String>,
 {
     next_arg(name, args)?
         .trim()
         .parse::<i64>()
-        .map_err(|_| NodeIdentityGenerateError::InvalidArgs(format!("{name} must be an integer")))
+        .map_err(|_| ServerIdentityGenerateError::InvalidArgs(format!("{name} must be an integer")))
 }
 
-fn validate_positive_i64(name: &'static str, value: i64) -> Result<(), NodeIdentityGenerateError> {
+fn validate_positive_i64(
+    name: &'static str,
+    value: i64,
+) -> Result<(), ServerIdentityGenerateError> {
     if value > 0 {
         Ok(())
     } else {
-        Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "{name} must be greater than zero"
         )))
     }
 }
 
-fn validate_required_arg(name: &'static str, value: &str) -> Result<(), NodeIdentityGenerateError> {
+fn validate_required_arg(
+    name: &'static str,
+    value: &str,
+) -> Result<(), ServerIdentityGenerateError> {
     if value.trim().is_empty() {
-        Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "{name} must not be empty"
         )))
     } else {
@@ -379,9 +385,9 @@ fn validate_required_arg(name: &'static str, value: &str) -> Result<(), NodeIden
 fn validate_repeated_values(
     name: &'static str,
     values: &[String],
-) -> Result<(), NodeIdentityGenerateError> {
+) -> Result<(), ServerIdentityGenerateError> {
     if values.iter().any(|value| value.trim().is_empty()) {
-        return Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        return Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "{name} must not contain empty values"
         )));
     }
@@ -389,21 +395,21 @@ fn validate_repeated_values(
     Ok(())
 }
 
-fn parse_network_mode(value: &str) -> Result<NetworkMode, NodeIdentityGenerateError> {
+fn parse_network_mode(value: &str) -> Result<NetworkMode, ServerIdentityGenerateError> {
     match value.trim() {
         "offline" => Ok(NetworkMode::Offline),
         "local_only" => Ok(NetworkMode::LocalOnly),
         "lan_only" => Ok(NetworkMode::LanOnly),
         "private_peers" => Ok(NetworkMode::PrivatePeers),
         "public_discovery" => Ok(NetworkMode::PublicDiscovery),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --network-mode '{}'",
             value
         ))),
     }
 }
 
-fn parse_discovery_policy(value: &str) -> Result<DiscoveryPolicy, NodeIdentityGenerateError> {
+fn parse_discovery_policy(value: &str) -> Result<DiscoveryPolicy, ServerIdentityGenerateError> {
     match value.trim() {
         "none" => Ok(DiscoveryPolicy::None),
         "lan_announce" => Ok(DiscoveryPolicy::LanAnnounce),
@@ -412,34 +418,34 @@ fn parse_discovery_policy(value: &str) -> Result<DiscoveryPolicy, NodeIdentityGe
         "user_consented_introduction" => Ok(DiscoveryPolicy::UserConsentedIntroduction),
         "public_registry" => Ok(DiscoveryPolicy::PublicRegistry),
         "public_dht" => Ok(DiscoveryPolicy::PublicDht),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --discovery-policy '{}'",
             value
         ))),
     }
 }
 
-fn parse_peering_policy(value: &str) -> Result<PeeringPolicy, NodeIdentityGenerateError> {
+fn parse_peering_policy(value: &str) -> Result<PeeringPolicy, ServerIdentityGenerateError> {
     match value.trim() {
         "none" => Ok(PeeringPolicy::None),
         "static_allowlist" => Ok(PeeringPolicy::StaticAllowlist),
         "invite_token" => Ok(PeeringPolicy::InviteToken),
         "member_introduced" => Ok(PeeringPolicy::MemberIntroduced),
         "public_authenticated" => Ok(PeeringPolicy::PublicAuthenticated),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --peering-policy '{}'",
             value
         ))),
     }
 }
 
-fn parse_relay_policy(value: &str) -> Result<RelayPolicy, NodeIdentityGenerateError> {
+fn parse_relay_policy(value: &str) -> Result<RelayPolicy, ServerIdentityGenerateError> {
     match value.trim() {
         "none" => Ok(RelayPolicy::None),
         "own_users_only" => Ok(RelayPolicy::OwnUsersOnly),
         "allowlisted_peers" => Ok(RelayPolicy::AllowlistedPeers),
         "open_limited" => Ok(RelayPolicy::OpenLimited),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --relay-policy '{}'",
             value
         ))),
@@ -448,24 +454,24 @@ fn parse_relay_policy(value: &str) -> Result<RelayPolicy, NodeIdentityGenerateEr
 
 fn parse_dm_forwarding_policy(
     value: &str,
-) -> Result<DmForwardingPolicy, NodeIdentityGenerateError> {
+) -> Result<DmForwardingPolicy, ServerIdentityGenerateError> {
     match value.trim() {
         "disabled" => Ok(DmForwardingPolicy::Disabled),
         "local_recipients_only" => Ok(DmForwardingPolicy::LocalRecipientsOnly),
         "allowlisted_route" => Ok(DmForwardingPolicy::AllowlistedRoute),
         "relay_allowed" => Ok(DmForwardingPolicy::RelayAllowed),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --dm-forwarding-policy '{}'",
             value
         ))),
     }
 }
 
-fn parse_storage_policy(value: &str) -> Result<StoragePolicy, NodeIdentityGenerateError> {
+fn parse_storage_policy(value: &str) -> Result<StoragePolicy, ServerIdentityGenerateError> {
     match value.trim() {
         "transient_only" => Ok(StoragePolicy::TransientOnly),
         "durable_encrypted_envelopes" => Ok(StoragePolicy::DurableEncryptedEnvelopes),
-        _ => Err(NodeIdentityGenerateError::InvalidArgs(format!(
+        _ => Err(ServerIdentityGenerateError::InvalidArgs(format!(
             "unsupported --storage-policy '{}'",
             value
         ))),
@@ -475,39 +481,39 @@ fn parse_storage_policy(value: &str) -> Result<StoragePolicy, NodeIdentityGenera
 #[cfg(test)]
 mod tests {
     use super::{
-        generate_node_identity, NodeIdentityGenerateCliOptions, NodeIdentityGenerateOptions,
-        DEFAULT_NODE_DESCRIPTOR_MAX_TTL_SECONDS,
+        generate_server_identity, ServerIdentityGenerateCliOptions, ServerIdentityGenerateOptions,
+        DEFAULT_SERVER_DESCRIPTOR_MAX_TTL_SECONDS,
     };
     use communication_core::{
         ed25519_public_key_hex, verify_descriptor_ed25519, DiscoveryPolicy, DmForwardingPolicy,
         NetworkMode, PeeringPolicy, RelayPolicy, StoragePolicy,
     };
 
-    fn default_options() -> NodeIdentityGenerateOptions {
-        NodeIdentityGenerateOptions {
-            node_id: "node-local".to_string(),
+    fn default_options() -> ServerIdentityGenerateOptions {
+        ServerIdentityGenerateOptions {
+            server_id: "server-local".to_string(),
             descriptor_id: Some("descriptor-local".to_string()),
             ttl_seconds: 300,
-            max_ttl_seconds: DEFAULT_NODE_DESCRIPTOR_MAX_TTL_SECONDS,
+            max_ttl_seconds: DEFAULT_SERVER_DESCRIPTOR_MAX_TTL_SECONDS,
             network_mode: NetworkMode::PrivatePeers,
             discovery_policy: DiscoveryPolicy::PrivateAllowlist,
             peering_policy: PeeringPolicy::InviteToken,
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec!["https://node-local.example".to_string()],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            addresses: vec!["https://server-local.example".to_string()],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             trust_labels: Vec::new(),
             revocation_pointer: None,
         }
     }
 
     #[test]
-    fn generates_signed_private_mesh_node_identity() {
+    fn generates_signed_private_mesh_server_identity() {
         let (output, identity) =
-            generate_node_identity(&default_options(), 1_700_000_000).expect("generate identity");
+            generate_server_identity(&default_options(), 1_700_000_000).expect("generate identity");
 
-        assert_eq!(identity.descriptor.node_id, "node-local");
+        assert_eq!(identity.descriptor.server_id, "server-local");
         assert_eq!(identity.descriptor.descriptor_id, "descriptor-local");
         assert_eq!(
             identity.descriptor.peering_policy,
@@ -519,35 +525,35 @@ mod tests {
             DmForwardingPolicy::LocalRecipientsOnly
         );
         assert_eq!(
-            output.api_local_node_descriptor_json,
+            output.api_local_server_descriptor_json,
             identity.descriptor.clone()
         );
-        assert!(!output.api_local_node_private_key_pkcs8_base64.is_empty());
+        assert!(!output.api_local_server_private_key_pkcs8_base64.is_empty());
         assert_eq!(
             ed25519_public_key_hex(&identity.private_key_pkcs8).expect("derive public key"),
-            identity.descriptor.node_public_key
+            identity.descriptor.server_public_key
         );
         verify_descriptor_ed25519(&identity.descriptor).expect("signature verifies");
     }
 
     #[test]
-    fn cli_requires_node_id() {
-        let err = NodeIdentityGenerateCliOptions::parse([
+    fn cli_requires_server_id() {
+        let err = ServerIdentityGenerateCliOptions::parse([
             "--address".to_string(),
-            "https://node-local.example".to_string(),
+            "https://server-local.example".to_string(),
         ])
-        .expect_err("missing node id should fail");
+        .expect_err("missing server id should fail");
 
-        assert!(err.to_string().contains("--node-id is required"));
+        assert!(err.to_string().contains("--server-id is required"));
     }
 
     #[test]
     fn cli_rejects_ttl_above_configured_limit() {
-        let err = NodeIdentityGenerateCliOptions::parse([
-            "--node-id".to_string(),
-            "node-local".to_string(),
+        let err = ServerIdentityGenerateCliOptions::parse([
+            "--server-id".to_string(),
+            "server-local".to_string(),
             "--address".to_string(),
-            "https://node-local.example".to_string(),
+            "https://server-local.example".to_string(),
             "--ttl-seconds".to_string(),
             "120".to_string(),
             "--max-ttl-seconds".to_string(),
@@ -566,7 +572,7 @@ mod tests {
         options.network_mode = NetworkMode::PrivatePeers;
         options.discovery_policy = DiscoveryPolicy::LanAnnounce;
 
-        let err = match generate_node_identity(&options, 1_700_000_000) {
+        let err = match generate_server_identity(&options, 1_700_000_000) {
             Ok(_) => panic!("invalid policy should fail"),
             Err(error) => error,
         };

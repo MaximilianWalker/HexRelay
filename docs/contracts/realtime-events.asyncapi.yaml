@@ -9,7 +9,7 @@ info:
     Use `docs/contracts/realtime-events-runtime.asyncapi.yaml` for current
     realtime runtime behavior.
     Target-state DM events carry E2EE envelopes only. Shared servers/message
-    nodes fan out ciphertext envelopes and minimal delivery metadata, while DM
+    servers fan out ciphertext envelopes and minimal delivery metadata, while DM
     plaintext and private keys remain client/device-only.
 defaultContentType: application/json
 servers:
@@ -26,13 +26,13 @@ channels:
         $ref: '#/components/messages/PresenceUpdated'
   dmMessageCreated:
     address: dm.message.created
-    description: Node/server-routed E2EE DM envelope creation event.
+    description: Server-routed E2EE DM envelope creation event.
     messages:
       dmMessageCreated:
         $ref: '#/components/messages/DmMessageCreated'
   dmEnvelopeDispatched:
     address: dm.envelope.dispatched
-    description: Message-node dispatch of a ciphertext DM envelope to one target profile device.
+    description: Message-server dispatch of a ciphertext DM envelope to one target profile device.
     messages:
       dmEnvelopeDispatched:
         $ref: '#/components/messages/DmEnvelopeDispatched'
@@ -235,7 +235,7 @@ components:
     DmMessageCreated:
       name: DmMessageCreated
       title: DM Message Created
-      summary: Published when a new node-routed DM envelope is created.
+      summary: Published when a new server-routed DM envelope is created.
       payload:
         $ref: '#/components/schemas/DmMessageCreatedEvent'
       examples:
@@ -245,7 +245,7 @@ components:
             event_type: dm.message.created
             occurred_at: 2026-03-04T14:52:01Z
             correlation_id: adfd8d5c-3b7f-474f-8f02-8ba62f33f5c6
-            producer: dm-message-node
+            producer: dm-message-server
             data:
               message_id: ad6b1131-e301-4b2e-a531-d6024f2f8ec4
               thread_id: 86588f8f-78f8-4234-b5fb-f53e90f8889d
@@ -254,11 +254,11 @@ components:
               ciphertext: BASE64_CIPHERTEXT_PLACEHOLDER
               key_id: dm-key-018
               thread_seq: 401
-              transport_scope: encrypted_envelope_node
+              transport_scope: encrypted_envelope_server
     DmEnvelopeDispatched:
       name: DmEnvelopeDispatched
       title: DM Envelope Dispatched
-      summary: Published to a recipient device when a message node dispatches an accepted ciphertext envelope.
+      summary: Published to a recipient device when a message server dispatches an accepted ciphertext envelope.
       payload:
         $ref: '#/components/schemas/DmEnvelopeDispatchedEvent'
       examples:
@@ -268,7 +268,7 @@ components:
             event_type: dm.envelope.dispatched
             occurred_at: 2026-05-08T15:00:00Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
-            producer: dm-message-node
+            producer: dm-message-server
             data:
               envelope_id: env-01hx7k5c9q5r0x9f5d7s0v4a6c
               message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
@@ -280,11 +280,11 @@ components:
               accepted_at: 2026-05-08T14:59:59Z
               dispatched_at: 2026-05-08T15:00:00Z
               delivery_cursor: '42'
-              transport_scope: encrypted_envelope_node
+              transport_scope: encrypted_envelope_server
     DmEnvelopeAck:
       name: DmEnvelopeAck
       title: DM Envelope Ack
-      summary: Sent by a recipient device after it receives a ciphertext envelope from the message node.
+      summary: Sent by a recipient device after it receives a ciphertext envelope from the message server.
       payload:
         $ref: '#/components/schemas/DmEnvelopeAckEvent'
       examples:
@@ -317,7 +317,7 @@ components:
             event_type: dm.delivery.updated
             occurred_at: 2026-05-08T15:00:01Z
             correlation_id: 5f225368-8e8d-4a7a-a057-f5fd7177901a
-            producer: dm-message-node
+            producer: dm-message-server
             data:
               message_id: msg-01hx7k5c9q5r0x9f5d7s0v4a6c
               thread_id: dm-usr-sender-usr-recipient
@@ -572,7 +572,7 @@ components:
           minimum: 1
         transport_scope:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
     DmMessageCreatedEvent:
       allOf:
         - $ref: '#/components/schemas/EventEnvelope'
@@ -612,7 +612,7 @@ components:
         delivery_cursor: { type: string, minLength: 1 }
         transport_scope:
           type: string
-          enum: [encrypted_envelope_node]
+          enum: [encrypted_envelope_server]
     DmEnvelopeDispatchedEvent:
       allOf:
         - $ref: '#/components/schemas/EventEnvelope'

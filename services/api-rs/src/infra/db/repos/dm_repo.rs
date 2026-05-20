@@ -7,7 +7,7 @@ use crate::models::{
 
 pub struct DmOutboundForwardWrite<'a> {
     pub sender_identity_id: &'a str,
-    pub destination_node_id: &'a str,
+    pub destination_server_id: &'a str,
     pub message_id: &'a str,
     pub thread_id: &'a str,
     pub recipient_identity_id: &'a str,
@@ -500,7 +500,7 @@ pub async fn record_dm_outbound_forward_queued(
         "
         INSERT INTO dm_outbound_forwarding_log (
             sender_identity_id,
-            destination_node_id,
+            destination_server_id,
             message_id,
             thread_id,
             recipient_identity_id,
@@ -517,7 +517,7 @@ pub async fn record_dm_outbound_forward_queued(
             updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', 1, NULL, NOW(), NULL, NULL, NOW(), NOW())
-        ON CONFLICT (sender_identity_id, destination_node_id, message_id) DO UPDATE
+        ON CONFLICT (sender_identity_id, destination_server_id, message_id) DO UPDATE
         SET thread_id = EXCLUDED.thread_id,
             recipient_identity_id = EXCLUDED.recipient_identity_id,
             ciphertext = EXCLUDED.ciphertext,
@@ -534,7 +534,7 @@ pub async fn record_dm_outbound_forward_queued(
         ",
     )
     .bind(record.sender_identity_id)
-    .bind(record.destination_node_id)
+    .bind(record.destination_server_id)
     .bind(record.message_id)
     .bind(record.thread_id)
     .bind(record.recipient_identity_id)
@@ -555,7 +555,7 @@ pub async fn record_dm_outbound_forward_queued(
 pub async fn mark_dm_outbound_forward_succeeded(
     pool: &PgPool,
     sender_identity_id: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
@@ -567,12 +567,12 @@ pub async fn mark_dm_outbound_forward_succeeded(
             forwarded_at = NOW(),
             updated_at = NOW()
         WHERE sender_identity_id = $1
-          AND destination_node_id = $2
+          AND destination_server_id = $2
           AND message_id = $3
         ",
     )
     .bind(sender_identity_id)
-    .bind(destination_node_id)
+    .bind(destination_server_id)
     .bind(message_id)
     .execute(pool)
     .await?;
@@ -583,7 +583,7 @@ pub async fn mark_dm_outbound_forward_succeeded(
 pub async fn mark_dm_outbound_forward_failed(
     pool: &PgPool,
     sender_identity_id: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
     error: &str,
     next_attempt_at: Option<DateTime<Utc>>,
@@ -597,12 +597,12 @@ pub async fn mark_dm_outbound_forward_failed(
             forwarded_at = NULL,
             updated_at = NOW()
         WHERE sender_identity_id = $1
-          AND destination_node_id = $2
+          AND destination_server_id = $2
           AND message_id = $3
         ",
     )
     .bind(sender_identity_id)
-    .bind(destination_node_id)
+    .bind(destination_server_id)
     .bind(message_id)
     .bind(error)
     .bind(next_attempt_at)
@@ -614,7 +614,7 @@ pub async fn mark_dm_outbound_forward_failed(
 pub async fn mark_dm_outbound_forward_retry_started(
     pool: &PgPool,
     sender_identity_id: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
     max_attempts: u32,
     stale_after_seconds: i64,
@@ -632,7 +632,7 @@ pub async fn mark_dm_outbound_forward_retry_started(
             forwarded_at = NULL,
             updated_at = NOW()
         WHERE sender_identity_id = $1
-          AND destination_node_id = $2
+          AND destination_server_id = $2
           AND message_id = $3
           AND attempt_count < $4
           AND (
@@ -648,7 +648,7 @@ pub async fn mark_dm_outbound_forward_retry_started(
         ",
     )
     .bind(sender_identity_id)
-    .bind(destination_node_id)
+    .bind(destination_server_id)
     .bind(message_id)
     .bind(max_attempts)
     .bind(stale_after_seconds.max(0) as f64)
@@ -675,7 +675,7 @@ pub async fn list_due_dm_outbound_forward_records(
     let rows = sqlx::query(
         "
         SELECT sender_identity_id,
-               destination_node_id,
+               destination_server_id,
                message_id,
                thread_id,
                recipient_identity_id,
@@ -700,7 +700,7 @@ pub async fn list_due_dm_outbound_forward_records(
         ORDER BY COALESCE(next_attempt_at, last_attempt_at, created_at) ASC,
                  updated_at ASC,
                  sender_identity_id ASC,
-                 destination_node_id ASC,
+                 destination_server_id ASC,
                  message_id ASC
         LIMIT $1
         ",
@@ -717,13 +717,13 @@ pub async fn list_due_dm_outbound_forward_records(
 pub async fn get_dm_outbound_forward_record(
     pool: &PgPool,
     sender_identity_id: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
 ) -> Result<Option<DmOutboundForwardRecord>, sqlx::Error> {
     let row = sqlx::query(
         "
         SELECT sender_identity_id,
-               destination_node_id,
+               destination_server_id,
                message_id,
                thread_id,
                recipient_identity_id,
@@ -736,12 +736,12 @@ pub async fn get_dm_outbound_forward_record(
                next_attempt_at
         FROM dm_outbound_forwarding_log
         WHERE sender_identity_id = $1
-          AND destination_node_id = $2
+          AND destination_server_id = $2
           AND message_id = $3
         ",
     )
     .bind(sender_identity_id)
-    .bind(destination_node_id)
+    .bind(destination_server_id)
     .bind(message_id)
     .fetch_optional(pool)
     .await?;
@@ -920,7 +920,7 @@ fn map_dm_outbound_forward_row(
 
     Ok(DmOutboundForwardRecord {
         sender_identity_id: row.try_get::<String, _>("sender_identity_id")?,
-        destination_node_id: row.try_get::<String, _>("destination_node_id")?,
+        destination_server_id: row.try_get::<String, _>("destination_server_id")?,
         message_id: row.try_get::<String, _>("message_id")?,
         thread_id: row.try_get::<String, _>("thread_id")?,
         recipient_identity_id: row.try_get::<String, _>("recipient_identity_id")?,

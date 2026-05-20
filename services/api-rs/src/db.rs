@@ -105,8 +105,8 @@ const MIGRATIONS: &[Migration] = &[
         include_str!("../migrations/0025_server_roles_and_channel_permissions.sql"),
     ),
     (
-        "0026_single_server_node_authority",
-        include_str!("../migrations/0026_single_server_node_authority.sql"),
+        "0026_single_server_authority",
+        include_str!("../migrations/0026_single_server_authority.sql"),
     ),
 ];
 
@@ -429,8 +429,8 @@ mod tests {
 
         let insert = sqlx::query(
             "
-            INSERT INTO invites (token, mode, node_fingerprint, uses)
-            VALUES ($1, 'one_time', 'hexrelay-local-fingerprint', 0)
+            INSERT INTO invites (token, mode, server_id, uses)
+            VALUES ($1, 'one_time', 'hexrelay-local-server', 0)
             ON CONFLICT (token) DO NOTHING
             ",
         )

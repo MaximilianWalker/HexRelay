@@ -6,7 +6,7 @@
   "actions": [
     {
       "type": "disconnect",
-      "target": "alice-node"
+      "target": "alice-server"
     }
   ]
 }

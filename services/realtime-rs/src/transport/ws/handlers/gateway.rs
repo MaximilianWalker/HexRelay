@@ -947,7 +947,7 @@ fn websocket_rate_limit_key(
     headers: &HeaderMap,
     peer_addr: Option<SocketAddr>,
 ) -> String {
-    if let Some(source) = request_source_fingerprint(state, headers) {
+    if let Some(source) = request_source_key(state, headers) {
         return format!("src:{:016x}", stable_hash(&source));
     }
 
@@ -958,7 +958,7 @@ fn websocket_rate_limit_key(
     "src:unknown".to_string()
 }
 
-fn request_source_fingerprint(state: &AppState, headers: &HeaderMap) -> Option<String> {
+fn request_source_key(state: &AppState, headers: &HeaderMap) -> Option<String> {
     if !state.trust_proxy_headers {
         return None;
     }

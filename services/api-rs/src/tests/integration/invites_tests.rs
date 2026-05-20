@@ -30,8 +30,8 @@ async fn creates_and_redeems_multi_use_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build redeem invite request");
 
@@ -47,8 +47,8 @@ async fn creates_and_redeems_multi_use_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build second redeem invite request");
 
@@ -89,8 +89,8 @@ async fn rejects_exhausted_one_time_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build first redeem request");
     let first_redeem_response = app
@@ -105,8 +105,8 @@ async fn rejects_exhausted_one_time_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build second redeem request");
     let second_redeem_response = app
@@ -152,7 +152,7 @@ async fn rejects_expired_invite() {
 }
 
 #[tokio::test]
-async fn rejects_fingerprint_mismatch_on_redeem() {
+async fn rejects_server_mismatch_on_redeem() {
     let (app, tokens) = app_with_sessions(&["usr-invite"]);
 
     let create_request = Request::builder()
@@ -181,7 +181,7 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"mismatch-node"}}"#,
+            r#"{{"token":"{}","server_id":"mismatch-server"}}"#,
             created.token
         )))
         .expect("build redeem request");
@@ -194,13 +194,13 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
         .expect("read mismatch redeem body");
     let redeem_payload: serde_json::Value =
         serde_json::from_slice(&redeem_body).expect("decode mismatch redeem body");
-    assert_eq!(redeem_payload["code"], "fingerprint_mismatch");
+    assert_eq!(redeem_payload["code"], "server_mismatch");
 }
 
 #[tokio::test]
 async fn rate_limits_invite_redeem_requests() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -242,7 +242,7 @@ async fn rate_limits_invite_redeem_requests() {
                 invite_id: None,
                 creator_identity_id: None,
                 mode: "multi_use".to_string(),
-                node_fingerprint: TEST_NODE_FINGERPRINT.to_string(),
+                server_id: TEST_SERVER_ID.to_string(),
                 expires_at: None,
                 max_uses: None,
                 uses: 0,
@@ -256,8 +256,8 @@ async fn rate_limits_invite_redeem_requests() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            token, TEST_SERVER_ID
         )))
         .expect("build first redeem request");
     let first_response = app
@@ -272,8 +272,8 @@ async fn rate_limits_invite_redeem_requests() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            token, TEST_SERVER_ID
         )))
         .expect("build second redeem request");
     let second_response = app

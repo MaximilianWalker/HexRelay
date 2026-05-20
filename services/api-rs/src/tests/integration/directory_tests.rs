@@ -31,7 +31,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
         serde_json::from_slice(&body).expect("decode server list response");
 
     assert_eq!(payload.items.len(), 1);
-    assert_eq!(payload.items[0]["id"], TEST_NODE_FINGERPRINT);
+    assert_eq!(payload.items[0]["id"], TEST_SERVER_ID);
     assert!(payload.items.iter().all(|item| item["favorite"] == true));
     assert!(payload
         .items
@@ -90,11 +90,11 @@ async fn lists_servers_for_authenticated_identity_only() {
     assert!(nora_payload
         .items
         .iter()
-        .any(|item| item["id"] == TEST_NODE_FINGERPRINT));
+        .any(|item| item["id"] == TEST_SERVER_ID));
     assert!(nora_payload
         .items
         .iter()
-        .all(|item| item["id"] == TEST_NODE_FINGERPRINT));
+        .all(|item| item["id"] == TEST_SERVER_ID));
 
     assert!(alex_payload.items.is_empty());
 }
@@ -134,7 +134,7 @@ async fn lists_contacts_with_redis_presence_snapshots_for_accepted_contacts_only
     let pending = unique_identity("usr-contacts-pending");
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -260,7 +260,7 @@ async fn lists_contacts_returns_latest_converged_presence_snapshot_after_reconne
     let accepted = unique_identity("usr-contacts-accepted-converged");
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -370,7 +370,7 @@ async fn lists_contacts_reads_snapshot_written_by_realtime_presence_publish_path
     let accepted = unique_identity("usr-contacts-accepted-cross-service");
 
     let api_state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),

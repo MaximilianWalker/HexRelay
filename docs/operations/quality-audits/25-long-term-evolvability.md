@@ -10,7 +10,7 @@
 ## Investigation Focus
 
 - Review whether core decisions remain understandable, reversible where practical, and easy to extend without speculative complexity.
-- Flag design debt that is likely to block future MVP phases or federation/server-node evolution.
+- Flag design debt that is likely to block future MVP phases or federation/server-to-server evolution.
 
 ## Active Findings
 

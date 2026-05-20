@@ -14,7 +14,7 @@
 - Purpose: provide minimum operational procedures for MVP reliability and recovery.
 - Primary edit location: update when deployment/recovery/incident steps change.
 - `Status: ready` marks this runbook as the canonical MVP operations reference; deployment go/no-go still requires checking open `watch` entries in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-node only and that realtime websocket abuse controls remain process-local.
+- Latest meaningful change: 2026-04-10 clarified that the currently validated dedicated deployment shape is single-server only and that realtime websocket abuse controls remain process-local.
   - 2026-03-05 security automation and CI evidence artifact collection baseline added.
 
 ## Core Procedures
@@ -35,11 +35,11 @@
 
 ## Dedicated Server Baseline
 
-- Scope: single-node headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
+- Scope: single-server headless deployment running `services/api-rs` + `services/realtime-rs` with shared Postgres.
 - Runtime authority: `docs/architecture/adr-0002-runtime-deployment-modes.md`.
 - Runtime config authority: `docs/reference/runtime-config-reference.md`.
 - Abuse controls: API rate limits are enforced via shared Postgres counters to preserve limits across horizontally scaled API instances.
-- Realtime websocket abuse controls are process-local: both websocket connect/message limits and per-identity connection caps are enforced inside each `realtime-rs` process. The currently validated dedicated deployment shape is single-node; multi-instance deployments remain an operator-managed watch item and must verify sticky routing plus edge/global limiting before they can claim equivalent behavior.
+- Realtime websocket abuse controls are process-local: both websocket connect/message limits and per-identity connection caps are enforced inside each `realtime-rs` process. The currently validated dedicated deployment shape is single-server; multi-instance deployments remain an operator-managed watch item and must verify sticky routing plus edge/global limiting before they can claim equivalent behavior.
 - Minimum environment: see `docs/reference/runtime-config-reference.md` for the complete variable inventory and production validation rules.
 - Startup sequence:
   1. Start database dependencies.
@@ -139,7 +139,7 @@ npm --prefix apps/web run e2e:smoke
   - Session validate endpoint works with existing active `hexrelay_session` cookie.
   - Realtime websocket auth handshake passes with valid session cookie (`hexrelay_session`).
 
-### Rollback Procedure (Single Node)
+### Rollback Procedure (Single Server)
 
 1. Stop realtime service.
 2. Stop API service.
@@ -148,7 +148,7 @@ npm --prefix apps/web run e2e:smoke
 5. Re-run smoke validation and archive logs for incident evidence.
 6. If auth grace mode was enabled during incident response, reset `REALTIME_WS_AUTH_GRACE_SECONDS=0` and verify websocket upgrades still pass under normal upstream validation.
 
-- Dedicated deployment note: the authoritative single-node schema bootstrap/migration procedure now lives in `docs/operations/02-dedicated-server-deployment.md`; treat `api-rs` startup database initialization failure as a rollout blocker before `realtime-rs` starts.
+- Dedicated deployment note: the authoritative single-server schema bootstrap/migration procedure now lives in `docs/operations/02-dedicated-server-deployment.md`; treat `api-rs` startup database initialization failure as a rollout blocker before `realtime-rs` starts.
 
 ## Release Decision and Abort Thresholds
 

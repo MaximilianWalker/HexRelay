@@ -78,14 +78,14 @@ where
         let auth = AuthSession::from_request_parts(parts, state).await?;
         let app_state = AppState::from_ref(state);
 
-        if server_id != app_state.node_fingerprint {
+        if server_id != app_state.server_id {
             info!(
                 authorization_scope = "server_membership",
                 decision = "deny",
                 reason = "non_local_server_id",
                 identity_id = %auth.identity_id,
                 server_id = %server_id,
-                local_server_id = %app_state.node_fingerprint,
+                local_server_id = %app_state.server_id,
                 "server authorization denied for non-local server id"
             );
             return Err(forbidden(

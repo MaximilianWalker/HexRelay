@@ -401,7 +401,7 @@ pub fn build_dm_envelope_dispatched_event(
         event_type: "dm.envelope.dispatched".to_string(),
         occurred_at: dispatched_at.to_string(),
         correlation_id: correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
-        producer: "dm-message-node".to_string(),
+        producer: "dm-message-server".to_string(),
         data: serde_json::json!({
             "envelope_id": envelope_id,
             "message_id": message_id,
@@ -413,7 +413,7 @@ pub fn build_dm_envelope_dispatched_event(
             "accepted_at": accepted_at,
             "dispatched_at": dispatched_at,
             "delivery_cursor": delivery_cursor,
-            "transport_scope": "encrypted_envelope_node",
+            "transport_scope": "encrypted_envelope_server",
         }),
     };
 

@@ -13,7 +13,7 @@
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-05-11 clarified post-MVP discovery around the dynamic server-node policy graph, opt-in descriptors, and user-consented node introductions.
+- Latest meaningful change: 2026-05-11 clarified post-MVP discovery around the dynamic server-to-server policy graph, opt-in descriptors, and user-consented server introductions.
 
 ## Purpose
 
@@ -50,14 +50,14 @@
 - C-012 (resolved 2026-03-04): Realtime event/signaling contracts are formalized in an AsyncAPI artifact for Iterations 2-3.
 - C-013 (resolved 2026-03-04): KPI/SLO validation uses a fixed test profile (`200 users`, `70/30 WiFi/Fast4G`, latest stable Chrome/Firefox, single-region staging).
 - C-014 (resolved 2026-03-04): Migration conflict precedence uses user-signed profile data as canonical; server-owned security/membership fields remain server-authoritative.
-- C-015 (resolved 2026-03-04; updated 2026-05-08; clarified 2026-05-11): Post-MVP discovery follows a hybrid server-node policy graph roadmap: private/trusted discovery comes first, federation registries remain supported, user-consented node introductions are allowed only by descriptor policy, and decentralized server/node discovery remains optional for signed descriptor lookup only.
+- C-015 (resolved 2026-03-04; updated 2026-05-08; clarified 2026-05-11): Post-MVP discovery follows a hybrid server-to-server policy graph roadmap: private/trusted discovery comes first, federation registries remain supported, user-consented server introductions are allowed only by descriptor policy, and decentralized server discovery remains optional for signed descriptor lookup only.
 - C-016 (resolved 2026-03-04; superseded 2026-05-08): MVP contact add uses expiring server-mediated contact invite links only; QR codes are reserved for server invitations and trusted device-link/restore flows.
 - C-017 (resolved 2026-03-04): Server invites support optional expiration/max-uses, including non-expiring multi-use links for open-access behavior.
 - C-018 (resolved 2026-03-04): Server-mediated friend requests are intent-based, raw key/profile-identifying data is not exposed by default, and DM inbound policy defaults to friends-only with user opt-in overrides.
-- C-019 (resolved 2026-03-04; superseded 2026-05-08; clarified 2026-05-11): The old infrastructure-free DM transport decision is replaced by E2EE envelope delivery through server nodes/message nodes in the server-node P2P network. Servers may store/forward ciphertext envelopes and minimal delivery metadata only; DM plaintext and private keys remain client/device-only.
+- C-019 (resolved 2026-03-04; superseded 2026-05-08; clarified 2026-05-11): The old infrastructure-free DM transport decision is replaced by E2EE envelope delivery through servers/message servers in the server-to-server network. Servers may store/forward ciphertext envelopes and minimal delivery metadata only; DM plaintext and private keys remain client/device-only.
 - C-020 (resolved 2026-03-04; superseded 2026-05-08): MVP DM offline behavior requires durable encrypted-envelope acceptance into canonical DM history plus bounded eventual catch-up, not best-effort-only online delivery.
 - C-021 (resolved 2026-03-04): Primary runtime is downloadable desktop local-first; dedicated server deployments remain a supported optional mode.
-- C-022 (resolved 2026-03-12; superseded 2026-05-08; clarified 2026-05-11): Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope. Normal DM success uses server-node/message-node ciphertext-envelope delivery, while plaintext relay, server-side decryption, and private-key custody remain forbidden.
+- C-022 (resolved 2026-03-12; superseded 2026-05-08; clarified 2026-05-11): Recipient-device LAN/WAN transport, pairing QR/manual-code bootstrap, endpoint hints/cards, preflight, WAN wizard, and parallel dial are out of MVP DM delivery scope. Normal DM success uses server-to-server/message-server ciphertext-envelope delivery, while plaintext relay, server-side decryption, and private-key custody remain forbidden.
 - C-023 (resolved 2026-03-12): One profile may run on multiple devices, and incoming communication must converge across all profile devices (active fanout plus later-active catch-up) for both DM and server communication domains.
 
 ## Related Documents

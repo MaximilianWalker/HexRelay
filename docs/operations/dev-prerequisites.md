@@ -13,7 +13,7 @@
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-04-26 aligned the local Node baseline with the checked-in `.nvmrc` and package engine constraints.
+- Latest meaningful change: 2026-04-26 aligned the local Node.js baseline with the checked-in `.nvmrc` and package engine constraints.
 
 ## Purpose
 
@@ -81,7 +81,7 @@ Expected: commands resolve without errors and versions satisfy the required tool
 cat > services/api-rs/.env <<'EOF'
 API_BIND=127.0.0.1:8080
 API_ENVIRONMENT=development
-API_NODE_FINGERPRINT=hexrelay-local-fingerprint
+API_SERVER_ID=hexrelay-local-server
 API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay
 API_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
 API_TRUST_PROXY_HEADERS=false

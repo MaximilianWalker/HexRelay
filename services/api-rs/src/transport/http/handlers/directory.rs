@@ -32,7 +32,7 @@ pub async fn list_servers(
     })?;
 
     let mut items =
-        servers_repo::list_servers_for_identity(pool, &auth.identity_id, &state.node_fingerprint)
+        servers_repo::list_servers_for_identity(pool, &auth.identity_id, &state.server_id)
             .await
             .map_err(|_| internal_error("storage_unavailable", "failed to list servers"))?;
 

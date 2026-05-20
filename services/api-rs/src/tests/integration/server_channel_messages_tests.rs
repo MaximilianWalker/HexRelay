@@ -22,7 +22,7 @@ struct ServerChannelFixture {
 }
 
 async fn seed_server_channel_fixture(pool: &sqlx::PgPool) -> ServerChannelFixture {
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_id = format!("chn-general-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-channel-member");
     let outsider_id = unique_identity("usr-channel-outsider");
@@ -434,7 +434,7 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_id = format!("chn-channel-perm-{}", Uuid::new_v4().simple());
     let reader_id = unique_identity("usr-channel-reader");
     let poster_id = unique_identity("usr-channel-poster");
@@ -628,7 +628,7 @@ async fn channel_role_read_permission_gates_server_channel_message_listing() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_id = format!("chn-channel-read-denied-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-channel-read-denied");
     let role_id = format!("role-read-denied-{}", Uuid::new_v4().simple());
@@ -1552,7 +1552,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         return;
     };
 
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_id = format!("chn-fanout-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-fanout-member");
     let teammate_id = unique_identity("usr-fanout-teammate");
@@ -1908,7 +1908,7 @@ async fn server_channel_create_succeeds_when_realtime_dispatch_is_unreachable() 
         return;
     };
 
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
+    let server_id = TEST_SERVER_ID.to_string();
     let channel_id = format!("chn-dispatch-down-{}", Uuid::new_v4().simple());
     let member_id = unique_identity("usr-dispatch-down-member");
 

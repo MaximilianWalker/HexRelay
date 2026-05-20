@@ -199,7 +199,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
             'message_id': {'min_length': 1, 'max_length': 128},
             'ciphertext': {'min_length': 1, 'max_length': 8192},
             'source_device_id': {'min_length': 1, 'max_length': 64},
-            'destination_node_id': {'min_length': 1, 'max_length': 128},
+            'destination_server_id': {'min_length': 1, 'max_length': 128},
         },
         'DmFanoutCatchUpRequest': {
             'device_id': {'min_length': 1, 'max_length': 64},
@@ -230,7 +230,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 'fanout_same_server_context_required',
                 'fanout_blocked_user',
             ),
-            'transport_profile': ('encrypted_envelope_node',),
+            'transport_profile': ('encrypted_envelope_server',),
             'delivery_state': ('pending_delivery', 'forwarded', 'rejected'),
             'reachability_state': ('unreachable', 'blocked', 'unknown'),
         },
@@ -242,7 +242,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
                 'fanout_device_unknown',
                 'fanout_device_inactive',
             ),
-            'transport_profile': ('encrypted_envelope_node',),
+            'transport_profile': ('encrypted_envelope_server',),
         },
         'DmPolicy': {
             'inbound_policy': ('friends_only', 'same_server', 'anyone'),
@@ -369,7 +369,7 @@ def validate_api_semantic_contracts(contract_path_str: str) -> int:
         ('POST', '/auth/verify'): {'identity_invalid', 'nonce_invalid', 'signature_invalid'},
         ('POST', '/invites/redeem'): {
             'invite_invalid',
-            'fingerprint_mismatch',
+            'server_mismatch',
             'invite_expired',
             'invite_exhausted',
         },
