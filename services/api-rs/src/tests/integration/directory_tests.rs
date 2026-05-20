@@ -4,15 +4,16 @@ use tokio::{net::TcpListener, sync::mpsc};
 
 #[tokio::test]
 async fn lists_servers_with_filters_from_persisted_memberships() {
-    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-nora-k"]).await else {
+    let identity_id = unique_identity("usr-server-filters");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&identity_id]).await else {
         return;
     };
 
     seed_server_membership(
         &pool,
-        "srv-atlas-core",
+        TEST_NODE_FINGERPRINT,
         "Atlas Core",
-        "usr-nora-k",
+        &identity_id,
         true,
         false,
         2,
@@ -22,7 +23,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
         &pool,
         "srv-relay-lab",
         "Relay Lab",
-        "usr-nora-k",
+        &identity_id,
         false,
         true,
         0,
@@ -32,7 +33,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
         &pool,
         "srv-dev-signals",
         "Dev Signals",
-        "usr-nora-k",
+        &identity_id,
         true,
         false,
         5,
@@ -44,7 +45,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
         .uri("/servers?favorites_only=true&unread_only=true")
         .header(
             "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
+            format!("hexrelay_session={}", tokens[&identity_id]),
         )
         .body(Body::empty())
         .expect("build servers list request");
@@ -58,7 +59,8 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
     let payload: ServerListResponse =
         serde_json::from_slice(&body).expect("decode server list response");
 
-    assert_eq!(payload.items.len(), 2);
+    assert_eq!(payload.items.len(), 1);
+    assert_eq!(payload.items[0]["id"], TEST_NODE_FINGERPRINT);
     assert!(payload.items.iter().all(|item| item["favorite"] == true));
     assert!(payload
         .items
@@ -68,17 +70,18 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
 
 #[tokio::test]
 async fn lists_servers_for_authenticated_identity_only() {
-    let Some((app, tokens, pool)) =
-        app_with_database_and_sessions(&["usr-nora-k", "usr-alex-r"]).await
+    let nora_id = unique_identity("usr-list-nora");
+    let alex_id = unique_identity("usr-list-alex");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&nora_id, &alex_id]).await
     else {
         return;
     };
 
     seed_server_membership(
         &pool,
-        "srv-atlas-core",
+        TEST_NODE_FINGERPRINT,
         "Atlas Core",
-        "usr-nora-k",
+        &nora_id,
         true,
         false,
         2,
@@ -88,7 +91,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         &pool,
         "srv-shared-lab",
         "Shared Lab",
-        "usr-nora-k",
+        &nora_id,
         false,
         false,
         1,
@@ -98,7 +101,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         &pool,
         "srv-shared-lab",
         "Shared Lab",
-        "usr-alex-r",
+        &alex_id,
         false,
         false,
         0,
@@ -108,7 +111,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         &pool,
         "srv-alex-craft",
         "Alex Craft",
-        "usr-alex-r",
+        &alex_id,
         true,
         false,
         1,
@@ -118,19 +121,13 @@ async fn lists_servers_for_authenticated_identity_only() {
     let nora_request = Request::builder()
         .method("GET")
         .uri("/servers")
-        .header(
-            "cookie",
-            format!("hexrelay_session={}", tokens["usr-nora-k"]),
-        )
+        .header("cookie", format!("hexrelay_session={}", tokens[&nora_id]))
         .body(Body::empty())
         .expect("build nora servers list request");
     let alex_request = Request::builder()
         .method("GET")
         .uri("/servers")
-        .header(
-            "cookie",
-            format!("hexrelay_session={}", tokens["usr-alex-r"]),
-        )
+        .header("cookie", format!("hexrelay_session={}", tokens[&alex_id]))
         .body(Body::empty())
         .expect("build alex servers list request");
 
@@ -161,28 +158,21 @@ async fn lists_servers_for_authenticated_identity_only() {
     assert!(nora_payload
         .items
         .iter()
-        .any(|item| item["id"] == "srv-atlas-core"));
-    assert!(nora_payload
-        .items
-        .iter()
-        .any(|item| item["id"] == "srv-shared-lab"));
+        .any(|item| item["id"] == TEST_NODE_FINGERPRINT));
     assert!(nora_payload
         .items
         .iter()
         .all(|item| item["id"] != "srv-alex-craft"));
+    assert!(nora_payload
+        .items
+        .iter()
+        .all(|item| item["id"] != "srv-shared-lab"));
 
+    assert!(alex_payload.items.is_empty());
     assert!(alex_payload
         .items
         .iter()
-        .any(|item| item["id"] == "srv-alex-craft"));
-    assert!(alex_payload
-        .items
-        .iter()
-        .any(|item| item["id"] == "srv-shared-lab"));
-    assert!(alex_payload
-        .items
-        .iter()
-        .all(|item| item["id"] != "srv-atlas-core"));
+        .all(|item| item["id"] != TEST_NODE_FINGERPRINT));
 }
 
 #[tokio::test]

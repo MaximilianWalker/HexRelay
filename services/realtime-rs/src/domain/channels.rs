@@ -122,7 +122,7 @@ struct ChannelPubsubEnvelope {
 #[derive(Clone)]
 pub struct PublishChannelMessageCreatedInput {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
     pub sender_id: String,
     pub created_at: Option<String>,
@@ -133,7 +133,7 @@ pub struct PublishChannelMessageCreatedInput {
 #[derive(Clone)]
 pub struct PublishChannelMessageUpdatedInput {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
     pub editor_id: String,
     pub edited_at: Option<String>,
@@ -144,7 +144,7 @@ pub struct PublishChannelMessageUpdatedInput {
 #[derive(Clone)]
 pub struct PublishChannelMessageDeletedInput {
     pub message_id: String,
-    pub guild_id: String,
+    pub server_id: String,
     pub channel_id: String,
     pub deleted_by: String,
     pub deleted_at: Option<String>,
@@ -408,7 +408,7 @@ pub async fn publish_channel_message_created(
     let Some(client) = state.presence_redis_client.as_ref() else {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     };
@@ -417,7 +417,7 @@ pub async fn publish_channel_message_created(
     if recipients.is_empty() {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     }
@@ -433,7 +433,7 @@ pub async fn publish_channel_message_created(
     let created_at = input.created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
     let client_payload = crate::domain::events::service::build_channel_message_created_event(
         &input.message_id,
-        &input.guild_id,
+        &input.server_id,
         &input.channel_id,
         &input.sender_id,
         &created_at,
@@ -473,7 +473,7 @@ pub async fn publish_channel_message_created(
         recipient_cursors,
         data: ChannelMessageCreatedData {
             message_id: input.message_id,
-            server_id: input.guild_id,
+            server_id: input.server_id,
             channel_id: input.channel_id,
             sender_identity_id: input.sender_id,
             created_at,
@@ -520,7 +520,7 @@ pub async fn publish_channel_message_updated(
     let Some(client) = state.presence_redis_client.as_ref() else {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     };
@@ -529,7 +529,7 @@ pub async fn publish_channel_message_updated(
     if recipients.is_empty() {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     }
@@ -545,7 +545,7 @@ pub async fn publish_channel_message_updated(
     let edited_at = input.edited_at.unwrap_or_else(|| Utc::now().to_rfc3339());
     let client_payload = crate::domain::events::service::build_channel_message_updated_event(
         &input.message_id,
-        &input.guild_id,
+        &input.server_id,
         &input.channel_id,
         &input.editor_id,
         &edited_at,
@@ -585,7 +585,7 @@ pub async fn publish_channel_message_updated(
         recipient_cursors,
         data: ChannelMessageUpdatedData {
             message_id: input.message_id,
-            server_id: input.guild_id,
+            server_id: input.server_id,
             channel_id: input.channel_id,
             editor_identity_id: input.editor_id,
             edited_at,
@@ -632,7 +632,7 @@ pub async fn publish_channel_message_deleted(
     let Some(client) = state.presence_redis_client.as_ref() else {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     };
@@ -641,7 +641,7 @@ pub async fn publish_channel_message_deleted(
     if recipients.is_empty() {
         return Ok(empty_channel_dispatch_summary(
             &input.message_id,
-            &input.guild_id,
+            &input.server_id,
             &input.channel_id,
         ));
     }
@@ -657,7 +657,7 @@ pub async fn publish_channel_message_deleted(
     let deleted_at = input.deleted_at.unwrap_or_else(|| Utc::now().to_rfc3339());
     let client_payload = crate::domain::events::service::build_channel_message_deleted_event(
         &input.message_id,
-        &input.guild_id,
+        &input.server_id,
         &input.channel_id,
         &input.deleted_by,
         &deleted_at,
@@ -697,7 +697,7 @@ pub async fn publish_channel_message_deleted(
         recipient_cursors,
         data: ChannelMessageDeletedData {
             message_id: input.message_id,
-            server_id: input.guild_id,
+            server_id: input.server_id,
             channel_id: input.channel_id,
             deleter_identity_id: input.deleted_by,
             deleted_at,
@@ -1142,7 +1142,7 @@ mod tests {
             ChannelDispatchContext {
                 event_type: "channel.message.created",
                 message_id: "msg-1",
-                server_id: "guild-1",
+                server_id: "server-1",
                 channel_id: "channel-1",
             },
             "payload-1",
@@ -1225,7 +1225,7 @@ mod tests {
             ChannelDispatchContext {
                 event_type: "channel.message.created",
                 message_id: "msg-1",
-                server_id: "guild-1",
+                server_id: "server-1",
                 channel_id: "channel-1",
             },
             "payload-1",

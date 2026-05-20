@@ -64,6 +64,7 @@ pub async fn identities_share_server(
     pool: &PgPool,
     identity_a: &str,
     identity_b: &str,
+    local_server_id: &str,
 ) -> Result<bool, sqlx::Error> {
     let count = sqlx::query_scalar::<_, i64>(
         "
@@ -73,10 +74,12 @@ pub async fn identities_share_server(
             ON second.server_id = first.server_id
         WHERE first.identity_id = $1
           AND second.identity_id = $2
+          AND first.server_id = $3
         ",
     )
     .bind(identity_a)
     .bind(identity_b)
+    .bind(local_server_id)
     .fetch_one(pool)
     .await?;
 
@@ -86,6 +89,7 @@ pub async fn identities_share_server(
 pub async fn list_servers_for_identity(
     pool: &PgPool,
     identity_id: &str,
+    local_server_id: &str,
 ) -> Result<Vec<ServerSummary>, sqlx::Error> {
     let rows = sqlx::query(
         "
@@ -93,10 +97,12 @@ pub async fn list_servers_for_identity(
         FROM server_memberships m
         INNER JOIN servers s ON s.server_id = m.server_id
         WHERE m.identity_id = $1
+          AND m.server_id = $2
         ORDER BY m.favorite DESC, s.name ASC, s.server_id ASC
         ",
     )
     .bind(identity_id)
+    .bind(local_server_id)
     .fetch_all(pool)
     .await?;
 

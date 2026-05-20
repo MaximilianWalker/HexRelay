@@ -6,14 +6,14 @@
 - Owner: Architecture, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/architecture/04-communication-networking-layer-plan.md`
 
 ## Quick Context
 
 - Primary edit location for networking-layer architecture across E2EE DM envelope delivery and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-05-11 added recipient-targeted realtime dispatch summaries for DM encrypted envelopes while keeping final delivery ack-backed.
+- Latest meaningful change: 2026-05-20 aligned the networking plan with the accepted server-node authority model.
 
 ## Purpose
 
@@ -35,7 +35,7 @@ Users may:
 - allow a server to discover or introduce other servers,
 - refuse server-mediated discovery entirely.
 
-Servers are runtime nodes in a policy-controlled P2P network. They may provide community hosting, profile synchronization, encrypted DM envelope delivery, discovery, relay, or only a subset of those roles. No routing, discovery, or trust rule should assume a permanent user-to-server ownership relationship.
+Servers are runtime nodes in a policy-controlled P2P network. One user-facing server maps to one separately runnable node/runtime authority with its own identity and state boundary. Servers may provide community hosting, profile synchronization, encrypted DM envelope delivery, discovery, relay, or only a subset of those roles. No routing, discovery, or trust rule should assume a permanent user-to-server ownership relationship.
 
 ## Policy and Boundary Inputs
 
@@ -44,6 +44,7 @@ Servers are runtime nodes in a policy-controlled P2P network. They may provide c
 - Normal DM send success uses server-node P2P encrypted-envelope delivery.
 - DM delivery must not use recipient-device LAN/WAN transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, or parallel dial.
 - Server communication remains client-to-node and can use operator-hosted server infrastructure; P2P participation is between server runtimes.
+- The user app may aggregate or supervise multiple server nodes, but a single API runtime is not the authority for many unrelated user-facing servers.
 - No fallback may introduce server-readable DM content, private-key custody, or unencrypted DM mailbox/relay behavior.
 - One profile may run on multiple devices; incoming communication must eventually converge to all profile devices, including devices that become active later.
 - UX changes of any kind require explicit user approval before implementation.

@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 navigation decisions: Servers and Contacts share the same card/list hub model, and desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
+- Latest meaningful change: 2026-05-20 accepted the server-node authority model: one user-facing server maps to one separately runnable node/runtime authority; Servers and Contacts navigation decisions remain in progress.
 
 ## Product Summary
 
@@ -27,10 +27,12 @@ HexRelay is an open-source, self-hostable communication platform with a modern D
 - Windows and Linux are both first-class desktop release targets.
 - Desktop distribution uses Tauri by default and bundles UI with local API and realtime runtime components.
 - Local runtime allows UI launch either inside desktop shell or in a local browser session on localhost.
+- Each user-facing server is backed by one server runtime/node authority with its own node identity and state boundary.
+- The desktop app may supervise multiple local server runtimes or connect to multiple remote nodes, but the app is not the authority for many unrelated servers inside one shared API database.
 - Dedicated server deployments are supported as a separate optional operator service/package mode.
 - Dedicated server administration is performed through the normal HexRelay app connected to the node endpoint for identities with node-owner/admin permissions; dedicated server packages remain headless and do not ship a separate server-specific UI by default.
 - Browser-only hosted usage is a compatibility mode, not the core product assumption.
-- Runtime term mapping is canonical in `docs/reference/glossary.md`.
+- Runtime term mapping is canonical in `docs/reference/glossary.md`; server/node authority is canonical in `docs/architecture/adr-0004-server-node-authority.md`.
 - Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
 
 ## Vision
@@ -133,7 +135,7 @@ Build a communication stack where users and communities control identity, data l
 
 ### 6) Navigate Servers and Contacts at Scale
 
-1. User opens global `Servers` hub to browse all joined servers in searchable card or list layout.
+1. User opens global `Servers` hub to browse all joined server nodes in searchable card or list layout.
 2. User can pin/favorite servers and group them into folders for sidebar ordering.
 3. User can switch server navigation mode between sidebar list/folders and topbar tabs (browser-like).
 4. User can save/pin topbar tabs and organize frequent destinations in folders.
@@ -165,6 +167,7 @@ Build a communication stack where users and communities control identity, data l
   - One-time or multi-use; expiration and max-uses are optional policy controls.
   - Non-expiring multi-use links are allowed for intentionally open-access servers.
   - MVP invite scope is join eligibility only (no role/channel scoped grants).
+  - Invite redemption binds membership to the endpoint and node fingerprint in the invite; it does not create a second independent server inside the current API runtime.
 - User contact invites
   - Users can generate expiring contact invite links.
   - One-time by default, optional bounded max-uses.
@@ -205,6 +208,11 @@ Build a communication stack where users and communities control identity, data l
   - Server navigation must support both sidebar and topbar tab modes.
   - Topbar navigation must support saved tabs and folder organization.
   - Server workspace navigation must support explicit sidebar/topbar switching plus sidebar collapse without a burger control.
+- Server/node authority
+  - One user-facing server maps to one separately runnable server runtime/node.
+  - App-level multi-server views aggregate joined server nodes.
+  - Two servers on the same physical host must still have distinct node identities, configuration, policy, and state boundaries.
+  - API paths using `server_id` are scoped to the connected node/server identity; another server id belongs behind another node endpoint.
 - Voice
   - Competitive baseline quality and screen share support.
 - Discovery
@@ -241,7 +249,7 @@ Build a communication stack where users and communities control identity, data l
 - Frontend: Next.js + TypeScript.
 - Backend: Rust services (`axum`, `tokio`, `sqlx`, `serde`, `tracing`).
 - Infra: PostgreSQL, Redis, S3-compatible storage, and WebRTC + coturn for voice/call media only.
-- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts, LANs, or VPS; server runtimes are the peers in the server-node P2P network while clients attach to nodes.
+- Hosting/runtime: local desktop-bundled services by default, with optional dedicated node deployments on local hosts, LANs, or VPS; one user-facing server maps to one server runtime/node, server runtimes are the peers in the server-node P2P network, and clients attach to nodes.
 - Dedicated-server administration: app-mediated for authorized node owners/admins, with authenticated operator/admin APIs and no standalone server-specific UI artifact by default.
 - Server-node topology: dynamic opt-in policy graph with portable user identity, no primary-server assumption, and separate discovery/peering/relay/delivery/storage permissions.
 

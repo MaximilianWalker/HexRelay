@@ -77,6 +77,23 @@ where
             .ok_or_else(|| forbidden("server_access_denied", "server membership required"))?;
         let auth = AuthSession::from_request_parts(parts, state).await?;
         let app_state = AppState::from_ref(state);
+
+        if server_id != app_state.node_fingerprint {
+            info!(
+                authorization_scope = "server_membership",
+                decision = "deny",
+                reason = "non_local_server_id",
+                identity_id = %auth.identity_id,
+                server_id = %server_id,
+                local_server_id = %app_state.node_fingerprint,
+                "server authorization denied for non-local server id"
+            );
+            return Err(forbidden(
+                "server_access_denied",
+                "server membership required",
+            ));
+        }
+
         let pool = app_state.db_pool.as_ref().ok_or_else(|| {
             internal_error(
                 "storage_unavailable",

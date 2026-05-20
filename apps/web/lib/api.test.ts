@@ -126,7 +126,7 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             item: {
-              id: "fixture-server-atlas",
+              id: "hexrelay-local-fingerprint",
               name: "Atlas Test Server",
               unread: 2,
               favorite: true,
@@ -174,10 +174,10 @@ describe("api auth transport", () => {
         ),
       );
 
-    const server = await fetchServer({ serverId: "fixture-server-atlas" });
-    const channels = await fetchServerChannels({ serverId: "fixture-server-atlas" });
+    const server = await fetchServer({ serverId: "hexrelay-local-fingerprint" });
+    const channels = await fetchServerChannels({ serverId: "hexrelay-local-fingerprint" });
     const messages = await fetchServerChannelMessages({
-      serverId: "fixture-server-atlas",
+      serverId: "hexrelay-local-fingerprint",
       channelId: "fixture-channel-atlas-general",
       cursor: "3",
       limit: 10,
@@ -189,10 +189,10 @@ describe("api auth transport", () => {
     const [serverUrl, serverInit] = fetchMock.mock.calls[0] ?? [];
     const [channelsUrl, channelsInit] = fetchMock.mock.calls[1] ?? [];
     const [messagesUrl, messagesInit] = fetchMock.mock.calls[2] ?? [];
-    expect(String(serverUrl)).toContain("/servers/fixture-server-atlas");
-    expect(String(channelsUrl)).toContain("/servers/fixture-server-atlas/channels");
+    expect(String(serverUrl)).toContain("/servers/hexrelay-local-fingerprint");
+    expect(String(channelsUrl)).toContain("/servers/hexrelay-local-fingerprint/channels");
     expect(String(messagesUrl)).toContain(
-      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-fingerprint/channels/fixture-channel-atlas-general/messages",
     );
     expect(String(messagesUrl)).toContain("cursor=3");
     expect(String(messagesUrl)).toContain("limit=10");
@@ -221,7 +221,7 @@ describe("api auth transport", () => {
     );
 
     const result = await createServerChannelMessage({
-      serverId: "fixture-server-atlas",
+      serverId: "hexrelay-local-fingerprint",
       channelId: "fixture-channel-atlas-general",
       content: "Checking in with Bob.",
       replyToMessageId: "fixture-server-message-general-003",
@@ -231,7 +231,7 @@ describe("api auth transport", () => {
     expect(result.ok).toBe(true);
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain(
-      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-fingerprint/channels/fixture-channel-atlas-general/messages",
     );
     expect(init?.method).toBe("POST");
     const headers = new Headers(init?.headers ?? {});

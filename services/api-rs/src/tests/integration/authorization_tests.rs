@@ -4,7 +4,7 @@ use super::*;
 async fn gets_server_detail_for_authenticated_member_only() {
     let member_id = unique_identity("usr-auth-member");
     let outsider_id = unique_identity("usr-auth-outsider");
-    let server_id = format!("srv-authz-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
@@ -60,7 +60,7 @@ async fn gets_server_detail_for_authenticated_member_only() {
 async fn lists_server_channels_for_authenticated_member_only() {
     let member_id = unique_identity("usr-channel-auth-member");
     let outsider_id = unique_identity("usr-channel-auth-outsider");
-    let server_id = format!("srv-channel-authz-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let channel_a = format!("chn-authz-a-{}", uuid::Uuid::new_v4().simple());
     let channel_b = format!("chn-authz-b-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
@@ -154,7 +154,7 @@ async fn lists_server_channels_for_authenticated_member_only() {
 #[tokio::test]
 async fn lists_empty_server_channel_collection_for_member() {
     let member_id = unique_identity("usr-empty-channel-member");
-    let server_id = format!("srv-empty-channels-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
@@ -190,7 +190,7 @@ async fn lists_empty_server_channel_collection_for_member() {
 #[tokio::test]
 async fn channel_listing_honors_configured_role_read_permissions() {
     let member_id = unique_identity("usr-channel-role-reader");
-    let server_id = format!("srv-channel-role-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let readable_channel_id = format!("chn-readable-{}", uuid::Uuid::new_v4().simple());
     let hidden_channel_id = format!("chn-hidden-{}", uuid::Uuid::new_v4().simple());
     let role_id = format!("role-reader-{}", uuid::Uuid::new_v4().simple());
@@ -359,7 +359,7 @@ async fn server_role_assignment_is_scoped_to_matching_server_membership() {
 #[tokio::test]
 async fn rejects_server_channel_message_list_when_channel_belongs_to_different_server() {
     let member_id = unique_identity("usr-cross-server-member");
-    let server_a = format!("srv-cross-a-{}", uuid::Uuid::new_v4().simple());
+    let server_a = TEST_NODE_FINGERPRINT.to_string();
     let server_b = format!("srv-cross-b-{}", uuid::Uuid::new_v4().simple());
     let channel_b = format!("chn-cross-b-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
@@ -401,7 +401,7 @@ async fn rejects_server_channel_message_list_when_channel_belongs_to_different_s
 async fn gets_server_detail_for_cookie_authenticated_member_only() {
     let member_id = unique_identity("usr-cookie-member");
     let outsider_id = unique_identity("usr-cookie-outsider");
-    let server_id = format!("srv-cookie-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
@@ -454,7 +454,7 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
 async fn forbids_server_detail_bypass_via_path_switch() {
     let member_id = unique_identity("usr-bypass-member");
     let outsider_id = unique_identity("usr-bypass-outsider");
-    let member_server_id = format!("srv-member-only-{}", uuid::Uuid::new_v4().simple());
+    let member_server_id = TEST_NODE_FINGERPRINT.to_string();
     let outsider_server_id = format!("srv-outsider-only-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
@@ -503,7 +503,7 @@ async fn forbids_server_detail_bypass_via_path_switch() {
 #[tokio::test]
 async fn server_detail_authorization_survives_auth_reuse_in_handler() {
     let member_id = unique_identity("usr-authz-reuse");
-    let server_id = format!("srv-authz-reuse-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
@@ -531,7 +531,7 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
 #[tokio::test]
 async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
     let member_id = unique_identity("usr-list-scope");
-    let server_a = format!("srv-scope-a-{}", uuid::Uuid::new_v4().simple());
+    let server_a = TEST_NODE_FINGERPRINT.to_string();
     let server_b = format!("srv-scope-b-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
@@ -585,9 +585,45 @@ async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
         .iter()
         .filter_map(|item| item["id"].as_str())
         .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(ids.len(), 2);
+    assert_eq!(ids.len(), 1);
     assert!(ids.contains(server_a.as_str()));
-    assert!(ids.contains(server_b.as_str()));
+    assert!(!ids.contains(server_b.as_str()));
+}
+
+#[tokio::test]
+async fn forbids_member_access_to_non_local_server_id() {
+    let member_id = unique_identity("usr-non-local-member");
+    let non_local_server_id = format!("srv-non-local-{}", uuid::Uuid::new_v4().simple());
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    seed_server_membership(
+        &pool,
+        &non_local_server_id,
+        "Non Local",
+        &member_id,
+        false,
+        false,
+        0,
+    )
+    .await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri(format!("/servers/{non_local_server_id}"))
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::empty())
+        .expect("build non-local server request");
+
+    let response = app.oneshot(request).await.expect("non-local response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read non-local body");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode non-local body");
+    assert_eq!(payload["code"], "server_access_denied");
 }
 
 #[tokio::test]

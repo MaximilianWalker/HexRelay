@@ -31,9 +31,10 @@ pub async fn list_servers(
         )
     })?;
 
-    let mut items = servers_repo::list_servers_for_identity(pool, &auth.identity_id)
-        .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to list servers"))?;
+    let mut items =
+        servers_repo::list_servers_for_identity(pool, &auth.identity_id, &state.node_fingerprint)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to list servers"))?;
 
     if query.favorites_only.unwrap_or(false) {
         items.retain(|item| item.favorite);

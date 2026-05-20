@@ -17,13 +17,14 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 navigation decisions: Servers and Contacts share the same card/list hub model, and desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
+- Latest meaningful change: 2026-05-20 accepted the server-node authority model: one user-facing server maps to one separately runnable node/runtime authority; Servers and Contacts navigation decisions remain in progress.
 
 ## 1) Product Intent and Constraints
 
 - Free core forever: friends, DMs, servers/channels, voice, file sharing.
 - Open source first: no lock-in to a central hosted platform.
 - Hybrid operation: each server node can run locally, inside a LAN, privately online, or publicly discoverable by opt-in policy and participate in the server-node P2P network; federation/discovery evolves in phases.
+- Server authority model: one user-facing server maps to one separately runnable server runtime/node with its own node identity and state boundary.
 - Fast, modern UX: desktop-first distribution with reusable web UI surfaces.
 - Rust-first backend: performance, safety, and long-term maintainability.
 
@@ -40,6 +41,8 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Privacy baseline: encrypted transport and at-rest encryption everywhere; E2EE DMs in MVP.
 - DM delivery baseline: encrypted-envelope store-and-forward through server nodes/message nodes in the server-node P2P network only; DM delivery must not use recipient-device LAN/WAN transport.
 - Server-node networking is a dynamic policy graph. Discovery, peering, relay, delivery, and storage permissions are separate.
+- The user app may supervise or connect to multiple server nodes, but it is not the authority for many unrelated servers inside one app-owned database.
+- Two servers hosted on the same physical machine still behave as distinct server instances/nodes with separate identity, configuration, policy, and state.
 - Server discovery is opt-in. Online servers can still be private, non-discoverable, invite-only, or non-relaying.
 - Users may introduce servers to other servers only when the introduced server descriptor allows user-consented introduction and the user explicitly consents.
 - Servers may refuse discovery, peering, relay, or DM forwarding independently.
@@ -82,6 +85,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-11: Added T4.1.8 backend retention and abuse controls for encrypted-envelope delivery metadata: 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, and per-sender/device/node rate limits without plaintext inspection.
 - 2026-05-11: Added T4.1.9 backend realtime dispatch summaries for encrypted DM active-device fanout; summaries classify target-device routing outcomes but final delivery remains recipient-device ack-backed and no UX changes were introduced.
 - 2026-05-20: Recorded in-progress Iteration 2 UX decisions that Servers and Contacts hubs share card/list layouts, shared filters, selection, and action-menu behavior, while desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
+- 2026-05-20: Locked the server-node authority decision: one user-facing server equals one separately runnable server runtime/node authority; current multi-server-in-one-API storage is transitional scaffolding only.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -93,8 +97,9 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Dedicated-server administration is app-mediated: authorized node owners/admins connect through the normal HexRelay app to local, LAN, private online, or public node endpoints.
 - Dedicated server packages may expose authenticated admin/operator APIs, but no separate server-specific UI artifact is assumed for MVP.
 - Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when desktop packaging installs and supervises local runtime components.
+- A single API runtime is not the canonical authority for many user-facing servers. The app aggregates joined server nodes; each server/node owns its own authority boundary.
 - Browser-only usage is a compatibility path, not the primary runtime target.
-- Terminology mapping for runtime words (`node`, `server`, `dedicated server`) is canonical in `docs/reference/glossary.md`.
+- Terminology mapping for runtime words (`node`, `server`, `dedicated server`) is canonical in `docs/reference/glossary.md`; server/node authority is canonical in `docs/architecture/adr-0004-server-node-authority.md`.
 - Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
 
 ## 2) Architecture Decision (Locked)
@@ -115,6 +120,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Redis: presence, ephemeral state, fanout cache.
 - S3-compatible storage: media blobs.
 - WebRTC + coturn: voice/call media path.
+- Server/node identity: one server authority per runtime node; transitional `servers` rows represent the connected local node's own server state until schema cleanup converges naming.
 
 ## 3) MVP Functional Scope
 
@@ -178,6 +184,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Invite token fields in MVP: mode, optional expiration, optional max_uses, issuer, and opaque token id.
 - Invite scope in MVP is limited to join eligibility only (no role/channel/grant scopes).
 - Invite link contains node endpoint, node fingerprint, and token.
+- Invite redemption joins the server node identified by that endpoint and fingerprint. It must not create an unrelated server row inside the current app database.
 - Non-expiring multi-use invite links are allowed and represent an intentionally open join policy.
 - Client verifies node fingerprint before redeeming token.
 - On first join, client binds its public key to the server membership record.

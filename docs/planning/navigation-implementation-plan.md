@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package and flagged the server-instance architecture clarification for validation.
+- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package and locked the server-node authority clarification.
 
 ## Approval Boundary
 
@@ -59,24 +59,25 @@ Status: in progress. These decisions were made during the 2026-05-20 UX planning
 - Create Server defaults include one text channel and one voice channel.
 - The default voice channel is metadata-only in Iteration 2; no join/call runtime is added in this slice.
 
-### Architecture Clarification To Validate
+### Locked Architecture Clarification
 
 - The user-facing model should treat a HexRelay server as a separate server runtime/node, not as a user-owned client feature.
 - The user app may spawn local server instances for convenience, but each spawned server acts as its own server runtime/node with separate identity and state.
 - Two servers hosted on the same machine should still behave as distinct server instances/nodes.
 - A server invite should feel like a server join: redeeming it should make the user belong to that server and make the server appear in the Servers Hub.
-- Current docs and schema must be reconfirmed before implementation because the existing `servers` / `server_memberships` tables may represent a transitional scaffold rather than the final server-instance model.
+- Current `servers` / `server_memberships` storage is transitional local-node persistence, not the final authority model for hosting many servers in one API runtime.
+- Canonical authority: `docs/architecture/adr-0004-server-node-authority.md`.
 
 ### Architecture Reconfirmation Result
 
-Status: in progress as of 2026-05-20. The architecture files partially match the server-instance model, but not cleanly enough to implement against without a follow-up architecture cleanup.
+Status: accepted as of 2026-05-20. The architecture now explicitly matches the server-instance model, with a code guardrail keeping API-facing server membership scoped to the connected node/server identity.
 
 - Matches user direction: `docs/architecture/04-communication-networking-layer-plan.md` says servers are runtime nodes in the server-node P2P network.
 - Matches user direction: `docs/architecture/adr-0002-runtime-deployment-modes.md` keeps service boundaries explicit and treats dedicated server runtime as a separate headless service/package managed through the normal app.
 - Matches user direction: `docs/architecture/01-system-overview.md` makes node-authoritative state live behind API/realtime services and says clients attach to nodes.
-- Conflicts with user direction: `docs/reference/glossary.md` currently separates the user-facing server container from the deployment node.
-- Conflicts with user direction unless treated as transitional: the current API schema has `servers` and `server_memberships` rows inside one API database, which can model multiple user-facing servers inside one runtime.
-- Implementation implication: before Create/Join Server runtime work, the architecture glossary, product wording, data model, and invite/membership semantics need one explicit decision: either adopt one user-facing server per server runtime/node, or deliberately preserve the current multi-server-in-one-runtime scaffold.
+- Matches user direction: `docs/reference/glossary.md` now defines `Server` as a user-facing community backed by one node authority.
+- Transitional caveat: the current API schema still has `servers` and `server_memberships` rows inside one API database. Runtime authorization and directory listing are scoped to the local node fingerprint until schema cleanup converges this with node identity.
+- Implementation implication: Create/Join Server runtime work must provision/connect server runtimes and persist app-level connection state; it must not add a user-facing flow that creates many independent servers in one API database.
 
 ## Source Authorities
 

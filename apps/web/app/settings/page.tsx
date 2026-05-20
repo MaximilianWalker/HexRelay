@@ -182,7 +182,7 @@ const DEV_TESTING_SHORTCUTS: TestingShortcut[] = [
     label: "Alice Atlas server",
     description: "Shared server fixture with Alice's favorite and unread state.",
     profileId: "alice.primary",
-    href: "/servers/fixture-server-atlas",
+    href: "/servers/hexrelay-local-fingerprint",
     scenarioId: "server-chat",
   },
   {
@@ -190,7 +190,7 @@ const DEV_TESTING_SHORTCUTS: TestingShortcut[] = [
     label: "Bob Atlas server",
     description: "Shared server fixture with Bob's member state.",
     profileId: "bob.primary",
-    href: "/servers/fixture-server-atlas",
+    href: "/servers/hexrelay-local-fingerprint",
     scenarioId: "server-chat",
   },
 ];

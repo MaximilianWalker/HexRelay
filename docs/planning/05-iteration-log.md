@@ -6,14 +6,14 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-20
 - Source of truth: `docs/planning/05-iteration-log.md`
 
 ## Quick Context
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-15 added the approval-pending DM workspace delivery implementation plan.
+- Latest meaningful change: 2026-05-20 locked the server-node authority model and aligned docs/contracts/runtime guardrails.
 
 ## Purpose
 
@@ -29,6 +29,29 @@
 - Linked docs updated
 
 ## Log Entries
+
+### 2026-05-20 (server-node authority lock)
+
+- Area affected: Server architecture, server membership authorization, runtime REST contract, navigation planning, and Create/Join Server prerequisites.
+- Change summary:
+  - Added `docs/architecture/adr-0004-server-node-authority.md` as the accepted authority that one user-facing server maps to one separately runnable server runtime/node.
+  - Clarified that the user app can aggregate or supervise several server nodes, but it is not the authority for many unrelated servers inside one API database.
+  - Marked current `servers` and `server_memberships` storage as transitional local-node persistence until schema cleanup converges server identity with node identity.
+  - Scoped API-facing server membership and directory semantics to the connected node fingerprint.
+- Rationale:
+  - The previous scaffold could be read as a centralized many-servers-in-one-API model, which conflicts with the self-hostable/decentralized product model the user approved.
+- Linked docs updated:
+  - `docs/architecture/adr-0004-server-node-authority.md`
+  - `docs/architecture/01-system-overview.md`
+  - `docs/architecture/adr-0002-runtime-deployment-modes.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/02-prd.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/product/07-ui-navigation-spec.md`
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/contracts/runtime-rest.openapi.yaml`
+  - `docs/reference/glossary.md`
 
 ### 2026-05-15 (DM workspace delivery approval package)
 

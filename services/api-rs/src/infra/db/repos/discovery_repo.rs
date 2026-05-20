@@ -18,6 +18,7 @@ pub async fn list_global_discovery_candidates(
     search: Option<&str>,
     limit: usize,
     excluded_identity_ids: &[String],
+    local_server_id: &str,
 ) -> Result<Vec<DiscoveryUserRecord>, sqlx::Error> {
     let search = search.map(|value| format!("%{value}%"));
     let rows = sqlx::query(
@@ -34,6 +35,7 @@ pub async fn list_global_discovery_candidates(
             SELECT identity_id
             FROM server_memberships
             WHERE identity_id <> $1
+              AND server_id = $5
             UNION
             SELECT identity_id
             FROM identity_keys
@@ -44,6 +46,7 @@ pub async fn list_global_discovery_candidates(
             INNER JOIN server_memberships other
                 ON other.server_id = self.server_id
             WHERE self.identity_id = $1
+              AND self.server_id = $5
               AND other.identity_id <> $1
             GROUP BY other.identity_id
         )
@@ -60,6 +63,7 @@ pub async fn list_global_discovery_candidates(
     .bind(search)
     .bind(limit as i64)
     .bind(excluded_identity_ids)
+    .bind(local_server_id)
     .fetch_all(pool)
     .await?;
 
@@ -84,6 +88,7 @@ pub async fn list_shared_server_discovery_candidates(
     search: Option<&str>,
     limit: usize,
     excluded_identity_ids: &[String],
+    local_server_id: &str,
 ) -> Result<Vec<DiscoveryUserRecord>, sqlx::Error> {
     let search = search.map(|value| format!("%{value}%"));
     let rows = sqlx::query(
@@ -94,6 +99,7 @@ pub async fn list_shared_server_discovery_candidates(
             INNER JOIN server_memberships other
                 ON other.server_id = self.server_id
             WHERE self.identity_id = $1
+              AND self.server_id = $5
               AND other.identity_id <> $1
             GROUP BY other.identity_id
         )
@@ -109,6 +115,7 @@ pub async fn list_shared_server_discovery_candidates(
     .bind(search)
     .bind(limit as i64)
     .bind(excluded_identity_ids)
+    .bind(local_server_id)
     .fetch_all(pool)
     .await?;
 
@@ -168,6 +175,7 @@ pub async fn list_relationship_rows(
 pub async fn shared_server_counts(
     pool: &PgPool,
     identity_id: &str,
+    local_server_id: &str,
 ) -> Result<HashMap<String, u32>, sqlx::Error> {
     let rows = sqlx::query(
         "
@@ -176,11 +184,13 @@ pub async fn shared_server_counts(
         INNER JOIN server_memberships other
             ON other.server_id = self.server_id
         WHERE self.identity_id = $1
+          AND self.server_id = $2
           AND other.identity_id <> $1
         GROUP BY other.identity_id
         ",
     )
     .bind(identity_id)
+    .bind(local_server_id)
     .fetch_all(pool)
     .await?;
 

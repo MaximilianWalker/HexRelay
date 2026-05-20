@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/architecture/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 refreshed the communication networking summary for the dynamic server-node policy graph and clarified app-mediated dedicated-server administration.
+- Latest meaningful change: 2026-05-20 added the accepted server-node authority ADR that maps one user-facing server to one separately runnable node/runtime authority.
 
 ## Purpose
 
@@ -30,6 +30,7 @@
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode, release target parity, desktop/server package boundary, and dedicated-server administration surface baseline (accepted).
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`: Rust service module architecture contract baseline (accepted).
+- `docs/architecture/adr-0004-server-node-authority.md`: Server/node authority model: one user-facing server maps to one separately runnable server runtime/node (accepted).
 
 ## Architecture Specs
 

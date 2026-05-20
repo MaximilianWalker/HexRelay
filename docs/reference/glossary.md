@@ -6,20 +6,21 @@
 - Owner: Product and engineering maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/reference/glossary.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 added server-node policy graph roles, descriptors, discovery scopes, relay/delivery separation, and user-consented node introductions.
+- Latest meaningful change: 2026-05-20 locked `Server` as the user-facing community backed by one separately runnable node/runtime authority.
 
 ## Terms
 
 ### Runtime Term Mapping
 
 - `Node`: deployable HexRelay server runtime context (API + realtime + data services) that can participate as a peer in the server-node P2P network.
+- `Server`: user-facing community/workspace backed by one node authority. In MVP terminology, a server is not just a row inside a shared app database.
 - `Dedicated server`: node running headless for remote clients.
 - `Desktop local-first`: user-installed app running local UI plus local node runtime.
 - `Origin node`: server-node role that receives an outbound encrypted DM envelope from a sender device or local runtime.
@@ -29,7 +30,9 @@
 
 ### Definitions
 
-- Node: A self-hosted HexRelay server instance operated locally or on a VPS; nodes are the peers in HexRelay's server-node P2P network.
+- Node: A self-hosted HexRelay server runtime operated locally, on a LAN host, or on a VPS; nodes are the peers in HexRelay's server-node P2P network.
+- Server: A user-facing HexRelay community/workspace whose authority is one separately runnable node/runtime with its own node identity, configuration, policy, and state boundary.
+- Server runtime: API/realtime/data-service process set that owns one server/node authority.
 - Persona: A distinct user account/profile context available on the same device.
 - Profile capsule: Versioned user profile payload split into signed public data and encrypted private data.
 - Federation-lite: MVP discovery model using signed registry metadata rather than full decentralized DHT.
@@ -60,6 +63,7 @@
 - Desktop local-first mode: Default runtime where the installed desktop app starts UI plus local API/realtime services for off-grid operation.
 - Dedicated server mode: Optional headless deployment where API/realtime services run as a standalone node and clients connect remotely.
 - Runtime components: Distinct executable boundaries (`apps/web`, `services/api-rs`, `services/realtime-rs`) that may ship in one installer but do not become one process.
+- Servers Hub: App aggregation surface for joined server nodes. It can list several joined servers, but each server belongs behind its own node authority/endpoint.
 
 ## Related Documents
 

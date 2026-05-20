@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/planning/local-runtime-testing-plan.md`
 
 ## Quick Context
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-11 aligned local runtime testing guardrails with server-node P2P encrypted-envelope delivery and added the local two-API-node HTTP forwarding smoke.
+- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-node authority model and local node fingerprint binding.
 
 ## Organization Decision
 
@@ -142,7 +142,7 @@
 
 ### Server and Channel Data
 
-- Create one shared test server, for example `fixture-server-atlas`.
+- Create one shared test server fixture. The JSON template keeps a stable fixture id, but the seed CLI binds it to the configured local node fingerprint at seed time, defaulting to `hexrelay-local-fingerprint`.
 - Add Alice, Bob, and Carol as members with varied `favorite`, `muted`, and `unread_count` values.
 - Create at least two text channels, for example `general` and `ops-lab`.
 - Seed server channel messages with mentions and one reply where constraints allow it.

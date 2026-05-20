@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/architecture/01-system-overview.md`
 
 ## Quick Context
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-11 aligned whole-system topology with the dynamic server-node policy graph and clarified that dedicated-server administration is app-mediated while the server runtime stays headless.
+- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime/node authority and marked multi-server-in-one-API storage as transitional only.
 
 ## Purpose
 
@@ -25,7 +25,7 @@
 
 - `desktop local-first`
   - default product mode
-  - user runs UI plus local API/realtime services on loopback
+  - user runs UI plus at least one local API/realtime server node on loopback
   - local browser access and embedded desktop window both target the same local runtime
 - `dedicated server`
   - advanced optional mode
@@ -42,9 +42,10 @@ Detailed mode authority:
   - browser-facing UI layer
   - talks to API over HTTP and realtime over websocket
   - renders permission-gated user and admin surfaces when the connected node authorizes them
+  - may aggregate multiple joined server nodes in app state, but does not become the authority for those servers
 - `services/api-rs`
   - HTTP control plane
-  - auth/session validation, invites, friends, DM encrypted-envelope metadata/storage, server/channel persistence, policy checks
+  - auth/session validation, invites, friends, DM encrypted-envelope metadata/storage, connected-server/channel persistence, policy checks
 - `services/realtime-rs`
   - websocket/runtime fanout plane
   - websocket auth validation, live event fanout, replay hydration, presence and server-channel event delivery
@@ -69,11 +70,14 @@ Detailed mode authority:
 - UI, API, and realtime all run on the user machine.
 - Loopback is the main trust boundary for local service exposure.
 - Postgres/Redis may still run locally as supporting runtime dependencies.
+- Each local server is still a distinct node authority with its own node identity and state boundary.
+- The desktop app may supervise multiple local server runtimes for convenience, but it must treat them as separate nodes rather than many servers inside one app-owned database.
 
 ### Dedicated Server
 
 - API and realtime run as separate headless services.
 - Browser clients connect remotely through operator-managed ingress.
+- Each dedicated server deployment owns one node identity and one server-authoritative data boundary.
 - TLS terminates at ingress/reverse proxy, not directly inside current Rust services.
 - The dedicated server artifact does not ship a separate standalone admin UI by default; node owners/admins use the normal HexRelay app to connect to local, LAN, private online, or public nodes.
 - Admin/operator capabilities are exposed only through authenticated API surfaces and node permissions; discoverability or LAN placement must not grant management access by itself.
@@ -115,7 +119,7 @@ Detailed authorities:
   - DM plaintext, decrypted views, private keys, and local client encryption state
   - local runtime state in desktop local-first mode
 - node-authoritative
-  - sessions, invites, friends, server memberships, server-channel messages
+  - sessions, invites, friends, server memberships, server-channel messages for that node/server authority
   - encrypted DM envelopes and minimal delivery metadata accepted by a server node/message node in the server-node P2P network
   - server-side authz and policy decisions
   - node descriptors, discovery policy, peering policy, relay policy, and delivery policy for that node
@@ -137,6 +141,7 @@ Detailed authority:
   - watcher resolution is API-backed and live delivery is realtime-driven
 - `Server-channel messaging`
   - write path is API-authoritative and persisted first
+  - API requests are scoped to the connected node/server identity; another server id belongs behind another node endpoint
   - realtime fanout happens afterward through protected internal publish routes
 - `DM delivery`
   - relationship, policy, and public bootstrap material come from API control-plane flows
@@ -169,10 +174,12 @@ Detailed authority:
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`
+- Transitional implementation caveat: current `servers` and `server_memberships` tables still exist as local-node persistence scaffolding, but the canonical authority model is one user-facing server per server runtime/node. See `docs/architecture/adr-0004-server-node-authority.md`.
 
 ## Detailed Authorities
 
 - runtime modes: `docs/architecture/adr-0002-runtime-deployment-modes.md`
+- server/node authority: `docs/architecture/adr-0004-server-node-authority.md`
 - stack baseline: `docs/architecture/adr-0001-stack-baseline.md`
 - data ownership/retention: `docs/architecture/02-data-lifecycle-retention-replication.md`
 - communication/networking boundaries: `docs/architecture/04-communication-networking-layer-plan.md`

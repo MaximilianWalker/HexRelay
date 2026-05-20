@@ -51,7 +51,7 @@ const SEEDED_IDENTITIES: Record<string, { name: string; handle: string }> = {
 };
 
 const PREVIEW_SERVER: ServerSummary = {
-  id: "fixture-server-atlas",
+  id: "hexrelay-local-fingerprint",
   name: "Atlas Test Server",
   unread: 2,
   favorite: true,

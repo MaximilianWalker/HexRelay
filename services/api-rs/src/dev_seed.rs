@@ -482,13 +482,50 @@ pub async fn seed_profile(
     options: &SeedCliOptions,
     active_signing_key_id: &str,
     signing_key: &str,
+    local_server_id: &str,
 ) -> Result<SeedSummary, DevSeedError> {
-    let scenario = load_scenario(options)?;
+    let scenario = bind_scenario_to_local_server(load_scenario(options)?, local_server_id)?;
     seed_scenario(pool, scenario, active_signing_key_id, signing_key).await
 }
 
 pub fn validate_seed_profile(options: &SeedCliOptions) -> Result<(), DevSeedError> {
     load_scenario(options).map(|_| ())
+}
+
+fn bind_scenario_to_local_server(
+    mut scenario: SeedScenario,
+    local_server_id: &str,
+) -> Result<SeedScenario, DevSeedError> {
+    let local_server_id = local_server_id.trim();
+    if local_server_id.is_empty() {
+        return Err(DevSeedError::Config(
+            "local node fingerprint must not be empty for server fixtures".to_string(),
+        ));
+    }
+
+    if scenario.servers.len() > 1 {
+        return Err(DevSeedError::Config(
+            "server fixtures seed one local node authority at a time".to_string(),
+        ));
+    }
+    let Some(server) = scenario.servers.first_mut() else {
+        return Ok(scenario);
+    };
+
+    let fixture_server_id = server.server_id.clone();
+    server.server_id = local_server_id.to_string();
+    for membership in &mut scenario.server_memberships {
+        if membership.server_id == fixture_server_id {
+            membership.server_id = local_server_id.to_string();
+        }
+    }
+    for channel in &mut scenario.server_channels {
+        if channel.server_id == fixture_server_id {
+            channel.server_id = local_server_id.to_string();
+        }
+    }
+
+    Ok(scenario)
 }
 
 pub async fn reset_local_database(
@@ -1635,6 +1672,23 @@ mod tests {
         assert_eq!(scenario.server_memberships.len(), 3);
         assert_eq!(scenario.server_channels.len(), 2);
         assert_eq!(scenario.server_channel_messages.len(), 5);
+    }
+
+    #[test]
+    fn server_chat_fixture_binds_to_local_node_authority_for_seeding() {
+        let scenario = bind_scenario_to_local_server(server_chat(), "local-node-for-test")
+            .expect("bind fixture to local node");
+
+        assert_eq!(scenario.servers.len(), 1);
+        assert_eq!(scenario.servers[0].server_id, "local-node-for-test");
+        assert!(scenario
+            .server_memberships
+            .iter()
+            .all(|membership| membership.server_id == "local-node-for-test"));
+        assert!(scenario
+            .server_channels
+            .iter()
+            .all(|channel| channel.server_id == "local-node-for-test"));
     }
 
     #[test]
