@@ -12,8 +12,8 @@
 ## Quick Context
 
 - Purpose: record deterministic validation evidence for migration `0023_dm_outbound_forwarding_retry_schedule.sql`.
-- Primary edit location: update when outbound server-node DM retry scheduling changes.
-- Latest meaningful change: 2026-05-11 added `next_attempt_at` scheduling for bounded outbound server-node DM forwarding retries.
+- Primary edit location: update when outbound server DM retry scheduling changes.
+- Latest meaningful change: 2026-05-11 added `next_attempt_at` scheduling for bounded outbound server DM forwarding retries.
 
 ## Migration Metadata
 
@@ -28,7 +28,7 @@
 ## Forward Validation
 
 - Command(s) executed: `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `bash scripts/validate-dm-transport-policy.sh`.
-- Expected outcome: queued and failed outbound forwarding records get a due retry timestamp, and retry selection can find eligible server-node forwarding attempts deterministically.
+- Expected outcome: queued and failed outbound forwarding records get a due retry timestamp, and retry selection can find eligible server forwarding attempts deterministically.
 - Actual outcome: pass locally; PR CI identified this evidence artifact was required and is satisfied by this file.
 - Evidence path (logs/artifacts): local CLI validation and `evidence/migrations/0023_dm_outbound_forwarding_retry_schedule.md`.
 
@@ -49,11 +49,11 @@
 ## Data Integrity Verification
 
 - Constraints/indexes verified: nullable `next_attempt_at` column and retry index over `(forwarding_state, next_attempt_at, attempt_count)`.
-- Row-count or key invariants checked: queued and failed records without a retry schedule become due without changing sender, destination node, message, recipient, ciphertext, or delivery cursor values.
+- Row-count or key invariants checked: queued and failed records without a retry schedule become due without changing sender, destination server, message, recipient, ciphertext, or delivery cursor values.
 - Evidence path: `services/api-rs/migrations/0023_dm_outbound_forwarding_retry_schedule.sql`.
 
 ## Sign-off
 
 - Reviewer: Codex agent (PR #108 CI correction pass)
 - Decision: pass
-- Notes: Retry scheduling remains server-node forwarding infrastructure and does not expose new UX behavior or direct user-to-user transport.
+- Notes: Retry scheduling remains server forwarding infrastructure and does not expose new UX behavior or direct user-to-user transport.

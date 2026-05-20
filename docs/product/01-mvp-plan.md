@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-20 accepted the server authority model: one user-facing server maps to one separately runnable server runtime authority; Servers and Contacts navigation decisions remain in progress.
+- Latest meaningful change: 2026-05-20 accepted the server authority model and locked friend-request-only Contacts behavior; Servers and Contacts navigation decisions remain in progress.
 
 ## 1) Product Intent and Constraints
 
@@ -86,6 +86,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-11: Added T4.1.9 backend realtime dispatch summaries for encrypted DM active-device fanout; summaries classify target-device routing outcomes but final delivery remains recipient-device ack-backed and no UX changes were introduced.
 - 2026-05-20: Recorded in-progress Iteration 2 UX decisions that Servers and Contacts hubs share card/list layouts, shared filters, selection, and action-menu behavior, while desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
 - 2026-05-20: Locked the server authority decision and aligned API storage: one user-facing server equals one separately runnable server runtime authority, backed by singleton local-server storage inside one API database.
+- 2026-05-20: Locked user-facing contact add flows to discovery or direct identity lookup plus friend requests; `invite` language is reserved for server join and server peering flows.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -130,7 +131,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Multiple personas/accounts on one device.
 - Friends graph: add/remove/block/mute + presence.
 - User discovery (global and shared-server contexts) with server-mediated contact requests.
-- Contact invite add flow via expiring server-mediated contact invite link.
+- Contact add flow through user search or direct identity lookup plus server-mediated friend request.
 - Friend requests via servers are intent-based and mediated; raw key/profile-identifying data is not exposed by default.
 - Dedicated global hubs for browsing servers and contacts with searchable card and list layouts.
 - Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
@@ -189,23 +190,18 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Client verifies server id before redeeming token.
 - On first join, client binds its public key to the server membership record.
 
-### User Contact Invite Flow (MVP)
+### User Friend Request Flow (MVP)
 
-- Users can generate contact invites for adding friends without relying on global discovery.
-- Contact invite formats:
-  - Shareable link (`hexrelay://contact-invite/<token>`)
-- Contact invite token requirements:
-  - Expiration required.
-  - One-time by default; optional bounded max-uses for trusted sharing.
-  - Bound to inviter identity id and signature metadata.
-- Redeem behavior:
-  - Recipient redeems token and sees inviter identity preview.
-  - Accepting invite creates a server-mediated friend request or accepted friend edge per user settings.
-  - Expired/invalid/exhausted tokens fail with deterministic error codes.
+- Contacts are added through user search, shared-server discovery, or direct identity lookup.
+- Sending a request creates a pending friend-request edge between requester and target identities.
+- Recipient actions are accept or decline; requester may cancel while pending.
+- Raw key/profile-identifying data is not exposed before acceptance.
+- On acceptance, the API releases only the peer identity and profile-device bootstrap material required for client-side DM E2EE.
+- Blocked pairs cannot send, accept, or use friend-request bootstrap.
 
 ### DM Delivery Model (MVP Locked)
 
-- DM relationship and encryption bootstrap uses accepted contact-invite redemption or accepted mediated friend-request bootstrap.
+- DM relationship and encryption bootstrap uses accepted friend-request state.
 - Bootstrap material includes only the identity key and profile-device data required for client-side E2EE setup; recipient-device network endpoint hints, DM pairing QR payloads, and manual-code bootstrap are out of scope.
 - Normal DM send success uses the server-to-server P2P encrypted-envelope path and must not require recipient-device network reachability.
 - Servers/message servers may carry and store only E2EE DM envelopes plus minimal delivery metadata needed for authorization, routing, dedupe, delivery state, retention, and abuse controls.

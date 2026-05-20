@@ -94,7 +94,7 @@
 | Scenario ID | Purpose | Included Profiles | Data Shape |
 |---|---|---|---|
 | `dm-basic` | Fast manual testing for DM surfaces | Alice, Bob | Accepted friendship, DM policy, profile-device records, one encrypted DM thread |
-| `contacts-edge` | Contacts UI and request-state validation | Alice, Carol, Dave | Pending inbound/outbound requests, restricted policy, invite edge data |
+| `contacts-edge` | Contacts UI and request-state validation | Alice, Carol, Dave | Pending inbound/outbound requests and restricted policy |
 | `server-chat` | Server/channel workspace validation | Alice, Bob, Carol | Shared server, memberships, channels, server messages, unread/favorite/muted variation |
 | `multi-device` | Device convergence checks | Alice, Bob, Erin | Multiple Bob devices plus active/inactive profile-device variation |
 | `all` | Complete local exploratory dataset | All profiles | Combined DM, contacts, server, device, and policy states |

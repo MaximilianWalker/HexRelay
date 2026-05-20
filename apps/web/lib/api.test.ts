@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   activateTestingSession,
-  createContactInvite,
+  cancelFriendRequest,
   createFriendRequest,
   createInvite,
   createServerChannelMessage,
@@ -11,6 +11,7 @@ import {
   declineFriendRequest,
   fetchDmPolicy,
   fetchContacts,
+  fetchDiscoveryUsers,
   fetchFriendRequests,
   fetchServer,
   fetchServerChannelMessages,
@@ -19,7 +20,6 @@ import {
   fetchTestingProfiles,
   issueAuthChallenge,
   heartbeatDmProfileDevice,
-  redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
   revokeSession,
@@ -433,6 +433,7 @@ describe("api auth transport", () => {
           headers: { "content-type": "application/json" },
         }),
       )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const list = await fetchFriendRequests({
@@ -441,89 +442,53 @@ describe("api auth transport", () => {
     });
     const accept = await acceptFriendRequest({ requestId: "fr-1" });
     const decline = await declineFriendRequest({ requestId: "fr-2" });
+    const cancel = await cancelFriendRequest({ requestId: "fr-3" });
 
     expect(list.ok).toBe(true);
     expect(accept.ok).toBe(true);
     expect(decline.ok).toBe(true);
+    expect(cancel.ok).toBe(true);
   });
 
-  it("sends csrf and correct URL for contact invite creation", async () => {
+  it("queries discovery users for contact add search", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
         new Response(
           JSON.stringify({
-            invite_id: "ci-1",
-            token: "contact-token-abc",
-            mode: "one_time",
-            created_at: "2026-03-20T00:00:00Z",
-          }),
-          { status: 201, headers: { "content-type": "application/json" } },
-        ),
-      );
-
-    const result = await createContactInvite({ mode: "one_time" });
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.token).toBe("contact-token-abc");
-      expect(result.data.invite_id).toBe("ci-1");
-    }
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/contact-invites");
-    expect(String(url)).not.toContain("/redeem");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(headers.get("content-type")).toBe("application/json");
-    expect(init?.body).toContain('"mode":"one_time"');
-  });
-
-  it("sends csrf and correct URL for contact invite redeem", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            request_id: "fr-99",
-            requester_identity_id: "usr-inviter",
-            target_identity_id: "usr-redeemer",
-            status: "pending",
-            created_at: "2026-03-20T00:00:00Z",
+            items: [
+              {
+                identity_id: "usr-b",
+                display_name: "Bea",
+                avatar_url: null,
+                relationship_state: "none",
+                shared_server_count: 1,
+                can_send_friend_request: true,
+                has_pending_inbound_request: false,
+                has_pending_outbound_request: false,
+              },
+            ],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
       );
 
-    const result = await redeemContactInvite({ token: "contact-token-abc" });
+    const result = await fetchDiscoveryUsers({
+      query: "bea",
+      scope: "shared_server",
+      limit: 8,
+    });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.request_id).toBe("fr-99");
-      expect(result.data.status).toBe("pending");
-      expect(result.data.requester_identity_id).toBe("usr-inviter");
+      expect(result.data.items[0]?.identity_id).toBe("usr-b");
     }
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/contact-invites/redeem");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(init?.body).toBe('{"token":"contact-token-abc"}');
-  });
-
-  it("returns error codes for failed contact invite redeem", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ code: "invite_expired", message: "Invite has expired" }),
-        { status: 400, headers: { "content-type": "application/json" } },
-      ),
-    );
-
-    const result = await redeemContactInvite({ token: "expired-token" });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("invite_expired");
-      expect(result.message).toBe("Invite has expired");
-    }
+    expect(String(url)).toContain("/discovery/users?");
+    expect(String(url)).toContain("query=bea");
+    expect(String(url)).toContain("scope=shared_server");
+    expect(String(url)).toContain("limit=8");
+    expect(init?.method).toBe("GET");
   });
 
   it("loads and updates the DM privacy policy", async () => {

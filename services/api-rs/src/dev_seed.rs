@@ -296,7 +296,6 @@ struct InviteFixture {
     invite_id: String,
     token_hash: String,
     mode: String,
-    creator_identity_id: String,
     server_id: String,
     expires_at: Option<String>,
     max_uses: Option<i32>,
@@ -792,7 +791,6 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 invite.mode
             )));
         }
-        require_identity(&identity_ids, &invite.creator_identity_id, "invite creator")?;
         if invite.server_id.trim().is_empty() {
             return Err(DevSeedError::Config(format!(
                 "invite '{}' requires server_id",
@@ -1227,18 +1225,16 @@ async fn seed_invite(
             invite_id,
             token,
             mode,
-            creator_identity_id,
             server_id,
             expires_at,
             max_uses,
             uses,
             created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::timestamptz, $6, $7, $8::timestamptz)
         ON CONFLICT (token) DO UPDATE
         SET invite_id = EXCLUDED.invite_id,
             mode = EXCLUDED.mode,
-            creator_identity_id = EXCLUDED.creator_identity_id,
             server_id = EXCLUDED.server_id,
             expires_at = EXCLUDED.expires_at,
             max_uses = EXCLUDED.max_uses,
@@ -1249,7 +1245,6 @@ async fn seed_invite(
     .bind(&invite.invite_id)
     .bind(&invite.token_hash)
     .bind(&invite.mode)
-    .bind(&invite.creator_identity_id)
     .bind(&invite.server_id)
     .bind(invite.expires_at.as_deref())
     .bind(invite.max_uses)
@@ -1595,7 +1590,7 @@ mod tests {
         assert_eq!(scenario.identities.len(), 3);
         assert_eq!(scenario.sessions.len(), 3);
         assert_eq!(scenario.friend_requests.len(), 2);
-        assert_eq!(scenario.invites.len(), 2);
+        assert!(scenario.invites.is_empty());
     }
 
     #[test]
@@ -1693,14 +1688,7 @@ mod tests {
         );
         assert_dm_policy(&scenario, "usr-test-carol", "same_server");
         assert_dm_policy(&scenario, "usr-test-dave", "friends_only");
-
-        let exhausted = scenario
-            .invites
-            .iter()
-            .find(|invite| invite.invite_id == "fixture-invite-carol-contact-exhausted")
-            .expect("exhausted Carol invite exists");
-        assert_eq!(exhausted.mode, "multi_use");
-        assert_eq!(exhausted.max_uses, Some(exhausted.uses));
+        assert!(scenario.invites.is_empty());
         assert!(scenario.dm_threads.is_empty());
     }
 
@@ -1855,7 +1843,16 @@ mod tests {
     #[test]
     fn rejects_invite_uses_above_max() {
         let mut scenario = contacts_edge();
-        scenario.invites[0].uses = 2;
+        scenario.invites.push(InviteFixture {
+            invite_id: "fixture-invite-overused-server".to_string(),
+            token_hash: "1".repeat(64),
+            mode: "one_time".to_string(),
+            server_id: "dev-server-alice".to_string(),
+            expires_at: None,
+            max_uses: Some(1),
+            uses: 2,
+            created_at: "2026-05-04T10:00:00Z".to_string(),
+        });
 
         let error = validate_scenario(&scenario).expect_err("overused invite rejected");
 

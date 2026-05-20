@@ -6,14 +6,14 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/03-clarifications.md`
 
 ## Quick Context
 
 - Primary edit location for unresolved product and architecture questions.
 - Move resolved items to the resolved section and update linked canonical docs in the same PR.
-- Latest meaningful change: 2026-05-11 clarified post-MVP discovery around the dynamic server-to-server policy graph, opt-in descriptors, and user-consented server introductions.
+- Latest meaningful change: 2026-05-20 recorded friend-request-only contact add behavior.
 
 ## Purpose
 
@@ -51,7 +51,7 @@
 - C-013 (resolved 2026-03-04): KPI/SLO validation uses a fixed test profile (`200 users`, `70/30 WiFi/Fast4G`, latest stable Chrome/Firefox, single-region staging).
 - C-014 (resolved 2026-03-04): Migration conflict precedence uses user-signed profile data as canonical; server-owned security/membership fields remain server-authoritative.
 - C-015 (resolved 2026-03-04; updated 2026-05-08; clarified 2026-05-11): Post-MVP discovery follows a hybrid server-to-server policy graph roadmap: private/trusted discovery comes first, federation registries remain supported, user-consented server introductions are allowed only by descriptor policy, and decentralized server discovery remains optional for signed descriptor lookup only.
-- C-016 (resolved 2026-03-04; superseded 2026-05-08): MVP contact add uses expiring server-mediated contact invite links only; QR codes are reserved for server invitations and trusted device-link/restore flows.
+- C-016 (resolved 2026-03-04; updated 2026-05-20): MVP contact add uses discovery or direct identity lookup plus friend requests. QR codes are reserved for server invitations and trusted device-link/restore flows.
 - C-017 (resolved 2026-03-04): Server invites support optional expiration/max-uses, including non-expiring multi-use links for open-access behavior.
 - C-018 (resolved 2026-03-04): Server-mediated friend requests are intent-based, raw key/profile-identifying data is not exposed by default, and DM inbound policy defaults to friends-only with user opt-in overrides.
 - C-019 (resolved 2026-03-04; superseded 2026-05-08; clarified 2026-05-11): The old infrastructure-free DM transport decision is replaced by E2EE envelope delivery through servers/message servers in the server-to-server network. Servers may store/forward ciphertext envelopes and minimal delivery metadata only; DM plaintext and private keys remain client/device-only.

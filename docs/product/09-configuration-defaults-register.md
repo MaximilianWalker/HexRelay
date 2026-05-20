@@ -6,14 +6,14 @@
 - Owner: Product and platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/09-configuration-defaults-register.md`
 
 ## Quick Context
 
 - Purpose: define default values, allowed ranges, and override precedence for MVP policies.
 - Primary edit location: update when policy defaults or override rules change.
-- Latest meaningful change: 2026-05-11 added DM delivery metadata retention and abuse-control defaults for server-to-server P2P encrypted-envelope delivery.
+- Latest meaningful change: 2026-05-20 narrowed Contacts add behavior to friend requests.
 
 ## Override Precedence
 
@@ -27,9 +27,6 @@
 | `invite.mode` | `multi_use` | `one_time`, `multi_use` | server |
 | `invite.expires_at` | `null` | ISO date-time or `null` | server |
 | `invite.max_uses` | `null` | integer >= 1 or `null` | server |
-| `contact_invite.mode` | `one_time` | `one_time`, `multi_use` | user |
-| `contact_invite.expires_at` | `24h` | ISO date-time | user |
-| `contact_invite.max_uses` | `1` | integer >= 1 | user |
 | `dm.inbound_policy` | `friends_only` | `friends_only`, `same_server`, `anyone` | user |
 | `dm.delivery.mode` | `encrypted_envelope_server` | `encrypted_envelope_server` | user |
 | `dm.delivery.server_payload` | `ciphertext_envelopes_only` | `ciphertext_envelopes_only` | user |

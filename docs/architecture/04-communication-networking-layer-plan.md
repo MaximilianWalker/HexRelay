@@ -13,7 +13,7 @@
 
 - Primary edit location for networking-layer architecture across E2EE DM envelope delivery and server communication.
 - Keep this plan implementation-focused and avoid duplicating product policy rationale covered in product docs.
-- Latest meaningful change: 2026-05-20 aligned the networking plan with the accepted server authority model.
+- Latest meaningful change: 2026-05-20 aligned the networking plan with the accepted server authority model and friend-request-only contact bootstrap wording.
 
 ## Purpose
 
@@ -474,7 +474,7 @@ Current MVP-adjacent backend baseline:
 
 ### Connection Flow
 
-1. Users establish an accepted contact/friend relationship through contact invite redemption or mediated friend request.
+1. Users establish an accepted contact/friend relationship through a friend request.
 2. API releases only the identity and profile-device bootstrap material required for client-side E2EE setup.
 3. Client encrypts message content into per-recipient/device E2EE envelopes before handing it to a server/message server in the server-to-server network.
 4. `EncryptedEnvelopeServerTransport` durably accepts ciphertext envelopes plus minimal delivery metadata.

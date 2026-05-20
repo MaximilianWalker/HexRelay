@@ -29,7 +29,7 @@ use crate::{
             decline_friend_request, get_friend_request_bootstrap, list_friend_requests,
         },
         health::health,
-        invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
+        invites::{create_invite, redeem_invite},
         presence::list_presence_watchers,
         server::{get_server_capabilities, get_server_connection},
         server_channels::{
@@ -69,8 +69,6 @@ pub fn build_app(state: AppState) -> Router {
         .route("/dev/testing/sessions", post(activate_testing_session))
         .route("/invites", post(create_invite))
         .route("/invites/redeem", post(redeem_invite))
-        .route("/contact-invites", post(create_contact_invite))
-        .route("/contact-invites/redeem", post(redeem_contact_invite))
         .route("/servers", get(list_servers))
         .route("/servers/:server_id", get(get_server))
         .route("/servers/:server_id/channels", get(list_server_channels))

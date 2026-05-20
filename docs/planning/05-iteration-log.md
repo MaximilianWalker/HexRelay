@@ -516,7 +516,7 @@
 
 - Area affected: Local fixture catalog, API seed tooling, network simulation profiles, and local runtime testing plan.
 - Change summary:
-  - Added `contacts-edge` and `server-chat` scenario fixtures for pending/restricted contact states, contact invites, shared servers, memberships, channels, mentions, and replies.
+  - Added `contacts-edge` and `server-chat` scenario fixtures for pending/restricted contact states, shared servers, memberships, channels, mentions, and replies.
   - Extended the dev seed parser and transactional seeding path for invite, server, membership, channel, and server channel message fixture data.
   - Added bundled network simulation profile JSON files plus `npm run validate:network-profiles` for the PH-05 schema/validation slice.
   - Added `npm run network` plus Windows and Unix wrappers for applying/resetting network profile state, with Docker container-target support and fail-safe handling for current host-process runtime instances.
@@ -1026,7 +1026,7 @@
   - Enforced realtime sender identity binding by validating `from_user_id` against authenticated session identity before accepting signaling payloads.
   - Added realtime contract tests for unsupported event handling, malformed payloads, and websocket roundtrip envelope shape.
   - Added negative integration test for websocket auth flow when API upstream is unreachable.
-  - Added DB migration backfill test for invite plaintext-token hashing and removed plaintext fallback from invite redeem queries.
+  - Added invite-token hash enforcement and removed plaintext invite-token redeem behavior.
   - Added web unit tests for secure-store provider failure fallback and recovery phrase derivation stability.
   - Aligned product stack wording to current HMAC bearer token model (removed JWT phrasing drift).
 - Rationale:
@@ -1037,7 +1037,7 @@
   - `services/realtime-rs/src/handlers.rs`
   - `services/realtime-rs/Cargo.toml`
   - `services/api-rs/src/db.rs`
-  - `services/api-rs/migrations/0007_invites_hash_backfill.sql`
+  - `services/api-rs/migrations/0007_invite_token_hash_constraint.sql`
   - `services/api-rs/src/invite_handlers.rs`
   - `apps/web/lib/secure-store.test.ts`
   - `apps/web/lib/recovery.test.ts`
@@ -1292,7 +1292,7 @@
 
 - Area affected: Onboarding UX scope (`T2.1.4`)
 - Change summary:
-  - Removed server join/contact invite actions from onboarding access step.
+  - Removed server join/contact request actions from onboarding access step.
   - Converted access step into completion/handoff screen that routes users into the main app hubs for join/invite flows.
 - Rationale:
   - Reduce onboarding complexity and user confusion by keeping onboarding focused on identity and recovery only.
@@ -1481,7 +1481,7 @@
   - Replaced starter web screen with route-based onboarding flow: `/onboarding/identity`, `/onboarding/recovery`, `/onboarding/access`.
   - Added identity create/import UX shell with validation-state feedback and persona labeling scaffold.
   - Added mandatory recovery checkpoint UX requiring phrase word confirmation before progression.
-  - Added access choice UX for server invite, contact invite, or skip path plus `/home` post-onboarding placeholder.
+  - Added access choice UX for server invite, contact request, or skip path plus `/home` post-onboarding placeholder.
   - Updated global web styling baseline and font stack for a dedicated product visual direction.
 - Rationale:
   - Move from scaffolding UI to executable onboarding flow aligned with Iteration 1 product requirements.
@@ -1748,13 +1748,13 @@
   - `docs/product/04-dependencies-risks.md`
   - `docs/planning/05-iteration-log.md`
 
-### 2026-03-04 (legacy contact invite lock)
+### 2026-03-04 (old contact-link proposal)
 
 - Area affected: MVP social graph onboarding and contact-add flow
 - Change summary:
-  - Added contact invite flow (expiring link + QR) to MVP plan and PRD; QR contact invites were superseded on 2026-05-08.
-  - Added Iteration 2 API/Web tasks for contact invite create/redeem and share/scan UX.
-  - Extended requirement-to-task matrix with contact invite coverage.
+  - Added an expiring link + QR proposal to MVP plan and PRD; current product direction now uses friend requests for Contacts.
+  - Added Iteration 2 API/Web tasks for link create/redeem and share/scan UX.
+  - Extended requirement-to-task matrix with contact-add coverage.
 - Rationale:
   - Allow users to add each other by invite without depending on global/shared-server discovery.
   - Align user add UX with invite-based mental model already used for server joins.

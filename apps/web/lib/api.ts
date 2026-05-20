@@ -493,6 +493,43 @@ export async function fetchFriendRequests(input: {
   return parseResponse(response);
 }
 
+export async function fetchDiscoveryUsers(input: {
+  query?: string;
+  scope?: "global" | "shared_server";
+  limit?: number;
+}): Promise<
+  ApiResult<{
+    items: Array<{
+      identity_id: string;
+      display_name: string;
+      avatar_url: string | null;
+      relationship_state: string;
+      shared_server_count: number;
+      can_send_friend_request: boolean;
+      has_pending_inbound_request: boolean;
+      has_pending_outbound_request: boolean;
+    }>;
+  }>
+> {
+  const params = new URLSearchParams();
+  if (input.query) {
+    params.set("query", input.query);
+  }
+  if (input.scope) {
+    params.set("scope", input.scope);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
+  }
+
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/discovery/users?${params.toString()}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
 export async function acceptFriendRequest(input: {
   requestId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
@@ -509,6 +546,17 @@ export async function declineFriendRequest(input: {
 }): Promise<ApiResult<undefined>> {
   const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/decline`,
+    { method: "POST" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function cancelFriendRequest(input: {
+  requestId: string;
+}): Promise<ApiResult<undefined>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/cancel`,
     { method: "POST" },
   );
 
@@ -603,57 +651,4 @@ export async function redeemInvite(input: {
   });
 
   return parseResponse<{ accepted: boolean }>(response);
-}
-
-export async function createContactInvite(input: {
-  mode: "one_time" | "multi_use";
-  maxUses?: number;
-  expiresAt?: string;
-}): Promise<
-  ApiResult<{
-    invite_id: string;
-    token: string;
-    mode: string;
-    expires_at?: string;
-    max_uses?: number;
-    created_at: string;
-  }>
-> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      mode: input.mode,
-      max_uses: input.maxUses,
-      expires_at: input.expiresAt,
-    }),
-  });
-
-  return parseResponse(response);
-}
-
-export async function redeemContactInvite(input: {
-  token: string;
-}): Promise<
-  ApiResult<{
-    request_id: string;
-    requester_identity_id: string;
-    target_identity_id: string;
-    status: string;
-    created_at: string;
-  }>
-> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites/redeem`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      token: input.token,
-    }),
-  });
-
-  return parseResponse(response);
 }

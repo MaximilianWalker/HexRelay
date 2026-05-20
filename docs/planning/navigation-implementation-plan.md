@@ -13,7 +13,7 @@
 
 - Purpose: sequence `T4.6.1` through `T4.6.4` without implementing product UI before explicit approval.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, approval package, or validation evidence changes.
-- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package and locked the server authority clarification.
+- Latest meaningful change: 2026-05-20 recorded in-progress user decisions for the Iteration 2 navigation/UX approval package, locked the server authority clarification, and locked friend-request-only Contacts behavior.
 
 ## Approval Boundary
 
@@ -54,10 +54,14 @@ Status: in progress. These decisions were made during the 2026-05-20 UX planning
 - `Leave server` is allowed for owner/admin users only after a warning in the confirmation modal.
 - Servers Hub empty state offers both `Join` and `Create`.
 - `Create Server` is a real flow, not a placeholder.
+- In Iteration 2, `Create Server` provisions a managed local server runtime using the same server authority model as any remote/dedicated server; remote/dedicated servers enter the app through Join/Connect rather than remote provisioning.
 - Create Server requires a name and supports optional icon and description fields.
 - Server icons use generated color/initials, not image upload/media storage.
 - Create Server defaults include one text channel and one voice channel.
 - The default voice channel is metadata-only in Iteration 2; no join/call runtime is added in this slice.
+- Servers Hub Join exposes a primary invite-link paste field plus an advanced endpoint/server-id/invite-token form.
+- Contacts Hub add behavior uses user search or direct identity lookup to send friend requests.
+- User-facing Contacts copy uses `friend request` for send/accept/decline/cancel actions.
 
 ### Locked Architecture Clarification
 
@@ -67,6 +71,7 @@ Status: in progress. These decisions were made during the 2026-05-20 UX planning
 - A server invite should feel like a server join: redeeming it should make the user belong to that server and make the server appear in the Servers Hub.
 - Current API storage uses one `local_server` singleton and server-local membership/channel/role/message tables; it is not a many-servers-in-one-runtime model.
 - Canonical authority: `docs/architecture/adr-0004-server-authority.md`.
+- Contact requests are separate from server invites. `Invite` language is reserved for server join and server peering flows in current product UX; adding a user contact is a friend-request flow.
 
 ### Architecture Reconfirmation Result
 
@@ -78,6 +83,7 @@ Status: accepted as of 2026-05-20. The architecture now explicitly matches the s
 - Matches user direction: `docs/reference/glossary.md` now defines `Server` as a user-facing community backed by one server authority.
 - Schema status: the current API schema has no multi-server `server_id` partition. Runtime authorization and directory listing are scoped to the local server id and singleton local-server storage.
 - Implementation implication: Create/Join Server runtime work must provision/connect server runtimes and persist app-level connection state; it must not add a user-facing flow that creates many independent servers in one API database.
+- Implementation implication: Contacts Hub work routes add-contact behavior through discovery/direct identity lookup plus friend-request actions.
 
 ## Source Authorities
 
@@ -171,6 +177,8 @@ Controls:
 | Row/card menu | Pin/unpin, mute/unmute, settings when available, leave |
 | Multi-select | Select multiple servers for bulk actions |
 | Destructive confirmation | Show selected count and server names before leave |
+| Create action | Create a managed local server runtime with generated server identity/state |
+| Join action | Paste a full server invite link, or use advanced endpoint/server-id/invite-token fields |
 
 Copy baseline:
 
@@ -190,7 +198,9 @@ Flow:
 3. User can switch between card and list layouts; Servers and Contacts remember layout independently.
 4. User can filter to favorites, unread, or muted contacts.
 5. Opening a contact deep-links to the DM workspace.
-6. Mute and block/remove actions use API-backed relationship policy surfaces and must preserve deterministic success/error states.
+6. User can search for a user or enter a known identity id to send a friend request.
+7. Inbound and outbound friend requests appear as pending contact states with accept, decline, or cancel actions where applicable.
+8. Mute and block/remove actions use API-backed relationship policy surfaces and must preserve deterministic success/error states.
 
 Controls:
 
@@ -202,15 +212,18 @@ Controls:
 | Row/card menu | Mute/unmute, block/remove |
 | Multi-select | Select multiple contacts for bulk actions |
 | Destructive confirmation | Show selected count and contact names before block/remove |
+| Add friend action | Search/select a user or enter an identity id, then send a friend request |
+| Request actions | Accept, decline, or cancel friend requests from pending rows/cards |
 
 Copy baseline:
 
 | State | Proposed copy |
 |---|---|
-| Empty | `No contacts yet. Add a friend or redeem a contact invite` |
+| Empty | `No contacts yet. Search for someone to send a friend request` |
 | Search no results | `No contacts match your search` |
 | Pending request | `Request pending` |
 | Inbound request | `Respond to request` |
+| Add error | `Friend request could not be sent` |
 | Error | `Contacts could not load` |
 
 ### Desktop Server Workspace
@@ -340,8 +353,8 @@ These questions must be answered or explicitly accepted as written before UI imp
 
 | Area | Approval question |
 |---|---|
-| Servers Hub | Final copy and exact create/join controls still need final approval after architecture validation. |
-| Contacts Hub | Final copy and exact add/invite controls still need final approval. |
+| Servers Hub | Create/Join controls are in-progress locked as managed local server creation plus server invite-link join with advanced endpoint/server-id/invite-token fields; final copy still needs approval. |
+| Contacts Hub | Add controls are in-progress locked to friend-request search/direct identity lookup only. Final copy still needs approval. |
 | Topbar tabs | Reorder model is in-progress locked as both drag-and-drop and menu/button controls. |
 | Navigation visibility | Burger proposal is rejected; final implementation should use sidebar/topbar switch plus collapse control. |
 | Mobile drawer | Drawer state is in-progress locked to reset on navigation. |
@@ -353,8 +366,8 @@ Record approval against each decision below before runtime UI work begins. Appro
 
 | Decision ID | Required approval | Approved value |
 |---|---|---|
-| `NAV-APP-01` | Servers Hub filters, card actions, and state copy | in progress: shared hub model, Favorites/Unread/Muted filters, card/list layouts, primary open action, menu actions, multi-select, destructive leave confirmation |
-| `NAV-APP-02` | Contacts Hub filters, open-DM action, and whether mute/block are available from the hub | in progress: shared hub model, Favorites/Unread/Muted filters, card/list layouts, primary open-DM action, menu actions, multi-select, destructive block/remove confirmation, DM history retained |
+| `NAV-APP-01` | Servers Hub filters, card actions, create/join controls, and state copy | in progress: shared hub model, Favorites/Unread/Muted filters, card/list layouts, primary open action, menu actions, multi-select, destructive leave confirmation, Create provisions managed local server runtime, Join accepts invite link plus advanced endpoint/server-id/invite-token fields |
+| `NAV-APP-02` | Contacts Hub filters, friend-request add flow, open-DM action, and whether mute/block are available from the hub | in progress: shared hub model, Favorites/Unread/Muted filters, card/list layouts, friend-request search/direct identity lookup add flow, primary open-DM action, menu actions, multi-select, destructive block/remove confirmation, DM history retained |
 | `NAV-APP-03` | Topbar tab reorder control model: drag-and-drop, menu/buttons, or both | in progress: both drag-and-drop and menu/button controls |
 | `NAV-APP-04` | Navigation visibility control model | in progress: no burger; sidebar/topbar switch plus explicit sidebar collapse |
 | `NAV-APP-05` | Mobile workspace drawer persistence: reset on navigation or persist for the mobile session | in progress: reset on navigation |
@@ -366,8 +379,8 @@ If any decision is explicitly deferred, implementation for the affected surface 
 
 | Approval decision | Blocks task/slice | First eligible implementation PR after approval | Required approval evidence |
 |---|---|---|---|
-| `NAV-APP-01` | `T4.6.1` / `NAV-02` Servers Hub | Servers Hub data/render/action implementation | Approved filters, card actions, and state copy |
-| `NAV-APP-02` | `T4.6.2` / `NAV-03` Contacts Hub | Contacts Hub data/render/action implementation | Approved filters, open-DM action, copy, and mute/block availability |
+| `NAV-APP-01` | `T4.6.1` / `NAV-02` Servers Hub | Servers Hub data/render/action implementation | Approved filters, card actions, create/join controls, and state copy |
+| `NAV-APP-02` | `T4.6.2` / `NAV-03` Contacts Hub | Contacts Hub data/render/action implementation | Approved filters, friend-request add flow, open-DM action, copy, and mute/block availability |
 | `NAV-APP-03` | `T4.6.3` / `NAV-04` topbar tabs | Desktop topbar tab state and controls | Approved reorder interaction model |
 | `NAV-APP-04` | `T4.6.3` / `NAV-04` navigation visibility persistence | Desktop navigation visibility control | Approved no-burger sidebar/topbar switch and collapse behavior |
 | `NAV-APP-05` | `T4.6.4` / `NAV-05` mobile drawer | Mobile workspace drawer behavior | Approved drawer reset behavior |
@@ -382,8 +395,8 @@ Use this template in the approving PR comment, issue comment, or project note. T
 ```text
 Navigation approval reference:
 - Scope approved: NAV-01 only | NAV-02 | NAV-03 | NAV-04 | NAV-05 | NAV-06 evidence closeout | full T4.6.1-T4.6.4 sequence
-- NAV-APP-01 Servers Hub filters/actions/copy: approved as written | approved with changes: <changes> | deferred
-- NAV-APP-02 Contacts Hub filters/actions/copy and hub mute/block availability: approved as written | approved with changes: <changes> | deferred
+- NAV-APP-01 Servers Hub filters/actions/create-join controls/copy: approved as written | approved with changes: <changes> | deferred
+- NAV-APP-02 Contacts Hub filters/actions/friend-request add flow/copy and hub mute/block availability: approved as written | approved with changes: <changes> | deferred
 - NAV-APP-03 Topbar tab reorder model: drag-and-drop | menu/buttons | both | deferred
 - NAV-APP-04 Navigation visibility control model: no burger, sidebar/topbar switch plus collapse | deferred
 - NAV-APP-05 Mobile drawer persistence: reset on navigation | persist for session | deferred

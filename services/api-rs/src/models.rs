@@ -70,8 +70,6 @@ pub struct InviteCreateResponse {
 
 #[derive(Clone)]
 pub struct InviteRecord {
-    pub invite_id: Option<String>,
-    pub creator_identity_id: Option<String>,
     pub mode: String,
     pub server_id: String,
     pub expires_at: Option<DateTime<Utc>>,
@@ -88,11 +86,6 @@ pub struct InviteRedeemRequest {
 #[derive(Serialize)]
 pub struct InviteRedeemResponse {
     pub accepted: bool,
-}
-
-#[derive(Deserialize)]
-pub struct ContactInviteRedeemRequest {
-    pub token: String,
 }
 
 #[derive(Deserialize)]

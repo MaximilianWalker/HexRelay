@@ -13,7 +13,7 @@
 
 - Purpose: record deterministic validation evidence for migration `0019_remove_dm_direct_connect_tables.sql`.
 - Primary edit location: update when validation evidence for retired DM direct-connect tables changes.
-- Latest meaningful change: 2026-05-11 aligned validation evidence wording with the server-node P2P E2EE envelope pivot.
+- Latest meaningful change: 2026-05-11 aligned validation evidence wording with the server P2P E2EE envelope pivot.
 
 ## Migration Metadata
 
@@ -28,7 +28,7 @@
 ## Forward Validation
 
 - Command(s) executed: `cargo check -p api-rs`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs friends`, `bash scripts/validate-dm-transport-policy.sh`, `bash scripts/validate-contract-parity.sh origin/master HEAD`
-- Expected outcome: DB startup can include migration `0019_remove_dm_direct_connect_tables` after earlier node-bypassing migrations, while runtime API and contract surfaces no longer reference pairing nonce or endpoint-card tables.
+- Expected outcome: DB startup can include migration `0019_remove_dm_direct_connect_tables` after earlier server-bypassing migrations, while runtime API and contract surfaces no longer reference pairing nonce or endpoint-card tables.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the DM E2EE envelope baseline pivot branch.
 
@@ -41,7 +41,7 @@
 
 ## Rollback/Recovery Simulation
 
-- Rollback or restore command(s): N/A for intentional destructive cleanup of retired node-bypassing DM tables; recovery uses database backup/restore before migration application if obsolete data must be inspected.
+- Rollback or restore command(s): N/A for intentional destructive cleanup of retired server-bypassing DM tables; recovery uses database backup/restore before migration application if obsolete data must be inspected.
 - Expected outcome: operators recover removed historical direct-connect table data from backups rather than reintroducing runtime table dependencies.
 - Actual outcome: acknowledged; retired data is intentionally not used by current runtime.
 - Evidence path: `docs/operations/01-mvp-runbook.md`, `docs/product/03-clarifications.md`, `docs/planning/infra-free-dm-connectivity-execution-plan.md`.
@@ -56,4 +56,4 @@
 
 - Reviewer: OpenCode agent (delivery validation pass)
 - Decision: pass
-- Notes: This migration deliberately removes persisted node-bypassing DM bootstrap/control leftovers after runtime and contract surfaces moved to server-node P2P E2EE envelope delivery.
+- Notes: This migration deliberately removes persisted server-bypassing DM bootstrap/control leftovers after runtime and contract surfaces moved to server P2P E2EE envelope delivery.

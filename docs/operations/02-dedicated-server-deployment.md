@@ -103,7 +103,6 @@
   - creates `schema_migrations` if needed,
   - applies any unapplied embedded migrations in order,
   - fails startup on migration checksum mismatch or migration apply failure,
-  - backfills legacy invite-token hashes after migrations,
   - returns only after the database is prepared for runtime traffic.
 - There is no separate reviewed operator migration command in this repository yet; the supported single-server procedure is to let `api-rs` own schema preparation and to treat startup failure as the migration failure signal.
 

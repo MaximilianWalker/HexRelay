@@ -1,6 +1,6 @@
 {
   "scenario_id": "contacts-edge",
-  "description": "Alice, Carol, and Dave contact edge cases with pending inbound/outbound requests, restrictive DM policy, and contact invite state.",
+  "description": "Alice, Carol, and Dave contact edge cases with pending inbound/outbound requests and restrictive DM policy.",
   "identities": [
     {
       "profile_id": "alice.primary",
@@ -73,29 +73,5 @@
     }
   ],
   "devices": [],
-  "invites": [
-    {
-      "invite_id": "fixture-invite-alice-contact-active",
-      "token_hash": "1111111111111111111111111111111111111111111111111111111111111111",
-      "mode": "one_time",
-      "creator_identity_id": "usr-test-alice",
-      "server_id": "dev-server-alice",
-      "expires_at": "2026-06-04T10:00:00Z",
-      "max_uses": 1,
-      "uses": 0,
-      "created_at": "2026-05-04T10:00:00Z"
-    },
-    {
-      "invite_id": "fixture-invite-carol-contact-exhausted",
-      "token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
-      "mode": "multi_use",
-      "creator_identity_id": "usr-test-carol",
-      "server_id": "dev-server-carol",
-      "expires_at": "2026-06-04T10:00:00Z",
-      "max_uses": 2,
-      "uses": 2,
-      "created_at": "2026-05-04T10:05:00Z"
-    }
-  ],
   "dm_threads": []
 }

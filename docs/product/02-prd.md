@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-20 accepted the server authority model: one user-facing server maps to one separately runnable server runtime authority; Servers and Contacts navigation decisions remain in progress.
+- Latest meaningful change: 2026-05-20 accepted the server authority model and locked friend-request-only Contacts behavior; Servers and Contacts navigation decisions remain in progress.
 
 ## Product Summary
 
@@ -110,7 +110,7 @@ Build a communication stack where users and communities control identity, data l
 
 ### 3) E2EE Private Messaging
 
-1. Users establish contact eligibility through contact-invite redemption or accepted server-mediated friend request.
+1. Users establish contact eligibility through an accepted friend request.
 2. API releases only the public identity and profile-device bootstrap material required for client-side E2EE setup after relationship acceptance.
 3. Client encrypts outbound DM payloads into per-recipient/device E2EE envelopes.
 4. Servers/message servers in the server-to-server network carry and store only ciphertext envelopes plus minimal delivery metadata.
@@ -143,13 +143,13 @@ Build a communication stack where users and communities control identity, data l
 6. User opens global `Contacts` hub to browse DMs/friends in a searchable card/list view.
 7. User opens the selected server or DM context from hub cards.
 
-### 7) Add a Contact by Invite
+### 7) Add a Contact by Friend Request
 
-1. User generates a contact invite link from contacts UI.
-2. Invite token includes inviter identity binding, expiration, and usage policy.
-3. Recipient redeems token and sees inviter preview.
-4. Recipient accepts and a server-mediated friend request or accepted friend edge is created.
-5. Invalid/expired/exhausted tokens fail with explicit error feedback.
+1. User searches for another user through approved discovery scopes or enters a known identity id.
+2. User sends a friend request.
+3. Target user sees the inbound request and accepts or declines.
+4. Requester may cancel while the request is pending.
+5. On acceptance, only the bootstrap material required for DM relationship and encryption setup is released.
 
 ### 8) Send Friend Request Through a Server (Mediated)
 
@@ -168,13 +168,9 @@ Build a communication stack where users and communities control identity, data l
   - Non-expiring multi-use links are allowed for intentionally open-access servers.
   - MVP invite scope is join eligibility only (no role/channel scoped grants).
   - Invite redemption binds membership to the endpoint and server id in the invite; it does not create a second independent server inside the current API runtime.
-- User contact invites
-  - Users can generate expiring contact invite links.
-  - One-time by default, optional bounded max-uses.
-  - Invite tokens include issuer binding, expiration, and replay-safe validation metadata.
-  - Redeem flow must return deterministic error states (`invite_invalid`, `invite_expired`, `invite_exhausted`).
 - Friend requests and identity exposure
-  - Server-mediated friend request flow is required for in-server user discovery paths.
+  - Friend requests are required for user contact add flows.
+  - User search and shared-server discovery may initiate requests, but identity/bootstrap material is not trusted until acceptance.
   - Raw key/profile-identifying data is not exposed to other users by default.
   - Bootstrap identity material is shared only after request acceptance.
 - Messaging
@@ -192,7 +188,7 @@ Build a communication stack where users and communities control identity, data l
   - E2EE envelope delivery through servers/message servers in the server-to-server network is the only MVP DM transport path.
   - Server-to-server discovery, peering, relay, delivery, and encrypted storage permissions are separate.
   - Relay is optional and policy-controlled; a server may be discoverable or peered while refusing relay or DM forwarding.
-  - Accepted contact-invite redemption or accepted mediated friend-request bootstrap is required before encryption material is trusted.
+  - Accepted friend-request state is required before encryption material is trusted.
   - Delivery-state diagnostics are required for blocked policy, missing bootstrap, offline recipient, message-server unavailable, and catch-up/replay failures; these diagnostics must not become a DM preflight/troubleshooter UX.
   - Recipient-device pairing QR/manual code, LAN discovery, WAN wizard, endpoint cards, connectivity preflight, and parallel dial are out of scope for DM delivery.
   - Multi-device DM convergence requires active-device fanout plus per-device cursor replay/catch-up and idempotent dedupe over ciphertext envelopes.

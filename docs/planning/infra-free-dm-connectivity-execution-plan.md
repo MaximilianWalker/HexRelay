@@ -6,7 +6,7 @@
 - Owner: Delivery, core, API, and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/planning/infra-free-dm-connectivity-execution-plan.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for phased execution of server-to-server P2P DM encrypted-envelope delivery.
 - The legacy file path is retained to avoid link churn; this plan no longer tracks infrastructure-free server-bypassing DM connectivity.
 - Cross-scenario networking architecture authority lives in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 added T4.1.9 recipient-targeted realtime dispatch observability for server-to-server P2P message-server E2EE envelopes.
+- Latest meaningful change: 2026-05-20 aligned relationship bootstrap wording with friend-request-only Contacts behavior.
 
 ## Purpose
 
@@ -47,8 +47,7 @@
 - Task IDs: `T4.1.4`, `T4.5.1`
 - Outcome: users can establish trusted identity and encryption material after accepted contact/friend state without recipient-device endpoint reachability.
 - Deliverables:
-  - accepted contact-invite bootstrap release.
-  - mediated friend-request bootstrap release after acceptance.
+  - friend-request bootstrap release after acceptance.
   - no endpoint hints/cards, DM pairing QR/manual-code payloads, or direct-reachability requirements in bootstrap responses.
   - 1:1 E2EE session bootstrap.
 
@@ -86,7 +85,7 @@
 | Task ID | Task | Owner | Depends on | Acceptance criteria |
 |---|---|---|---|---|
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, plaintext relay semantics, and server-bypassing DM surfaces while allowing encrypted-envelope store-and-forward terminology |
-| T4.1.4 | Implement relationship-scoped DM bootstrap | Core/Web | T3.1.4, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no endpoint hints/cards, QR/manual-code pairing, or direct-reachability requirement |
+| T4.1.4 | Implement relationship-scoped DM bootstrap | Core/Web | T3.1.5, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no endpoint hints/cards, QR/manual-code pairing, or direct-reachability requirement |
 | T4.1.5 | Retire server-bypassing DM preflight and troubleshooter surfaces | Core/Web | T4.1.4 | Runtime routes, web helpers, contracts, tests, and docs no longer expose DM connectivity preflight or server-bypassing troubleshooting |
 | T4.1.6 | Retire user DM LAN discovery fast path | Realtime/Core | T4.1.5 | Realtime and REST surfaces no longer accept or publish user DM LAN discovery hints; server discovery remains separately scoped if needed |
 | T4.1.7 | Implement encrypted-envelope message-server DM delivery baseline | API/Core | T4.1.3, T4.1.4 | DM send accepts/stores/fans out ciphertext envelopes plus minimal metadata; server rejects plaintext/private-key inputs; direct reachability is not required |

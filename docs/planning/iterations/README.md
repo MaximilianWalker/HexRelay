@@ -29,7 +29,7 @@
 | Requirement area | Task IDs |
 |---|---|
 | Identity key registration and auth challenge/verify | T2.1.1, T2.3.1 |
-| Server-mediated contact add via contact invite link | T3.1.3, T3.1.4 |
+| Server-mediated contact add via friend request | T3.1.1, T3.1.2, T3.1.5 |
 | Server-mediated friend request privacy model | T3.1.1, T3.1.2, T3.1.5 |
 | Multi-persona support and switching | T2.1.3 |
 | Mandatory recovery phrase onboarding | T2.1.4 |

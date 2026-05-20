@@ -104,42 +104,6 @@ paths:
       responses:
         '204':
           description: User muted
-  /contact-invites:
-    post:
-      summary: Create user contact invite token
-      operationId: createContactInvite
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ContactInviteCreate'
-      responses:
-        '201':
-          description: Invite created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactInvite'
-  /contact-invites/redeem:
-    post:
-      summary: Redeem user contact invite token
-      operationId: redeemContactInvite
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ContactInviteRedeem'
-      responses:
-        '200':
-          description: Invite redeemed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FriendRequest'
-        '400':
-          $ref: '#/components/responses/BadRequest'
   /discovery/users:
     get:
       summary: Query global/shared-server user discovery
@@ -564,7 +528,7 @@ components:
       required: [target_user_id, source]
       properties:
         target_user_id: { type: string, format: uuid }
-        source: { type: string, enum: [server_mediated, contact_invite] }
+        source: { type: string, enum: [server_mediated, discovery_search, direct_identity] }
     FriendRequest:
       type: object
       required: [request_id, from_user_id, to_user_id, status, created_at]
@@ -597,28 +561,6 @@ components:
           type: array
           items: { $ref: '#/components/schemas/FriendEdge' }
         page: { $ref: '#/components/schemas/PageMeta' }
-    ContactInviteCreate:
-      type: object
-      required: [mode, expires_at]
-      properties:
-        mode: { type: string, enum: [one_time, multi_use], default: one_time }
-        expires_at: { type: string, format: date-time }
-        max_uses: { type: integer, minimum: 1, nullable: true }
-    ContactInvite:
-      type: object
-      required: [invite_id, token, mode, created_at]
-      properties:
-        invite_id: { type: string, format: uuid }
-        token: { type: string, minLength: 16 }
-        mode: { type: string, enum: [one_time, multi_use] }
-        expires_at: { type: string, format: date-time, nullable: true }
-        max_uses: { type: integer, nullable: true }
-        created_at: { type: string, format: date-time }
-    ContactInviteRedeem:
-      type: object
-      required: [token]
-      properties:
-        token: { type: string, minLength: 16 }
     UserDiscoveryPage:
       type: object
       required: [items, page]

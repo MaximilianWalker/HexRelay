@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/08-screen-state-spec.md`
 
 ## Quick Context
 
 - Purpose: define screen-level states so Web/API/Core teams implement the same behavior.
 - Primary edit location: update when a screen flow or failure mode changes.
-- Latest meaningful change: 2026-05-15 linked the approval-pending DM workspace delivery plan without authorizing UI implementation.
+- Latest meaningful change: 2026-05-20 locked friend-request add/respond states without authorizing unrelated runtime UI implementation.
 
 ## Core Screens
 
@@ -37,8 +37,8 @@
 |---|---|
 | Identity Create/Import | loading, success, invalid_key, storage_failed |
 | Server Join | loading, server_mismatch, invite_invalid, invite_expired, invite_exhausted, success |
-| Contact Invite Share | idle, creating, created (link visible), error |
-| Contact Invite Redeem | idle, redeeming, success (friend request created), invite_invalid, invite_expired, invite_exhausted, self_invite |
+| Friend Request Add | idle, searching, search_no_results, sending, request_sent, request_exists, blocked, error |
+| Friend Request Respond | idle, accepting, declining, accepted, declined, cancelling, cancelled, error |
 | Contacts Hub | loading, empty, search_no_results, friend_request_pending, friend_request_inbound, error |
 | DM Workspace | loading, empty, blocked, policy_denied, send_failed_retryable, reconnecting |
 | Servers Hub | loading, empty, search_no_results, permission_denied, error |

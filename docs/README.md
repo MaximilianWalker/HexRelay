@@ -82,7 +82,7 @@
 ## Lightweight Governance
 
 - If any `docs/**/*.md`, `docs/**/*.yaml`, `docs/**/*.yml`, or `docs/**/*.json` file other than `docs/README.md` or recurring numbered ledger files under `docs/operations/quality-audits/[0-9][0-9]-*.md` changes, update `last_updated`, `Latest meaningful change`, and any affected links in this file in the same PR.
-- If docs are moved or renamed, keep compatibility stubs at old paths for at least one release cycle or two completed iterations, whichever is longer, except when the old path itself preserves retired project-owned API/realtime versioning or a legacy internal compatibility alias.
+- If docs are moved or renamed, keep redirect stubs at old paths for at least one release cycle or two completed iterations, whichever is longer, except when the old path itself preserves retired project-owned API/realtime versioning or internal API compatibility aliases.
 - Label docs PRs as either `move-only` or `content-change` in the PR body.
 - Keep IDs and naming stable (`kebab-case` for docs, `README.md` for folder indexes).
 

@@ -47,8 +47,6 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 |---|---|---|---|---|---|---|
 | T3.1.1 | Implement friend request state machine and DB constraints | E3 / S3.1 | L | API | T2.3.1, T2.4.1 | Requests support pending/accepted/declined/cancelled with invariant tests and mediated request routing |
 | T3.1.2 | Build friends list UI and request actions | E3 / S3.1 | M | Web | T3.1.1 | Users can send/respond to requests from UI with optimistic updates; no raw key/profile-identifying data is shown pre-acceptance |
-| T3.1.3 | Implement user contact invite token create/redeem APIs | E3 / S3.1 | M | API | T3.1.1 | Users can create expiring contact invites and redeem valid tokens; invalid/expired/exhausted cases return explicit errors |
-| T3.1.4 | Implement contact invite share UX (link only) | E3 / S3.1 | M | Web | T3.1.3 | User can share invite link and recipient can redeem from UI with deterministic success/error states |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | E3 / S3.1 | M | API | T3.1.1 | Bootstrap identity material is shared only after acceptance and is blocked on pending/declined states |
 | T3.2.1 | Implement block/mute logic and fanout filters | E3 / S3.2 | M | API | T3.1.1 | Blocked/muted users are excluded from delivery paths as defined |
 | T3.3.1 | Implement presence service with Redis ephemeral state | E3 / S3.3 | L | Realtime | T1.1.2 | Presence transitions propagate within p95 <= 1s and recover correctly after reconnect in integration tests |
@@ -58,7 +56,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.1 | Implement client-side DM/group DM thread model and history pagination | E4 / S4.1 | L | Core | T3.1.1, T4.0.2 | DM threads support cursor pagination and unread markers over encrypted-envelope history without server-readable plaintext |
 | T4.1.2 | Implement DM privacy policy defaults and user override settings | E4 / S4.1 | M | Core | T4.1.1 | Incoming DM policy defaults to friends-only; user can opt into same-server or anyone modes |
 | T4.1.3 | Enforce E2EE DM envelope policy and CI guardrails | E4 / S4.1 | M | Core | T4.1.1 | CI rejects server-readable plaintext, private-key custody, unencrypted DM mailboxing, and plaintext relay semantics while allowing encrypted-envelope store-and-forward terminology |
-| T4.1.4 | Implement relationship-scoped DM bootstrap | E4 / S4.1 | L | Core/Web | T3.1.4, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no recipient-device reachability, QR/manual-code pairing, or endpoint-hint requirement |
+| T4.1.4 | Implement relationship-scoped DM bootstrap | E4 / S4.1 | L | Core/Web | T3.1.5, T4.1.3 | Accepted contact/friend relationships release identity/profile-device bootstrap material with no recipient-device reachability, QR/manual-code pairing, or endpoint-hint requirement |
 | T4.1.5 | Retire server-bypassing DM preflight and deterministic troubleshooter surfaces | E4 / S4.1 | M | Core/Web | T4.1.4 | Runtime routes, web helpers, contracts, tests, and docs no longer expose DM connectivity preflight or server-bypassing troubleshooting |
 | T4.1.6 | Retire DM LAN discovery fast path | E4 / S4.1 | L | Realtime/Core | T4.1.5 | Realtime and REST surfaces no longer accept or publish recipient-device LAN discovery hints for DMs |
 | T4.1.7 | Implement encrypted-envelope message-server DM delivery baseline | E4 / S4.1 | XL | API/Core | T4.1.3, T4.1.4 | `EncryptedEnvelopeServerTransport` accepts/stores/fans out ciphertext envelopes plus minimal metadata through servers/message servers; server rejects plaintext/private-key inputs; recipient-device reachability is not required |
@@ -75,8 +73,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | Task | Target touchpoints | Validation |
 |---|---|---|
 | T3.1.1-T3.2.1 | Friends/block/mute API handlers, DB models, fanout filters | State machine and policy integration tests pass (pending/accept/decline/block/mute paths) |
-| T3.1.2, T3.1.4 | Friends list and invite share/redeem UI flows | End-to-end UI tests confirm send/respond/update and invite link redeem behavior without pre-accept identity leakage |
-| T3.1.3 | Contact invite token API handlers and persistence | API tests cover create/redeem and explicit error codes for invalid/expired/exhausted tokens |
+| T3.1.2 | Friends list and request UI flows | End-to-end UI tests confirm send/respond/update behavior without pre-accept identity leakage |
 | T3.1.5 | Friend-acceptance bootstrap policy path | API tests verify bootstrap material release only on accepted requests |
 | T3.3.1 | Presence service + realtime event emitter | Reconnect tests meet p95 <= 1s presence propagation |
 | T3.4.1 | Discovery index/query handlers + policy filter layer | Policy suite verifies blocked users excluded and rate-limit/denylist controls enforced |
@@ -127,9 +124,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 |---|---|---|---|
 | T3.1.1 | Implement friend request state machine and DB constraints | PRs #42-#48 | `POST/GET /friends/requests` plus accept/decline/cancel endpoints with Postgres-backed persistence, migration checksums + advisory lock, centralized auth extractor, pending-only transition guards, idempotent terminal-action semantics, DB integration tests |
 | T3.1.2 | Build friends list UI and request actions | PRs #42-#48 | Contacts hub with send/accept/decline actions, optimistic transition/rollback, busy-state guards, explicit screen states; HttpOnly cookie auth + CSRF header transport |
-| T3.1.3 | Implement user contact invite token create/redeem APIs | PRs #42-#48 | DB-backed invite persistence, Contacts hub create/redeem controls, cross-service smoke validation |
 | T3.1.5 | Enforce mediated identity bootstrap on friend acceptance | PR #49 | `GET /friends/requests/:request_id/bootstrap` endpoint; bootstrap material shared only after acceptance; 5 integration tests; OpenAPI spec updated |
-| T3.1.4 | Implement contact invite share UX | PR #50 | API client functions, robust link/token parsing, copy-to-clipboard, busy/error states; QR contact-invite sharing is superseded by the later QR-only-for-server-invites scope |
 | T3.2.1 | Implement block/mute logic and fanout filters | PR #51 | Block/mute CRUD plus bidirectional block checks across DM fanout and friend request creation; policy tests and OpenAPI updated |
 | T3.3.1 | Implement presence service with Redis ephemeral state | PRs #53-#54 | Redis-backed presence snapshot/replay authority, websocket online/offline edge publishing, reconnect hydration, cross-service watcher resolution, and Redis-backed reconnect integration coverage (`websocket_presence_updates_propagate_and_recover_after_reconnect`) |
 | T3.3.2 | Add profile-device presence convergence and late-device hydration | profile-device sync closeout branch | Realtime websocket tests cover presence fanout to multiple active profile devices, late-device online hydration, missed offline rehydration, per-device cursor dedupe, and no duplicate replay on reconnect. |
@@ -182,8 +177,8 @@ Week 4:
 - T3.1.1 -> T3.2.1
 - T3.3.1 in parallel
 - T3.4.1 in parallel
-- T3.1.2 and T3.1.3 after request API stabilizes
-- T3.1.4 and T3.1.5 after T3.1.3
+- T3.1.2 after request API stabilizes
+- T3.1.5 after accepted-request flow stabilizes
 
 Week 5:
 
@@ -208,7 +203,7 @@ Week 6:
 ## Iteration 2 Exit Checklist
 
 - Friends/block/mute/presence are functioning end-to-end.
-- Server-mediated contact invite flow (link only) works end-to-end.
+- Server-mediated friend request flow works end-to-end.
 - In-server friend requests are mediated and do not expose raw identity material before acceptance.
 - User discovery works for global and shared-server contexts.
 - Shared communication layer routes encrypted-envelope DM delivery and server-channel paths through explicit adapter boundaries.

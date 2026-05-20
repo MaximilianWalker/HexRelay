@@ -665,23 +665,13 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
           <SettingRow
-            description="Contact invite creation and redemption already live in the Contacts surface."
-            label="Contact invite links"
-            status="Review"
-          >
-            <select aria-label="Contact invite links" className={settingsStyles.select} disabled value="enabled">
-              <option value="enabled">Enabled</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </SettingRow>
-          <SettingRow
             description="Current product behavior requires explicit approval before contacts can message."
             label="Contact request approval"
             status="Review"
           >
             <select aria-label="Contact request approval" className={settingsStyles.select} disabled value="manual">
               <option value="manual">Manual approval</option>
-              <option value="auto">Auto-accept trusted invites</option>
+              <option value="auto">Auto-accept trusted requests</option>
             </select>
           </SettingRow>
           <SettingRow

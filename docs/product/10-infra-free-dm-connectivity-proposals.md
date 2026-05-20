@@ -6,7 +6,7 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
@@ -14,7 +14,7 @@
 - Primary edit location for detailed DM delivery solution candidates and trade-offs.
 - The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free server-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 added backend realtime dispatch summaries for recipient-targeted encrypted-envelope delivery.
+- Latest meaningful change: 2026-05-20 aligned relationship bootstrap wording with friend-request-only Contacts behavior.
 
 ## Purpose
 
@@ -93,12 +93,12 @@
 
 ### What Changes
 
-- Use accepted contact-invite redemption and accepted mediated friend requests as trust gates for identity and encryption bootstrap material.
+- Use accepted friend-request state as the trust gate for identity and encryption bootstrap material.
 - Decouple bootstrap from recipient-device endpoint reachability entirely.
 
 ### How It Works
 
-1. Contact-invite redemption or accepted friend request establishes trusted relationship state.
+1. Accepted friend request establishes trusted relationship state.
 2. API returns only the peer identity key and profile-device snapshot required for client-side E2EE setup.
 3. Block state, request state, and DM policy checks fail closed before bootstrap material is released.
 4. Once trusted, the message-server path carries encrypted envelopes without requiring recipient-device dial success.

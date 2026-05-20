@@ -12,7 +12,7 @@ export default function AccessOnboardingPage() {
           <p className={styles.brandEyebrow}>HexRelay onboarding</p>
           <h1 className={styles.leftTitle}>You are ready to enter HexRelay</h1>
           <p className={styles.leftBody}>
-            Server join and contact invite actions now happen inside the main app
+            Server join and friend-request actions now happen inside the main app
             to keep onboarding focused and predictable.
           </p>
           <ul className={styles.promiseList}>
@@ -30,7 +30,7 @@ export default function AccessOnboardingPage() {
           </div>
           <h2 className={styles.wizardTitle}>Onboarding complete</h2>
           <p className={styles.wizardSubtitle}>
-            Continue to the app. Use Servers and Contacts hubs for join and invite
+            Continue to the app. Use Servers and Contacts hubs for join and request
             workflows.
           </p>
 
@@ -48,7 +48,7 @@ export default function AccessOnboardingPage() {
             <div className={styles.choice}>
               <p className={styles.choiceTitle}>Manage contacts in-app</p>
               <p className={styles.choiceText}>
-                Use the Contacts hub for requests and invite actions.
+                Use the Contacts hub for friend requests.
               </p>
             </div>
           </div>

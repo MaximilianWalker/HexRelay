@@ -56,4 +56,4 @@
 
 - Reviewer: Codex agent
 - Decision: pass
-- Notes: This migration supports server-node/message-node encrypted-envelope metadata retention and does not add direct user-to-user transport or UX behavior.
+- Notes: This migration supports server encrypted-envelope metadata retention and does not add direct user-to-user transport or UX behavior.

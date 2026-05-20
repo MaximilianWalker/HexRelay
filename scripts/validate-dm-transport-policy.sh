@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Guard the DM trust boundary. Message nodes may store/fan out ciphertext
+# Guard the DM trust boundary. Servers may store/fan out ciphertext
 # envelopes, but runtime/config/contract surfaces must not introduce identifiers
 # or settings for server plaintext access, private-key custody, or unencrypted
 # mailbox/relay behavior.
@@ -133,7 +133,7 @@ if [ -n "${contact_qr_matches}" ]; then
 fi
 
 if [ -n "${matches}" ]; then
-  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired server-bypassing DM surfaces, or contact-invite QR UI."
+  echo "::error::Detected forbidden DM plaintext/key-custody terms, retired server-bypassing DM surfaces, or retired contact QR UI."
   echo "These terms are disallowed for DM E2EE envelope delivery policy:"
   printf '%s' "${matches}"
   exit 1

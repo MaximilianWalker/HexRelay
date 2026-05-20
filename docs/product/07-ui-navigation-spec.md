@@ -13,7 +13,7 @@
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 UX decisions and aligned navigation terminology with the accepted server authority model.
+- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 UX decisions, aligned navigation terminology with the accepted server authority model, and locked friend-request-only Contacts behavior.
 
 ## Design Direction
 
@@ -76,10 +76,14 @@
   - searchable card and list layouts over joined servers
   - filters: favorites, unread, muted
   - row/card primary action opens the server
+  - create action provisions a managed local server runtime
+  - join action accepts a server invite link, with advanced endpoint/server-id/invite-token fields available
   - row/card menu actions include pin/unpin, settings when available, and destructive leave flow when approved by the final UX package
 - `Contacts Hub` requirements:
   - searchable people/thread card and list layouts
   - filters: favorites, unread, muted
+  - add action uses user search or direct identity lookup to send a friend request
+  - inbound/outbound friend requests appear as pending contact states with accept, decline, or cancel actions where applicable
   - row/card primary action opens the DM
   - row/card menu actions include mute/unmute and block/remove when approved by the final UX package
 
@@ -92,12 +96,13 @@
 ## Interaction and State Rules
 
 - Search is case-insensitive and keyboard-focusable from hubs.
-- Empty states must include a next action (join server, create server, add friend, start DM).
+- Empty states must include a next action (join server, create server, search user, send friend request, start DM).
 - Selected destination from a hub must deep-link directly into target workspace.
 - Servers Hub aggregates joined servers from app connection/membership state; it is not evidence that one API runtime owns every listed server.
 - Hub filters and sort preferences persist per user.
 - Servers Hub and Contacts Hub use the same card/list, filter, selection, and action-menu model with only the entity noun changing.
 - Destructive bulk actions require a confirmation modal that shows selected count and selected item names.
+- `Invite` language is reserved for server join and server peering UX. Contacts uses `friend request` language for send, accept, decline, and cancel actions.
 
 ## Mobile Behavior (MVP)
 
