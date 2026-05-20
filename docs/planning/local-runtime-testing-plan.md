@@ -333,8 +333,8 @@ npm run stop -- --runtime-profile dual
 - `infra/docker-compose.runtime-test.yml` starts per-server Postgres, Redis, MinIO, and two runtime servers.
 - Each runtime server has API, realtime, and web containers sharing a server network namespace.
 - Runtime-test host ports are bound to `127.0.0.1` only.
-- `alice-server` exposes API `18080`, realtime `18081`, and web `3002` on loopback.
-- `bob-server` exposes API `18180`, realtime `18181`, and web `3012` on loopback.
+- `alice-server` defaults to API `18080`, realtime `18081`, and web `3002` on loopback; `bob-server` defaults to API `18180`, realtime `18181`, and web `3012`.
+- Docker runtime host ports can be overridden through `HEXRELAY_RUNTIME_*_PORT` environment variables, and the smoke-test wrappers choose available ports automatically to avoid local conflicts.
 - Servers attach to per-server infra networks plus one shared simulation network so Docker network partitions do not sever local Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path through shared infra.
 - `.local-run/runtime-state.json` records `containerName` and simulation `networkName` metadata so `npm run network` can resolve `alice-server` and `bob-server` as Docker targets.
 - Docker runtime seeding prints dev session cookies/headers, but the web Settings testing-profile picker remains disabled in this stack because API dev-testing endpoints require loopback-only API/database binds.
@@ -545,7 +545,7 @@ npm run network -- --reset
 | PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `fixtures/runtime/profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
 | PH-04-EP-01-ST-01-TK-02 | Implement shared host-process runtime manager | `scripts/runtime/local.mjs`, `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --runtime-profile dual --seed-profile dm-basic`; `npm run status`; `npm run stop` | Starts multiple named instances with unique ports from one cross-platform implementation | done |
 | PH-04-EP-01-ST-01-TK-03 | Keep one cross-platform lifecycle command surface | `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --help`; `npm run status -- --help`; `npm run stop -- --help` | Windows and Linux users share the same Node command implementation | done |
-| PH-04-EP-01-ST-01-TK-04 | Add status and stop commands | `scripts/runtime/local.mjs`, `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
+| PH-04-EP-01-ST-01-TK-04 | Add status and stop commands | `scripts/runtime/local.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
 
 ### PH-05 Tasks
 

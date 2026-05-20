@@ -7,9 +7,10 @@ import subprocess
 import sys
 
 try:
-    from . import engine
+    from . import api, realtime
 except ImportError:  # pragma: no cover
-    import engine  # type: ignore
+    import api  # type: ignore
+    import realtime  # type: ignore
 
 
 API_CONTRACT = "docs/contracts/runtime-rest.openapi.yaml"
@@ -103,9 +104,9 @@ def main(argv: list[str]) -> int:
     api_contract_changed = contract_changed(base_sha, head_sha, API_CONTRACT)
     realtime_contract_changed = contract_changed(base_sha, head_sha, REALTIME_CONTRACT)
 
-    api_runtime_inventory = engine.extract_api_runtime_inventory("services/api-rs/src/app/router.rs")
-    api_contract_inventory = engine.extract_openapi_contract_inventory(API_CONTRACT)
-    api_runtime_error_codes = engine.extract_api_runtime_error_codes(
+    api_runtime_inventory = api.extract_api_runtime_inventory("services/api-rs/src/app/router.rs")
+    api_contract_inventory = api.extract_openapi_contract_inventory(API_CONTRACT)
+    api_runtime_error_codes = api.extract_api_runtime_error_codes(
         "services/api-rs/src/domain/**/*.rs",
         "services/api-rs/src/shared/errors.rs",
         "services/api-rs/src/transport/http/middleware/auth.rs",
@@ -113,18 +114,18 @@ def main(argv: list[str]) -> int:
         "services/api-rs/src/transport/http/middleware/rate_limit.rs",
         "services/api-rs/src/transport/http/handlers/*.rs",
     )
-    api_contract_error_codes = engine.extract_openapi_contract_error_codes(API_CONTRACT)
-    realtime_runtime_events = engine.extract_realtime_runtime_events(
+    api_contract_error_codes = api.extract_openapi_contract_error_codes(API_CONTRACT)
+    realtime_runtime_events = realtime.extract_realtime_runtime_events(
         "services/realtime-rs/src/domain/events/service.rs",
         "services/realtime-rs/src/domain/dms.rs",
     )
-    realtime_contract_events = engine.extract_asyncapi_contract_events(REALTIME_CONTRACT)
-    realtime_runtime_error_codes = engine.extract_realtime_runtime_error_codes(
+    realtime_contract_events = realtime.extract_asyncapi_contract_events(REALTIME_CONTRACT)
+    realtime_runtime_error_codes = realtime.extract_realtime_runtime_error_codes(
         "services/realtime-rs/src/domain/events/service.rs",
         "services/realtime-rs/src/domain/dms.rs",
         "services/realtime-rs/src/transport/ws/handlers/gateway.rs",
     )
-    realtime_contract_error_codes = engine.extract_asyncapi_contract_error_codes(
+    realtime_contract_error_codes = realtime.extract_asyncapi_contract_error_codes(
         REALTIME_CONTRACT
     )
 
@@ -155,16 +156,16 @@ def main(argv: list[str]) -> int:
     errors = compare_inventory("Realtime event inventory", realtime_runtime_events, realtime_contract_events) or errors
     errors = compare_inventory("Realtime error-code inventory", realtime_runtime_error_codes, realtime_contract_error_codes) or errors
 
-    if engine.validate_api_semantic_contracts(API_CONTRACT) != 0:
+    if api.validate_api_semantic_contracts(API_CONTRACT) != 0:
         errors = True
 
-    if engine.validate_realtime_semantic_contracts(
+    if realtime.validate_realtime_semantic_contracts(
         REALTIME_CONTRACT,
         "services/realtime-rs/src/domain/events/service.rs",
     ) != 0:
         errors = True
 
-    if engine.validate_realtime_signal_semantics(
+    if realtime.validate_realtime_signal_semantics(
         REALTIME_CONTRACT,
         "services/realtime-rs/src/domain/events/service.rs",
     ) != 0:

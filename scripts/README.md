@@ -7,11 +7,16 @@ here. The canonical workflow and gate documentation lives in
 ## Layout
 
 - Root `scripts/*.mjs` files are developer-facing lifecycle commands.
-- `scripts/lib/` contains shared cross-platform helpers.
+- `scripts/lib/` contains shared cross-platform helpers for process, HTTP, JSON,
+  env, path, git, and command execution code.
 - `scripts/security/` contains cargo-audit policy and audit execution.
-- `scripts/runtime/` contains host-process and Docker runtime managers.
-- `scripts/network.mjs` is the network simulation command.
-- `scripts/validators/` contains validation command entrypoints.
+- `scripts/runtime/local/` contains host-process runtime helpers.
+- `scripts/runtime/docker/` contains Docker runtime config, stack, evidence, and
+  smoke assertion helpers.
+- `scripts/network/` contains network simulation argument, profile, and Docker
+  target helpers.
+- `scripts/validators/` contains validation command entrypoints and focused
+  validator implementation packages.
 - `scripts/ci/` contains CI-only artifact collection.
 - Top-level `fixtures/` contains shared dev seed scenarios plus runtime,
   network, and contract-parity fixture data.
@@ -54,3 +59,9 @@ for heavier runtime/network testing; keep normal development on host-process
 `npm run start`. If the Docker runtime stack is active, use
 `npm run runtime:docker -- down`; generic `npm run stop` refuses Docker runtime
 state to avoid orphaning containers.
+
+Docker runtime host ports default to Alice API/realtime/web `18080`/`18081`/`3002`,
+Bob API/realtime/web `18180`/`18181`/`3012`, and Toxiproxy `18474`. Override them
+with the `HEXRELAY_RUNTIME_*_PORT` environment variables when a local service
+already owns one of those ports; the `npm run test:runtime` and
+`npm run test:network` wrappers choose available ports automatically.

@@ -1,18 +1,7 @@
-import { spawnSync } from "node:child_process";
-import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { stopCommand } from "./runtime/local.mjs";
 
-const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const result = spawnSync(process.execPath, [path.join(scriptsDir, "runtime", "local.mjs"), "stop", ...process.argv.slice(2)], {
-  cwd: path.resolve(scriptsDir, ".."),
-  stdio: "inherit",
-  shell: false,
-});
-
-if (result.error) {
-  console.error(`[stop] Failed to start local runtime manager: ${result.error.message}`);
+stopCommand(process.argv.slice(2)).catch((error) => {
+  console.error(`[local-runtime] ERROR: ${error.message}`);
   process.exit(1);
-}
-
-process.exit(result.status ?? 1);
+});

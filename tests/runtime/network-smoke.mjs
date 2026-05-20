@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { runtimeDockerEnv } from "./ports.mjs";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, "../..");
@@ -16,8 +17,10 @@ if (hasScope) {
   process.exit(1);
 }
 
+const env = await runtimeDockerEnv();
 const result = spawnSync(process.execPath, [runtimeDocker, "smoke", "--scope", "network", ...args], {
   cwd: root,
+  env,
   stdio: "inherit",
   shell: false,
 });

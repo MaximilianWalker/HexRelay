@@ -746,7 +746,7 @@
 
 - Area affected: CI contract parity, realtime contract enforcement, and readiness watch routing.
 - Change summary:
-  - Added selected realtime semantic parity validation for the receive-side `realtime.connected`, `presence.updated`, `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` envelopes in the contract parity validator, now located under `scripts/validators/contract-parity/`.
+  - Added selected realtime semantic parity validation for the receive-side `realtime.connected`, `presence.updated`, `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` envelopes in the contract parity validator, now located under `scripts/validators/contract_parity/`.
   - Added a `fail-realtime-envelope-semantics` fixture regression and wired it into `tests/contract-parity/run.mjs` so envelope/data drift fails deterministically.
   - Refreshed contract/readiness docs so they describe the stronger gate accurately without overstating closure of the broader semantic-depth watch.
 - Rationale:

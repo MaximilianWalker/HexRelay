@@ -42,6 +42,27 @@ export function runInherited(command, args = [], options = {}) {
   }
 }
 
+export function runChecked(command, args = [], options = {}) {
+  const result = spawnSync(nativeCommand(command), args, {
+    cwd: options.cwd ?? rootDir,
+    env: options.env ?? process.env,
+    encoding: "utf8",
+    stdio: options.stdio ?? "pipe",
+    shell: false,
+  });
+
+  if (result.error) {
+    throw new Error(`Failed to start ${command}: ${result.error.message}`);
+  }
+
+  if ((result.status ?? 1) !== 0) {
+    const output = `${result.stderr ?? ""}${result.stdout ?? ""}`.trim();
+    throw new Error(output || `${command} ${args.join(" ")} failed with exit code ${result.status ?? 1}`);
+  }
+
+  return result;
+}
+
 export function runCapture(command, args = [], options = {}) {
   const result = spawnSync(nativeCommand(command), args, {
     cwd: options.cwd ?? rootDir,

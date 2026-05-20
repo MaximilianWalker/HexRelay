@@ -5,19 +5,19 @@ import process from "node:process";
 import { runCapture, runCheckedCapture } from "../../scripts/lib/exec.mjs";
 import { fixturesDir, rootDir } from "../../scripts/lib/paths.mjs";
 import {
-  apiErrorSchemaShape,
   delegatedCsrf,
   delegatedInternalHeader,
-  dmMarkReadSchema,
-  dmPolicySchema,
-  pathParameterFormat,
-  queryParameterPattern,
+  responseHeaderSchemaType,
+  unexpectedRequestHeader,
+} from "./mutations/headers.mjs";
+import { dmMarkReadSchema, dmPolicySchema } from "./mutations/dms.mjs";
+import { pathParameterFormat, queryParameterPattern } from "./mutations/parameters.mjs";
+import {
+  apiErrorSchemaShape,
   requestBodyMediaType,
   responseBuilderSuccessSchema,
-  responseHeaderSchemaType,
   serverChannelRequestSchema,
-  unexpectedRequestHeader,
-} from "./mutations.mjs";
+} from "./mutations/schemas.mjs";
 
 const validatorPath = path.join(rootDir, "scripts", "validators", "contract-parity.mjs");
 const contractFixturesDir = path.join(fixturesDir, "contract-parity");
