@@ -257,7 +257,7 @@ services:
       - bash
       - -lc
       - |
-        node scripts/write-runtime-tsconfig.mjs alice-server
+        node scripts/runtime/web-tsconfig.mjs alice-server
         npm --prefix apps/web ci
         npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
 
@@ -335,7 +335,7 @@ services:
       - bash
       - -lc
       - |
-        node scripts/write-runtime-tsconfig.mjs bob-server
+        node scripts/runtime/web-tsconfig.mjs bob-server
         npm --prefix apps/web ci
         npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
 

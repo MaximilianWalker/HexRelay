@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(scriptsDir, "../..");
+const root = path.resolve(scriptsDir, "..");
 const runDir = path.join(root, ".local-run");
 const runtimeStatePath = path.join(runDir, "runtime-state.json");
 const networkStatePath = path.join(runDir, "network-state.json");
@@ -13,7 +13,7 @@ const defaultNetworkName = process.env.HEXRELAY_DOCKER_NETWORK || "hexrelay_defa
 const defaultRealtimeInternalToken = process.env.HEXRELAY_REALTIME_INTERNAL_TOKEN || "hexrelay-dev-channel-dispatch-token-change-me";
 
 function usage() {
-  return "Usage: scripts/network/index.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
+  return "Usage: npm run network -- [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
 }
 
 function parseArgs(args) {

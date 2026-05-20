@@ -69,7 +69,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-server` or `bob-server`.
 - Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-server`/`bob-server`; stop it with `npm run runtime:docker -- down`.
 - Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
-- Cross-platform direct wrapper commands are documented in `docs/operations/local-runtime-testing-quickstart.md` for both PowerShell and Bash paths.
+- Cross-platform runtime commands are documented in `docs/operations/local-runtime-testing-quickstart.md`.
 
 ### Pre-Dev Gate (Deterministic)
 

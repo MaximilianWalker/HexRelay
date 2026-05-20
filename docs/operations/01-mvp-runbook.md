@@ -54,7 +54,7 @@
 - Scope: default user runtime with local API/realtime services started through repository scripts.
 - Startup sequence:
   1. `npm run setup`
-  2. `npm run run`
+  2. `npm run start`
   3. Verify `curl -fsS "http://127.0.0.1:8080/health"`
   4. Verify `curl -fsS "http://127.0.0.1:8081/health"`
   5. Run `npm --prefix apps/web run e2e:smoke`
@@ -198,11 +198,12 @@ npm --prefix apps/web run e2e:smoke
 
 - Canonical contributor security-parity procedure lives in `docs/operations/contributor-guide.md`.
 - CI security gates currently include:
-  - `cargo audit --deny warnings --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0049`
+  - `npm run security`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Advisory ignore governance:
-  - temporary ignores remain CI-blocked by `scripts/validators/cargo-audit-ignore.sh` expiry checks.
+  - temporary advisory policy lives only in `scripts/security/advisories.mjs`.
+  - temporary ignores remain CI-blocked by `scripts/validators/cargo-audit-ignore.mjs` expiry checks.
 - Rust coverage gate:
   - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.

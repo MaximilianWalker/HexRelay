@@ -33,7 +33,7 @@
 - Web UX for selecting seeded personas and opening DM-ready scenarios.
 - Local multi-instance runtime profiles for testing multiple HexRelay app instances on one machine.
 - Local network simulation that supports offline, partition, Docker-only latency/timeout profiles, and app-level deterministic fault injection.
-- Windows PowerShell and Unix Bash support.
+- Windows and Linux npm command support.
 - Validation gates and evidence expectations.
 
 ### Out of Scope
@@ -49,8 +49,7 @@
 
 - Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, runtime/network smoke tests, standard tests, and security checks through `package.json`.
 - Host-process start/status/stop is implemented once in `scripts/runtime/local.mjs`; `npm run start`, `npm run status`, and `npm run stop` call that shared manager directly.
-- Windows `scripts/run.ps1`, `scripts/status.ps1`, and `scripts/stop.ps1` are thin compatibility shims for direct PowerShell usage.
-- Unix `scripts/run.sh`, `scripts/status.sh`, and `scripts/stop.sh` are thin compatibility shims for direct Bash usage.
+- Host-process lifecycle commands are single Node entrypoints, exposed through npm for the same Windows and Linux workflow.
 - The shared manager chooses conflict-free local ports, uses the shared runtime profile JSON files, isolates each managed Next dev server in a per-run `.next-*` directory, and prints each instance's API, realtime, and web URLs.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
 - The default host-process runtime profile starts one neutral `local-server` app instance without seed persona metadata; Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
@@ -164,10 +163,8 @@
 | `services/api-rs/src/bin/seed_dev.rs` | Rust entrypoint for transactional fixture seeding |
 | `services/api-rs/src/dev_seed.rs` | Shared seed implementation used by CLI and tests |
 | `fixtures/dev-seed/scenarios/*.json` | Versioned fixture catalog and scenario definitions |
-| `scripts/seed.ps1` | Windows seed wrapper |
-| `scripts/seed.sh` | Unix seed wrapper |
-| `scripts/reset-dev-db.ps1` | Windows local DB reset wrapper; reseeds only when `--profile` is supplied |
-| `scripts/reset-dev-db.sh` | Unix local DB reset wrapper; reseeds only when `--profile` is supplied |
+| `scripts/seed.mjs` | Cross-platform seed command |
+| `scripts/reset-dev-db.mjs` | Cross-platform local DB reset command; reseeds only when `--profile` is supplied |
 | `package.json` | Root npm aliases for seed/reset commands |
 
 ### Target Commands
@@ -179,14 +176,9 @@ npm run reset-dev-db -- --yes
 npm run reset-dev-db -- --profile all --yes
 ```
 
-```powershell
-.\scripts\seed.ps1 -Profile dm-basic
-.\scripts\reset-dev-db.ps1 -Profile all -Yes
-```
-
-```bash
-./scripts/seed.sh --profile dm-basic
-./scripts/reset-dev-db.sh --profile all --yes
+```text
+npm run seed -- --profile dm-basic
+npm run reset-dev-db -- --profile all --yes
 ```
 
 ### Seed Behavior
@@ -317,16 +309,10 @@ The default `single` profile uses a neutral `local-server` id and omits `seedPer
 
 ### Target Commands
 
-```powershell
-.\scripts\run.ps1 -RuntimeProfile dual -SeedProfile dm-basic
-.\scripts\status.ps1
-.\scripts\stop.ps1 -RuntimeProfile dual
-```
-
-```bash
-./scripts/run.sh --runtime-profile dual --seed-profile dm-basic
-./scripts/status.sh
-./scripts/stop.sh --runtime-profile dual
+```text
+npm run start -- --runtime-profile dual --seed-profile dm-basic
+npm run status
+npm run stop -- --runtime-profile dual
 ```
 
 ### Runtime Behavior
@@ -375,7 +361,7 @@ node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/
 
 ### Windows Parity
 
-- Windows PowerShell remains first-class.
+- Windows remains first-class.
 - Runtime profile parsing should be shared across Windows and Unix through JSON files.
 - Windows should continue choosing conflict-free ports when profile ports are unavailable.
 - Windows status/stop scripts should not require interactive shells.
@@ -404,19 +390,7 @@ node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/
 
 ### Target Commands
 
-```powershell
-.\scripts\network.ps1 -Profile offline-alice
-.\scripts\network.ps1 -Profile partition-alice-bob
-.\scripts\network.ps1 -Reset
-```
-
-```bash
-./scripts/network.sh --profile offline-alice
-./scripts/network.sh --profile partition-alice-bob
-./scripts/network.sh --reset
-```
-
-```bash
+```text
 npm run network -- --profile offline-alice
 npm run network -- --profile partition-alice-bob
 npm run network -- --reset
@@ -456,7 +430,7 @@ npm run network -- --reset
 - Network simulation must not add server-readable plaintext, private-key custody, unencrypted mailboxing, or plaintext relay behavior to DM runtime behavior.
 - Optional server-to-server failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-server delivery.
 - Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
-- The existing `scripts/validators/dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
+- The existing `scripts/validators/dm-transport-policy.mjs` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
 
 ## Validation Strategy
 
@@ -552,8 +526,8 @@ npm run network -- --reset
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
 | PH-02-EP-01-ST-01-TK-01 | Add Rust seed implementation | `services/api-rs/src/bin/seed_dev.rs`, `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs dev_seed` | Transactional idempotent seed for selected profile | done |
-| PH-02-EP-01-ST-01-TK-02 | Add Windows and Unix seed wrappers | `scripts/seed.ps1`, `scripts/seed.sh` | Run wrappers locally | Wrappers load env and call seed implementation consistently | done |
-| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | `npm run reset-dev-db -- --yes`; `npm run reset-dev-db -- --yes --profile dm-basic`; `npm run seed -- --profile dm-basic --json` | Reset refuses unsafe DB, resets cleanly without fixture data by default, and reseeds only when a profile is supplied | done |
+| PH-02-EP-01-ST-01-TK-02 | Add seed command | `scripts/seed.mjs` | `npm run seed -- --help` | Command loads env and calls seed implementation consistently on Windows and Linux | done |
+| PH-02-EP-01-ST-01-TK-03 | Add local reset command | `scripts/reset-dev-db.mjs` | `npm run reset-dev-db -- --yes`; `npm run reset-dev-db -- --yes --profile dm-basic`; `npm run seed -- --profile dm-basic --json` | Reset refuses unsafe DB, resets cleanly without fixture data by default, and reseeds only when a profile is supplied | done |
 | PH-02-EP-01-ST-01-TK-04 | Add root npm aliases | `package.json` | `npm run seed -- --help`, `npm run reset-dev-db -- --help` | Commands are discoverable from repo root | done |
 
 ### PH-03 Tasks
@@ -570,7 +544,7 @@ npm run network -- --reset
 |---|---|---|---|---|---|
 | PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `fixtures/runtime/profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
 | PH-04-EP-01-ST-01-TK-02 | Implement shared host-process runtime manager | `scripts/runtime/local.mjs`, `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --runtime-profile dual --seed-profile dm-basic`; `npm run status`; `npm run stop` | Starts multiple named instances with unique ports from one cross-platform implementation | done |
-| PH-04-EP-01-ST-01-TK-03 | Keep direct OS-native lifecycle shims | `scripts/run.ps1`, `scripts/status.ps1`, `scripts/stop.ps1`, `scripts/run.sh`, `scripts/status.sh`, `scripts/stop.sh` | `powershell -File scripts/run.ps1 -Help`; `bash -n scripts/run.sh scripts/status.sh scripts/stop.sh` | PowerShell and Bash users keep native commands without duplicated runtime logic | done |
+| PH-04-EP-01-ST-01-TK-03 | Keep one cross-platform lifecycle command surface | `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --help`; `npm run status -- --help`; `npm run stop -- --help` | Windows and Linux users share the same Node command implementation | done |
 | PH-04-EP-01-ST-01-TK-04 | Add status and stop commands | `scripts/runtime/local.mjs`, `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
 
 ### PH-05 Tasks
@@ -578,9 +552,9 @@ npm run network -- --reset
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
 | PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `fixtures/network/profiles/`, `scripts/validators/network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
-| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network/index.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
-| PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network/index.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
-| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network/index.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation command | `scripts/network.mjs` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
+| PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
+| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
 | PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime/docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime servers expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
 
 ### PH-06 Tasks
@@ -614,7 +588,7 @@ npm run network -- --reset
 Critical path:
 
 1. Define `dm-basic` fixture catalog.
-2. Implement seed command and wrappers.
+2. Implement seed command.
 3. Implement dev session bootstrap.
 4. Add web testing profile picker.
 5. Add `dual` runtime profile.
@@ -625,9 +599,9 @@ Critical path:
 
 | Decision ID | Context | Chosen Option | Rationale | Impact |
 |---|---|---|---|---|
-| DEC-01 | Fixture authority | Versioned fixture catalog plus Rust seed command | Keeps DB writes typed, transactional, and aligned with API migrations | Requires script wrappers for good UX |
+| DEC-01 | Fixture authority | Versioned fixture catalog plus Rust seed command | Keeps DB writes typed, transactional, and aligned with API migrations | Requires Node commands for good UX |
 | DEC-02 | Auth model | Signed dev sessions, not browser-only fake users | Preserves server auth behavior | Requires dev-only bootstrap guard |
-| DEC-03 | Runtime profiles | Named JSON profile files shared by PowerShell and Bash | Avoids drift between Windows and Unix | Requires a shared parser or strict schema convention |
+| DEC-03 | Runtime profiles | Named JSON profile files shared by Windows and Linux | Avoids OS-specific command drift | Requires a shared parser or strict schema convention |
 | DEC-04 | Network simulation | Docker controls plus Toxiproxy plus app-level dev faults | Keeps Windows/Linux behavior Docker-only and deterministic | Toxiproxy is TCP-level rather than packet-level shaping |
 | DEC-05 | DM transport | Validate encrypted-envelope message-server delivery as the only MVP DM transport path | Preserves product guardrail | Testing must not introduce plaintext/key custody, unencrypted relay behavior, or server-bypassing client DM transport/bootstrap surfaces |
 | DEC-06 | Documentation authority | One planning authority with testing/operations indexes linking to it | Matches existing docs convention for test profiles | Avoids duplicating commands before implementation lands |
@@ -648,7 +622,7 @@ Critical path:
 ## Minimum Viable Delivery Slice
 
 - Add `dm-basic` fixture profile with Alice and Bob.
-- Add seed command and Windows/Unix wrappers.
+- Add seed command and cross-platform Node commands.
 - Add dev session bootstrap for Alice and Bob.
 - Add dev-only web testing profile picker.
 - Add `dual` runtime profile.

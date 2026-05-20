@@ -357,7 +357,7 @@
   - `docs/product/README.md`
   - `docs/planning/README.md`
   - `docs/reference/glossary.md`
-  - `scripts/validators/dm-transport-policy.sh`
+  - `scripts/validators/dm-transport-policy.mjs`
   - `.github/workflows/ci.yml`
 
 ### 2026-05-08 (T4.1.6 LAN discovery fast-path closeout)
@@ -519,9 +519,9 @@
   - Added `contacts-edge` and `server-chat` scenario fixtures for pending/restricted contact states, shared servers, memberships, channels, mentions, and replies.
   - Extended the dev seed parser and transactional seeding path for invite, server, membership, channel, and server channel message fixture data.
   - Added bundled network simulation profile JSON files plus `npm run validate:network-profiles` for the PH-05 schema/validation slice.
-  - Added `npm run network` plus Windows and Unix wrappers for applying/resetting network profile state, with Docker container-target support and fail-safe handling for current host-process runtime instances.
+  - Added `npm run network` plus cross-platform Node commands for applying/resetting network profile state, with Docker container-target support and fail-safe handling for current host-process runtime instances.
 - Rationale:
-  - The remaining PH-01 scenarios unblock broader local exploratory testing, and PH-05 needs validated profile definitions before network apply/reset wrappers are added.
+  - The remaining PH-01 scenarios unblock broader local exploratory testing, and PH-05 needs validated profile definitions before network apply/reset commands are added.
 - Linked docs updated:
   - `docs/planning/local-runtime-testing-plan.md`
   - `scripts/README.md`
@@ -584,8 +584,8 @@
 - Area affected: Local development database reset workflow and seed tooling.
 - Change summary:
   - Added `reset_dev_db` as a Rust CLI that requires `--yes`, refuses production/non-local database targets, resets the local dev schema, reruns migrations, and reseeds the selected profile.
-  - Added `npm run reset-dev-db` with Windows and Unix wrappers.
-  - Updated local runtime testing docs to track the reset wrapper slice as implemented but still awaiting explicit destructive reset smoke validation.
+  - Added `npm run reset-dev-db` with cross-platform Node commands.
+  - Updated local runtime testing docs to track the reset command slice as implemented but still awaiting explicit destructive reset smoke validation.
 - Rationale:
   - Repeatable local runtime tests need a guarded way to return the database to a known fixture state without manual Postgres commands.
 - Linked docs updated:
@@ -599,7 +599,7 @@
 - Change summary:
   - Added the initial `dm-basic` fixture catalog for Alice/Bob local DM testing.
   - Added `services/api-rs/src/bin/seed_dev.rs` and `services/api-rs/src/dev_seed.rs` for transactional local fixture seeding with production and non-local database guards.
-  - Added `npm run seed`, Windows/Unix seed wrappers, and seed fixture validation tests.
+  - Added `npm run seed`, cross-platform seed command, and seed fixture validation tests.
 - Rationale:
   - The web profile picker and multi-instance runtime work need real local API identities, sessions, contacts, policies, profile devices, and DM history before they can be useful. Then-current endpoint-card fixture assumptions were retired by the 2026-05-08 server-to-server P2P E2EE envelope pivot.
 - Linked docs updated:
@@ -647,7 +647,7 @@
 - Area affected: Iteration 2 DM transport policy enforcement and CI guardrails.
 - Change summary:
   - Confirmed the runtime already enforced the then-current server-bypassing DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
-  - Expanded `scripts/validators/dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
+  - Expanded `scripts/validators/dm-transport-policy.mjs` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
   - Marked `T4.1.3` done on the Iteration 2 sprint board.
 - Rationale:
   - The story was only partially delivered: runtime behavior already matched policy, but the CI guardrail still missed forbidden config-style regressions. Widening the check closes the acceptance-criteria gap without inventing new transport behavior.
@@ -729,7 +729,7 @@
 
 - Area affected: Docs governance, deployment guidance, and readiness watch routing.
 - Change summary:
-  - Closed the docs-index freshness wording watch by matching `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validators/docs-index-freshness.sh`.
+  - Closed the docs-index freshness wording watch by matching `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validators/docs-index-freshness.mjs`.
   - Tightened dedicated deployment guidance so the currently validated topology is explicitly single-server and realtime websocket abuse controls are clearly documented as process-local.
   - Added dedicated deployment checklist sign-off language for operators who attempt multi-instance realtime topologies.
 - Rationale:
@@ -747,7 +747,7 @@
 - Area affected: CI contract parity, realtime contract enforcement, and readiness watch routing.
 - Change summary:
   - Added selected realtime semantic parity validation for the receive-side `realtime.connected`, `presence.updated`, `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` envelopes in the contract parity validator, now located under `scripts/validators/contract-parity/`.
-  - Added a `fail-realtime-envelope-semantics` fixture regression and wired it into `tests/contract-parity/run.sh` so envelope/data drift fails deterministically.
+  - Added a `fail-realtime-envelope-semantics` fixture regression and wired it into `tests/contract-parity/run.mjs` so envelope/data drift fails deterministically.
   - Refreshed contract/readiness docs so they describe the stronger gate accurately without overstating closure of the broader semantic-depth watch.
 - Rationale:
   - The remaining parity-depth watch was still too broad on the realtime side; selected receive-side websocket event semantics were stable enough to enforce mechanically and high-value enough to deserve CI coverage now.
@@ -764,7 +764,7 @@
 - Change summary:
   - Made the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` exhaustive for the current open watches, including the web-coverage-policy and docs-index-freshness-policy watches.
   - Removed stale entry-doc caveats that still described DM replay-backlog durability as unresolved after the DM durability/docs alignment had already closed that finding.
-  - Aligned `docs/README.md` and contributor guidance with the strict docs-index metadata refresh rule enforced by `scripts/validators/docs-index-freshness.sh`.
+  - Aligned `docs/README.md` and contributor guidance with the strict docs-index metadata refresh rule enforced by `scripts/validators/docs-index-freshness.mjs`.
 - Rationale:
   - Readiness entry points need one current watch authority; stale or incomplete caveats make planning and future audits drift-prone even when the underlying runtime/docs fixes are already complete.
 - Linked docs updated:

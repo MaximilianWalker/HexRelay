@@ -7,8 +7,8 @@ Validation commands run from repository root:
 - npm --prefix apps/web run lint
 - npm --prefix apps/web run test:coverage
 - npm --prefix apps/web run build
-- python scripts/contract_parity/validator.py
-- rg -n "favorite|favorites|Favorite|Favorites|favorites_only|favoritesOnly|onlineOnly|folder|Folder|burger|Burger" docs/product docs/planning docs/contracts apps/web services/api-rs/src services/api-rs/migrations scripts/fixtures
+- node scripts/validators/contract-parity.mjs HEAD HEAD
+- rg -n "favorite|favorites|Favorite|Favorites|favorites_only|favoritesOnly|onlineOnly|folder|Folder|burger|Burger" docs/product docs/planning docs/contracts apps/web services/api-rs/src services/api-rs/migrations fixtures scripts
 
 Screenshot checks:
 

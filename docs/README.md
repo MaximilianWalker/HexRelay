@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-20 aligned documentation routing with the top-level shared fixture/profile layout.
+- Latest meaningful change: 2026-05-20 aligned documentation routing with the cross-platform Node script and validation command surface.
 
 ## Purpose
 

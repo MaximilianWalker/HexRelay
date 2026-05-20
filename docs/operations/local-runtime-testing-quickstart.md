@@ -119,20 +119,12 @@ npm run status
 npm run stop -- --runtime-profile dual
 ```
 
-- Windows direct wrappers are available when you need PowerShell explicitly.
+- The npm commands below are canonical on Windows and Linux.
 
-```powershell
-.\scripts\run.ps1 -RuntimeProfile dual -SeedProfile dm-basic
-.\scripts\status.ps1
-.\scripts\stop.ps1 -RuntimeProfile dual
-```
-
-- Unix direct wrappers are available when you need Bash explicitly.
-
-```bash
-./scripts/run.sh --runtime-profile dual --seed-profile dm-basic
-./scripts/status.sh
-./scripts/stop.sh --runtime-profile dual
+```text
+npm run start -- --runtime-profile dual --seed-profile dm-basic
+npm run status
+npm run stop -- --runtime-profile dual
 ```
 
 ## Testing Profile UI

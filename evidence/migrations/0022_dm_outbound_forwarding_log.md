@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `bash scripts/validators/dm-transport-policy.sh`.
+- Command(s) executed: `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `node scripts/validators/dm-transport-policy.mjs`.
 - Expected outcome: outbound server DM forwarding attempts persist encrypted envelope metadata in `dm_outbound_forwarding_log` without introducing direct user-to-user transport state.
 - Actual outcome: pass locally; PR CI identified this evidence artifact was required and is satisfied by this file.
 - Evidence path (logs/artifacts): local CLI validation and `evidence/migrations/0022_dm_outbound_forwarding_log.md`.

@@ -61,16 +61,14 @@
 
 ## Security Tooling Baseline
 
-- `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
-- `npm run security` currently covers the fast Rust dependency audit path only; it is not full CI security parity by itself.
+- `cargo-audit` is pinned to `0.22.0` via `scripts/security/cargo-audit.mjs` and CI uses the same version.
+- `npm run security` covers the Rust dependency audit path used by CI.
 - Full CI security parity additionally includes:
-  - `bash scripts/validators/cargo-audit-ignore.sh`
+  - `node scripts/validators/cargo-audit-ignore.mjs`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error --exclude node_modules --exclude target`
-- Temporary cargo-audit ignore exceptions must pass `scripts/validators/cargo-audit-ignore.sh` expiry checks in CI.
-- Current ignore-expiry policy covers:
-  - `RUSTSEC-2023-0071`
-  - `RUSTSEC-2026-0049`
+- Temporary cargo-audit ignore exceptions must pass `scripts/validators/cargo-audit-ignore.mjs` expiry checks in CI.
+- Current ignore-expiry policy lives only in `scripts/security/advisories.mjs`; do not copy advisory IDs into docs or CI.
 - If `npm run setup` fails installing `cargo-audit` because Rust is too old, run `rustup update stable` and retry setup.
 
 ## CI Expectations
@@ -83,7 +81,7 @@
 - Current enforced web coverage thresholds are 65% for lines/statements/functions and 60% for branches in `apps/web/vitest.config.ts`, and threshold increases must ship with the test additions that justify them.
 - Rust gate runs `fmt`, `clippy`, and `test` for `services/api-rs` and `services/realtime-rs`.
 - Web gate runs `lint`, `test:coverage`, and `build` for `apps/web`.
-- Windows parity gate runs `npm run setup:windows`, validates runtime/network profile definitions, and runs `npm run test:windows -- -SkipServiceBackedTests` on `windows-latest`; Linux CI remains responsible for DB/Redis-backed Rust tests and integration smoke.
+- Windows parity gate runs `npm run setup`, validates runtime/network profile definitions, and runs `npm run test -- --skip-service-backed-tests` on `windows-latest`; Linux CI remains responsible for DB/Redis-backed Rust tests and integration smoke.
 - Integration smoke always uploads CI evidence artifacts at `evidence/ci/<run_id>/`.
 - Missing required lockfiles or missing `lint`/`test:coverage`/`build` scripts fail CI with actionable errors.
 
@@ -93,61 +91,30 @@ Non-localizable CI checks:
 
 ## Local CI Parity (Pre-PR)
 
-Required local checks (run before opening PR):
-- `npm run security`
-- `npm run test`
-- `./scripts/validators/migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
-- `./scripts/validators/evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
-- `./scripts/validators/contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
-- `bash tests/contract-parity/run.sh`
-- `./scripts/validators/dm-transport-policy.sh`
-- `./scripts/validators/docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
-- Rust `fmt`/`clippy`/tests and coverage gate command
-- Web `lint`/`test:coverage`/`build`
+Required local checks before opening a PR:
+
+- `npm run check -- --skip-service-backed-tests`
+- `cargo llvm-cov --workspace --all-features --fail-under-lines 80` when coverage-relevant Rust code changes
+- `npm --prefix apps/web audit --omit=dev --audit-level=high` when web dependencies change
+- `semgrep scan --config p/security-audit --error --exclude node_modules --exclude target` when Semgrep is installed locally
 
 CI-owned checks (informational for local parity):
 - CI artifact upload and retention under `evidence/ci/<run_id>/`
 - PR-context dependent SHA resolution in workflow jobs
 
-Run from repository root:
+Run from repository root. `npm run check` resolves the base SHA automatically; set `BASE_SHA` and `HEAD_SHA` only when you need to compare a specific range.
 
-```bash
-npm run security
-npm run test
-DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
-BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD 2>/dev/null || git rev-parse HEAD~1)
-HEAD_SHA=$(git rev-parse HEAD)
-./scripts/validators/migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
-./scripts/validators/evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
-./scripts/validators/contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
-bash tests/contract-parity/run.sh
-./scripts/validators/dm-transport-policy.sh
-./scripts/validators/docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
-bash scripts/validators/cargo-audit-ignore.sh
-python -m pip install semgrep
-semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
-npm --prefix apps/web audit --omit=dev --audit-level=high
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test -p api-rs --all-features
-cargo test -p realtime-rs --all-features
-API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay API_SESSION_SIGNING_KEYS=primary:ci-signing-key-hexrelay-12345 API_SESSION_SIGNING_KEY_ID=primary cargo llvm-cov --workspace --all-features --fail-under-lines 80
-npm --prefix apps/web run lint
-npm --prefix apps/web run test:coverage
-npm --prefix apps/web run build
+```text
+npm run check -- --skip-service-backed-tests
 ```
 
-- The `DEFAULT_BRANCH` fallback keeps local parity compatible with both `master` and `main` default-branch repositories.
-- If no `origin` remote is available (fork/offline workflows), set `BASE_SHA=$(git rev-parse HEAD~1)` before running evidence validation scripts.
-
-- `npm run security` is the fast local Rust-audit gate; the explicit commands above mirror CI security/runtime gates as closely as possible outside GitHub Actions context.
-- `npm run test` is the fast local baseline for functional checks.
+- `npm run check` is the canonical cross-platform local gate for repo-owned validators, profile validation, contract fixture regressions, Rust checks, and web lint/test/build.
 - If your change affects auth/realtime startup behavior, run `npm --prefix apps/web run e2e:smoke` after API and realtime are healthy.
 
 ## Local Happy Path and Triage
 
 1. `npm run setup`
-2. `npm run run`
+2. `npm run start`
 3. Verify `curl -fsS "http://127.0.0.1:8080/health"` and `curl -fsS "http://127.0.0.1:8081/health"`
 4. `npm --prefix apps/web run e2e:smoke`
 5. If startup or smoke fails, follow `docs/operations/01-mvp-runbook.md` recovery and rollback sections.

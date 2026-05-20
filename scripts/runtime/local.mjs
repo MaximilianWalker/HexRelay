@@ -16,17 +16,17 @@ const defaultRealtimeInternalToken = "hexrelay-dev-channel-dispatch-token-change
 function usage(command = "all") {
   const lines = {
     start: [
-      "Usage: scripts/runtime/local.mjs start [--runtime-profile single|dual|triple|path] [--seed-profile dm-basic]",
+      "Usage: npm run start -- [--runtime-profile single|dual|triple|path] [--seed-profile dm-basic]",
       "Default startup uses the clean single profile and does not seed fixture data.",
     ],
-    status: ["Usage: scripts/runtime/local.mjs status [--json]"],
-    stop: ["Usage: scripts/runtime/local.mjs stop [--runtime-profile single|dual|triple|path] [--json]"],
+    status: ["Usage: npm run status -- [--json]"],
+    stop: ["Usage: npm run stop -- [--runtime-profile single|dual|triple|path] [--json]"],
   };
   if (command !== "all") {
     return lines[command].join("\n");
   }
   return [
-    "Usage: scripts/runtime/local.mjs start|status|stop [options]",
+    "Usage: npm run start|status|stop -- [options]",
     ...lines.start,
     ...lines.status,
     ...lines.stop,

@@ -4,75 +4,53 @@ Workspace automation entrypoints and reusable script implementation modules live
 here. The canonical workflow and gate documentation lives in
 `docs/operations/contributor-guide.md`.
 
-Use the contributor guide as the source of truth for:
-
-- local validation commands
-- PR gate expectations
-- smoke/bootstrap prerequisites
-- delivery and release workflow
-
 ## Layout
 
-- Root `scripts/*.mjs`, `scripts/*.ps1`, and `scripts/*.sh` files are
-  developer-facing lifecycle commands.
-- `scripts/runtime/` contains shared host-process and Docker runtime managers.
-- `scripts/network/` contains network simulation commands.
-- `scripts/validators/` contains validation command entrypoints and reusable
-  validation implementation.
-- Top-level `fixtures/` contains shared dev seed scenarios plus runtime and
-  network profile JSON.
-- Top-level `tests/` contains test runners and test fixtures.
+- Root `scripts/*.mjs` files are developer-facing lifecycle commands.
+- `scripts/lib/` contains shared cross-platform helpers.
+- `scripts/security/` contains cargo-audit policy and audit execution.
+- `scripts/runtime/` contains host-process and Docker runtime managers.
+- `scripts/network.mjs` is the network simulation command.
+- `scripts/validators/` contains validation command entrypoints.
+- `scripts/ci/` contains CI-only artifact collection.
+- Top-level `fixtures/` contains shared dev seed scenarios plus runtime,
+  network, and contract-parity fixture data.
+- Top-level `tests/` contains test runners and test implementation.
 
-Local runtime lifecycle logic is centralized in `scripts/runtime/local.mjs`.
-`scripts/run.mjs`, `scripts/status.mjs`, and `scripts/stop.mjs` call that shared
-manager directly. The `.ps1` and `.sh` files are compatibility shims for
-developers who want native PowerShell or Bash commands.
+## Commands
 
-Common script entrypoints include:
+- `npm run setup`
+- `npm run seed -- --profile dm-basic`
+- `npm run reset-dev-db -- --yes`
+- `npm run start`
+- `npm run status`
+- `npm run stop`
+- `npm run network -- --profile <profile>`
+- `npm run network -- --reset`
+- `npm run runtime:docker -- status`
+- `npm run check -- --skip-service-backed-tests`
+- `npm run security`
+- `npm run test -- --skip-service-backed-tests`
+- `npm run test:contract-parity`
+- `npm run test:runtime`
+- `npm run test:network`
 
-- `scripts/setup.*`
-- `scripts/seed.*`
-- `scripts/reset-dev-db.*`
-- `scripts/run.*`
-- `scripts/status.*`
-- `scripts/stop.*`
-- `scripts/network.*`
+Validation entrypoints:
 
-Validation entrypoints live under `scripts/validators/`:
+- `node scripts/validators/cargo-audit-ignore.mjs`
+- `node scripts/validators/contract-parity.mjs <base> <head>`
+- `node scripts/validators/dm-transport-policy.mjs`
+- `node scripts/validators/docs-index-freshness.mjs <base> <head>`
+- `node scripts/validators/evidence-provenance.mjs <base> <head>`
+- `node scripts/validators/migration-evidence.mjs <base> <head>`
+- `npm run validate:runtime-profiles`
+- `npm run validate:network-profiles`
 
-- `scripts/validators/cargo-audit-ignore.sh`
-- `scripts/validators/contract-parity.sh`
-- `scripts/validators/dm-transport-policy.sh`
-- `scripts/validators/docs-index-freshness.sh`
-- `scripts/validators/evidence-provenance.sh`
-- `scripts/validators/migration-evidence.sh`
-
-Common test entrypoints live outside this directory:
-
-- `tests/run.*`
-- `tests/runtime/runtime-smoke.mjs`
-- `tests/runtime/network-smoke.mjs`
-- `tests/contract-parity/run.sh`
-
-Local runtime testing fixture and seed details live in
-`docs/planning/local-runtime-testing-plan.md`.
-
-Runtime profile files live in `fixtures/runtime/profiles/` and are validated with
-`npm run validate:runtime-profiles`.
-
-Network simulation profile files live in `fixtures/network/profiles/` and are
-validated with `npm run validate:network-profiles`.
-Apply or reset network simulation state with `npm run network -- --profile <profile>`
-or `npm run network -- --reset`.
-Profiles can target runtime instance IDs, for example `local-server`,
-`alice-server`, or `bob-server`.
-Docker-backed profiles use Docker network controls, Toxiproxy profiles configure
-Docker-only peer-link latency and timeout behavior, and app-fault profiles
-configure dev-only realtime fault hooks.
-Use `npm run network -- --reset --force` only for failed Docker runtime cleanup.
+Runtime profile files live in `fixtures/runtime/profiles/`.
+Network simulation profile files live in `fixtures/network/profiles/`.
 
 The Docker runtime test stack is managed with `npm run runtime:docker`. Use it
-for heavier PH-05 runtime/network testing; keep normal development on
-host-process `npm run start`. If the Docker runtime stack is active, use
+for heavier runtime/network testing; keep normal development on host-process
+`npm run start`. If the Docker runtime stack is active, use
 `npm run runtime:docker -- down`; generic `npm run stop` refuses Docker runtime
 state to avoid orphaning containers.

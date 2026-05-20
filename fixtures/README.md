@@ -11,6 +11,5 @@ runtime tooling lives here.
   consumed by `npm run start -- --runtime-profile <name>`.
 - `fixtures/network/profiles/` contains network simulation profiles consumed by
   `npm run network -- --profile <name>`.
-
-Test-private fixtures stay beside their owning test harness under `tests/`, for
-example `tests/contract-parity/fixtures/`.
+- `fixtures/contract-parity/` contains fixture repositories consumed by the
+  contract-parity regression runner.
