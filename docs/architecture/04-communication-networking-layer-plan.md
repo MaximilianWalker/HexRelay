@@ -35,7 +35,7 @@ Users may:
 - allow a server to discover or introduce other servers,
 - refuse server-mediated discovery entirely.
 
-Servers are runtime nodes in a policy-controlled P2P network. They may provide guild hosting, profile synchronization, encrypted DM envelope delivery, discovery, relay, or only a subset of those roles. No routing, discovery, or trust rule should assume a permanent user-to-server ownership relationship.
+Servers are runtime nodes in a policy-controlled P2P network. They may provide community hosting, profile synchronization, encrypted DM envelope delivery, discovery, relay, or only a subset of those roles. No routing, discovery, or trust rule should assume a permanent user-to-server ownership relationship.
 
 ## Policy and Boundary Inputs
 
@@ -348,7 +348,7 @@ Hard limits:
 - no private keys,
 - no hidden server descriptors,
 - no user social graph broadcast,
-- no guild membership broadcast,
+- no private server membership broadcast,
 - no delivery receipts that expose sensitive communication patterns across unrelated nodes.
 
 ### Route Selection

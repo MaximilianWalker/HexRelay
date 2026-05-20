@@ -6,7 +6,7 @@ Only project-specific constraints are defined here.
 ## 1) Scope
 
 - Primary goal: build an open-source, Discord-like communication platform with strong user data ownership.
-- MVP focus: reliable friends, DMs, guild channels, and voice before federation complexity.
+- MVP focus: reliable friends, DMs, server channels, and voice before federation complexity.
 - Architecture baseline: Rust-first backend services with desktop local-first runtime packaging and reusable web UI layer.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
 - Windows and Linux are both mandatory first-class targets for development, testing, packaging, and release planning; never plan Windows-only delivery or leave Linux as a later afterthought.

@@ -1295,7 +1295,7 @@
   - Added dynamic server workspace route scaffold at `/servers/[serverId]` and linked server cards to workspace route navigation.
   - Preserved screen-state mapping (`loading`, `error`, `empty`, `search_no_results`, request states) while changing data source to backend.
 - Rationale:
-  - Reduce placeholder logic and align hub surfaces with real API contracts ahead of friend/guild persistence work.
+  - Reduce placeholder logic and align hub surfaces with real API contracts ahead of friend/server persistence work.
 - Linked docs updated:
   - `services/api-rs/src/app.rs`
   - `services/api-rs/src/handlers.rs`
@@ -1616,7 +1616,7 @@
 
 - Area affected: Core messaging architecture and MVP execution tasks
 - Change summary:
-  - Corrected DM architecture to the then-current node-bypassing transport model with no guild/community server relay/storage.
+  - Corrected DM architecture to the then-current node-bypassing transport model with no community server relay/storage.
   - Updated plan, PRD, Iteration 2 tasks, REST/realtime contracts, data lifecycle matrix, and verification matrix to match this model.
   - Removed server-ciphertext DM assumptions from execution and validation language.
 - Rationale:

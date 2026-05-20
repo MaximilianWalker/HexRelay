@@ -6,7 +6,7 @@
 - Owner: Product maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/02-prd.md`
 
 ## Quick Context
@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 locked DM requirements to server-node P2P E2EE envelope delivery, removed node-bypassing client DM transport/bootstrap surfaces, broadened UX approval to all UX decisions, aligned discovery requirements with the dynamic server-node policy graph, and clarified app-mediated dedicated-server administration.
+- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 navigation decisions: Servers and Contacts share the same card/list hub model, and desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
 
 ## Product Summary
 
@@ -63,7 +63,7 @@ Build a communication stack where users and communities control identity, data l
 - Secure invite links with expiration, max-uses, and one-time/multi-use modes.
 - Challenge-signature authentication and session management.
 - Friends graph, presence, block/mute, user discovery.
-- Global server and contact hub pages with searchable card views.
+- Global server and contact hub pages with searchable card and list layouts.
 - DMs/group DMs, servers/channels/roles, edits, mentions, replies.
 - E2EE 1:1 and group DMs with rotation and metadata-safe storage behavior.
 - Voice channels, 1:1 calls, and screen share.
@@ -133,11 +133,11 @@ Build a communication stack where users and communities control identity, data l
 
 ### 6) Navigate Servers and Contacts at Scale
 
-1. User opens global `Servers` hub to browse all joined servers in a searchable card grid.
+1. User opens global `Servers` hub to browse all joined servers in searchable card or list layout.
 2. User can pin/favorite servers and group them into folders for sidebar ordering.
 3. User can switch server navigation mode between sidebar list/folders and topbar tabs (browser-like).
 4. User can save/pin topbar tabs and organize frequent destinations in folders.
-5. User can toggle a burger control to collapse/hide server navigation while focused in a server.
+5. User can collapse sidebar navigation while focused in a server without a burger control.
 6. User opens global `Contacts` hub to browse DMs/friends in a searchable card/list view.
 7. User opens the selected server or DM context from hub cards.
 
@@ -204,7 +204,7 @@ Build a communication stack where users and communities control identity, data l
   - Global `Servers` and `Contacts` hubs are required and act as first-class navigation surfaces.
   - Server navigation must support both sidebar and topbar tab modes.
   - Topbar navigation must support saved tabs and folder organization.
-  - A burger control must allow collapsing/hiding server navigation in server workspace.
+  - Server workspace navigation must support explicit sidebar/topbar switching plus sidebar collapse without a burger control.
 - Voice
   - Competitive baseline quality and screen share support.
 - Discovery

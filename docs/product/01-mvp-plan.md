@@ -8,7 +8,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Owner: Product and architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/01-mvp-plan.md`
 
 ## Quick Context
@@ -17,7 +17,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Iteration task sequencing and task-level status are canonical in `docs/planning/iterations/README.md`.
 - Dependency/risk severity updates are canonical in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this document as the canonical planning authority; release/go-no-go interpretation must still check open `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-11 added backend recipient-targeted realtime dispatch summaries for E2EE DM active-device fanout while preserving ack-backed final delivery.
+- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 navigation decisions: Servers and Contacts share the same card/list hub model, and desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
 
 ## 1) Product Intent and Constraints
 
@@ -48,7 +48,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Voice target: competitive quality; screen share included in MVP.
 - UI direction: heavily Discord-inspired interaction model, except server navigation uses scalable list/card paradigms (no small circular server rail).
 - Server navigation supports dual mode: sidebar list/folders and topbar tabbed navigation (browser-like tabs/saved tabs).
-- Server navigation chrome can be collapsed/hidden with a burger toggle while inside a server workspace.
+- Server navigation uses explicit sidebar/topbar switching plus collapse controls; no burger control is used for Iteration 2.
 - File handling: no product-level hard file size cap in MVP (server operators may set local quotas).
 - Migration default keeps old device active; optional explicit device revoke is available.
 - Bot ecosystem deferred until post-MVP; core stability first.
@@ -65,7 +65,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-03-04: Locked recovery setup as mandatory during onboarding.
 - 2026-03-04: Locked MVP UI behavior authority to `docs/product/08-screen-state-spec.md` with sprint-board execution mappings.
 - 2026-03-04: Locked global server and contact hub pages as first-class navigation surfaces for MVP.
-- 2026-03-04: Locked dual server-navigation mode (sidebar + topbar tabs) and burger collapse behavior in server workspace.
+- 2026-03-04: Locked dual server-navigation mode (sidebar + topbar tabs) and collapse behavior in server workspace; the burger-control detail was superseded on 2026-05-20.
 - 2026-03-04: Execution hardening aligned E2EE scope across plan/risk/iteration tasks and introduced contract/dependency gates.
 - 2026-03-04: Locked server invite policy allowing non-expiring multi-use invite links as an open-access pattern.
 - 2026-03-04: Locked privacy-first social policy: mediated friend requests, no default key/profile scraping, and opt-in DM permissions.
@@ -81,6 +81,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-11: Locked dedicated-server administration to the normal HexRelay app for authorized node owners/admins; dedicated server packages stay headless and no separate server-specific UI ships by default.
 - 2026-05-11: Added T4.1.8 backend retention and abuse controls for encrypted-envelope delivery metadata: 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, and per-sender/device/node rate limits without plaintext inspection.
 - 2026-05-11: Added T4.1.9 backend realtime dispatch summaries for encrypted DM active-device fanout; summaries classify target-device routing outcomes but final delivery remains recipient-device ack-backed and no UX changes were introduced.
+- 2026-05-20: Recorded in-progress Iteration 2 UX decisions that Servers and Contacts hubs share card/list layouts, shared filters, selection, and action-menu behavior, while desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -93,7 +94,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Dedicated server packages may expose authenticated admin/operator APIs, but no separate server-specific UI artifact is assumed for MVP.
 - Runtime remains multi-component (`apps/web`, `services/api-rs`, `services/realtime-rs`) even when desktop packaging installs and supervises local runtime components.
 - Browser-only usage is a compatibility path, not the primary runtime target.
-- Terminology mapping for runtime words (`node`, `server`, `dedicated server`, `guild`) is canonical in `docs/reference/glossary.md`.
+- Terminology mapping for runtime words (`node`, `server`, `dedicated server`) is canonical in `docs/reference/glossary.md`.
 - Release artifact details and code signing expectations are canonical in `docs/operations/03-release-packaging.md`.
 
 ## 2) Architecture Decision (Locked)
@@ -125,13 +126,13 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - User discovery (global and shared-server contexts) with server-mediated contact requests.
 - Contact invite add flow via expiring node-mediated contact invite link.
 - Friend requests via servers are intent-based and mediated; raw key/profile-identifying data is not exposed by default.
-- Dedicated global hubs for browsing servers and contacts with searchable card views.
+- Dedicated global hubs for browsing servers and contacts with searchable card and list layouts.
 - Server workspace supports sidebar navigation and topbar tab navigation, including saved tabs and folders.
-- Server navigation UI can be shrunk/hidden via burger toggle during focused interaction.
+- Server navigation UI can be collapsed and switched between sidebar and topbar modes without a burger control.
 - DM and group DM messaging (edits, mentions, deletes, replies).
 - E2EE DM delivery stack: ciphertext-envelope node delivery, relationship-scoped contact/encryption bootstrap, delivery metadata minimization, and deterministic delivery-state UI.
 - Profile-device eventual-sync stack: active-device fanout plus late-device replay/catch-up by per-device cursor for DM and server communication.
-- Servers (guilds), text channels, role/permission baseline.
+- Servers, text channels, role/permission baseline.
 - Voice channels, 1:1 calls, and screen share.
 - Attachments upload/download (operator-configurable quotas, no global product cap).
 - Node-owner controls: local kick/ban/logging tools (no global moderation authority).
@@ -388,7 +389,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 ### Iteration 2 Epics
 
 - E3: Friends graph, user discovery, and presence model.
-- E4: DMs/group DMs, guild channels, permissions baseline, and E2EE DM baseline.
+- E4: DMs/group DMs, server channels, permissions baseline, and E2EE DM baseline.
 
 ### Iteration 3 Epics
 

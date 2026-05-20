@@ -23,7 +23,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 ## Goals
 
 - Ship social graph and presence as stable primitives.
-- Deliver DM/group DM and guild/channel messaging with permission enforcement.
+- Deliver DM/group DM and server-channel messaging with permission enforcement.
 - Ship global/shared-server user discovery and E2EE baseline for 1:1 and group DMs.
 - Establish reliable realtime fanout patterns used by later voice and federation work.
 
@@ -148,7 +148,7 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 | T4.1.9 | Implement DM active-device profile fanout semantics | DM fanout/catch-up branches plus current realtime dispatch-summary branch | Accepted ciphertext envelopes fan out to active profile devices through verified-device realtime dispatch; internal summaries now classify target-device outcomes without plaintext/private-key access |
 | T4.1.10 | Implement DM late-device catch-up and per-device cursor dedupe | DM fanout/catch-up branches | Later-active devices replay missed ciphertext envelopes with per-device cursor metadata and dedupe coverage |
 | T4.1.11 | Retire WAN wizard, endpoint-card, and parallel-dial DM backlog | envelope-baseline pivot plus DM transport policy guardrail | Runtime, web, contracts, tests, fixtures, and guardrails reject retired WAN wizard, endpoint-card, and parallel-dial DM surfaces |
-| T4.2.1 | Implement guild/channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
+| T4.2.1 | Implement server-channel/role schema | T4.2.1 role permission schema branch | Persisted server roles, membership-role assignments, and per-channel role permissions now enforce server/channel scoping in DB constraints and gate server-channel read/send API access while preserving member defaults for channels without configured role permissions |
 | T4.3.1 | Implement server-channel message CRUD/reply/mention endpoints | T4.3.1/T4.4.1 server-channel permission hardening branch | Runtime REST server-channel message routes support list/create/edit/delete, same-channel replies, same-server mentions, pagination, tombstones, and dispatch-safe persistence behavior with contract and integration coverage |
 | T4.3.2 | Add websocket event fanout for server channels | server-channel realtime fanout branches plus reconnect duplicate closeout | API-persisted create/update/delete mutations fan out to authorized active websocket members, preserve FIFO API-to-realtime dispatch order, hydrate late profile devices through channel replay cursors, and assert no duplicate create/update/delete events after reconnect. Optimistic send UI is split to `T4.6.5` and remains blocked pending explicit approval of `docs/product/08-screen-state-spec.md`. |
 | T4.3.3 | Route server-channel and presence communication through `NodeClientTransport` adapter | profile-device sync closeout branch | Server-channel API dispatch and realtime presence edge dispatch both route through `communication-core` `NodeClientTransport` helpers with stable provenance logging and no DM policy leakage. |
@@ -222,7 +222,7 @@ Week 6:
 - Broad multi-device DM convergence must operate over accepted ciphertext envelopes plus minimal replay metadata under the message-node delivery design.
 - Durable DM history and replay metadata must preserve client-only plaintext/private-key boundaries; any future storage expansion must keep ciphertext-only server behavior.
 - Recipient-targeted realtime signaling is accepted-contact live websocket routing for call offer/answer/candidate payloads; it is separate from DM convergence, presence discovery, durable/offline queueing, and payload delivery semantics.
-- DM/group DM and guild channels pass contract, permission, and pagination integration suites.
+- DM/group DM and server channels pass contract, permission, and pagination integration suites.
 - Server-channel and presence events converge across all profile devices, including later-active devices.
 - Permission enforcement is server-authoritative and test-covered.
 - E2EE 1:1 and group DM baseline works with key exchange, rotation, and member-change rekey behavior.

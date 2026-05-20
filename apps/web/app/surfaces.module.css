@@ -372,6 +372,16 @@
     #f7fbff;
 }
 
+.messageTimelineContinuous {
+  gap: 0;
+  padding: 8px 0;
+  background: #fbfdff;
+}
+
+.messageTimelineContinuous .loadOlderButton {
+  margin: 6px 0 10px;
+}
+
 .loadOlderButton {
   display: inline-flex;
   align-self: center;
@@ -406,6 +416,31 @@
 .serverMessageOwn {
   border-color: #b7d8ec;
   background: #f2f9ff;
+}
+
+.serverMessageContinuous {
+  border-color: transparent;
+  border-radius: 0;
+  padding: 8px 14px;
+  background: transparent;
+}
+
+.serverMessageContinuous:hover,
+.serverMessageContinuous:focus-within {
+  background: #f1f7fc;
+}
+
+.serverMessageContinuous .messageAction {
+  border-color: transparent;
+  background: transparent;
+  opacity: 0.72;
+}
+
+.serverMessageContinuous .messageAction:hover,
+.serverMessageContinuous .messageAction:focus-visible {
+  border-color: #bfd5e8;
+  background: #fff;
+  opacity: 1;
 }
 
 .messageAvatar {
@@ -1646,6 +1681,10 @@
   .messageAction {
     grid-column: 2;
     width: 100%;
+  }
+
+  .serverMessageContinuous .messageAction {
+    width: 30px;
   }
 
   .serverChannelButton {

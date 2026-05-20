@@ -4,16 +4,16 @@
 
 - Doc ID: ui-navigation-spec
 - Owner: Product and design maintainers
-- Status: ready
+- Status: revision_in_progress
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/07-ui-navigation-spec.md`
 
 ## Quick Context
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-05-11 added the global UX approval gate and aligned DM workspace context with server-node P2P private-message delivery.
+- Latest meaningful change: 2026-05-20 recorded in-progress Iteration 2 UX decisions: Servers and Contacts share one hub interaction model with card/list layouts, desktop navigation uses collapse plus sidebar/topbar switching without a burger control, and server-instance architecture must be reconfirmed before implementation.
 
 ## Design Direction
 
@@ -22,11 +22,12 @@
 - Goal: preserve fast switching behavior while improving scalability for large server lists.
 - Navigation style requirement: browser-like affordances are encouraged for server switching (tabs, saved tabs, folders).
 - UX approval gate: no UX flow, copy, control, or behavior change may be implemented until the user explicitly consents to it.
+- Current approval status: Iteration 2 navigation UX is still in progress; decisions recorded here must be reconfirmed in the final implementation plan before runtime UI changes.
 
 ## Primary App Surfaces
 
 - `Home`: landing surface for recent activity and quick resume.
-- `Servers Hub`: global page showing all joined servers as cards.
+- `Servers Hub`: global page showing all joined servers as cards or dense list.
 - `Contacts Hub`: global page showing friends/DM threads as cards or dense list.
 - `Server Workspace`: selected server with channel navigation and message area.
 - `DM Workspace`: selected private DM/group DM with message area.
@@ -63,21 +64,24 @@
   - pin/save tabs for persistent quick access
   - folder assignment for saved tabs
   - unread and mention indicators on tabs
-- Burger toggle behavior:
-  - visible in server workspace header
-  - toggles sidebar to `expanded`/`collapsed`/`hidden`
+- Navigation visibility behavior:
+  - no burger control in Iteration 2
+  - explicit controls switch between `Sidebar Mode` and `Topbar Tab Mode`
+  - explicit collapse/expand control applies to sidebar visibility
   - user preference persists per device
 
 ### Global Hubs
 
 - `Servers Hub` requirements:
-  - searchable card grid
+  - searchable card and list layouts
   - filters: favorites, unread, muted
-  - card actions: open server, open settings, pin/unpin
+  - row/card primary action opens the server
+  - row/card menu actions include pin/unpin, settings when available, and destructive leave flow when approved by the final UX package
 - `Contacts Hub` requirements:
-  - searchable people/thread list with optional card mode
-  - filters: online, unread, favorites
-  - row/card actions: open DM, mute/unmute, block/unblock
+  - searchable people/thread card and list layouts
+  - filters: favorites, unread, muted
+  - row/card primary action opens the DM
+  - row/card menu actions include mute/unmute and block/remove when approved by the final UX package
 
 ## Why This Pattern
 
@@ -91,12 +95,15 @@
 - Empty states must include a next action (join server, create server, add friend, start DM).
 - Selected destination from a hub must deep-link directly into target workspace.
 - Hub filters and sort preferences persist per user.
+- Servers Hub and Contacts Hub use the same card/list, filter, selection, and action-menu model with only the entity noun changing.
+- Destructive bulk actions require a confirmation modal that shows selected count and selected item names.
 
 ## Mobile Behavior (MVP)
 
 - Use a tabbed top-level switcher: `Home`, `Servers`, `Contacts`, `Settings`.
-- Hubs default to list mode on mobile with optional card toggle.
+- Hubs default to list mode on mobile and still expose the approved card/list toggle.
 - Workspace navigation uses slide-in drawers for server/channel trees.
+- Mobile workspace drawer state resets on navigation.
 
 ## Deferred (Post-MVP)
 

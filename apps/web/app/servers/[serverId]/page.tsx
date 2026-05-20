@@ -34,6 +34,11 @@ import {
 } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
+import {
+  readMessageLayout,
+  subscribeWorkspacePreferences,
+  type MessageLayout,
+} from "@/lib/workspace-preferences";
 
 import styles from "../../surfaces.module.css";
 
@@ -372,17 +377,24 @@ function MessageBubble({
   message,
   replyTo,
   ownMessage,
+  layout,
   onReply,
 }: {
   message: ServerChannelMessage;
   replyTo?: ServerChannelMessage;
   ownMessage: boolean;
+  layout: MessageLayout;
   onReply: (message: ServerChannelMessage) => void;
 }) {
   const deleted = Boolean(message.deleted_at);
+  const continuous = layout === "continuous-feed";
 
   return (
-    <article className={`${styles.serverMessage} ${ownMessage ? styles.serverMessageOwn : ""}`}>
+    <article
+      className={`${styles.serverMessage} ${ownMessage && !continuous ? styles.serverMessageOwn : ""} ${
+        continuous ? styles.serverMessageContinuous : ""
+      }`}
+    >
       <div className={styles.messageAvatar}>{initials(authorLabel(message.author_id))}</div>
       <div className={styles.messageBody}>
         <div className={styles.messageHeader}>
@@ -535,6 +547,11 @@ export default function ServerWorkspacePage() {
     [browserReady, personas],
   );
   const hasSession = useMemo(() => browserReady && getPersonaSession(identityId) !== null, [browserReady, identityId]);
+  const messageLayout = useSyncExternalStore<MessageLayout>(
+    subscribeWorkspacePreferences,
+    readMessageLayout,
+    () => "bubble-cards",
+  );
   const [server, setServer] = useState<ServerSummary | null>(null);
   const [channels, setChannels] = useState<ServerChannelSummary[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -1107,7 +1124,11 @@ export default function ServerWorkspacePage() {
               {messageState === "loading" ? <p className={styles.state}>Loading channel history...</p> : null}
               {messageState === "error" ? <p className={styles.state}>Could not load channel history.</p> : null}
 
-              <div className={styles.messageTimeline}>
+              <div
+                className={`${styles.messageTimeline} ${
+                  messageLayout === "continuous-feed" ? styles.messageTimelineContinuous : ""
+                }`}
+              >
                 {nextCursor && hasSession ? (
                   <button
                     className={styles.loadOlderButton}
@@ -1123,6 +1144,7 @@ export default function ServerWorkspacePage() {
                   visibleMessages.map((message) => (
                     <MessageBubble
                       key={message.message_id}
+                      layout={messageLayout}
                       message={message}
                       onReply={setReplyTo}
                       ownMessage={message.author_id === identityId}

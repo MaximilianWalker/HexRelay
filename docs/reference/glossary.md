@@ -22,7 +22,6 @@
 - `Node`: deployable HexRelay server runtime context (API + realtime + data services) that can participate as a peer in the server-node P2P network.
 - `Dedicated server`: node running headless for remote clients.
 - `Desktop local-first`: user-installed app running local UI plus local node runtime.
-- `Guild/server`: user-facing community container in product UX, not equivalent to deployment node.
 - `Origin node`: server-node role that receives an outbound encrypted DM envelope from a sender device or local runtime.
 - `Delivery node`: server-node role eligible to accept encrypted envelopes for a recipient context it can serve.
 - `Relay node`: server-node role that forwards encrypted envelopes for other nodes when local policy allows it.
@@ -32,12 +31,11 @@
 
 - Node: A self-hosted HexRelay server instance operated locally or on a VPS; nodes are the peers in HexRelay's server-node P2P network.
 - Persona: A distinct user account/profile context available on the same device.
-- Guild: A server/community space containing channels and role permissions.
 - Profile capsule: Versioned user profile payload split into signed public data and encrypted private data.
 - Federation-lite: MVP discovery model using signed registry metadata rather than full decentralized DHT.
 - Cutover: Optional migration action that revokes old device sessions after successful import.
 - `.hxb` bundle: Encrypted and signed migration package used in full device migration.
-- Shared-server discovery: User discovery mode limited to people who share at least one guild/server context.
+- Shared-server discovery: User discovery mode limited to people who share at least one server context.
 - Server-node P2P network: The dynamic policy graph formed by HexRelay server runtimes that peer with one another for node-to-node discovery, encrypted-envelope delivery, and optional relay; clients attach to nodes.
 - Message node: Server/runtime role in the server-node P2P network that stores and forwards E2EE DM envelopes plus minimal delivery metadata, without DM plaintext or private-key custody.
 - Node descriptor: Short-lived signed node metadata that advertises addresses, public keys, supported protocols, discovery policy, peering policy, relay policy, delivery policy, storage policy, rate limits, and revocation information.

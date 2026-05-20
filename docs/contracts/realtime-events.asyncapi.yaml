@@ -86,7 +86,7 @@ channels:
         $ref: '#/components/messages/ScreenShareStateChanged'
   channelMessageCreated:
     address: channel.message.created
-    description: Server-channel message creation event for guild/community channels.
+    description: Server-channel message creation event for server community channels.
     messages:
       channelMessageCreated:
         $ref: '#/components/messages/ChannelMessageCreated'
@@ -419,13 +419,13 @@ components:
       payload:
         $ref: '#/components/schemas/ChannelMessageCreatedEvent'
       examples:
-        - name: guild_channel_message
+        - name: server_channel_message
           payload:
             event_id: a7408485-73c0-48d1-b4ff-8794de5a6f84
             event_type: channel.message.created
             occurred_at: 2026-03-04T14:53:00Z
             correlation_id: 0202c016-b114-47c1-a45b-8e8ecf5408d2
-            producer: guild-message-service
+            producer: server-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
               server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
@@ -440,13 +440,13 @@ components:
       payload:
         $ref: '#/components/schemas/ChannelMessageUpdatedEvent'
       examples:
-        - name: guild_channel_edit
+        - name: server_channel_edit
           payload:
             event_id: 93edaf67-a89e-4822-9685-69f8f8c50ea6
             event_type: channel.message.updated
             occurred_at: 2026-03-04T14:54:00Z
             correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
-            producer: guild-message-service
+            producer: server-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
               server_id: 4706f568-0f95-4656-8d39-a8f5817845d5
@@ -461,13 +461,13 @@ components:
       payload:
         $ref: '#/components/schemas/ChannelMessageDeletedEvent'
       examples:
-        - name: guild_channel_delete
+        - name: server_channel_delete
           payload:
             event_id: 31dbed6a-1865-473f-a194-c23f8fe5b163
             event_type: channel.message.deleted
             occurred_at: 2026-03-04T14:55:00Z
             correlation_id: e4f22b4a-0f80-4b7e-964c-2902f6ef4a3a
-            producer: guild-message-service
+            producer: server-message-service
             data:
               message_id: 122c18f4-d02d-4d39-a751-f6ca0210d98f
               server_id: 4706f568-0f95-4656-8d39-a8f5817845d5

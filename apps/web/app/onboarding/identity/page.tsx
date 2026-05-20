@@ -145,7 +145,7 @@ export default function IdentityOnboardingPage() {
           <ul className={styles.promiseList}>
             <li>Client-controlled key material and persona isolation.</li>
             <li>DM inbound policy defaults to friends-only.</li>
-            <li>No guild relay for direct-message payloads.</li>
+            <li>No server relay for direct-message payloads.</li>
           </ul>
         </aside>
 

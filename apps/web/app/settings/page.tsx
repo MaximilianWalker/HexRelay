@@ -29,16 +29,19 @@ import { readActivePersonaId, readPersonas, switchPersona, upsertPersona } from 
 import { getPersonaSession, setPersonaSession } from "@/lib/sessions";
 import {
   readMicrophoneMuted,
+  readMessageLayout,
   readNavLayout,
   readSidebarCollapsed,
   readSoundMuted,
   readTabRestoreMode,
   setMicrophoneMuted,
+  setMessageLayout,
   setNavLayout,
   setSidebarCollapsed,
   setSoundMuted,
   setTabRestoreMode,
   subscribeWorkspacePreferences,
+  type MessageLayout,
   type NavLayout,
   type TabRestoreMode,
 } from "@/lib/workspace-preferences";
@@ -106,7 +109,7 @@ const SETTINGS_TABS: SettingsCategory[] = [
   {
     id: "appearance",
     label: "Appearance",
-    summary: "Navigation layout, tab restore behavior, and future display preferences.",
+    summary: "Navigation layout, tab restore behavior, and message display preferences.",
     icon: IconPalette,
   },
   {
@@ -339,6 +342,11 @@ export default function SettingsPage() {
   const sidebarCollapsed = useSyncExternalStore(subscribeWorkspacePreferences, readSidebarCollapsed, () => false);
   const soundMuted = useSyncExternalStore(subscribeWorkspacePreferences, readSoundMuted, () => false);
   const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
+  const messageLayout = useSyncExternalStore<MessageLayout>(
+    subscribeWorkspacePreferences,
+    readMessageLayout,
+    () => "bubble-cards",
+  );
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -756,7 +764,7 @@ export default function SettingsPage() {
             <ToggleControl checked={false} disabled label="Contact request notifications" />
           </SettingRow>
           <SettingRow
-            description="Server-channel notification policy is future work for guild/channel surfaces."
+            description="Server-channel notification policy is future work for server-channel surfaces."
             label="Server channel notifications"
             status="Review"
           >
@@ -864,13 +872,18 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
           <SettingRow
-            description="Message density belongs with the final chat/channel surfaces."
-            label="Message density"
-            status="Review"
+            description="Choose whether channel messages render as separated bubble cards or a continuous feed."
+            label="Message layout"
+            status="Live"
           >
-            <select aria-label="Message density" className={settingsStyles.select} disabled value="comfortable">
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
+            <select
+              aria-label="Message layout"
+              className={settingsStyles.select}
+              onChange={(event) => setMessageLayout(event.target.value as MessageLayout)}
+              value={messageLayout}
+            >
+              <option value="bubble-cards">Bubble cards</option>
+              <option value="continuous-feed">Continuous feed</option>
             </select>
           </SettingRow>
           </SettingPanel>

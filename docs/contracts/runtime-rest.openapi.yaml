@@ -812,7 +812,7 @@ paths:
   /servers:
     get:
       summary: List servers for authenticated identity
-      description: Returns identity-scoped server summaries from persisted server membership records with deterministic filter/search behavior. Joined-server membership authority now backs this surface, while richer guild/channel authz semantics remain future work.
+      description: Returns identity-scoped server summaries from persisted server membership records with deterministic filter/search behavior. Joined-server membership authority now backs this surface, while richer server-channel authz semantics remain future work.
       security:
         - CookieAuth: []
         - BearerAuth: []

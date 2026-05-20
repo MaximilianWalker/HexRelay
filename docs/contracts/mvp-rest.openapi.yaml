@@ -236,41 +236,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
-  /guilds:
+  /servers:
     post:
-      summary: Create server (guild)
-      operationId: createGuild
+      summary: Create server
+      operationId: createServer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GuildCreate'
+              $ref: '#/components/schemas/ServerCreate'
       responses:
         '201':
-          description: Guild created
+          description: Server created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Guild'
+                $ref: '#/components/schemas/Server'
     get:
       summary: List joined servers
-      operationId: listGuilds
+      operationId: listServers
       responses:
         '200':
-          description: Guild list
+          description: Server list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Guild'
-  /guilds/{guild_id}/channels:
+                  $ref: '#/components/schemas/Server'
+  /servers/{server_id}/channels:
     post:
       summary: Create channel
       operationId: createChannel
       parameters:
-        - $ref: '#/components/parameters/GuildIdParam'
+        - $ref: '#/components/parameters/ServerIdParam'
       requestBody:
         required: true
         content:
@@ -284,12 +284,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Channel'
-  /guilds/{guild_id}/channels/{channel_id}/messages:
+  /servers/{server_id}/channels/{channel_id}/messages:
     get:
       summary: List server-channel messages
       operationId: listChannelMessages
       parameters:
-        - $ref: '#/components/parameters/GuildIdParam'
+        - $ref: '#/components/parameters/ServerIdParam'
         - $ref: '#/components/parameters/ChannelIdParam'
         - $ref: '#/components/parameters/LimitParam'
         - $ref: '#/components/parameters/CursorParam'
@@ -304,7 +304,7 @@ paths:
       summary: Create server-channel message
       operationId: createChannelMessage
       parameters:
-        - $ref: '#/components/parameters/GuildIdParam'
+        - $ref: '#/components/parameters/ServerIdParam'
         - $ref: '#/components/parameters/ChannelIdParam'
       requestBody:
         required: true
@@ -500,8 +500,8 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
-    GuildIdParam:
-      name: guild_id
+    ServerIdParam:
+      name: server_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -687,16 +687,16 @@ components:
           type: array
           items: { $ref: '#/components/schemas/DmMessage' }
         page: { $ref: '#/components/schemas/PageMeta' }
-    GuildCreate:
+    ServerCreate:
       type: object
       required: [name]
       properties:
         name: { type: string, minLength: 1, maxLength: 80 }
-    Guild:
+    Server:
       type: object
-      required: [guild_id, name]
+      required: [server_id, name]
       properties:
-        guild_id: { type: string, format: uuid }
+        server_id: { type: string, format: uuid }
         name: { type: string }
     ChannelCreate:
       type: object
@@ -706,10 +706,10 @@ components:
         kind: { type: string, enum: [text, voice] }
     Channel:
       type: object
-      required: [channel_id, guild_id, name, kind]
+      required: [channel_id, server_id, name, kind]
       properties:
         channel_id: { type: string, format: uuid }
-        guild_id: { type: string, format: uuid }
+        server_id: { type: string, format: uuid }
         name: { type: string }
         kind: { type: string }
     MessagePatch:
