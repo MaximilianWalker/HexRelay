@@ -76,7 +76,6 @@ export function runSeed(seedProfile, env) {
   }
   console.log(`[local-runtime] Seeding local database with '${seedProfile}'`);
   fs.mkdirSync(runDir, { recursive: true });
-  const targetDir = path.join(runDir, "targets", `seed-${process.pid}`);
   const stdoutPath = path.join(runDir, "seed.stdout.json");
   const stderrPath = path.join(runDir, "seed.stderr.log");
   const stdout = fs.openSync(stdoutPath, "w");
@@ -86,7 +85,7 @@ export function runSeed(seedProfile, env) {
     ["run", "-p", "api-rs", "--bin", "seed_dev", "--", "--profile", seedProfile, "--json"],
     {
       cwd: root,
-      env: withCargoOnPath({ ...process.env, ...env, CARGO_TARGET_DIR: targetDir }),
+      env: withCargoOnPath({ ...process.env, ...env }),
       stdio: ["ignore", stdout, stderr],
       shell: false,
     },
@@ -94,14 +93,11 @@ export function runSeed(seedProfile, env) {
   fs.closeSync(stdout);
   fs.closeSync(stderr);
   if (result.error) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
     throw new Error(`failed to start seed process: ${result.error.message}`);
   }
   if (result.status !== 0) {
     const tail = logTail(stderrPath);
-    fs.rmSync(targetDir, { recursive: true, force: true });
     throw new Error(`seed profile '${seedProfile}' failed${tail ? `\n${tail}` : ""}`);
   }
-  fs.rmSync(targetDir, { recursive: true, force: true });
   console.log(`[local-runtime] Seed output written to ${stdoutPath}`);
 }

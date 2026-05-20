@@ -38,7 +38,7 @@ export async function killProcessTree(pid) {
     return false;
   }
   if (isWindows) {
-    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", shell: false });
+    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", shell: false, timeout: 5000 });
     await delay(500);
     return !isProcessAlive(pid);
   }
@@ -64,20 +64,7 @@ export async function killProcessTree(pid) {
   return true;
 }
 
-export function listenerPid(port) {
-  if (isWindows) {
-    const command = [
-      `$c = Get-NetTCPConnection -LocalPort ${Number(port)} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1;`,
-      "if ($c) { $c.OwningProcess }",
-    ].join(" ");
-    const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
-      encoding: "utf8",
-      shell: false,
-    });
-    const pid = Number(result.stdout?.trim());
-    return result.status === 0 && Number.isInteger(pid) && pid > 0 ? pid : null;
-  }
-
+function listenerPidUnix(port) {
   const lsof = spawnSync("lsof", ["-nP", `-iTCP:${Number(port)}`, "-sTCP:LISTEN", "-t"], {
     encoding: "utf8",
     shell: false,
@@ -102,6 +89,45 @@ export function listenerPid(port) {
   }
 
   return null;
+}
+
+export function listenerPids(ports) {
+  const uniquePorts = [...new Set(ports.map(Number).filter((port) => Number.isInteger(port) && port > 0))];
+  const resultMap = new Map(uniquePorts.map((port) => [port, null]));
+  if (uniquePorts.length === 0) {
+    return resultMap;
+  }
+
+  if (isWindows) {
+    const command = `Get-NetTCPConnection -LocalPort ${uniquePorts.join(",")} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { "{0} {1}" -f $_.LocalPort, $_.OwningProcess }`;
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
+      encoding: "utf8",
+      shell: false,
+    });
+    if (result.status === 0) {
+      for (const line of result.stdout.split(/\r?\n/)) {
+        const match = line.trim().match(/^(\d+)\s+(\d+)$/);
+        if (!match) {
+          continue;
+        }
+        const port = Number(match[1]);
+        const pid = Number(match[2]);
+        if (resultMap.has(port) && Number.isInteger(pid) && pid > 0 && !resultMap.get(port)) {
+          resultMap.set(port, pid);
+        }
+      }
+    }
+    return resultMap;
+  }
+
+  for (const port of uniquePorts) {
+    resultMap.set(port, listenerPidUnix(port));
+  }
+  return resultMap;
+}
+
+export function listenerPid(port) {
+  return listenerPids([port]).get(Number(port)) ?? null;
 }
 
 export function processCommandLine(pid) {

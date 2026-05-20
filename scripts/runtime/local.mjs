@@ -11,6 +11,7 @@ import {
   isWindows,
   killProcessTree,
   listenerPid,
+  listenerPids,
   processCommandLine,
   processName,
   processParentPid,
@@ -27,7 +28,7 @@ import {
   writeStartupLogTail,
 } from "./local/managed.mjs";
 import { prepareEnvFiles, readRuntimeProfile, runSeed, startInfrastructure } from "./local/setup.mjs";
-import { removeManagedWebDistDir, startWebWithRetry } from "./local/web.mjs";
+import { startWebWithRetry } from "./local/web.mjs";
 
 const statePath = path.join(runDir, "runtime-state.json");
 const stopRequestPath = path.join(runDir, "runtime-stop-request.json");
@@ -62,21 +63,16 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
   const realtimeWsUrl = `ws://127.0.0.1:${realtimePort}/ws`;
   const allowedOrigins = `http://localhost:${webPort},http://127.0.0.1:${webPort}`;
   const logDir = path.join(runDir, instanceId);
-  const targetRoot = path.join(runDir, "targets", `${instanceId}-${process.pid}`);
-  const apiTargetDir = path.join(targetRoot, "api");
-  const realtimeTargetDir = path.join(targetRoot, "realtime");
   fs.mkdirSync(logDir, { recursive: true });
 
   const apiEnv = {
     ...baseApiEnv,
-    CARGO_TARGET_DIR: apiTargetDir,
     API_BIND: `127.0.0.1:${apiPort}`,
     API_REALTIME_BASE_URL: realtimeUrl,
     API_ALLOWED_ORIGINS: allowedOrigins,
   };
   const realtimeEnv = {
     ...baseRealtimeEnv,
-    CARGO_TARGET_DIR: realtimeTargetDir,
     REALTIME_BIND: `127.0.0.1:${realtimePort}`,
     REALTIME_API_BASE_URL: apiUrl,
     REALTIME_ALLOWED_ORIGINS: allowedOrigins,
@@ -92,7 +88,6 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     args: ["run", "-p", "api-rs", "--bin", "api-rs"],
     logDir,
   });
-  apiProcess.targetDir = apiTargetDir;
   startedProcesses.push(apiProcess);
   await waitFor(`${instanceId} api`, () => httpOk(`${apiUrl}/health`), {
     attempts: 300,
@@ -111,7 +106,6 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     args: ["run", "-p", "realtime-rs"],
     logDir,
   });
-  realtimeProcess.targetDir = realtimeTargetDir;
   startedProcesses.push(realtimeProcess);
   await waitFor(`${instanceId} realtime`, () => httpOk(`${realtimeUrl}/health`), {
     attempts: 300,
@@ -122,13 +116,12 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
   realtimeProcess.servicePid = realtimePid;
 
   console.log(`[local-runtime] Starting ${instanceId} web dev server`);
-  const webDistId = `${instanceId}-${process.pid}`.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const webDistId = instanceId.replace(/[^a-zA-Z0-9_-]/g, "-");
   const { processInfo: webProcess, webUrl } = await startWebWithRetry({
     instanceId,
     webPort,
     webEnv: {
-      HEXRELAY_RUNTIME_INSTANCE: instanceId,
-      HEXRELAY_RUNTIME_DIST_ID: webDistId,
+      HEXRELAY_RUNTIME_INSTANCE: webDistId,
       NEXT_PUBLIC_API_BASE_URL: apiUrl,
       NEXT_PUBLIC_REALTIME_WS_URL: realtimeWsUrl,
     },
@@ -154,11 +147,6 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     apiLauncher: apiProcess.launcherPath,
     realtimeLauncher: realtimeProcess.launcherPath,
     webLauncher: webProcess.launcherPath,
-    webDistDir: `.next-${webDistId}`,
-    targetDirs: {
-      api: apiTargetDir,
-      realtime: realtimeTargetDir,
-    },
     apiUrl,
     realtimeUrl,
     realtimeWsUrl,
@@ -166,21 +154,6 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     logDir,
     realtimeInternalToken: realtimeEnv.REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN || defaultRealtimeInternalToken,
   };
-}
-
-function removeRuntimeTargetDir(targetDir) {
-  if (!targetDir) {
-    return;
-  }
-  const targetRoot = path.resolve(runDir, "targets");
-  const resolved = path.resolve(targetDir);
-  if (!resolved.startsWith(`${targetRoot}${path.sep}`)) {
-    return;
-  }
-  try {
-    fs.rmSync(resolved, { recursive: true, force: true });
-  } catch {
-  }
 }
 
 async function stopStartedProcesses(startedProcesses) {
@@ -191,8 +164,6 @@ async function stopStartedProcesses(startedProcesses) {
     if (processInfo?.child?.pid) {
       await killProcessTree(processInfo.child.pid);
     }
-    removeRuntimeTargetDir(processInfo?.targetDir);
-    removeManagedWebDistDir(processInfo?.webDistDir);
   }
 }
 
@@ -240,19 +211,30 @@ function cargoAncestorPids(pid) {
 async function stopUntrackedRuntimeListeners(profiles, reason, options = {}) {
   const stopped = [];
   const seenPids = new Set();
-  const entries = [];
+  const entriesByKey = new Map();
   const log = options.json ? console.error : console.log;
 
   for (const profile of profiles) {
     for (const instance of profile.instances ?? []) {
-      entries.push({ instanceId: instance.id, service: "api", port: instance.apiPort });
-      entries.push({ instanceId: instance.id, service: "realtime", port: instance.realtimePort });
-      entries.push({ instanceId: instance.id, service: "web", port: instance.webPort });
+      for (const entry of [
+        { instanceId: instance.id, service: "api", port: instance.apiPort },
+        { instanceId: instance.id, service: "realtime", port: instance.realtimePort },
+        { instanceId: instance.id, service: "web", port: instance.webPort },
+      ]) {
+        const key = `${entry.service}:${entry.port}`;
+        if (!entriesByKey.has(key)) {
+          entriesByKey.set(key, entry);
+        }
+      }
     }
   }
 
+  const entries = [...entriesByKey.values()];
+  const pidByPort = listenerPids(entries.map((entry) => entry.port));
+  const includeAncestors = options.includeAncestors ?? true;
+
   for (const entry of entries) {
-    const pid = listenerPid(entry.port);
+    const pid = pidByPort.get(Number(entry.port));
     if (!pid || seenPids.has(pid) || !listenerBelongsToLocalRuntime(entry.service, pid)) {
       continue;
     }
@@ -261,7 +243,8 @@ async function stopUntrackedRuntimeListeners(profiles, reason, options = {}) {
       `[local-runtime] Stopping untracked ${entry.service} listener on port ${entry.port} (pid=${pid}) before ${reason}.`,
     );
     const stoppedPids = [];
-    for (const candidatePid of uniquePids([pid, ...cargoAncestorPids(pid)])) {
+    const candidatePids = includeAncestors ? [pid, ...cargoAncestorPids(pid)] : [pid];
+    for (const candidatePid of uniquePids(candidatePids)) {
       if (await killProcessTree(candidatePid)) {
         stoppedPids.push(candidatePid);
       }
@@ -269,7 +252,7 @@ async function stopUntrackedRuntimeListeners(profiles, reason, options = {}) {
     const stoppedEntry = { ...entry, pid, stopped: !isProcessAlive(pid), stoppedPids };
     if (!stoppedEntry.stopped) {
       const recovery = reason === "startup"
-        ? "startup will avoid its port and use isolated build output"
+        ? "startup can avoid its port, but the shared build output may still be locked"
         : "stop it from its owning shell or an elevated terminal if needed";
       log(`[local-runtime] Could not stop ${entry.service} listener pid=${pid}; ${recovery}.`);
     }
@@ -305,7 +288,20 @@ export async function startCommand(rawArgs) {
     fs.rmSync(statePath, { force: true });
   }
   fs.rmSync(stopRequestPath, { force: true });
-  await stopUntrackedRuntimeListeners(runtimeProfilesForOrphanScan(profile), "startup");
+  const untracked = await stopUntrackedRuntimeListeners(runtimeProfilesForOrphanScan(profile), "startup", {
+    includeAncestors: false,
+  });
+  const buildBlockers = untracked.filter((entry) => {
+    return !entry.stopped && (entry.service === "api" || entry.service === "realtime");
+  });
+  if (buildBlockers.length > 0) {
+    const summary = buildBlockers
+      .map((entry) => `${entry.service} port=${entry.port} pid=${entry.pid}`)
+      .join(", ");
+    throw new Error(
+      `Untracked Rust runtime services are still running (${summary}). Stop them from their owning shell or an elevated terminal, then rerun npm run start. Port fallback can avoid occupied ports, but start uses the normal Cargo target directory and will not create fallback build folders.`,
+    );
+  }
 
   await startInfrastructure(infraEnv);
   runSeed(options.seedProfile, { ...infraEnv, ...apiEnv });
@@ -328,11 +324,6 @@ export async function startCommand(rawArgs) {
     }
     cleanupStarted = true;
     await stopStartedProcesses(startedProcesses);
-    for (const instance of state.instances) {
-      removeManagedWebDistDir(instance.webDistDir);
-      removeRuntimeTargetDir(instance.targetDirs?.api);
-      removeRuntimeTargetDir(instance.targetDirs?.realtime);
-    }
     fs.rmSync(statePath, { force: true });
     fs.rmSync(stopRequestPath, { force: true });
   };
@@ -595,11 +586,6 @@ export async function stopCommand(rawArgs) {
   }
 
   fs.rmSync(statePath, { force: true });
-  for (const instance of state.instances ?? []) {
-    removeManagedWebDistDir(instance.webDistDir);
-    removeRuntimeTargetDir(instance.targetDirs?.api);
-    removeRuntimeTargetDir(instance.targetDirs?.realtime);
-  }
   if (options.json) {
     console.log(JSON.stringify({ profile: state.profile, stopped }, null, 2));
     return;

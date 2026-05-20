@@ -2,15 +2,14 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
 const runtimeInstance = process.env.HEXRELAY_RUNTIME_INSTANCE?.replace(/[^a-zA-Z0-9_-]/g, "-");
-const runtimeDistId = (process.env.HEXRELAY_RUNTIME_DIST_ID ?? runtimeInstance)?.replace(/[^a-zA-Z0-9_-]/g, "-");
-const runtimeDistDir = runtimeDistId ? `.next-${runtimeDistId}` : undefined;
+const runtimeDistDir = runtimeInstance ? `.next-${runtimeInstance}` : undefined;
 
 const nextConfig: NextConfig = {
   ...(runtimeDistDir
     ? {
         distDir: runtimeDistDir,
         typescript: {
-          tsconfigPath: `.runtime-tsconfig/${runtimeDistId}.json`,
+          tsconfigPath: `.runtime-tsconfig/${runtimeInstance}.json`,
         },
       }
     : {}),

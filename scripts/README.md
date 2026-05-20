@@ -60,10 +60,10 @@ for heavier runtime/network testing; keep normal development on host-process
 `npm run runtime:docker -- down`; generic `npm run stop` refuses Docker runtime
 state to avoid orphaning containers.
 
-Host-process runtime services build into per-run `.local-run/targets/`
-directories. This keeps Windows starts deterministic when an older `api-rs.exe`
-or `realtime-rs.exe` process is still locking the normal Cargo target output;
-startup avoids occupied ports and uses isolated build output instead.
+Host-process Rust services use the normal Cargo target directory. Startup may
+choose alternate ports when old listeners are still bound, but it does not create
+fallback Cargo target directories to work around a locked binary; stop the stale
+Rust service from its owning shell or an elevated terminal before starting.
 
 Docker runtime host ports default to Alice API/realtime/web `18080`/`18081`/`3002`,
 Bob API/realtime/web `18180`/`18181`/`3012`, and Toxiproxy `18474`. Override them

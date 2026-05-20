@@ -23,18 +23,6 @@ function writeRuntimeTsConfig(distId) {
   });
 }
 
-export function removeManagedWebDistDir(distDir) {
-  if (!distDir) {
-    return;
-  }
-  const webDir = path.join(root, "apps", "web");
-  const resolved = path.resolve(webDir, distDir);
-  if (path.dirname(resolved) !== webDir || !path.basename(resolved).startsWith(".next-")) {
-    return;
-  }
-  fs.rmSync(resolved, { recursive: true, force: true });
-}
-
 function findExistingNextPid(stderrPath) {
   const tail = logTail(stderrPath, 80);
   const match = tail.match(/PID:\s+(\d+)/);
@@ -57,7 +45,6 @@ export async function startWebWithRetry({ instanceId, webPort, webEnv, webDistId
       args: ["dev", "--port", String(webPort)],
       logDir,
     });
-    processInfo.webDistDir = `.next-${webDistId}`;
     startedProcesses.push(processInfo);
     await waitFor(
       `${instanceId} web`,
