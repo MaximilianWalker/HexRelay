@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS servers (
 CREATE TABLE IF NOT EXISTS server_memberships (
     server_id TEXT NOT NULL,
     identity_id TEXT NOT NULL,
-    favorite BOOLEAN NOT NULL DEFAULT FALSE,
+    pinned BOOLEAN NOT NULL DEFAULT FALSE,
     muted BOOLEAN NOT NULL DEFAULT FALSE,
     unread_count INTEGER NOT NULL DEFAULT 0 CHECK (unread_count >= 0),
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS server_memberships (
 );
 
 CREATE INDEX IF NOT EXISTS server_memberships_identity_joined_idx
-    ON server_memberships (identity_id, favorite DESC, joined_at ASC);
+    ON server_memberships (identity_id, pinned DESC, joined_at ASC);

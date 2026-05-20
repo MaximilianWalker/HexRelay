@@ -45,8 +45,8 @@
 - C-004 (resolved 2026-03-04): Recovery phrase setup is mandatory during onboarding.
 - C-008 (resolved 2026-03-04): UI direction is heavily Discord-inspired but server navigation cannot use small icon-circle rails as the primary pattern.
 - C-009 (resolved 2026-03-04): MVP includes dedicated global `Servers` and `Contacts` hub pages with searchable card-oriented browsing.
-- C-010 (resolved 2026-03-04): Server navigation supports both sidebar mode and browser-like topbar tab mode with saved tabs and folders.
-- C-011 (resolved 2026-03-04): Server workspace includes a burger control to shrink/hide server navigation chrome.
+- C-010 (resolved 2026-03-04; updated 2026-05-20): Server navigation supports both sidebar mode and browser-like topbar tab mode with pinned/saved tabs and manual reorder.
+- C-011 (resolved 2026-03-04; updated 2026-05-20): Server workspace uses explicit sidebar/topbar switching and explicit collapse controls for navigation visibility.
 - C-012 (resolved 2026-03-04): Realtime event/signaling contracts are formalized in an AsyncAPI artifact for Iterations 2-3.
 - C-013 (resolved 2026-03-04): KPI/SLO validation uses a fixed test profile (`200 users`, `70/30 WiFi/Fast4G`, latest stable Chrome/Firefox, single-region staging).
 - C-014 (resolved 2026-03-04): Migration conflict precedence uses user-signed profile data as canonical; server-owned security/membership fields remain server-authoritative.

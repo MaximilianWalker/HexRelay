@@ -43,8 +43,10 @@ import {
 } from "@/lib/workspace-preferences";
 import {
   closeWorkspaceTab,
+  moveWorkspaceTab,
   openWorkspaceTab,
   readWorkspaceTabsSnapshot,
+  reorderWorkspaceTab,
   routeToWorkspaceTab,
   subscribeWorkspaceTabs,
   syncWorkspaceTabsForRestoreMode,
@@ -175,6 +177,7 @@ export function WorkspaceShell({
   const [contentTabScrollState, setContentTabScrollState] = useState<ContentTabScrollState>(
     EMPTY_CONTENT_TAB_SCROLL_STATE,
   );
+  const [draggedWorkspaceTabId, setDraggedWorkspaceTabId] = useState<string | null>(null);
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -425,6 +428,15 @@ export function WorkspaceShell({
     }
   }
 
+  function handleWorkspaceTabDrop(targetTab: WorkspaceTab): void {
+    if (!draggedWorkspaceTabId) {
+      return;
+    }
+
+    reorderWorkspaceTab(draggedWorkspaceTabId, targetTab.id);
+    setDraggedWorkspaceTabId(null);
+  }
+
   function scrollContentTabs(direction: -1 | 1): void {
     const element = contentTabsRef.current;
     if (!element) {
@@ -543,7 +555,23 @@ export function WorkspaceShell({
               className={`${styles.workspaceTab} ${active ? styles.workspaceTabActive : ""} ${
                 tab.pinned ? styles.workspaceTabPinned : ""
               }`}
+              draggable
               key={tab.id}
+              onDragEnd={() => setDraggedWorkspaceTabId(null)}
+              onDragOver={(event) => {
+                if (draggedWorkspaceTabId) {
+                  event.preventDefault();
+                }
+              }}
+              onDragStart={(event) => {
+                setDraggedWorkspaceTabId(tab.id);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", tab.id);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                handleWorkspaceTabDrop(tab);
+              }}
               role="listitem"
             >
               <Link
@@ -567,6 +595,24 @@ export function WorkspaceShell({
                     {unread}
                   </span>
                 ) : null}
+                <button
+                  aria-label={`Move ${tab.label} left`}
+                  className={styles.workspaceTabAction}
+                  onClick={() => moveWorkspaceTab(tab.id, -1)}
+                  title="Move tab left"
+                  type="button"
+                >
+                  <IconChevronLeft className={styles.workspaceTabIcon} aria-hidden="true" />
+                </button>
+                <button
+                  aria-label={`Move ${tab.label} right`}
+                  className={styles.workspaceTabAction}
+                  onClick={() => moveWorkspaceTab(tab.id, 1)}
+                  title="Move tab right"
+                  type="button"
+                >
+                  <IconChevronRight className={styles.workspaceTabIcon} aria-hidden="true" />
+                </button>
                 <button
                   aria-label={tab.pinned ? `Unpin ${tab.label}` : `Pin ${tab.label}`}
                   className={styles.workspaceTabAction}
@@ -751,16 +797,6 @@ export function WorkspaceShell({
       </div>
 
       <nav aria-label="Primary" className={styles.mobileTabs}>
-        <button
-          aria-label="Switch to top bar layout"
-          className={styles.mobileLayoutButton}
-          onClick={toggleNavLayout}
-          title="Use top bar"
-          type="button"
-        >
-          <IconLayoutNavbar className={styles.mobileTabIcon} aria-hidden="true" />
-          <span>Layout</span>
-        </button>
         {nav.map((item) => {
           const active = isActivePath(item.href);
           return (

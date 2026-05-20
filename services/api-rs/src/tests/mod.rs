@@ -384,21 +384,27 @@ async fn seed_server_membership(
     pool: &sqlx::PgPool,
     name: &str,
     identity_id: &str,
-    favorite: bool,
+    pinned: bool,
     muted: bool,
     unread_count: i32,
 ) {
     ensure_db_identity_key(pool, identity_id).await;
 
-    servers_repo::insert_server(pool, servers_repo::ServerInsertParams { name })
-        .await
-        .expect("insert server");
+    servers_repo::insert_server(
+        pool,
+        servers_repo::ServerInsertParams {
+            name,
+            description: "",
+        },
+    )
+    .await
+    .expect("insert server");
 
     servers_repo::insert_server_membership(
         pool,
         servers_repo::ServerMembershipInsertParams {
             identity_id,
-            favorite,
+            pinned,
             muted,
             unread_count,
         },

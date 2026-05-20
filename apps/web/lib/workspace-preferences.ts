@@ -1,11 +1,15 @@
 export type NavLayout = "sidebar" | "topbar";
 export type TabRestoreMode = "pinned" | "all";
 export type MessageLayout = "bubble-cards" | "continuous-feed";
+export type HubKind = "servers" | "contacts";
+export type HubLayout = "cards" | "list";
 
 const SIDEBAR_MODE_KEY = "hexrelay.ui.sidebar-mode";
 const NAV_LAYOUT_KEY = "hexrelay.ui.nav-layout";
 const TAB_RESTORE_MODE_KEY = "hexrelay.ui.tab-restore-mode";
 const MESSAGE_LAYOUT_KEY = "hexrelay.ui.message-layout";
+const SERVERS_HUB_LAYOUT_KEY = "hexrelay.ui.servers-hub-layout";
+const CONTACTS_HUB_LAYOUT_KEY = "hexrelay.ui.contacts-hub-layout";
 const SOUND_MUTED_KEY = "hexrelay.ui.sound-muted";
 const MICROPHONE_MUTED_KEY = "hexrelay.ui.microphone-muted";
 const PERSONAS_KEY = "hexrelay.personas";
@@ -16,6 +20,7 @@ let fallbackNavLayout: NavLayout = "sidebar";
 let fallbackSidebarCollapsed = false;
 let fallbackTabRestoreMode: TabRestoreMode = "pinned";
 let fallbackMessageLayout: MessageLayout = "bubble-cards";
+const fallbackHubLayouts = new Map<HubKind, HubLayout>();
 let fallbackSoundMuted = false;
 let fallbackMicrophoneMuted = false;
 
@@ -63,6 +68,8 @@ export function subscribeWorkspacePreferences(onChange: () => void): () => void 
         NAV_LAYOUT_KEY,
         TAB_RESTORE_MODE_KEY,
         MESSAGE_LAYOUT_KEY,
+        SERVERS_HUB_LAYOUT_KEY,
+        CONTACTS_HUB_LAYOUT_KEY,
         SOUND_MUTED_KEY,
         MICROPHONE_MUTED_KEY,
         PERSONAS_KEY,
@@ -80,6 +87,18 @@ export function subscribeWorkspacePreferences(onChange: () => void): () => void 
     window.removeEventListener("storage", handleStorage);
     window.removeEventListener(UI_PREFS_EVENT, onChange);
   };
+}
+
+function hubLayoutKey(kind: HubKind): string {
+  return kind === "servers" ? SERVERS_HUB_LAYOUT_KEY : CONTACTS_HUB_LAYOUT_KEY;
+}
+
+function defaultHubLayout(): HubLayout {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return "cards";
+  }
+
+  return window.matchMedia("(max-width: 700px)").matches ? "list" : "cards";
 }
 
 export function readNavLayout(): NavLayout {
@@ -135,6 +154,21 @@ export function readMessageLayout(): MessageLayout {
 export function setMessageLayout(value: MessageLayout): void {
   fallbackMessageLayout = value;
   writeStorageItem(MESSAGE_LAYOUT_KEY, value);
+  notifyWorkspacePreferenceChange();
+}
+
+export function readHubLayout(kind: HubKind): HubLayout {
+  const value = readStorageItem(hubLayoutKey(kind));
+  if (value === undefined) {
+    return fallbackHubLayouts.get(kind) ?? defaultHubLayout();
+  }
+
+  return value === "list" || value === "cards" ? value : defaultHubLayout();
+}
+
+export function setHubLayout(kind: HubKind, value: HubLayout): void {
+  fallbackHubLayouts.set(kind, value);
+  writeStorageItem(hubLayoutKey(kind), value);
   notifyWorkspacePreferenceChange();
 }
 

@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 
 if ($Help) {
     Write-Host 'Usage: run.ps1 [-RuntimeProfile single|dual|triple|path] [-SeedProfile dm-basic]'
+    Write-Host 'Default startup uses the clean single profile and does not seed fixture data.'
     exit 0
 }
 
@@ -144,7 +145,9 @@ function Wait-Until {
         [string]$Label,
         [scriptblock]$Probe,
         [int]$Attempts = 60,
-        [int]$SleepSeconds = 1
+        [int]$SleepSeconds = 1,
+        [scriptblock]$FailureProbe = $null,
+        [scriptblock]$OnFailure = $null
     )
 
     for ($i = 0; $i -lt $Attempts; $i++) {
@@ -152,9 +155,18 @@ function Wait-Until {
             Write-Host "[run.ps1] $Label is ready"
             return
         }
+        if ($null -ne $FailureProbe -and (& $FailureProbe)) {
+            if ($null -ne $OnFailure) {
+                & $OnFailure
+            }
+            throw "[run.ps1] $Label failed before becoming ready"
+        }
         Start-Sleep -Seconds $SleepSeconds
     }
 
+    if ($null -ne $OnFailure) {
+        & $OnFailure
+    }
     throw "[run.ps1] $Label did not become ready after $Attempts attempts"
 }
 
@@ -179,6 +191,29 @@ function Get-LogTail {
     }
 
     return ((Get-Content -LiteralPath $Path -Tail $Tail -ErrorAction SilentlyContinue) -join "`n")
+}
+
+function Write-StartupLogTail {
+    param(
+        [string]$Label,
+        [string]$StdoutPath,
+        [string]$StderrPath,
+        [int]$Tail = 40
+    )
+
+    Write-Host "[run.ps1] $Label did not become ready. Recent logs:"
+    foreach ($log in @(
+        @{ Name = 'stdout'; Path = $StdoutPath },
+        @{ Name = 'stderr'; Path = $StderrPath }
+    )) {
+        Write-Host "[run.ps1] $Label $($log.Name): $($log.Path)"
+        $tailOutput = Get-LogTail -Path $log.Path -Tail $Tail
+        if ($tailOutput) {
+            Write-Host $tailOutput
+        } else {
+            Write-Host '[run.ps1] (no log output)'
+        }
+    }
 }
 
 function Get-WebUrlFromLogs {
@@ -371,18 +406,30 @@ function Start-RuntimeInstance {
     $realtimeEnv['REALTIME_ALLOWED_ORIGINS'] = $allowedOrigins
     $realtimeEnv['REALTIME_ENABLE_DEV_FAULTS'] = 'true'
 
+    $apiStdoutPath = Join-Path $instanceLogDir 'api-rs.stdout.log'
+    $apiStderrPath = Join-Path $instanceLogDir 'api-rs.stderr.log'
     Write-Host "[run.ps1] Starting $instanceId API service"
     $apiProcess = Start-CmdProcess -WorkingDirectory $Root -EnvVars $apiEnv -Command 'cargo.exe run -p api-rs --bin api-rs' -Name 'api-rs' -LogDir $instanceLogDir
     [void]$StartedProcesses.Add($apiProcess)
     Wait-Until -Label "$instanceId api" -Probe {
         Test-HttpOk "$apiBaseUrl/health"
+    } -FailureProbe {
+        -not (Test-ProcessAlive -ProcessId $apiProcess.Id)
+    } -OnFailure {
+        Write-StartupLogTail -Label "$instanceId API" -StdoutPath $apiStdoutPath -StderrPath $apiStderrPath
     }
 
+    $realtimeStdoutPath = Join-Path $instanceLogDir 'realtime-rs.stdout.log'
+    $realtimeStderrPath = Join-Path $instanceLogDir 'realtime-rs.stderr.log'
     Write-Host "[run.ps1] Starting $instanceId realtime service"
     $realtimeProcess = Start-CmdProcess -WorkingDirectory $Root -EnvVars $realtimeEnv -Command 'cargo.exe run -p realtime-rs' -Name 'realtime-rs' -LogDir $instanceLogDir
     [void]$StartedProcesses.Add($realtimeProcess)
     Wait-Until -Label "$instanceId realtime" -Probe {
         Test-HttpOk "$realtimeBaseUrl/health"
+    } -FailureProbe {
+        -not (Test-ProcessAlive -ProcessId $realtimeProcess.Id)
+    } -OnFailure {
+        Write-StartupLogTail -Label "$instanceId realtime" -StdoutPath $realtimeStdoutPath -StderrPath $realtimeStderrPath
     }
 
     Write-Host "[run.ps1] Starting $instanceId web dev server"
@@ -410,6 +457,15 @@ function Start-RuntimeInstance {
             }
 
             Test-HttpOk $webBaseUrl
+        } -FailureProbe {
+            $stderrTailInner = Get-LogTail -Path $webStderrPath
+            if ($stderrTailInner -match 'Another next dev server is already running') {
+                return $false
+            }
+
+            -not (Test-ProcessAlive -ProcessId $webProcess.Id)
+        } -OnFailure {
+            Write-StartupLogTail -Label "$instanceId web" -StdoutPath $webStdoutPath -StderrPath $webStderrPath
         }
 
         $stderrTail = Get-LogTail -Path $webStderrPath
@@ -437,7 +493,11 @@ function Start-RuntimeInstance {
 
     Wait-Until -Label "$instanceId web HTTP" -Probe {
         Test-WebReady -Url $webBaseUrl
-    } -Attempts 60
+    } -Attempts 60 -FailureProbe {
+        -not (Test-ProcessAlive -ProcessId $webProcess.Id)
+    } -OnFailure {
+        Write-StartupLogTail -Label "$instanceId web HTTP" -StdoutPath $webStdoutPath -StderrPath $webStderrPath
+    }
 
     return [pscustomobject]@{
         id = $instanceId

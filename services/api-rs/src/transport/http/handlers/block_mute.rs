@@ -7,11 +7,12 @@ use chrono::Utc;
 
 use crate::{
     domain::block_mute::validation::{validate_block_request, validate_mute_request},
+    infra::db::repos::contacts_repo,
     models::{
         BlockListResponse, BlockRecord, BlockUserRequest, MuteListResponse, MuteRecord,
         MuteUserRequest,
     },
-    shared::errors::{conflict, ApiResult},
+    shared::errors::{conflict, internal_error, ApiResult},
     state::AppState,
     transport::http::middleware::auth::{enforce_csrf_for_cookie_auth, AuthSession},
 };
@@ -27,6 +28,22 @@ pub async fn block_user(
 
     let target = payload.target_identity_id.trim().to_string();
     let now = Utc::now();
+
+    if let Some(pool) = state.db_pool.as_ref() {
+        let (record, inserted) = contacts_repo::upsert_user_block(pool, &auth.identity_id, &target)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to block user"))?;
+        if !inserted {
+            return Err(conflict("already_blocked", "user is already blocked"));
+        }
+        remember_block(
+            &state,
+            &record.blocker_identity_id,
+            &record.blocked_identity_id,
+            now,
+        );
+        return Ok((StatusCode::CREATED, Json(record)));
+    }
 
     let mut guard = state
         .blocked_users
@@ -60,6 +77,14 @@ pub async fn unblock_user(
 
     let target = payload.target_identity_id.trim().to_string();
 
+    if let Some(pool) = state.db_pool.as_ref() {
+        contacts_repo::delete_user_block(pool, &auth.identity_id, &target)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to unblock user"))?;
+        forget_block(&state, &auth.identity_id, &target);
+        return Ok(StatusCode::NO_CONTENT);
+    }
+
     let mut guard = state
         .blocked_users
         .write()
@@ -79,6 +104,13 @@ pub async fn list_blocked_users(
     State(state): State<AppState>,
     auth: AuthSession,
 ) -> ApiResult<Json<BlockListResponse>> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        let items = contacts_repo::list_user_blocks(pool, &auth.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to list blocked users"))?;
+        return Ok(Json(BlockListResponse { items }));
+    }
+
     let guard = state
         .blocked_users
         .read()
@@ -120,6 +152,22 @@ pub async fn mute_user(
     let target = payload.target_identity_id.trim().to_string();
     let now = Utc::now();
 
+    if let Some(pool) = state.db_pool.as_ref() {
+        let (record, inserted) = contacts_repo::upsert_user_mute(pool, &auth.identity_id, &target)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to mute user"))?;
+        if !inserted {
+            return Err(conflict("already_muted", "user is already muted"));
+        }
+        remember_mute(
+            &state,
+            &record.muter_identity_id,
+            &record.muted_identity_id,
+            now,
+        );
+        return Ok((StatusCode::CREATED, Json(record)));
+    }
+
     let mut guard = state
         .muted_users
         .write()
@@ -152,6 +200,14 @@ pub async fn unmute_user(
 
     let target = payload.target_identity_id.trim().to_string();
 
+    if let Some(pool) = state.db_pool.as_ref() {
+        contacts_repo::delete_user_mute(pool, &auth.identity_id, &target)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to unmute user"))?;
+        forget_mute(&state, &auth.identity_id, &target);
+        return Ok(StatusCode::NO_CONTENT);
+    }
+
     let mut guard = state
         .muted_users
         .write()
@@ -171,6 +227,13 @@ pub async fn list_muted_users(
     State(state): State<AppState>,
     auth: AuthSession,
 ) -> ApiResult<Json<MuteListResponse>> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        let items = contacts_repo::list_user_mutes(pool, &auth.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to list muted users"))?;
+        return Ok(Json(MuteListResponse { items }));
+    }
+
     let guard = state
         .muted_users
         .read()
@@ -198,4 +261,52 @@ pub async fn list_muted_users(
     items.sort_by(|a, b| a.muted_identity_id.cmp(&b.muted_identity_id));
 
     Ok(Json(MuteListResponse { items }))
+}
+
+pub fn remember_block(state: &AppState, blocker: &str, blocked: &str, now: chrono::DateTime<Utc>) {
+    let mut guard = state
+        .blocked_users
+        .write()
+        .expect("acquire blocked_users write lock");
+    guard
+        .entry(blocker.to_string())
+        .or_default()
+        .insert(blocked.to_string(), now.timestamp());
+}
+
+pub fn forget_block(state: &AppState, blocker: &str, blocked: &str) {
+    let mut guard = state
+        .blocked_users
+        .write()
+        .expect("acquire blocked_users write lock");
+    if let Some(entry) = guard.get_mut(blocker) {
+        entry.remove(blocked);
+        if entry.is_empty() {
+            guard.remove(blocker);
+        }
+    }
+}
+
+fn remember_mute(state: &AppState, muter: &str, muted: &str, now: chrono::DateTime<Utc>) {
+    let mut guard = state
+        .muted_users
+        .write()
+        .expect("acquire muted_users write lock");
+    guard
+        .entry(muter.to_string())
+        .or_default()
+        .insert(muted.to_string(), now.timestamp());
+}
+
+fn forget_mute(state: &AppState, muter: &str, muted: &str) {
+    let mut guard = state
+        .muted_users
+        .write()
+        .expect("acquire muted_users write lock");
+    if let Some(entry) = guard.get_mut(muter) {
+        entry.remove(muted);
+        if entry.is_empty() {
+            guard.remove(muter);
+        }
+    }
 }

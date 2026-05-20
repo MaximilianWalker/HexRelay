@@ -77,6 +77,138 @@
   gap: 10px;
 }
 
+.hubGrid,
+.hubList {
+  display: grid;
+  gap: 10px;
+}
+
+.hubGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.hubList {
+  grid-template-columns: 1fr;
+}
+
+.hubItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid #c6daed;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fbff;
+}
+
+.hubItemList {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.hubItemSelected {
+  border-color: #23689a;
+  background: #eef8ff;
+}
+
+.hubItemMain {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.hubItemText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hubItemText .title,
+.hubItemText .meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hubBadges,
+.hubActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hubBadges {
+  grid-column: 2;
+}
+
+.hubActions {
+  grid-column: 1 / -1;
+}
+
+.hubItemList .hubBadges,
+.hubItemList .hubActions {
+  grid-column: auto;
+  justify-content: flex-end;
+}
+
+.selectButton {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b7d0e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f628f;
+  cursor: pointer;
+}
+
+.selectButtonActive {
+  border-color: #1f628f;
+  background: #1f628f;
+  color: #fff;
+}
+
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(13, 36, 56, 0.32);
+}
+
+.dialog {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 420px);
+  border: 1px solid #c6daed;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(20, 54, 80, 0.2);
+}
+
+.dangerButton {
+  border-color: #c85d5d;
+  background: #fff7f7;
+  color: #8f2d2d;
+}
+
 .card {
   border: 1px solid #c6daed;
   border-radius: 12px;

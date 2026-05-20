@@ -50,6 +50,7 @@ pub async fn list_server_channel_messages(
             "server channel history requires configured database pool",
         )
     })?;
+    require_text_channel(pool, &channel_membership.channel_id).await?;
 
     let mut items = server_channels_repo::list_server_channel_messages(
         pool,
@@ -130,6 +131,7 @@ pub async fn create_server_channel_message(
     let channel_id = channel_membership.channel_id.clone();
     let author_id = channel_membership.identity_id.clone();
 
+    require_text_channel(pool, &channel_id).await?;
     require_channel_send_permission(pool, &server_id, &channel_id, &author_id).await?;
 
     let created_at = current_timestamp();
@@ -174,6 +176,7 @@ pub async fn edit_server_channel_message(
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
 
+    require_text_channel(pool, &channel_id).await?;
     require_channel_send_permission(
         pool,
         &server_id,
@@ -244,6 +247,7 @@ pub async fn soft_delete_server_channel_message(
     let server_id = channel_membership.server_id.clone();
     let channel_id = channel_membership.channel_id.clone();
 
+    require_text_channel(pool, &channel_id).await?;
     require_channel_send_permission(
         pool,
         &server_id,
@@ -446,6 +450,28 @@ async fn require_channel_send_permission(
         return Err(forbidden(
             "server_access_denied",
             "server channel send permission required",
+        ));
+    }
+
+    Ok(())
+}
+
+async fn require_text_channel(pool: &sqlx::PgPool, channel_id: &str) -> ApiResult<()> {
+    let kind = server_channels_repo::get_server_channel_kind(pool, channel_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load server channel"))?
+        .ok_or((
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "channel_not_found",
+                message: "server channel was not found",
+            }),
+        ))?;
+
+    if kind != "text" {
+        return Err(bad_request(
+            "channel_kind_invalid",
+            "server channel messages are only available for text channels",
         ));
     }
 

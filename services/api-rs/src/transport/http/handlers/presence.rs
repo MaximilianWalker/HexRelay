@@ -39,7 +39,7 @@ pub async fn list_presence_watchers(
 
     let mut watchers = BTreeSet::from([identity_id.clone()]);
     for peer_identity_id in accepted_friend_ids(&state, &identity_id).await? {
-        if !is_blocked_bidirectional(&state, &identity_id, &peer_identity_id)? {
+        if !is_blocked_bidirectional(&state, &identity_id, &peer_identity_id).await? {
             watchers.insert(peer_identity_id);
         }
     }

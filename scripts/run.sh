@@ -19,6 +19,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --help|-h)
       echo "Usage: run.sh [--runtime-profile single|dual|triple|path] [--seed-profile dm-basic]"
+      echo "Default startup uses the clean single profile and does not seed fixture data."
       exit 0
       ;;
     *)
@@ -60,6 +61,52 @@ wait_for() {
     sleep "$sleep_seconds"
   done
 
+  echo "[run] ERROR: ${label} did not become ready after ${attempts} attempts" >&2
+  return 1
+}
+
+tail_logs() {
+  local label="$1"
+  local stdout_path="$2"
+  local stderr_path="$3"
+  local tail_lines="${4:-40}"
+
+  echo "[run] ${label} did not become ready. Recent logs:" >&2
+  for entry in "stdout:$stdout_path" "stderr:$stderr_path"; do
+    local stream="${entry%%:*}"
+    local path="${entry#*:}"
+    echo "[run] ${label} ${stream}: ${path}" >&2
+    if [[ -f "$path" ]]; then
+      tail -n "$tail_lines" "$path" >&2 || true
+    else
+      echo "[run] (no log output)" >&2
+    fi
+  done
+}
+
+wait_for_service() {
+  local label="$1"
+  local pid="$2"
+  local stdout_path="$3"
+  local stderr_path="$4"
+  shift 4
+  local attempts="${WAIT_FOR_ATTEMPTS:-60}"
+  local sleep_seconds="${WAIT_FOR_SLEEP_SECONDS:-1}"
+
+  for ((i = 1; i <= attempts; i++)); do
+    if "$@" >/dev/null 2>&1; then
+      echo "[run] ${label} is ready"
+      return 0
+    fi
+    if ! pid_alive "$pid"; then
+      tail_logs "$label" "$stdout_path" "$stderr_path"
+      echo "[run] ERROR: ${label} failed before becoming ready" >&2
+      return 1
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  tail_logs "$label" "$stdout_path" "$stderr_path"
   echo "[run] ERROR: ${label} did not become ready after ${attempts} attempts" >&2
   return 1
 }
@@ -221,7 +268,7 @@ EOF
   bash "$api_launcher" >"$log_dir/api-rs.stdout.log" 2>"$log_dir/api-rs.stderr.log" &
   api_pid=$!
   STARTED_PIDS+=("$api_pid")
-  wait_for "$instance_id api" http_ok "$api_url/health"
+  wait_for_service "$instance_id api" "$api_pid" "$log_dir/api-rs.stdout.log" "$log_dir/api-rs.stderr.log" http_ok "$api_url/health"
 
   echo "[run] Starting $instance_id realtime service"
   cat >"$realtime_launcher" <<EOF
@@ -237,7 +284,7 @@ EOF
   bash "$realtime_launcher" >"$log_dir/realtime-rs.stdout.log" 2>"$log_dir/realtime-rs.stderr.log" &
   realtime_pid=$!
   STARTED_PIDS+=("$realtime_pid")
-  wait_for "$instance_id realtime" http_ok "$realtime_url/health"
+  wait_for_service "$instance_id realtime" "$realtime_pid" "$log_dir/realtime-rs.stdout.log" "$log_dir/realtime-rs.stderr.log" http_ok "$realtime_url/health"
 
   echo "[run] Starting $instance_id web dev server"
   runtime_tsconfig_dir="$ROOT/apps/web/.runtime-tsconfig"
@@ -268,7 +315,7 @@ EOF
   bash "$web_launcher" >"$log_dir/web.stdout.log" 2>"$log_dir/web.stderr.log" &
   web_pid=$!
   STARTED_PIDS+=("$web_pid")
-  wait_for "$instance_id web" web_ready "$web_url"
+  wait_for_service "$instance_id web" "$web_pid" "$log_dir/web.stdout.log" "$log_dir/web.stderr.log" web_ready "$web_url"
 
   realtime_internal_token="${REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN:-hexrelay-dev-channel-dispatch-token-change-me}"
   instance_json="$(node -e 'const [id, seedPersona, apiPort, realtimePort, webPort, apiPid, realtimePid, webPid, apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir, realtimeInternalToken] = process.argv.slice(1); process.stdout.write(JSON.stringify({id, seedPersona: seedPersona || null, apiPort: Number(apiPort), realtimePort: Number(realtimePort), webPort: Number(webPort), apiPid: Number(apiPid), realtimePid: Number(realtimePid), webPid: Number(webPid), apiLauncher, realtimeLauncher, webLauncher, apiUrl, realtimeUrl, realtimeWsUrl, webUrl, logDir, realtimeInternalToken}));' "$instance_id" "$seed_persona" "$api_port" "$realtime_port" "$web_port" "$api_pid" "$realtime_pid" "$web_pid" "$api_launcher" "$realtime_launcher" "$web_launcher" "$api_url" "$realtime_url" "$realtime_ws_url" "$web_url" "$log_dir" "$realtime_internal_token")"

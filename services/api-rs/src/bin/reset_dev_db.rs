@@ -35,23 +35,42 @@ async fn run() -> Result<(), DevSeedError> {
         })?;
 
     let seed_options = options.seed_options();
-    validate_seed_profile(&seed_options)?;
+    if let Some(seed_options) = seed_options.as_ref() {
+        validate_seed_profile(seed_options)?;
+    }
 
     reset_local_database(&config.database_url, &options).await?;
     let pool = connect_and_prepare(&config.database_url).await?;
-    let summary = seed_profile(
-        &pool,
-        &seed_options,
-        &config.active_signing_key_id,
-        signing_key,
-    )
-    .await?;
+    if let Some(seed_options) = seed_options.as_ref() {
+        let summary = seed_profile(
+            &pool,
+            seed_options,
+            &config.active_signing_key_id,
+            signing_key,
+        )
+        .await?;
+
+        if options.json {
+            println!("{}", serde_json::to_string_pretty(&summary)?);
+        } else {
+            println!("[reset-dev-db] Local development database reset complete");
+            println!("{}", format_seed_summary(&summary));
+        }
+
+        return Ok(());
+    }
 
     if options.json {
-        println!("{}", serde_json::to_string_pretty(&summary)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "reset": true,
+                "seeded": false
+            }))?
+        );
     } else {
         println!("[reset-dev-db] Local development database reset complete");
-        println!("{}", format_seed_summary(&summary));
+        println!("[reset-dev-db] No seed profile requested");
     }
 
     Ok(())

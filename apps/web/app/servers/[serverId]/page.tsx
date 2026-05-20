@@ -54,7 +54,7 @@ const PREVIEW_SERVER: ServerSummary = {
   id: "hexrelay-local-server",
   name: "Atlas Test Server",
   unread: 2,
-  favorite: true,
+  pinned: true,
   muted: false,
 };
 
@@ -162,7 +162,7 @@ const PREVIEW_MEMBERS = [
     role: "Admins",
     title: "Server owner",
     presence: "online",
-    favorite: true,
+    pinned: true,
     muted: false,
     unread: 2,
     joinedAt: "2026-05-04T11:01:00Z",
@@ -173,7 +173,7 @@ const PREVIEW_MEMBERS = [
     role: "Maintainers",
     title: "Fixture maintainer",
     presence: "online",
-    favorite: false,
+    pinned: false,
     muted: false,
     unread: 1,
     joinedAt: "2026-05-04T11:02:00Z",
@@ -184,7 +184,7 @@ const PREVIEW_MEMBERS = [
     role: "Members",
     title: "Validation member",
     presence: "away",
-    favorite: false,
+    pinned: false,
     muted: true,
     unread: 0,
     joinedAt: "2026-05-04T11:03:00Z",
@@ -474,10 +474,10 @@ function MemberCard({ member, current }: { member: PreviewMember; current: boole
           )}
           {member.muted ? "Muted" : "Audible"}
         </span>
-        {member.favorite ? (
+        {member.pinned ? (
           <span>
             <IconStar className={styles.icon} aria-hidden="true" />
-            Favorite
+            Pinned
           </span>
         ) : null}
         {member.unread > 0 ? <strong>{member.unread}</strong> : null}

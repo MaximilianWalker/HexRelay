@@ -6,14 +6,14 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-20
 - Source of truth: `docs/operations/local-runtime-testing-quickstart.md`
 
 ## Quick Context
 
 - Purpose: provide the operational quickstart and troubleshooting guide for local fixture, runtime-profile, Docker runtime, and network-simulation workflows.
 - Primary edit location: update this file when local runtime commands, troubleshooting steps, or adoption guidance changes.
-- Latest meaningful change: 2026-05-07 added the PH-07 adoption guide for the PH-01 through PH-06 local runtime testing workflow.
+- Latest meaningful change: 2026-05-20 made default host-process startup clean: no seeded fixture persona, neutral `local-server` instance name, and reset without seeding unless `--profile` is supplied.
 
 ## Purpose
 
@@ -45,13 +45,13 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml up -d postgres 
 3. Confirm local env files exist.
 
 ```bash
-npm run start -- --runtime-profile single
+npm run start
 ```
 
 4. Stop the first-run stack if you only needed env bootstrap.
 
 ```bash
-npm run stop -- --runtime-profile single
+npm run stop
 ```
 
 5. Set local signing values in `services/api-rs/.env` if they are missing.
@@ -75,7 +75,13 @@ API_ENABLE_DEV_TESTING=true
 npm run seed -- --profile dm-basic --json
 ```
 
-- Reset and reseed the local dev database when you need a known baseline.
+- Reset the local dev database without fixture data.
+
+```bash
+npm run reset-dev-db -- --yes
+```
+
+- Reset and reseed the local dev database when you need a known fixture baseline.
 
 ```bash
 npm run reset-dev-db -- --profile dm-basic --yes
@@ -86,13 +92,13 @@ npm run reset-dev-db -- --profile dm-basic --yes
 
 ## Host-Process Runtime Profiles
 
-- Start one local app instance.
+- Start one clean local app instance. This is the default startup path and does not seed data or activate fixture personas.
 
 ```bash
-npm run start -- --runtime-profile single --seed-profile dm-basic
+npm run start
 ```
 
-- Start Alice/Bob side-by-side runtime instances.
+- Start Alice/Bob side-by-side runtime instances only when explicitly testing fixture scenarios.
 
 ```bash
 npm run start -- --runtime-profile dual --seed-profile dm-basic

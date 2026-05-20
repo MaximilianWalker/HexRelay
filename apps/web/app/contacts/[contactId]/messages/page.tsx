@@ -24,7 +24,8 @@ type Contact = {
   name: string;
   status: string;
   unread: number;
-  favorite: boolean;
+  pinned: boolean;
+  muted: boolean;
   inboundRequest: boolean;
   pendingRequest: boolean;
 };
@@ -127,7 +128,8 @@ export default function ContactMessagesPage() {
               name: matched.name,
               status: matched.status,
               unread: matched.unread,
-              favorite: matched.favorite,
+              pinned: matched.pinned,
+              muted: matched.muted,
               inboundRequest: matched.inbound_request,
               pendingRequest: matched.pending_request,
             }
@@ -194,7 +196,8 @@ export default function ContactMessagesPage() {
                 {contact.status}
               </span>
             ) : null}
-            {contact?.favorite ? <span className={styles.badgeMuted}>Favorite</span> : null}
+            {contact?.pinned ? <span className={styles.badgeMuted}>Pinned</span> : null}
+            {contact?.muted ? <span className={styles.badgeMuted}>Muted</span> : null}
             {contact?.pendingRequest ? <span className={styles.badgeMuted}>Request pending</span> : null}
             {contact?.inboundRequest ? <span className={styles.badge}>Needs approval</span> : null}
           </div>

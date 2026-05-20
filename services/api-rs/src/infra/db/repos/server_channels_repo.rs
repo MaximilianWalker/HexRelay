@@ -304,6 +304,22 @@ pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, 
     .await
 }
 
+pub async fn get_server_channel_kind(
+    pool: &PgPool,
+    channel_id: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "
+        SELECT kind
+        FROM server_channels
+        WHERE channel_id = $1
+        ",
+    )
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn list_server_channels_for_identity(
     pool: &PgPool,
     identity_id: &str,

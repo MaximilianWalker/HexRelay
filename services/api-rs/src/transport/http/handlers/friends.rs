@@ -49,7 +49,7 @@ pub async fn create_friend_request(
         ));
     }
 
-    if is_blocked_bidirectional(&state, &actor_identity, &payload.target_identity_id)? {
+    if is_blocked_bidirectional(&state, &actor_identity, &payload.target_identity_id).await? {
         return Err(forbidden(
             "blocked_user",
             "cannot send friend request — a block relationship exists between these users",
@@ -385,7 +385,7 @@ pub async fn get_friend_request_bootstrap(
 
         #[cfg(test)]
         {
-            return get_friend_request_bootstrap_in_memory(state, request_id, actor_identity);
+            return get_friend_request_bootstrap_in_memory(state, request_id, actor_identity).await;
         }
     };
 
@@ -416,7 +416,7 @@ pub async fn get_friend_request_bootstrap(
         &request.requester_identity_id
     };
 
-    if is_blocked_bidirectional(&state, &actor_identity, peer_identity_id)? {
+    if is_blocked_bidirectional(&state, &actor_identity, peer_identity_id).await? {
         return Err(forbidden(
             "blocked_user",
             "identity material is unavailable while a block relationship exists between these users",
@@ -473,7 +473,7 @@ pub async fn get_friend_request_bootstrap(
 }
 
 #[cfg(test)]
-fn get_friend_request_bootstrap_in_memory(
+async fn get_friend_request_bootstrap_in_memory(
     state: AppState,
     request_id: String,
     actor_identity: String,
@@ -510,15 +510,15 @@ fn get_friend_request_bootstrap_in_memory(
             request.requester_identity_id.clone()
         };
 
-        if is_blocked_bidirectional(&state, &actor_identity, &peer_identity_id)? {
-            return Err(forbidden(
-                "blocked_user",
-                "identity material is unavailable while a block relationship exists between these users",
-            ));
-        }
-
         (peer_identity_id, request.status.clone())
     }; // guard dropped here
+
+    if is_blocked_bidirectional(&state, &actor_identity, &peer_identity_id).await? {
+        return Err(forbidden(
+            "blocked_user",
+            "identity material is unavailable while a block relationship exists between these users",
+        ));
+    }
 
     let keys_guard = state
         .identity_keys

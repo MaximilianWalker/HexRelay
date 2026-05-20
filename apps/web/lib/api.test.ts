@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   activateTestingSession,
+  blockRemoveContact,
   cancelFriendRequest,
+  createServer,
   createFriendRequest,
   createInvite,
   createServerChannelMessage,
@@ -18,13 +20,17 @@ import {
   fetchServerChannels,
   fetchServers,
   fetchTestingProfiles,
+  joinServer,
+  leaveServer,
   issueAuthChallenge,
   heartbeatDmProfileDevice,
   redeemInvite,
   registerIdentityKey,
   revokeSession,
   storeCsrfToken,
+  updateContactPreferences,
   updateDmPolicy,
+  updateServerPreferences,
   verifyAuthChallenge,
 } from "./api";
 
@@ -107,14 +113,14 @@ describe("api auth transport", () => {
 
     await fetchServers({
       search: "atlas",
-      favoritesOnly: true,
+      pinnedOnly: true,
       unreadOnly: true,
       mutedOnly: true,
     });
 
     const [url] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain("search=atlas");
-    expect(String(url)).toContain("favorites_only=true");
+    expect(String(url)).toContain("pinned_only=true");
     expect(String(url)).toContain("unread_only=true");
     expect(String(url)).toContain("muted_only=true");
   });
@@ -129,7 +135,7 @@ describe("api auth transport", () => {
               id: "hexrelay-local-server",
               name: "Atlas Test Server",
               unread: 2,
-              favorite: true,
+              pinned: true,
               muted: false,
             },
           }),
@@ -448,6 +454,91 @@ describe("api auth transport", () => {
     expect(accept.ok).toBe(true);
     expect(decline.ok).toBe(true);
     expect(cancel.ok).toBe(true);
+  });
+
+  it("supports server create, join, preference, and leave actions", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: true, muted: false },
+            owner_identity_id: "usr-a",
+            bootstrap_credential: "srv-bootstrap",
+          }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: false, muted: false },
+            joined: true,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: true, muted: true },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ left: true, deleted_local_data: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    await createServer({ name: "Atlas", description: "Local", bootstrapCredential: "manual" });
+    await joinServer({ inviteLink: "hexrelay://join?server_id=hexrelay-local-server&token=inv" });
+    await updateServerPreferences({ serverId: "hexrelay-local-server", pinned: true, muted: true });
+    await leaveServer({ serverId: "hexrelay-local-server", deleteLocalData: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      '{"name":"Atlas","description":"Local","bootstrap_credential":"manual"}',
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/servers/join");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/servers/hexrelay-local-server/preferences");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/servers/hexrelay-local-server/leave");
+  });
+
+  it("supports contact preference and block-remove actions", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "usr-b",
+            name: "usr-b",
+            status: "offline",
+            unread: 0,
+            pinned: true,
+            muted: true,
+            inbound_request: false,
+            pending_request: false,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ blocked_identity_id: "usr-b", relationship_removed: true }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    await updateContactPreferences({ contactId: "usr-b", pinned: true, muted: true });
+    await blockRemoveContact({ contactId: "usr-b" });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/contacts/usr-b/preferences");
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PATCH");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/contacts/usr-b/block-remove");
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
   });
 
   it("queries discovery users for contact add search", async () => {

@@ -91,7 +91,7 @@ pub struct InviteRedeemResponse {
 #[derive(Deserialize)]
 pub struct ServerListQuery {
     pub search: Option<String>,
-    pub favorites_only: Option<bool>,
+    pub pinned_only: Option<bool>,
     pub unread_only: Option<bool>,
     pub muted_only: Option<bool>,
 }
@@ -101,7 +101,7 @@ pub struct ServerSummary {
     pub id: String,
     pub name: String,
     pub unread: u32,
-    pub favorite: bool,
+    pub pinned: bool,
     pub muted: bool,
 }
 
@@ -113,6 +113,52 @@ pub struct ServerListResponse {
 #[derive(Serialize)]
 pub struct ServerDetailResponse {
     pub item: ServerSummary,
+}
+
+#[derive(Deserialize)]
+pub struct ServerCreateRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub bootstrap_credential: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ServerCreateResponse {
+    pub item: ServerSummary,
+    pub owner_identity_id: String,
+    pub bootstrap_credential: String,
+}
+
+#[derive(Deserialize)]
+pub struct ServerJoinRequest {
+    pub invite_link: Option<String>,
+    pub endpoint: Option<String>,
+    pub server_id: Option<String>,
+    pub invite_token: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ServerJoinResponse {
+    pub item: ServerSummary,
+    pub joined: bool,
+}
+
+#[derive(Deserialize)]
+pub struct HubPreferenceUpdateRequest {
+    pub pinned: Option<bool>,
+    pub muted: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct ServerLeaveRequest {
+    #[serde(default)]
+    pub delete_local_data: bool,
+}
+
+#[derive(Serialize)]
+pub struct ServerLeaveResponse {
+    pub left: bool,
+    pub deleted_local_data: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -171,9 +217,9 @@ pub struct ServerChannelMessagePage {
 #[derive(Deserialize)]
 pub struct ContactListQuery {
     pub search: Option<String>,
-    pub online_only: Option<bool>,
     pub unread_only: Option<bool>,
-    pub favorites_only: Option<bool>,
+    pub pinned_only: Option<bool>,
+    pub muted_only: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -182,7 +228,8 @@ pub struct ContactSummary {
     pub name: String,
     pub status: String,
     pub unread: u32,
-    pub favorite: bool,
+    pub pinned: bool,
+    pub muted: bool,
     pub inbound_request: bool,
     pub pending_request: bool,
 }
@@ -190,6 +237,12 @@ pub struct ContactSummary {
 #[derive(Serialize)]
 pub struct ContactListResponse {
     pub items: Vec<ContactSummary>,
+}
+
+#[derive(Serialize)]
+pub struct ContactBlockRemoveResponse {
+    pub blocked_identity_id: String,
+    pub relationship_removed: bool,
 }
 
 #[derive(Deserialize)]

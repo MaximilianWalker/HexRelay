@@ -1,7 +1,17 @@
-use crate::{shared::errors::ApiResult, state::AppState};
+use crate::{
+    infra::db::repos::contacts_repo,
+    shared::errors::{internal_error, ApiResult},
+    state::AppState,
+};
 
 /// Returns true if `blocker` has blocked `target`.
-pub fn is_blocked(state: &AppState, blocker: &str, target: &str) -> ApiResult<bool> {
+pub async fn is_blocked(state: &AppState, blocker: &str, target: &str) -> ApiResult<bool> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return contacts_repo::is_blocked_bidirectional(pool, blocker, target)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to check block state"));
+    }
+
     Ok(state
         .blocked_users
         .read()
@@ -12,7 +22,13 @@ pub fn is_blocked(state: &AppState, blocker: &str, target: &str) -> ApiResult<bo
 }
 
 /// Returns true if either party has blocked the other.
-pub fn is_blocked_bidirectional(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
+pub async fn is_blocked_bidirectional(state: &AppState, a: &str, b: &str) -> ApiResult<bool> {
+    if let Some(pool) = state.db_pool.as_ref() {
+        return contacts_repo::is_blocked_bidirectional(pool, a, b)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to check block state"));
+    }
+
     let guard = state
         .blocked_users
         .read()

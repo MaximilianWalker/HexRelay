@@ -1,6 +1,7 @@
 use axum::{extract::State, Json};
 
 use crate::{
+    infra::db::repos::servers_repo,
     models::{
         ServerAdministrationStatus, ServerAuthEndpoints, ServerCapabilitiesResponse,
         ServerConnectionResponse,
@@ -40,9 +41,22 @@ pub async fn get_server_capabilities(
     auth: AuthSession,
     State(state): State<AppState>,
 ) -> ApiResult<Json<ServerCapabilitiesResponse>> {
-    let is_server_owner = state.server_owner_identity_ids.contains(&auth.identity_id);
+    let (db_owner, db_admin) = if let Some(pool) = state.db_pool.as_ref() {
+        servers_repo::server_administration_for_identity(pool, &auth.identity_id)
+            .await
+            .map_err(|_| {
+                crate::shared::errors::internal_error(
+                    "storage_unavailable",
+                    "failed to load server administration status",
+                )
+            })?
+            .unwrap_or((false, false))
+    } else {
+        (false, false)
+    };
+    let is_server_owner = db_owner || state.server_owner_identity_ids.contains(&auth.identity_id);
     let is_server_admin =
-        is_server_owner || state.server_admin_identity_ids.contains(&auth.identity_id);
+        is_server_owner || db_admin || state.server_admin_identity_ids.contains(&auth.identity_id);
 
     let mut capabilities = BASE_CAPABILITIES.to_vec();
     if is_server_admin {

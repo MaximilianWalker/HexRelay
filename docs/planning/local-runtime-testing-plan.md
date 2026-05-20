@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-to-server authority model and local server id binding.
+- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-to-server authority model, local server id binding, and clean default host-process startup without seeded fixture personas.
 
 ## Organization Decision
 
@@ -51,7 +51,7 @@
 - Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
-- Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
+- The default host-process runtime profile starts one neutral `local-server` app instance without seed persona metadata; Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `local_server`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, `server_roles`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, fanout, catch-up, and profile-device APIs exist; the browser DM route exists, while full end-to-end client encryption remains incremental.
@@ -95,7 +95,7 @@
 |---|---|---|---|
 | `dm-basic` | Fast manual testing for DM surfaces | Alice, Bob | Accepted friendship, DM policy, profile-device records, one encrypted DM thread |
 | `contacts-edge` | Contacts UI and request-state validation | Alice, Carol, Dave | Pending inbound/outbound requests and restricted policy |
-| `server-chat` | Server/channel workspace validation | Alice, Bob, Carol | Shared server, memberships, channels, server messages, unread/favorite/muted variation |
+| `server-chat` | Server/channel workspace validation | Alice, Bob, Carol | Shared server, memberships, channels, server messages, unread/pinned/muted variation |
 | `multi-device` | Device convergence checks | Alice, Bob, Erin | Multiple Bob devices plus active/inactive profile-device variation |
 | `all` | Complete local exploratory dataset | All profiles | Combined DM, contacts, server, device, and policy states |
 
@@ -143,7 +143,7 @@
 ### Server and Channel Data
 
 - Create one shared test server fixture. The JSON template keeps a stable fixture id, but the seed CLI binds it to the configured local server id at seed time, defaulting to `hexrelay-local-server`.
-- Add Alice, Bob, and Carol as members with varied `favorite`, `muted`, and `unread_count` values.
+- Add Alice, Bob, and Carol as members with varied `pinned`, `muted`, and `unread_count` values.
 - Create at least two text channels, for example `general` and `ops-lab`.
 - Seed server channel messages with mentions and one reply where constraints allow it.
 
@@ -164,8 +164,8 @@
 | `scripts/fixtures/*.json` | Versioned fixture catalog and scenario definitions |
 | `scripts/seed.ps1` | Windows seed wrapper |
 | `scripts/seed.sh` | Unix seed wrapper |
-| `scripts/reset-dev-db.ps1` | Windows local DB reset and seed wrapper |
-| `scripts/reset-dev-db.sh` | Unix local DB reset and seed wrapper |
+| `scripts/reset-dev-db.ps1` | Windows local DB reset wrapper; reseeds only when `--profile` is supplied |
+| `scripts/reset-dev-db.sh` | Unix local DB reset wrapper; reseeds only when `--profile` is supplied |
 | `package.json` | Root npm aliases for seed/reset commands |
 
 ### Target Commands
@@ -173,6 +173,7 @@
 ```bash
 npm run seed -- --profile dm-basic
 npm run seed -- --profile all
+npm run reset-dev-db -- --yes
 npm run reset-dev-db -- --profile all --yes
 ```
 
@@ -202,8 +203,9 @@ npm run reset-dev-db -- --profile all --yes
 - Stop local API/realtime/web processes if the runner owns them.
 - Drop or truncate only local dev DB state.
 - Re-run migrations.
-- Run the selected seed profile.
-- Print the generated local URLs and profile summary if used with a runtime profile.
+- Leave the database empty unless a seed profile is explicitly supplied.
+- Run the selected seed profile only when `--profile` is present.
+- Print the generated local URLs and profile summary only when a seed profile is used with a runtime profile.
 
 ## Dev Session Bootstrap
 
@@ -281,11 +283,13 @@ npm run reset-dev-db -- --profile all --yes
 
 | File | Purpose |
 |---|---|
-| `scripts/runtime-profiles/single.json` | One API, one realtime, one web |
+| `scripts/runtime-profiles/single.json` | One clean local server app instance with no seeded persona |
 | `scripts/runtime-profiles/dual.json` | Alice server plus Bob server |
 | `scripts/runtime-profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
 
 ### Runtime Profile Shape
+
+The default `single` profile uses a neutral `local-server` id and omits `seedPersona`. Persona-specific runtime ids are reserved for explicit fixture profiles such as `dual` and `triple`.
 
 ```json
 {
@@ -547,7 +551,7 @@ npm run network -- --reset
 |---|---|---|---|---|---|
 | PH-02-EP-01-ST-01-TK-01 | Add Rust seed implementation | `services/api-rs/src/bin/seed_dev.rs`, `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs dev_seed` | Transactional idempotent seed for selected profile | done |
 | PH-02-EP-01-ST-01-TK-02 | Add Windows and Unix seed wrappers | `scripts/seed.ps1`, `scripts/seed.sh` | Run wrappers locally | Wrappers load env and call seed implementation consistently | done |
-| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | `npm run reset-dev-db -- --yes --profile dm-basic`; `npm run seed -- --profile dm-basic --json` | Reset refuses unsafe DB and reseeds local DB | done |
+| PH-02-EP-01-ST-01-TK-03 | Add local reset wrappers | `scripts/reset-dev-db.ps1`, `scripts/reset-dev-db.sh` | `npm run reset-dev-db -- --yes`; `npm run reset-dev-db -- --yes --profile dm-basic`; `npm run seed -- --profile dm-basic --json` | Reset refuses unsafe DB, resets cleanly without fixture data by default, and reseeds only when a profile is supplied | done |
 | PH-02-EP-01-ST-01-TK-04 | Add root npm aliases | `package.json` | `npm run seed -- --help`, `npm run reset-dev-db -- --help` | Commands are discoverable from repo root | done |
 
 ### PH-03 Tasks

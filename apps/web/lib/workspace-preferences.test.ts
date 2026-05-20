@@ -29,6 +29,12 @@ function buildWindow(localStorage: StorageLike) {
 
   return {
     localStorage,
+    matchMedia: (query: string) => ({
+      matches: query.includes("700px"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }),
     addEventListener: target.addEventListener.bind(target),
     removeEventListener: target.removeEventListener.bind(target),
     dispatchEvent: target.dispatchEvent.bind(target),
@@ -90,5 +96,28 @@ describe("workspace preferences", () => {
     setMessageLayout("continuous-feed");
 
     expect(readMessageLayout()).toBe("continuous-feed");
+  });
+
+  it("stores server and contact hub layouts independently", async () => {
+    installWindow();
+    const { readHubLayout, setHubLayout } = await import("./workspace-preferences");
+
+    expect(readHubLayout("servers")).toBe("list");
+    expect(readHubLayout("contacts")).toBe("list");
+
+    setHubLayout("servers", "cards");
+    setHubLayout("contacts", "list");
+
+    expect(readHubLayout("servers")).toBe("cards");
+    expect(readHubLayout("contacts")).toBe("list");
+  });
+
+  it("keeps hub layout usable when storage throws", async () => {
+    installWindow(new ThrowingStorage());
+    const { readHubLayout, setHubLayout } = await import("./workspace-preferences");
+
+    setHubLayout("contacts", "cards");
+
+    expect(readHubLayout("contacts")).toBe("cards");
   });
 });

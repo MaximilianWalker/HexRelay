@@ -46,7 +46,7 @@ async fn gets_server_detail_for_authenticated_member_only() {
     let member_payload: serde_json::Value =
         serde_json::from_slice(&member_body).expect("decode member response");
     assert_eq!(member_payload["item"]["id"], server_id);
-    assert_eq!(member_payload["item"]["favorite"], true);
+    assert_eq!(member_payload["item"]["pinned"], true);
 
     let outsider_body = to_bytes(outsider_response.into_body(), usize::MAX)
         .await

@@ -485,7 +485,6 @@
   padding: 0;
 }
 
-.burger,
 .iconButton {
   border: 1px solid #b8cee2;
   border-radius: 10px;
@@ -857,33 +856,30 @@
 
   .mobileTabs {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     position: fixed;
     bottom: 10px;
     left: 10px;
-    right: 10px;
+    width: min(calc(100vw - 20px), 370px);
     z-index: 20;
   }
 
-  .mobileTab,
-  .mobileLayoutButton {
+  .mobileTab {
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
+    min-width: 0;
     border: 1px solid #b8cee2;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.95);
     text-align: center;
-    padding: 9px;
-    font-size: 0.78rem;
+    padding: 8px 4px;
+    font-size: 0.75rem;
     color: #2f5273;
-  }
-
-  .mobileLayoutButton {
-    cursor: pointer;
   }
 
   .mobileTabIcon {

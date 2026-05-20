@@ -492,7 +492,7 @@ async fn accept_dm_envelope_for_local_recipient(
         ));
     }
 
-    if is_blocked_bidirectional(state, sender_identity_id, recipient_identity_id)? {
+    if is_blocked_bidirectional(state, sender_identity_id, recipient_identity_id).await? {
         return Ok(DmFanoutDispatchResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_blocked_user".to_string(),

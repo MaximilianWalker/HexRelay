@@ -1892,13 +1892,13 @@
   - `docs/README.md`
   - `docs/planning/05-iteration-log.md`
 
-### 2026-03-04 (server navigation interaction model lock)
+### 2026-03-04 (server navigation interaction model lock; current wording updated 2026-05-20)
 
 - Area affected: MVP navigation interaction model
 - Change summary:
-  - Locked dual server navigation mode: sidebar list/folders plus topbar browser-like tabs.
-  - Locked saved tabs and tab-folder organization as required navigation capabilities.
-  - Locked burger behavior for collapsing/hiding server navigation while inside a server workspace.
+  - Locked dual server navigation mode: sidebar list plus topbar browser-like tabs.
+  - Locked pinned/saved tabs and manual tab reorder as required navigation capabilities.
+  - Locked explicit collapse controls for server navigation visibility inside a server workspace.
   - Updated plan, PRD, navigation spec, and clarifications to align on this model.
 - Rationale:
   - Improve navigation speed and organization for large server sets while preserving Discord-like familiarity.

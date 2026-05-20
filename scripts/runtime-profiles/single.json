@@ -3,11 +3,10 @@
   "infraMode": "shared",
   "instances": [
     {
-      "id": "alice-server",
+      "id": "local-server",
       "apiPort": 18080,
       "realtimePort": 18081,
-      "webPort": 3002,
-      "seedPersona": "alice.primary"
+      "webPort": 3002
     }
   ]
 }

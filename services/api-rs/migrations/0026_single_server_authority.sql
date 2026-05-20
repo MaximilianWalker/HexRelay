@@ -18,7 +18,7 @@ VALUES (TRUE, 'Local Server');
 
 CREATE TABLE server_memberships (
     identity_id TEXT PRIMARY KEY,
-    favorite BOOLEAN NOT NULL DEFAULT FALSE,
+    pinned BOOLEAN NOT NULL DEFAULT FALSE,
     muted BOOLEAN NOT NULL DEFAULT FALSE,
     unread_count INTEGER NOT NULL DEFAULT 0 CHECK (unread_count >= 0),
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -29,7 +29,7 @@ CREATE TABLE server_memberships (
 );
 
 CREATE INDEX server_memberships_joined_idx
-    ON server_memberships (favorite DESC, joined_at ASC, identity_id ASC);
+    ON server_memberships (pinned DESC, joined_at ASC, identity_id ASC);
 
 CREATE TABLE server_channels (
     channel_id TEXT PRIMARY KEY,

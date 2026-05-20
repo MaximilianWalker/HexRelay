@@ -76,21 +76,21 @@
   "server_memberships": [
     {
       "identity_id": "usr-test-alice",
-      "favorite": true,
+      "pinned": true,
       "muted": false,
       "unread_count": 2,
       "joined_at": "2026-05-04T11:01:00Z"
     },
     {
       "identity_id": "usr-test-bob",
-      "favorite": false,
+      "pinned": false,
       "muted": false,
       "unread_count": 1,
       "joined_at": "2026-05-04T11:02:00Z"
     },
     {
       "identity_id": "usr-test-carol",
-      "favorite": false,
+      "pinned": false,
       "muted": true,
       "unread_count": 0,
       "joined_at": "2026-05-04T11:03:00Z"

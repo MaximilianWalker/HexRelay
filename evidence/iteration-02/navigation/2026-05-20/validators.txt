@@ -1,0 +1,19 @@
+Validation commands run from repository root:
+
+- cargo fmt --all
+- cargo check --workspace
+- cargo clippy -p api-rs -- -D warnings
+- cargo test --workspace
+- npm --prefix apps/web run lint
+- npm --prefix apps/web run test:coverage
+- npm --prefix apps/web run build
+- python scripts/contract_parity/validator.py
+- rg -n "favorite|favorites|Favorite|Favorites|favorites_only|favoritesOnly|onlineOnly|folder|Folder|burger|Burger" docs/product docs/planning docs/contracts apps/web services/api-rs/src services/api-rs/migrations scripts/fixtures
+
+Screenshot checks:
+
+- Built `apps/web` with `npm --prefix apps/web run build`.
+- Served current build on `http://127.0.0.1:3001`.
+- Captured desktop screenshots at 1440x1000.
+- Captured mobile screenshots at 390x844.
+- Visually checked `mobile-servers.png` after fixing bottom-tab overflow.

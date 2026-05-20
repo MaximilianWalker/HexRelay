@@ -180,7 +180,7 @@ const DEV_TESTING_SHORTCUTS: TestingShortcut[] = [
   {
     id: "alice-atlas-server",
     label: "Alice Atlas server",
-    description: "Shared server fixture with Alice's favorite and unread state.",
+    description: "Shared server fixture with Alice's pinned and unread state.",
     profileId: "alice.primary",
     href: "/servers/hexrelay-local-server",
     scenarioId: "server-chat",

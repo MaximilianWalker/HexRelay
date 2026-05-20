@@ -6,7 +6,7 @@
 - Owner: Delivery maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-14
+- last_updated: 2026-05-20
 - Source of truth: `docs/planning/iterations/02-sprint-board.md`
 - Board status: in_progress
 
@@ -14,7 +14,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-14 moved `T4.6.1` through `T4.6.4` to blocked follow-ups pending explicit UX approval.
+- Latest meaningful change: 2026-05-20 moved `T4.6.1` through `T4.6.4` into implementation using the approved navigation plan.
 
 ## Iteration Scope
 
@@ -158,16 +158,15 @@ Scope: Iteration 2 (Weeks 4-6) from `docs/product/01-mvp-plan.md`.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| None | - | - | - |
+| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | in_progress | Shared hub model, API-backed pin/mute/leave, Create/Join controls, card/list layouts, and navigation evidence are being implemented through `docs/planning/navigation-implementation-plan.md`. |
+| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | in_progress | Shared hub model, API-backed pin/mute, Block + Remove, friend-request add flow, card/list layouts, and navigation evidence are being implemented through `docs/planning/navigation-implementation-plan.md`. |
+| T4.6.3 | Implement dual server navigation modes and tab persistence | in_progress | Desktop sidebar/topbar switch, explicit collapse persistence, pinned/saved tabs, and manual tab reorder are being implemented through `docs/planning/navigation-implementation-plan.md`. |
+| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | in_progress | Mobile `Home`/`Servers`/`Contacts`/`Settings` tabs and workspace drawer checks are being implemented through `docs/planning/navigation-implementation-plan.md`. |
 
 ## Blocked Follow-Ups
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| T4.6.1 | Implement `Servers Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-01` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
-| T4.6.2 | Implement `Contacts Hub` UI surface from navigation spec | blocked | Runtime UI work requires explicit approval for `NAV-APP-02` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
-| T4.6.3 | Implement dual server navigation modes and burger persistence | blocked | Runtime UI work requires explicit approval for `NAV-APP-03` and `NAV-APP-04` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
-| T4.6.4 | Implement mobile top-level nav and workspace drawer behavior | blocked | Runtime UI work requires explicit approval for `NAV-APP-05` and `NAV-APP-06` in `docs/planning/navigation-implementation-plan.md`; keep plan-only until approval exists. |
 | T4.6.5 | Approve and implement server-channel optimistic send UI | blocked | Plan-only proposal exists in `docs/product/08-screen-state-spec.md`; implementation must wait for explicit user approval of flow, copy, controls, and behavior. |
 
 ## Suggested Sprint Sequencing
@@ -197,7 +196,7 @@ Week 6:
 - T4.3.3 after T4.3.2
 - T3.3.2 -> T4.3.4 for server/presence multi-device convergence
 - Finalize T4.4.1
-- After explicit approval, resume T4.6.1, T4.6.2, T4.6.3, and T4.6.4 navigation surfaces and persistence checks from the blocked follow-ups.
+- Complete T4.6.1, T4.6.2, T4.6.3, and T4.6.4 navigation surfaces and persistence checks using the approved navigation implementation plan.
 - Stabilization, load tests for chat fanout, iteration demo
 
 ## Iteration 2 Exit Checklist
@@ -233,14 +232,14 @@ Week 6:
 | Global `Contacts Hub` with search/filter/actions | T4.6.2 |
 | Top-level `Home/Servers/Contacts/Settings` navigation entries | T4.6.4 |
 | Sidebar + topbar tab navigation modes | T4.6.3 |
-| Saved tabs/folder organization and tab indicators | T4.6.3 |
-| Burger toggle state persistence (`expanded/collapsed/hidden`) | T4.6.3 |
+| Saved/pinned tabs, manual tab reorder, and tab indicators | T4.6.3 |
+| Explicit sidebar/topbar switch and sidebar collapse persistence | T4.6.3 |
 | Mobile tabbed switcher and workspace drawer behavior | T4.6.4 |
 
 ## Execution Notes
 
 - Keep event payload contracts explicit and synchronized with runtime behavior.
-- `T4.6.1` through `T4.6.4` implementation sequencing and the approval package live in `docs/planning/navigation-implementation-plan.md`; keep those tasks in blocked follow-ups until explicit user approval of flow, copy, controls, and behavior exists.
+- `T4.6.1` through `T4.6.4` implementation sequencing lives in `docs/planning/navigation-implementation-plan.md`; keep runtime behavior aligned with that approved plan and collect evidence before marking tasks done.
 - Record authorization decision logs for server-owner debugging.
 - Servers/message servers in the server-to-server network may store/fan out only E2EE DM envelopes and minimal delivery metadata.
 - DM plaintext and private keys must remain client/device-only.

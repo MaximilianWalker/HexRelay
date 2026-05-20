@@ -68,7 +68,7 @@ pub struct SeedCliOptions {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetCliOptions {
-    pub profile: String,
+    pub profile: Option<String>,
     pub fixtures_root: Option<PathBuf>,
     pub json: bool,
     pub yes: bool,
@@ -139,7 +139,7 @@ impl ResetCliOptions {
     where
         I: IntoIterator<Item = String>,
     {
-        let mut profile = DEFAULT_PROFILE.to_string();
+        let mut profile = None;
         let mut fixtures_root = None;
         let mut json = false;
         let mut yes = false;
@@ -148,9 +148,15 @@ impl ResetCliOptions {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--profile" | "-p" => {
-                    profile = args.next().ok_or_else(|| {
+                    let value = args.next().ok_or_else(|| {
                         DevSeedError::InvalidArgs("--profile requires a value".to_string())
                     })?;
+                    if value.trim().is_empty() {
+                        return Err(DevSeedError::InvalidArgs(
+                            "--profile must not be empty".to_string(),
+                        ));
+                    }
+                    profile = Some(value);
                 }
                 "--fixtures-root" => {
                     let value = args.next().ok_or_else(|| {
@@ -178,12 +184,6 @@ impl ResetCliOptions {
             }
         }
 
-        if profile.trim().is_empty() {
-            return Err(DevSeedError::InvalidArgs(
-                "--profile must not be empty".to_string(),
-            ));
-        }
-
         Ok(Self {
             profile,
             fixtures_root,
@@ -192,17 +192,17 @@ impl ResetCliOptions {
         })
     }
 
-    pub fn seed_options(&self) -> SeedCliOptions {
-        SeedCliOptions {
-            profile: self.profile.clone(),
+    pub fn seed_options(&self) -> Option<SeedCliOptions> {
+        self.profile.as_ref().map(|profile| SeedCliOptions {
+            profile: profile.clone(),
             fixtures_root: self.fixtures_root.clone(),
             json: self.json,
-        }
+        })
     }
 }
 
 pub fn reset_usage() -> &'static str {
-    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]\nOmit --profile to reset schema without seeding fixture data."
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -312,7 +312,7 @@ struct ServerFixture {
 #[derive(Clone, Debug, Deserialize)]
 struct ServerMembershipFixture {
     identity_id: String,
-    favorite: bool,
+    pinned: bool,
     muted: bool,
     unread_count: i32,
     joined_at: String,
@@ -1285,21 +1285,21 @@ async fn seed_server_membership(
         "
         INSERT INTO server_memberships (
             identity_id,
-            favorite,
+            pinned,
             muted,
             unread_count,
             joined_at
         )
         VALUES ($1, $2, $3, $4, $5::timestamptz)
         ON CONFLICT (identity_id) DO UPDATE
-        SET favorite = EXCLUDED.favorite,
+        SET pinned = EXCLUDED.pinned,
             muted = EXCLUDED.muted,
             unread_count = EXCLUDED.unread_count,
             joined_at = EXCLUDED.joined_at
         ",
     )
     .bind(&membership.identity_id)
-    .bind(membership.favorite)
+    .bind(membership.pinned)
     .bind(membership.muted)
     .bind(membership.unread_count)
     .bind(&membership.joined_at)
@@ -1701,10 +1701,10 @@ mod tests {
         assert_eq!(scenario.servers[0].name, "Atlas Test Server");
         assert_eq!(scenario.server_memberships.len(), 3);
         assert!(scenario.server_memberships.iter().any(|membership| {
-            membership.identity_id == "usr-test-alice" && membership.favorite && !membership.muted
+            membership.identity_id == "usr-test-alice" && membership.pinned && !membership.muted
         }));
         assert!(scenario.server_memberships.iter().any(|membership| {
-            membership.identity_id == "usr-test-carol" && !membership.favorite && membership.muted
+            membership.identity_id == "usr-test-carol" && !membership.pinned && membership.muted
         }));
 
         let general = scenario
@@ -1876,11 +1876,19 @@ mod tests {
             "--json".to_string(),
         ])
         .expect("parse reset options");
-        let seed_options = options.seed_options();
+        let seed_options = options.seed_options().expect("seed options exist");
 
         assert!(options.yes);
         assert_eq!(seed_options.profile, "dm-basic");
         assert!(seed_options.json);
+    }
+
+    #[test]
+    fn reset_defaults_to_no_seed_profile() {
+        let options = ResetCliOptions::parse(["--yes".to_string()]).expect("parse reset options");
+
+        assert!(options.yes);
+        assert_eq!(options.seed_options(), None);
     }
 
     #[tokio::test]

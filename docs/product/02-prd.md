@@ -15,7 +15,7 @@
 - Keep locked decisions in `docs/product/01-mvp-plan.md` and reference them here.
 - Keep dependency and risk status in `docs/product/04-dependencies-risks.md`.
 - `Status: ready` marks this PRD as canonical requirements authority; operational release readiness still depends on unresolved `watch` items in `docs/operations/readiness-corrections-log.md`.
-- Latest meaningful change: 2026-05-20 accepted the server authority model and locked friend-request-only Contacts behavior; Servers and Contacts navigation decisions remain in progress.
+- Latest meaningful change: 2026-05-20 accepted the server authority model and locked Iteration 2 navigation decisions for shared Servers/Contacts hubs, `Pinned` terminology, explicit desktop navigation controls, and no MVP navigation collections model.
 
 ## Product Summary
 
@@ -136,10 +136,10 @@ Build a communication stack where users and communities control identity, data l
 ### 6) Navigate Servers and Contacts at Scale
 
 1. User opens global `Servers` hub to browse all joined servers in searchable card or list layout.
-2. User can pin/favorite servers and group them into folders for sidebar ordering.
-3. User can switch server navigation mode between sidebar list/folders and topbar tabs (browser-like).
-4. User can save/pin topbar tabs and organize frequent destinations in folders.
-5. User can collapse sidebar navigation while focused in a server without a burger control.
+2. User can pin servers and contacts from shared hub actions.
+3. User can switch desktop server navigation mode between sidebar list and topbar tabs.
+4. User can save/pin topbar tabs and reorder them manually.
+5. User can collapse sidebar navigation while focused in a server through an explicit control.
 6. User opens global `Contacts` hub to browse DMs/friends in a searchable card/list view.
 7. User opens the selected server or DM context from hub cards.
 
@@ -202,8 +202,9 @@ Build a communication stack where users and communities control identity, data l
   - Server navigation must not rely on small circular icon rails as the primary pattern.
   - Global `Servers` and `Contacts` hubs are required and act as first-class navigation surfaces.
   - Server navigation must support both sidebar and topbar tab modes.
-  - Topbar navigation must support saved tabs and folder organization.
-  - Server workspace navigation must support explicit sidebar/topbar switching plus sidebar collapse without a burger control.
+  - Topbar navigation must support saved tabs, pinned tabs, and manual reorder.
+  - Server workspace navigation must support explicit sidebar/topbar switching plus sidebar collapse.
+  - Navigation collection management is out of MVP.
 - Server authority
   - One user-facing server maps to one separately runnable server runtime.
   - App-level multi-server views aggregate joined servers.
