@@ -12,6 +12,8 @@ import {
   killProcessTree,
   listenerPid,
   processCommandLine,
+  processName,
+  processParentPid,
   uniquePids,
   withCargoOnPath,
 } from "../lib/process.mjs";
@@ -30,6 +32,7 @@ import { removeManagedWebDistDir, startWebWithRetry } from "./local/web.mjs";
 const statePath = path.join(runDir, "runtime-state.json");
 const stopRequestPath = path.join(runDir, "runtime-stop-request.json");
 const defaultRealtimeInternalToken = "hexrelay-dev-channel-dispatch-token-change-me";
+const builtInRuntimeProfiles = ["single", "dual", "triple"];
 
 function stateHasLiveProcesses(state) {
   if (!state?.instances) {
@@ -59,16 +62,21 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
   const realtimeWsUrl = `ws://127.0.0.1:${realtimePort}/ws`;
   const allowedOrigins = `http://localhost:${webPort},http://127.0.0.1:${webPort}`;
   const logDir = path.join(runDir, instanceId);
+  const targetRoot = path.join(runDir, "targets", `${instanceId}-${process.pid}`);
+  const apiTargetDir = path.join(targetRoot, "api");
+  const realtimeTargetDir = path.join(targetRoot, "realtime");
   fs.mkdirSync(logDir, { recursive: true });
 
   const apiEnv = {
     ...baseApiEnv,
+    CARGO_TARGET_DIR: apiTargetDir,
     API_BIND: `127.0.0.1:${apiPort}`,
     API_REALTIME_BASE_URL: realtimeUrl,
     API_ALLOWED_ORIGINS: allowedOrigins,
   };
   const realtimeEnv = {
     ...baseRealtimeEnv,
+    CARGO_TARGET_DIR: realtimeTargetDir,
     REALTIME_BIND: `127.0.0.1:${realtimePort}`,
     REALTIME_API_BASE_URL: apiUrl,
     REALTIME_ALLOWED_ORIGINS: allowedOrigins,
@@ -84,8 +92,10 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     args: ["run", "-p", "api-rs", "--bin", "api-rs"],
     logDir,
   });
+  apiProcess.targetDir = apiTargetDir;
   startedProcesses.push(apiProcess);
   await waitFor(`${instanceId} api`, () => httpOk(`${apiUrl}/health`), {
+    attempts: 300,
     failureProbe: () => !isProcessAlive(apiProcess.child.pid),
     onFailure: () => writeStartupLogTail(`${instanceId} API`, apiProcess.stdoutPath, apiProcess.stderrPath),
   });
@@ -101,8 +111,10 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     args: ["run", "-p", "realtime-rs"],
     logDir,
   });
+  realtimeProcess.targetDir = realtimeTargetDir;
   startedProcesses.push(realtimeProcess);
   await waitFor(`${instanceId} realtime`, () => httpOk(`${realtimeUrl}/health`), {
+    attempts: 300,
     failureProbe: () => !isProcessAlive(realtimeProcess.child.pid),
     onFailure: () => writeStartupLogTail(`${instanceId} realtime`, realtimeProcess.stdoutPath, realtimeProcess.stderrPath),
   });
@@ -143,6 +155,10 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     realtimeLauncher: realtimeProcess.launcherPath,
     webLauncher: webProcess.launcherPath,
     webDistDir: `.next-${webDistId}`,
+    targetDirs: {
+      api: apiTargetDir,
+      realtime: realtimeTargetDir,
+    },
     apiUrl,
     realtimeUrl,
     realtimeWsUrl,
@@ -150,6 +166,21 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
     logDir,
     realtimeInternalToken: realtimeEnv.REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN || defaultRealtimeInternalToken,
   };
+}
+
+function removeRuntimeTargetDir(targetDir) {
+  if (!targetDir) {
+    return;
+  }
+  const targetRoot = path.resolve(runDir, "targets");
+  const resolved = path.resolve(targetDir);
+  if (!resolved.startsWith(`${targetRoot}${path.sep}`)) {
+    return;
+  }
+  try {
+    fs.rmSync(resolved, { recursive: true, force: true });
+  } catch {
+  }
 }
 
 async function stopStartedProcesses(startedProcesses) {
@@ -160,8 +191,92 @@ async function stopStartedProcesses(startedProcesses) {
     if (processInfo?.child?.pid) {
       await killProcessTree(processInfo.child.pid);
     }
+    removeRuntimeTargetDir(processInfo?.targetDir);
     removeManagedWebDistDir(processInfo?.webDistDir);
   }
+}
+
+function runtimeProfilesForOrphanScan(primaryProfile = null) {
+  const profiles = new Map();
+  if (primaryProfile) {
+    profiles.set(primaryProfile.profilePath || primaryProfile.name, primaryProfile);
+  }
+  for (const profileName of builtInRuntimeProfiles) {
+    const profile = readRuntimeProfile(profileName);
+    profiles.set(profile.profilePath || profile.name, profile);
+  }
+  return [...profiles.values()];
+}
+
+function listenerBelongsToLocalRuntime(service, pid) {
+  const commandLine = processCommandLine(pid);
+  if (commandLine.includes(root)) {
+    return true;
+  }
+  if (service === "api" || service === "realtime") {
+    return serviceProcessMatches(service, pid);
+  }
+  return false;
+}
+
+function cargoAncestorPids(pid) {
+  const ancestors = [];
+  let currentPid = pid;
+  for (let depth = 0; depth < 4; depth += 1) {
+    const parentPid = processParentPid(currentPid);
+    if (!parentPid) {
+      break;
+    }
+    const parentName = processName(parentPid).toLowerCase();
+    if (parentName !== "cargo.exe" && parentName !== "cargo") {
+      break;
+    }
+    ancestors.push(parentPid);
+    currentPid = parentPid;
+  }
+  return ancestors;
+}
+
+async function stopUntrackedRuntimeListeners(profiles, reason, options = {}) {
+  const stopped = [];
+  const seenPids = new Set();
+  const entries = [];
+  const log = options.json ? console.error : console.log;
+
+  for (const profile of profiles) {
+    for (const instance of profile.instances ?? []) {
+      entries.push({ instanceId: instance.id, service: "api", port: instance.apiPort });
+      entries.push({ instanceId: instance.id, service: "realtime", port: instance.realtimePort });
+      entries.push({ instanceId: instance.id, service: "web", port: instance.webPort });
+    }
+  }
+
+  for (const entry of entries) {
+    const pid = listenerPid(entry.port);
+    if (!pid || seenPids.has(pid) || !listenerBelongsToLocalRuntime(entry.service, pid)) {
+      continue;
+    }
+    seenPids.add(pid);
+    log(
+      `[local-runtime] Stopping untracked ${entry.service} listener on port ${entry.port} (pid=${pid}) before ${reason}.`,
+    );
+    const stoppedPids = [];
+    for (const candidatePid of uniquePids([pid, ...cargoAncestorPids(pid)])) {
+      if (await killProcessTree(candidatePid)) {
+        stoppedPids.push(candidatePid);
+      }
+    }
+    const stoppedEntry = { ...entry, pid, stopped: !isProcessAlive(pid), stoppedPids };
+    if (!stoppedEntry.stopped) {
+      const recovery = reason === "startup"
+        ? "startup will avoid its port and use isolated build output"
+        : "stop it from its owning shell or an elevated terminal if needed";
+      log(`[local-runtime] Could not stop ${entry.service} listener pid=${pid}; ${recovery}.`);
+    }
+    stopped.push(stoppedEntry);
+  }
+
+  return stopped;
 }
 
 export async function startCommand(rawArgs) {
@@ -190,6 +305,7 @@ export async function startCommand(rawArgs) {
     fs.rmSync(statePath, { force: true });
   }
   fs.rmSync(stopRequestPath, { force: true });
+  await stopUntrackedRuntimeListeners(runtimeProfilesForOrphanScan(profile), "startup");
 
   await startInfrastructure(infraEnv);
   runSeed(options.seedProfile, { ...infraEnv, ...apiEnv });
@@ -214,6 +330,8 @@ export async function startCommand(rawArgs) {
     await stopStartedProcesses(startedProcesses);
     for (const instance of state.instances) {
       removeManagedWebDistDir(instance.webDistDir);
+      removeRuntimeTargetDir(instance.targetDirs?.api);
+      removeRuntimeTargetDir(instance.targetDirs?.realtime);
     }
     fs.rmSync(statePath, { force: true });
     fs.rmSync(stopRequestPath, { force: true });
@@ -373,10 +491,29 @@ export async function stopCommand(rawArgs) {
   }
   const state = readJsonIfExists(statePath);
   if (!state) {
-    const result = { stopped: [], message: "no tracked local runtime is active" };
+    const profiles = options.runtimeProfile.trim()
+      ? [readRuntimeProfile(options.runtimeProfile)]
+      : runtimeProfilesForOrphanScan();
+    const stopped = await stopUntrackedRuntimeListeners(profiles, "stop", { json: options.json });
+    const stoppedCount = stopped.filter((entry) => entry.stopped).length;
+    const message = stopped.length === 0
+      ? "no tracked local runtime is active"
+      : stoppedCount === stopped.length
+        ? "stopped untracked local runtime listeners"
+        : "found untracked local runtime listeners but could not stop all of them";
+    const result = { stopped, message };
     fs.rmSync(stopRequestPath, { force: true });
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
+    } else if (stopped.length > 0) {
+      console.log(
+        stoppedCount === stopped.length
+          ? "[local-runtime] Stopped untracked local runtime listeners."
+          : "[local-runtime] Found untracked local runtime listeners but could not stop all of them.",
+      );
+      for (const entry of stopped) {
+        console.log(`  [${entry.instanceId}] ${entry.service} port=${entry.port} pid=${entry.pid} stopped=${entry.stopped}`);
+      }
     } else {
       console.log("[local-runtime] No tracked local runtime is active.");
     }
@@ -443,9 +580,25 @@ export async function stopCommand(rawArgs) {
       stopped.push({ instanceId: instance.id, service, pid: Number(pid), stopped: wasStopped, stoppedPids });
     }
   }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (stopped.every((entry) => !isProcessAlive(entry.pid))) {
+      break;
+    }
+    await delay(500);
+  }
+  for (const entry of stopped) {
+    if (!entry.stopped && !isProcessAlive(entry.pid)) {
+      entry.stopped = true;
+      entry.stoppedBySupervisor = true;
+    }
+  }
+
   fs.rmSync(statePath, { force: true });
   for (const instance of state.instances ?? []) {
     removeManagedWebDistDir(instance.webDistDir);
+    removeRuntimeTargetDir(instance.targetDirs?.api);
+    removeRuntimeTargetDir(instance.targetDirs?.realtime);
   }
   if (options.json) {
     console.log(JSON.stringify({ profile: state.profile, stopped }, null, 2));

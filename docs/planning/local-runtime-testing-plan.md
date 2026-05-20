@@ -319,6 +319,7 @@ npm run stop -- --runtime-profile dual
 
 - Each instance gets unique API, realtime, and web ports.
 - Each instance writes logs under `.local-run/<instance-id>/`.
+- Each host-process service builds into a per-run `.local-run/targets/` Cargo target directory so stale Windows process locks cannot block a new start.
 - Each instance prints its API, realtime, websocket, and web URLs.
 - Each web instance receives matching `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_REALTIME_WS_URL`.
 - Status commands report process IDs, health, ports, and active runtime profile.

@@ -123,6 +123,27 @@ export function processCommandLine(pid) {
   return result.status === 0 ? result.stdout.trim() : "";
 }
 
+export function processParentPid(pid) {
+  if (!isProcessAlive(pid)) {
+    return null;
+  }
+  if (isWindows) {
+    const command = `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${Number(pid)}" -ErrorAction SilentlyContinue; if ($p) { $p.ParentProcessId }`;
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
+      encoding: "utf8",
+      shell: false,
+    });
+    const parentPid = Number(result.stdout?.trim());
+    return result.status === 0 && Number.isInteger(parentPid) && parentPid > 0 ? parentPid : null;
+  }
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "ppid="], {
+    encoding: "utf8",
+    shell: false,
+  });
+  const parentPid = Number(result.stdout?.trim());
+  return result.status === 0 && Number.isInteger(parentPid) && parentPid > 0 ? parentPid : null;
+}
+
 export function processName(pid) {
   if (!isProcessAlive(pid)) {
     return "";
