@@ -13,7 +13,7 @@
 
 - Primary edit location for dependency status and risk severity/likelihood updates.
 - Record material register changes in `docs/planning/05-iteration-log.md`.
-- Latest meaningful change: 2026-05-20 added the accepted server-node authority decision and related schema-transition risk.
+- Latest meaningful change: 2026-05-20 recorded the destructive singleton server-node storage migration and updated the server-node authority regression risk.
 
 ## Purpose
 
@@ -48,14 +48,14 @@
 | R-007 | User identity or private-node scraping via discovery/friend workflows | high | medium | Enforce mediated friend requests, signed opt-in node descriptors, descriptor-scope validation, rate limits, denylists, and bootstrap release only on accepted requests | API |
 | R-008 | DM encrypted-envelope delivery leaks plaintext, private keys, or excess metadata through server nodes/message nodes | high | medium | Enforce ciphertext-only schemas, client-only decryption/key storage, minimal delivery metadata, 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, metadata-only rate limits, and CI guardrails that reject plaintext mailbox/relay semantics | Core/API/Security |
 | R-009 | Multi-device divergence where one profile device misses messages/events after delayed activation | high | medium | Enforce per-device cursor tracking, idempotent replay/dedupe contracts, active+late-device convergence tests, and backend realtime target summaries for queued/pending device outcomes | Core/Realtime |
-| R-010 | Transitional `servers`/`server_memberships` storage is mistaken for many independent servers inside one API runtime | high | medium | Treat one user-facing server as one node authority, scope API authorization to the connected node fingerprint, and schedule schema cleanup to converge server identity with node identity before Create/Join Server runtime expansion | Architecture/API |
+| R-010 | Regression reintroduces many independent user-facing servers inside one API runtime | high | low | Keep one user-facing server as one node authority, retain singleton `local_server` storage without `server_id` table partitioning, reject non-local API path server ids, and require multi-server app views to aggregate distinct node endpoints | Architecture/API |
 
 ## Review Cadence
 
 - Review at each iteration start and end.
 - Update severity/likelihood when evidence changes.
 - Link material changes in `docs/planning/05-iteration-log.md`.
-- Last reviewed: 2026-05-20 (added server-node authority decision and schema-transition risk).
+- Last reviewed: 2026-05-20 (updated after destructive singleton server-node storage migration).
 
 ## Risk to Task Mitigation Matrix
 
@@ -87,7 +87,7 @@
 | DEC-010 | Incoming communication must converge across all profile-linked devices (active fanout + late-device catch-up) for DM and server communication domains | accepted | `docs/product/01-mvp-plan.md` |
 | DEC-011 | Server-node P2P topology is a dynamic policy graph with no primary-server assumption; discovery, peering, relay, delivery, and storage permissions are separate | accepted | `docs/architecture/04-communication-networking-layer-plan.md` |
 | DEC-012 | DM delivery metadata retention is separate from canonical encrypted DM history; abuse controls are sender/device/node scoped and do not inspect plaintext | accepted | `docs/product/01-mvp-plan.md` |
-| DEC-013 | One user-facing server maps to one separately runnable server runtime/node authority; multi-server-in-one-API storage is transitional only | accepted | `docs/architecture/adr-0004-server-node-authority.md` |
+| DEC-013 | One user-facing server maps to one separately runnable server runtime/node authority; one API database stores only that node's singleton local-server state | accepted | `docs/architecture/adr-0004-server-node-authority.md` |
 
 ## Related Documents
 

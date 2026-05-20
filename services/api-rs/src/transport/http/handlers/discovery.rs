@@ -70,7 +70,6 @@ pub async fn list_discovery_users(
                     search.as_deref(),
                     limit,
                     &excluded_identity_ids,
-                    &state.node_fingerprint,
                 )
                 .await
             }
@@ -81,7 +80,6 @@ pub async fn list_discovery_users(
                     search.as_deref(),
                     limit,
                     &excluded_identity_ids,
-                    &state.node_fingerprint,
                 )
                 .await
             }
@@ -97,12 +95,11 @@ pub async fn list_discovery_users(
                 )
             })?;
 
-        let shared_counts =
-            discovery_repo::shared_server_counts(pool, &auth.identity_id, &state.node_fingerprint)
-                .await
-                .map_err(|_| {
-                    internal_error("storage_unavailable", "failed to list shared-server counts")
-                })?;
+        let shared_counts = discovery_repo::shared_server_counts(pool, &auth.identity_id)
+            .await
+            .map_err(|_| {
+                internal_error("storage_unavailable", "failed to list shared-server counts")
+            })?;
 
         let items = build_discovery_items(DiscoveryBuildInput {
             actor_identity_id: &auth.identity_id,

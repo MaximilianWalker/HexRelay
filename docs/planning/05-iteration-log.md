@@ -13,7 +13,7 @@
 
 - Primary edit location for project-level delivery changes across iterations.
 - Do not duplicate sprint task detail here; link to iteration boards when needed.
-- Latest meaningful change: 2026-05-20 locked the server-node authority model and aligned docs/contracts/runtime guardrails.
+- Latest meaningful change: 2026-05-20 added the destructive singleton server-node storage migration and removed the multi-server API database dimension.
 
 ## Purpose
 
@@ -30,13 +30,32 @@
 
 ## Log Entries
 
+### 2026-05-20 (singleton server-node storage cleanup)
+
+- Area affected: API database schema, server repository code, server-channel permissions/messages, dev seed fixtures, runtime REST contract, and server-node architecture docs.
+- Change summary:
+  - Added destructive migration `0026_single_server_node_authority` to replace the multi-server `servers` partition with one `local_server` singleton plus node-local membership/channel/role/message tables.
+  - Removed `server_id` from API repository storage helpers, server-channel permission checks, dev seed fixture schemas, and cross-server local DB tests.
+  - Kept API route `server_id` semantics as the connected node fingerprint and retained non-local path rejection.
+  - Updated architecture/product planning docs from "transitional schema cleanup pending" to "singleton local-server storage implemented."
+- Rationale:
+  - The approved model is one user-facing server per runtime/node authority. Keeping many server authorities inside one API database would preserve the centralized shape the architecture decision rejected.
+- Linked docs updated:
+  - `docs/architecture/adr-0004-server-node-authority.md`
+  - `docs/architecture/01-system-overview.md`
+  - `docs/product/01-mvp-plan.md`
+  - `docs/product/04-dependencies-risks.md`
+  - `docs/planning/navigation-implementation-plan.md`
+  - `docs/planning/local-runtime-testing-plan.md`
+  - `docs/contracts/runtime-rest.openapi.yaml`
+
 ### 2026-05-20 (server-node authority lock)
 
 - Area affected: Server architecture, server membership authorization, runtime REST contract, navigation planning, and Create/Join Server prerequisites.
 - Change summary:
   - Added `docs/architecture/adr-0004-server-node-authority.md` as the accepted authority that one user-facing server maps to one separately runnable server runtime/node.
   - Clarified that the user app can aggregate or supervise several server nodes, but it is not the authority for many unrelated servers inside one API database.
-  - Marked current `servers` and `server_memberships` storage as transitional local-node persistence until schema cleanup converges server identity with node identity.
+  - Initially marked `servers` and `server_memberships` storage as local-node persistence pending cleanup; the later singleton storage entry on this date supersedes that implementation caveat.
   - Scoped API-facing server membership and directory semantics to the connected node fingerprint.
 - Rationale:
   - The previous scaffold could be read as a centralized many-servers-in-one-API model, which conflicts with the self-hostable/decentralized product model the user approved.

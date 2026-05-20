@@ -13,7 +13,7 @@
 
 - Purpose: provide one canonical runtime topology and trust-boundary overview for the current HexRelay system.
 - Primary edit location: update this file when runtime topology, component responsibilities, or trust boundaries change.
-- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime/node authority and marked multi-server-in-one-API storage as transitional only.
+- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime/node authority and implemented singleton local-server API storage.
 
 ## Purpose
 
@@ -174,7 +174,7 @@ Detailed authority:
 
 Current watch items and deferred caveats:
 - `docs/operations/readiness-corrections-log.md`
-- Transitional implementation caveat: current `servers` and `server_memberships` tables still exist as local-node persistence scaffolding, but the canonical authority model is one user-facing server per server runtime/node. See `docs/architecture/adr-0004-server-node-authority.md`.
+- The API database now uses singleton local-server storage (`local_server` plus node-local membership/channel/role/message tables). One API runtime is one server/node authority; multi-server app views must aggregate distinct node endpoints. See `docs/architecture/adr-0004-server-node-authority.md`.
 
 ## Detailed Authorities
 

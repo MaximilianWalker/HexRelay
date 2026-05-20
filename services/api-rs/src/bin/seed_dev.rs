@@ -37,14 +37,7 @@ async fn run() -> Result<(), DevSeedError> {
         })?;
 
     let pool = connect_and_prepare(&config.database_url).await?;
-    let summary = seed_profile(
-        &pool,
-        &options,
-        &config.active_signing_key_id,
-        signing_key,
-        &config.node_fingerprint,
-    )
-    .await?;
+    let summary = seed_profile(&pool, &options, &config.active_signing_key_id, signing_key).await?;
 
     if options.json {
         println!("{}", serde_json::to_string_pretty(&summary)?);

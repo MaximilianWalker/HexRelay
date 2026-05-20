@@ -65,7 +65,7 @@ Status: in progress. These decisions were made during the 2026-05-20 UX planning
 - The user app may spawn local server instances for convenience, but each spawned server acts as its own server runtime/node with separate identity and state.
 - Two servers hosted on the same machine should still behave as distinct server instances/nodes.
 - A server invite should feel like a server join: redeeming it should make the user belong to that server and make the server appear in the Servers Hub.
-- Current `servers` / `server_memberships` storage is transitional local-node persistence, not the final authority model for hosting many servers in one API runtime.
+- Current API storage uses one `local_server` singleton and node-local membership/channel/role/message tables; it is not a many-servers-in-one-runtime model.
 - Canonical authority: `docs/architecture/adr-0004-server-node-authority.md`.
 
 ### Architecture Reconfirmation Result
@@ -76,7 +76,7 @@ Status: accepted as of 2026-05-20. The architecture now explicitly matches the s
 - Matches user direction: `docs/architecture/adr-0002-runtime-deployment-modes.md` keeps service boundaries explicit and treats dedicated server runtime as a separate headless service/package managed through the normal app.
 - Matches user direction: `docs/architecture/01-system-overview.md` makes node-authoritative state live behind API/realtime services and says clients attach to nodes.
 - Matches user direction: `docs/reference/glossary.md` now defines `Server` as a user-facing community backed by one node authority.
-- Transitional caveat: the current API schema still has `servers` and `server_memberships` rows inside one API database. Runtime authorization and directory listing are scoped to the local node fingerprint until schema cleanup converges this with node identity.
+- Schema status: the current API schema has no multi-server `server_id` partition. Runtime authorization and directory listing are scoped to the local node fingerprint and singleton local-server storage.
 - Implementation implication: Create/Join Server runtime work must provision/connect server runtimes and persist app-level connection state; it must not add a user-facing flow that creates many independent servers in one API database.
 
 ## Source Authorities

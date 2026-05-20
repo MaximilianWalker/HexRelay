@@ -9,36 +9,7 @@ async fn lists_servers_with_filters_from_persisted_memberships() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        TEST_NODE_FINGERPRINT,
-        "Atlas Core",
-        &identity_id,
-        true,
-        false,
-        2,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-relay-lab",
-        "Relay Lab",
-        &identity_id,
-        false,
-        true,
-        0,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-dev-signals",
-        "Dev Signals",
-        &identity_id,
-        true,
-        false,
-        5,
-    )
-    .await;
+    seed_server_membership(&pool, "Atlas Core", &identity_id, true, false, 2).await;
 
     let request = Request::builder()
         .method("GET")
@@ -77,46 +48,7 @@ async fn lists_servers_for_authenticated_identity_only() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        TEST_NODE_FINGERPRINT,
-        "Atlas Core",
-        &nora_id,
-        true,
-        false,
-        2,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-shared-lab",
-        "Shared Lab",
-        &nora_id,
-        false,
-        false,
-        1,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-shared-lab",
-        "Shared Lab",
-        &alex_id,
-        false,
-        false,
-        0,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-alex-craft",
-        "Alex Craft",
-        &alex_id,
-        true,
-        false,
-        1,
-    )
-    .await;
+    seed_server_membership(&pool, "Atlas Core", &nora_id, true, false, 2).await;
 
     let nora_request = Request::builder()
         .method("GET")
@@ -162,17 +94,9 @@ async fn lists_servers_for_authenticated_identity_only() {
     assert!(nora_payload
         .items
         .iter()
-        .all(|item| item["id"] != "srv-alex-craft"));
-    assert!(nora_payload
-        .items
-        .iter()
-        .all(|item| item["id"] != "srv-shared-lab"));
+        .all(|item| item["id"] == TEST_NODE_FINGERPRINT));
 
     assert!(alex_payload.items.is_empty());
-    assert!(alex_payload
-        .items
-        .iter()
-        .all(|item| item["id"] != TEST_NODE_FINGERPRINT));
 }
 
 #[tokio::test]

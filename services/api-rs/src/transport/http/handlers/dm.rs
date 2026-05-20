@@ -1268,7 +1268,6 @@ async fn dm_interaction_policy_decision(
                     pool,
                     sender_identity_id,
                     recipient_identity_id,
-                    &state.node_fingerprint,
                 )
                 .await
                 .map_err(|_| {

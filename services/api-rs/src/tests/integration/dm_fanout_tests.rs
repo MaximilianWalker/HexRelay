@@ -1716,26 +1716,8 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
     };
     let message_id = unique_message_id("msg-shared-server");
 
-    seed_server_membership(
-        &pool,
-        TEST_NODE_FINGERPRINT,
-        "Shared Lab",
-        sender.as_str(),
-        false,
-        false,
-        0,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        TEST_NODE_FINGERPRINT,
-        "Shared Lab",
-        recipient.as_str(),
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Shared Lab", sender.as_str(), false, false, 0).await;
+    seed_server_membership(&pool, "Shared Lab", recipient.as_str(), false, false, 0).await;
 
     let policy_request = Request::builder()
         .method("POST")

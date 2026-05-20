@@ -104,6 +104,10 @@ const MIGRATIONS: &[Migration] = &[
         "0025_server_roles_and_channel_permissions",
         include_str!("../migrations/0025_server_roles_and_channel_permissions.sql"),
     ),
+    (
+        "0026_single_server_node_authority",
+        include_str!("../migrations/0026_single_server_node_authority.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {

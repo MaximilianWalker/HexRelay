@@ -52,7 +52,7 @@
 - Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
 - Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-node`/`bob-node` network targets and Toxiproxy inter-node links.
-- API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `servers`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, and `server_channel_messages`.
+- API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `local_server`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, `server_roles`, and `server_channel_messages`.
 - Web personas currently live in browser local/session storage through `apps/web/lib/personas.ts` and `apps/web/lib/sessions.ts`.
 - Backend DM history, policy, fanout, catch-up, and profile-device APIs exist; the browser DM route exists, while full end-to-end client encryption remains incremental.
 - The DM envelope delivery guardrail is active and must not be weakened by testing features: message nodes may carry/store ciphertext envelopes only, while plaintext and private keys remain client/device-only.

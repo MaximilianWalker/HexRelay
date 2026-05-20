@@ -406,8 +406,6 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     let actor = unique_identity("usr-discovery-shared-actor");
     let shared_peer = unique_identity("usr-discovery-shared-peer");
     let other_user = unique_identity("usr-discovery-shared-other");
-    let shared_server = TEST_NODE_FINGERPRINT.to_string();
-    let other_server = unique_identity("srv-other");
 
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&actor, &shared_peer, &other_user]).await
@@ -425,18 +423,9 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     .await
     .expect("insert persisted relationship");
 
-    seed_server_membership(&pool, &shared_server, "Shared", &actor, false, false, 0).await;
-    seed_server_membership(
-        &pool,
-        &shared_server,
-        "Shared",
-        &shared_peer,
-        false,
-        false,
-        0,
-    )
-    .await;
-    seed_server_membership(&pool, &other_server, "Other", &other_user, false, false, 0).await;
+    seed_server_membership(&pool, "Shared", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "Shared", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, "Other", &other_user, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -463,15 +452,14 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 async fn discovery_trims_scope_before_enum_validation() {
     let actor = unique_identity("usr-discovery-trim-actor");
     let shared_peer = unique_identity("usr-discovery-trim-peer");
-    let server_id = TEST_NODE_FINGERPRINT.to_string();
 
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
     else {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "Trimmed", &actor, false, false, 0).await;
-    seed_server_membership(&pool, &server_id, "Trimmed", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, "Trimmed", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "Trimmed", &shared_peer, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")

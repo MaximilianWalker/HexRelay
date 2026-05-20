@@ -85,7 +85,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - 2026-05-11: Added T4.1.8 backend retention and abuse controls for encrypted-envelope delivery metadata: 30-day fanout metadata retention, 7-day outbound forwarding metadata retention, and per-sender/device/node rate limits without plaintext inspection.
 - 2026-05-11: Added T4.1.9 backend realtime dispatch summaries for encrypted DM active-device fanout; summaries classify target-device routing outcomes but final delivery remains recipient-device ack-backed and no UX changes were introduced.
 - 2026-05-20: Recorded in-progress Iteration 2 UX decisions that Servers and Contacts hubs share card/list layouts, shared filters, selection, and action-menu behavior, while desktop navigation uses sidebar/topbar switching plus collapse controls without a burger control.
-- 2026-05-20: Locked the server-node authority decision: one user-facing server equals one separately runnable server runtime/node authority; current multi-server-in-one-API storage is transitional scaffolding only.
+- 2026-05-20: Locked the server-node authority decision and aligned API storage: one user-facing server equals one separately runnable server runtime/node authority, backed by singleton local-server storage inside one API database.
 
 ## 1.3) Runtime and Deployment Modes (Locked)
 
@@ -120,7 +120,7 @@ HexRelay is an open-source, Discord-like communication platform built for user c
 - Redis: presence, ephemeral state, fanout cache.
 - S3-compatible storage: media blobs.
 - WebRTC + coturn: voice/call media path.
-- Server/node identity: one server authority per runtime node; transitional `servers` rows represent the connected local node's own server state until schema cleanup converges naming.
+- Server/node identity: one server authority per runtime node; API storage uses one `local_server` singleton with node-local membership/channel/role/message tables.
 
 ## 3) MVP Functional Scope
 

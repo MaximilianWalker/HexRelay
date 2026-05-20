@@ -53,7 +53,6 @@ pub async fn list_server_channel_messages(
 
     let mut items = server_channels_repo::list_server_channel_messages(
         pool,
-        &channel_membership.server_id,
         &channel_membership.channel_id,
         cursor,
         limit,
@@ -100,13 +99,10 @@ pub async fn list_server_channels(
         )
     })?;
 
-    let items = server_channels_repo::list_server_channels_for_identity(
-        pool,
-        &membership.server_id,
-        &membership.identity_id,
-    )
-    .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to list server channels"))?;
+    let items =
+        server_channels_repo::list_server_channels_for_identity(pool, &membership.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to list server channels"))?;
 
     Ok(Json(ServerChannelListResponse { items }))
 }
@@ -140,7 +136,6 @@ pub async fn create_server_channel_message(
     let message = server_channels_repo::create_server_channel_message(
         pool,
         server_channels_repo::CreateServerChannelMessageParams {
-            server_id: server_id.clone(),
             channel_id,
             message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
             author_id,
@@ -191,7 +186,6 @@ pub async fn edit_server_channel_message(
     let result = server_channels_repo::update_server_channel_message(
         pool,
         server_channels_repo::UpdateServerChannelMessageParams {
-            server_id: server_id.clone(),
             channel_id,
             message_id: message_id.clone(),
             author_id: channel_membership.identity_id.clone(),
@@ -261,7 +255,6 @@ pub async fn soft_delete_server_channel_message(
     let deleted_at = current_timestamp();
     let result = server_channels_repo::soft_delete_server_channel_message(
         pool,
-        &server_id,
         &channel_id,
         &message_id,
         &channel_membership.identity_id,
@@ -305,8 +298,7 @@ async fn notify_channel_message_created(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
-    {
+    let recipients = match list_server_event_recipients(pool, &message.channel_id).await {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -338,8 +330,7 @@ async fn notify_channel_message_updated(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
-    {
+    let recipients = match list_server_event_recipients(pool, &message.channel_id).await {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -375,8 +366,7 @@ async fn notify_channel_message_deleted(
     server_id: &str,
     message: &ServerChannelMessage,
 ) {
-    let recipients = match list_server_event_recipients(pool, server_id, &message.channel_id).await
-    {
+    let recipients = match list_server_event_recipients(pool, &message.channel_id).await {
         Ok(value) => value,
         Err(error) => {
             warn!(server_id = %server_id, channel_id = %message.channel_id, message_id = %message.message_id, error = %error, "failed to load server channel event recipients");
@@ -408,13 +398,9 @@ async fn notify_channel_message_deleted(
 
 async fn list_server_event_recipients(
     pool: &sqlx::PgPool,
-    server_id: &str,
     channel_id: &str,
 ) -> Result<Vec<String>, sqlx::Error> {
-    server_channels_repo::list_server_channel_event_recipient_identity_ids(
-        pool, server_id, channel_id,
-    )
-    .await
+    server_channels_repo::list_server_channel_event_recipient_identity_ids(pool, channel_id).await
 }
 
 async fn require_channel_send_permission(
@@ -425,7 +411,6 @@ async fn require_channel_send_permission(
 ) -> ApiResult<()> {
     let can_send = server_channels_repo::identity_has_server_channel_permission(
         pool,
-        server_id,
         channel_id,
         identity_id,
         ServerChannelPermission::Send,

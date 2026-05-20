@@ -6,27 +6,16 @@ async fn rejects_server_channel_message_create_for_non_member_author_in_repo() {
         return;
     };
 
-    let server_id = unique_identity("srv-repo-create");
     let channel_id = unique_identity("chan-repo-create");
     let member_id = unique_identity("usr-repo-member");
     let outsider_id = unique_identity("usr-repo-outsider");
 
-    seed_server_membership(
-        &pool,
-        &server_id,
-        "Repo Create",
-        &member_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Repo Create", &member_id, false, false, 0).await;
     ensure_db_identity_key(&pool, &outsider_id).await;
     server_channels_repo::insert_server_channel(
         &pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id: &channel_id,
-            server_id: &server_id,
             name: "general",
             kind: "text",
         },
@@ -37,7 +26,6 @@ async fn rejects_server_channel_message_create_for_non_member_author_in_repo() {
     let result = server_channels_repo::create_server_channel_message(
         &pool,
         server_channels_repo::CreateServerChannelMessageParams {
-            server_id: server_id.clone(),
             channel_id: channel_id.clone(),
             message_id: format!("scm-{}", uuid::Uuid::new_v4().simple()),
             author_id: outsider_id.clone(),
@@ -61,14 +49,12 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
         return;
     };
 
-    let server_id = unique_identity("srv-repo-delete");
     let channel_id = unique_identity("chan-repo-delete");
     let author_id = unique_identity("usr-repo-delete-author");
     let message_id = format!("scm-delete-repo-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
-        &server_id,
         "Repo Delete",
         &channel_id,
         "general",
@@ -87,8 +73,7 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
     )
     .await;
 
-    sqlx::query("DELETE FROM server_memberships WHERE server_id = $1 AND identity_id = $2")
-        .bind(&server_id)
+    sqlx::query("DELETE FROM server_memberships WHERE identity_id = $1")
         .bind(&author_id)
         .execute(&pool)
         .await
@@ -96,7 +81,6 @@ async fn rejects_server_channel_message_delete_for_removed_member_in_repo() {
 
     let result = server_channels_repo::soft_delete_server_channel_message(
         &pool,
-        &server_id,
         &channel_id,
         &message_id,
         &author_id,

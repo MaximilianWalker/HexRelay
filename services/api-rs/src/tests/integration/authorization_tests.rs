@@ -11,7 +11,7 @@ async fn gets_server_detail_for_authenticated_member_only() {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "Authz", &member_id, true, false, 3).await;
+    seed_server_membership(&pool, "Authz", &member_id, true, false, 3).await;
 
     let member_request = Request::builder()
         .method("GET")
@@ -69,21 +69,11 @@ async fn lists_server_channels_for_authenticated_member_only() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &server_id,
-        "Authz Channels",
-        &member_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Authz Channels", &member_id, false, false, 0).await;
     server_channels_repo::insert_server_channel(
         &pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id: &channel_a,
-            server_id: &server_id,
             name: "general",
             kind: "text",
         },
@@ -94,7 +84,6 @@ async fn lists_server_channels_for_authenticated_member_only() {
         &pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id: &channel_b,
-            server_id: &server_id,
             name: "random",
             kind: "text",
         },
@@ -159,16 +148,7 @@ async fn lists_empty_server_channel_collection_for_member() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &server_id,
-        "Empty Channels",
-        &member_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Empty Channels", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -198,16 +178,7 @@ async fn channel_listing_honors_configured_role_read_permissions() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &server_id,
-        "Role Filter",
-        &member_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Role Filter", &member_id, false, false, 0).await;
     for (channel_id, name) in [
         (&readable_channel_id, "visible"),
         (&hidden_channel_id, "hidden"),
@@ -216,7 +187,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
             &pool,
             server_channels_repo::ServerChannelInsertParams {
                 channel_id,
-                server_id: &server_id,
                 name,
                 kind: "text",
             },
@@ -228,7 +198,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &role_id,
-            server_id: &server_id,
             name: "reader",
             rank: 1,
         },
@@ -238,7 +207,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
     server_channels_repo::assign_server_membership_role(
         &pool,
         server_channels_repo::ServerMembershipRoleInsertParams {
-            server_id: &server_id,
             identity_id: &member_id,
             role_id: &role_id,
         },
@@ -248,7 +216,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &readable_channel_id,
             role_id: &role_id,
             can_read: true,
@@ -261,7 +228,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &hidden_channel_id,
             role_id: &role_id,
             can_read: false,
@@ -298,106 +264,6 @@ async fn channel_listing_honors_configured_role_read_permissions() {
 }
 
 #[tokio::test]
-async fn server_role_assignment_is_scoped_to_matching_server_membership() {
-    let Some(pool) = prepared_database_pool().await else {
-        return;
-    };
-    let member_id = unique_identity("usr-cross-role-member");
-    let server_a = format!("srv-cross-role-a-{}", uuid::Uuid::new_v4().simple());
-    let server_b = format!("srv-cross-role-b-{}", uuid::Uuid::new_v4().simple());
-    let role_b = format!("role-cross-b-{}", uuid::Uuid::new_v4().simple());
-
-    seed_server_membership(&pool, &server_a, "Role A", &member_id, false, false, 0).await;
-    seed_server_membership(&pool, &server_b, "Role B", &member_id, false, false, 0).await;
-    server_channels_repo::insert_server_role(
-        &pool,
-        server_channels_repo::ServerRoleInsertParams {
-            role_id: &role_b,
-            server_id: &server_b,
-            name: "server-b-role",
-            rank: 1,
-        },
-    )
-    .await
-    .expect("insert server B role");
-
-    let duplicate_role_error = server_channels_repo::insert_server_role(
-        &pool,
-        server_channels_repo::ServerRoleInsertParams {
-            role_id: &role_b,
-            server_id: &server_a,
-            name: "mis-scoped-role",
-            rank: 2,
-        },
-    )
-    .await
-    .expect_err("role_id reuse across servers should fail");
-    assert!(duplicate_role_error
-        .to_string()
-        .contains("role_id already belongs to a different server"));
-
-    let error = server_channels_repo::assign_server_membership_role(
-        &pool,
-        server_channels_repo::ServerMembershipRoleInsertParams {
-            server_id: &server_a,
-            identity_id: &member_id,
-            role_id: &role_b,
-        },
-    )
-    .await
-    .expect_err("cross-server role assignment should fail");
-
-    let db_error = error
-        .as_database_error()
-        .expect("cross-server role assignment should return database error");
-    assert_eq!(
-        db_error.constraint(),
-        Some("server_membership_roles_role_fk")
-    );
-}
-
-#[tokio::test]
-async fn rejects_server_channel_message_list_when_channel_belongs_to_different_server() {
-    let member_id = unique_identity("usr-cross-server-member");
-    let server_a = TEST_NODE_FINGERPRINT.to_string();
-    let server_b = format!("srv-cross-b-{}", uuid::Uuid::new_v4().simple());
-    let channel_b = format!("chn-cross-b-{}", uuid::Uuid::new_v4().simple());
-    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
-        return;
-    };
-
-    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
-    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
-    server_channels_repo::insert_server_channel(
-        &pool,
-        server_channels_repo::ServerChannelInsertParams {
-            channel_id: &channel_b,
-            server_id: &server_b,
-            name: "random",
-            kind: "text",
-        },
-    )
-    .await
-    .expect("insert server B channel");
-
-    let request = Request::builder()
-        .method("GET")
-        .uri(format!("/servers/{server_a}/channels/{channel_b}/messages"))
-        .header("authorization", format!("Bearer {}", tokens[&member_id]))
-        .body(Body::empty())
-        .expect("build mismatched request");
-
-    let response = app.oneshot(request).await.expect("mismatched response");
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
-
-    let body = to_bytes(response.into_body(), usize::MAX)
-        .await
-        .expect("read mismatched response body");
-    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
-    assert_eq!(payload["code"], "server_access_denied");
-}
-
-#[tokio::test]
 async fn gets_server_detail_for_cookie_authenticated_member_only() {
     let member_id = unique_identity("usr-cookie-member");
     let outsider_id = unique_identity("usr-cookie-outsider");
@@ -408,16 +274,7 @@ async fn gets_server_detail_for_cookie_authenticated_member_only() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &server_id,
-        "Cookie Auth",
-        &member_id,
-        false,
-        false,
-        2,
-    )
-    .await;
+    seed_server_membership(&pool, "Cookie Auth", &member_id, false, false, 2).await;
 
     let member_request = Request::builder()
         .method("GET")
@@ -455,33 +312,13 @@ async fn forbids_server_detail_bypass_via_path_switch() {
     let member_id = unique_identity("usr-bypass-member");
     let outsider_id = unique_identity("usr-bypass-outsider");
     let member_server_id = TEST_NODE_FINGERPRINT.to_string();
-    let outsider_server_id = format!("srv-outsider-only-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&member_id, &outsider_id]).await
     else {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &member_server_id,
-        "Member Only",
-        &member_id,
-        false,
-        false,
-        1,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        &outsider_server_id,
-        "Outsider Only",
-        &outsider_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Member Only", &member_id, false, false, 1).await;
 
     let bypass_request = Request::builder()
         .method("GET")
@@ -508,7 +345,7 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "Authz Reuse", &member_id, false, true, 4).await;
+    seed_server_membership(&pool, "Authz Reuse", &member_id, false, true, 4).await;
 
     let request = Request::builder()
         .method("GET")
@@ -532,13 +369,11 @@ async fn server_detail_authorization_survives_auth_reuse_in_handler() {
 async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
     let member_id = unique_identity("usr-list-scope");
     let server_a = TEST_NODE_FINGERPRINT.to_string();
-    let server_b = format!("srv-scope-b-{}", uuid::Uuid::new_v4().simple());
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(&pool, &server_a, "Scope A", &member_id, true, false, 1).await;
-    seed_server_membership(&pool, &server_b, "Scope B", &member_id, false, true, 0).await;
+    seed_server_membership(&pool, "Scope A", &member_id, true, false, 1).await;
 
     let bearer_request = Request::builder()
         .method("GET")
@@ -587,7 +422,6 @@ async fn lists_servers_with_same_identity_scope_for_cookie_and_bearer_auth() {
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(ids.len(), 1);
     assert!(ids.contains(server_a.as_str()));
-    assert!(!ids.contains(server_b.as_str()));
 }
 
 #[tokio::test]
@@ -598,16 +432,7 @@ async fn forbids_member_access_to_non_local_server_id() {
         return;
     };
 
-    seed_server_membership(
-        &pool,
-        &non_local_server_id,
-        "Non Local",
-        &member_id,
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Non Local", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -629,12 +454,11 @@ async fn forbids_member_access_to_non_local_server_id() {
 #[tokio::test]
 async fn rejects_server_list_without_authentication() {
     let member_id = unique_identity("usr-list-unauth");
-    let server_id = format!("srv-list-authz-{}", uuid::Uuid::new_v4().simple());
     let Some((app, _, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "List Authz", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, "List Authz", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
@@ -649,12 +473,12 @@ async fn rejects_server_list_without_authentication() {
 #[tokio::test]
 async fn rejects_server_detail_without_authentication() {
     let member_id = unique_identity("usr-detail-unauth");
-    let server_id = format!("srv-authz-{}", uuid::Uuid::new_v4().simple());
+    let server_id = TEST_NODE_FINGERPRINT.to_string();
     let Some((app, _, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "Authz", &member_id, false, false, 0).await;
+    seed_server_membership(&pool, "Authz", &member_id, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")

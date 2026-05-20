@@ -44,7 +44,6 @@ async fn run() -> Result<(), DevSeedError> {
         &seed_options,
         &config.active_signing_key_id,
         signing_key,
-        &config.node_fingerprint,
     )
     .await?;
 

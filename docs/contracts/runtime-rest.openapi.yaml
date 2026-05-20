@@ -812,7 +812,7 @@ paths:
   /servers:
     get:
       summary: List servers for authenticated identity
-      description: Returns the connected node/server summary for the authenticated identity when that identity has local membership. The app may aggregate multiple joined server nodes across endpoints, but one API runtime only authorizes its own node fingerprint as the server id. The backing `servers` and `server_memberships` rows are transitional local-node persistence, not a many-servers-inside-one-runtime authority model.
+      description: Returns the connected node/server summary for the authenticated identity when that identity has local membership. The app may aggregate multiple joined server nodes across endpoints, but one API runtime only authorizes its own node fingerprint as the server id. Backing storage is the singleton `local_server` plus node-local membership/channel/role/message tables, not many server authorities inside one runtime database.
       security:
         - CookieAuth: []
         - BearerAuth: []

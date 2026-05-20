@@ -386,7 +386,6 @@ async fn issue_db_session_cookie(
 
 async fn seed_server_membership(
     pool: &sqlx::PgPool,
-    server_id: &str,
     name: &str,
     identity_id: &str,
     favorite: bool,
@@ -395,14 +394,13 @@ async fn seed_server_membership(
 ) {
     ensure_db_identity_key(pool, identity_id).await;
 
-    servers_repo::insert_server(pool, servers_repo::ServerInsertParams { server_id, name })
+    servers_repo::insert_server(pool, servers_repo::ServerInsertParams { name })
         .await
         .expect("insert server");
 
     servers_repo::insert_server_membership(
         pool,
         servers_repo::ServerMembershipInsertParams {
-            server_id,
             identity_id,
             favorite,
             muted,
@@ -473,7 +471,6 @@ async fn seed_dm_thread(
 
 async fn seed_server_channel(
     pool: &sqlx::PgPool,
-    server_id: &str,
     server_name: &str,
     channel_id: &str,
     channel_name: &str,
@@ -481,14 +478,13 @@ async fn seed_server_channel(
     messages: &[SeedServerChannelMessage<'_>],
 ) {
     for identity_id in member_identity_ids {
-        seed_server_membership(pool, server_id, server_name, identity_id, false, false, 0).await;
+        seed_server_membership(pool, server_name, identity_id, false, false, 0).await;
     }
 
     server_channels_repo::insert_server_channel(
         pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id,
-            server_id,
             name: channel_name,
             kind: "text",
         },

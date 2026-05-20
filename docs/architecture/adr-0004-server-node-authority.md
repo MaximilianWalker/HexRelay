@@ -13,7 +13,7 @@
 
 - Primary decision authority for the relationship between a user-facing HexRelay server, server runtime, node identity, and local data boundary.
 - Update this ADR when server creation, invite redemption, node identity, or server membership storage semantics change.
-- Latest meaningful change: 2026-05-20 locked the user-facing server model to one separately runnable server runtime/node authority.
+- Latest meaningful change: 2026-05-20 added the destructive singleton server-node storage migration and removed the multi-server API database dimension.
 
 ## Status
 
@@ -34,7 +34,7 @@ The project already has node identity, node descriptors, dedicated-server packag
 - Server invites target a node endpoint plus node fingerprint. Redeeming an invite creates membership in that specific server node.
 - The Servers Hub is an app aggregation surface over joined server nodes. It must not imply that one API runtime owns all listed servers.
 - The Contacts Hub is a user/contact aggregation surface. Contacts and servers should share UX patterns where approved, but they do not share authority semantics.
-- Current `servers` and `server_memberships` tables are transitional local-node persistence for the connected node's own server identity and memberships. They are not the target design for hosting many independent user-facing servers inside one API database.
+- The API database stores one local server authority in `local_server` and node-local membership/channel/role/message tables without a `server_id` partition. API path `server_id` values identify the connected node/server fingerprint, not a row-owned server namespace.
 - Runtime API routes that carry `server_id` must treat it as the connected node/server identity. Requests for a different server id belong to another node endpoint.
 
 ## Consequences
@@ -42,8 +42,7 @@ The project already has node identity, node descriptors, dedicated-server packag
 - Server creation from the app must create or provision a server runtime/node, not only insert a row into the current user's app database.
 - Server join must bind membership to the joined node identity and endpoint.
 - Multi-server desktop convenience is implemented by supervising multiple node runtimes or connecting to multiple node endpoints, each with its own state boundary.
-- Tests may still use multiple `server_id` values for repository-level relational integrity checks, but API-facing membership authorization must not allow one local API runtime to impersonate many server authorities.
-- Future schema cleanup should converge `server_id` and local node identity, or replace transitional server rows with explicit node-local membership state.
+- Tests and fixtures must not seed multiple server authorities into one API database. Cross-server behavior belongs to multi-node/runtime integration, not local repository fixtures.
 - Import/export and migration flows must distinguish user/app connection state from node-owned server data.
 - Operator controls remain node-owned and permission-gated through authenticated app-to-node APIs.
 

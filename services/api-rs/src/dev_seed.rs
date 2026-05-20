@@ -306,14 +306,12 @@ struct InviteFixture {
 
 #[derive(Clone, Debug, Deserialize)]
 struct ServerFixture {
-    server_id: String,
     name: String,
     created_at: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct ServerMembershipFixture {
-    server_id: String,
     identity_id: String,
     favorite: bool,
     muted: bool,
@@ -324,7 +322,6 @@ struct ServerMembershipFixture {
 #[derive(Clone, Debug, Deserialize)]
 struct ServerChannelFixture {
     channel_id: String,
-    server_id: String,
     name: String,
     kind: String,
     last_message_seq: u64,
@@ -482,50 +479,13 @@ pub async fn seed_profile(
     options: &SeedCliOptions,
     active_signing_key_id: &str,
     signing_key: &str,
-    local_server_id: &str,
 ) -> Result<SeedSummary, DevSeedError> {
-    let scenario = bind_scenario_to_local_server(load_scenario(options)?, local_server_id)?;
+    let scenario = load_scenario(options)?;
     seed_scenario(pool, scenario, active_signing_key_id, signing_key).await
 }
 
 pub fn validate_seed_profile(options: &SeedCliOptions) -> Result<(), DevSeedError> {
     load_scenario(options).map(|_| ())
-}
-
-fn bind_scenario_to_local_server(
-    mut scenario: SeedScenario,
-    local_server_id: &str,
-) -> Result<SeedScenario, DevSeedError> {
-    let local_server_id = local_server_id.trim();
-    if local_server_id.is_empty() {
-        return Err(DevSeedError::Config(
-            "local node fingerprint must not be empty for server fixtures".to_string(),
-        ));
-    }
-
-    if scenario.servers.len() > 1 {
-        return Err(DevSeedError::Config(
-            "server fixtures seed one local node authority at a time".to_string(),
-        ));
-    }
-    let Some(server) = scenario.servers.first_mut() else {
-        return Ok(scenario);
-    };
-
-    let fixture_server_id = server.server_id.clone();
-    server.server_id = local_server_id.to_string();
-    for membership in &mut scenario.server_memberships {
-        if membership.server_id == fixture_server_id {
-            membership.server_id = local_server_id.to_string();
-        }
-    }
-    for channel in &mut scenario.server_channels {
-        if channel.server_id == fixture_server_id {
-            channel.server_id = local_server_id.to_string();
-        }
-    }
-
-    Ok(scenario)
 }
 
 pub async fn reset_local_database(
@@ -860,37 +820,33 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
-    let mut server_ids = HashSet::new();
+    if scenario.servers.len() > 1 {
+        return Err(DevSeedError::Config(
+            "server fixtures seed one local server node at a time".to_string(),
+        ));
+    }
+
+    if scenario.servers.is_empty()
+        && (!scenario.server_memberships.is_empty()
+            || !scenario.server_channels.is_empty()
+            || !scenario.server_channel_messages.is_empty())
+    {
+        return Err(DevSeedError::Config(
+            "server fixtures require one local server definition".to_string(),
+        ));
+    }
+
     for server in &scenario.servers {
-        if !server.server_id.starts_with("fixture-server-") {
-            return Err(DevSeedError::Config(format!(
-                "server '{}' must use fixture-server-* prefix",
-                server.server_id
-            )));
-        }
-        if !server_ids.insert(server.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "duplicate fixture server '{}'",
-                server.server_id
-            )));
-        }
         if server.name.trim().is_empty() {
-            return Err(DevSeedError::Config(format!(
-                "server '{}' requires name",
-                server.server_id
-            )));
+            return Err(DevSeedError::Config(
+                "local server fixture requires name".to_string(),
+            ));
         }
         validate_timestamp(&server.created_at, "server created_at")?;
     }
 
     let mut memberships = HashSet::new();
     for membership in &scenario.server_memberships {
-        if !server_ids.contains(membership.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "server membership references unknown server '{}'",
-                membership.server_id
-            )));
-        }
         require_identity(&identity_ids, &membership.identity_id, "server membership")?;
         if membership.unread_count < 0 {
             return Err(DevSeedError::Config(format!(
@@ -898,18 +854,16 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 membership.identity_id
             )));
         }
-        let key = format!("{}:{}", membership.server_id, membership.identity_id);
-        if !memberships.insert(key) {
+        if !memberships.insert(membership.identity_id.as_str()) {
             return Err(DevSeedError::Config(format!(
-                "duplicate server membership '{}:{}'",
-                membership.server_id, membership.identity_id
+                "duplicate server membership '{}'",
+                membership.identity_id
             )));
         }
         validate_timestamp(&membership.joined_at, "server membership joined_at")?;
     }
 
     let mut channel_ids = HashSet::new();
-    let mut channel_servers = HashMap::new();
     let mut channel_last_seqs: HashMap<&str, u64> = HashMap::new();
     for channel in &scenario.server_channels {
         if !channel.channel_id.starts_with("fixture-channel-") {
@@ -918,19 +872,12 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 channel.channel_id
             )));
         }
-        if !server_ids.contains(channel.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "server channel '{}' references unknown server '{}'",
-                channel.channel_id, channel.server_id
-            )));
-        }
         if !channel_ids.insert(channel.channel_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "duplicate server channel '{}'",
                 channel.channel_id
             )));
         }
-        channel_servers.insert(channel.channel_id.as_str(), channel.server_id.as_str());
         channel_last_seqs.insert(channel.channel_id.as_str(), channel.last_message_seq);
         if channel.name.trim().is_empty() || channel.kind != "text" {
             return Err(DevSeedError::Config(format!(
@@ -957,14 +904,11 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 message.message_id, message.channel_id
             )));
         }
-        let server_id = channel_servers
-            .get(message.channel_id.as_str())
-            .expect("validated channel has server id");
         require_identity(&identity_ids, &message.author_id, "server message author")?;
-        if !memberships.contains(&format!("{}:{}", server_id, message.author_id)) {
+        if !memberships.contains(message.author_id.as_str()) {
             return Err(DevSeedError::Config(format!(
-                "server message '{}' author is not a member of server '{}'",
-                message.message_id, server_id
+                "server message '{}' author is not a local server member",
+                message.message_id
             )));
         }
         if message.channel_seq == 0 || message.content.trim().is_empty() {
@@ -1004,7 +948,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 mentioned_identity_id,
                 "server message mention",
             )?;
-            if !memberships.contains(&format!("{}:{}", server_id, mentioned_identity_id)) {
+            if !memberships.contains(mentioned_identity_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "server message '{}' mentions non-member '{}'",
                     message.message_id, mentioned_identity_id
@@ -1323,14 +1267,13 @@ async fn seed_server(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "
-        INSERT INTO servers (server_id, name, created_at)
-        VALUES ($1, $2, $3::timestamptz)
-        ON CONFLICT (server_id) DO UPDATE
+        INSERT INTO local_server (singleton, name, created_at)
+        VALUES (TRUE, $1, $2::timestamptz)
+        ON CONFLICT (singleton) DO UPDATE
         SET name = EXCLUDED.name,
             created_at = EXCLUDED.created_at
         ",
     )
-    .bind(&server.server_id)
     .bind(&server.name)
     .bind(&server.created_at)
     .execute(&mut **tx)
@@ -1346,22 +1289,20 @@ async fn seed_server_membership(
     sqlx::query(
         "
         INSERT INTO server_memberships (
-            server_id,
             identity_id,
             favorite,
             muted,
             unread_count,
             joined_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
-        ON CONFLICT (server_id, identity_id) DO UPDATE
+        VALUES ($1, $2, $3, $4, $5::timestamptz)
+        ON CONFLICT (identity_id) DO UPDATE
         SET favorite = EXCLUDED.favorite,
             muted = EXCLUDED.muted,
             unread_count = EXCLUDED.unread_count,
             joined_at = EXCLUDED.joined_at
         ",
     )
-    .bind(&membership.server_id)
     .bind(&membership.identity_id)
     .bind(membership.favorite)
     .bind(membership.muted)
@@ -1383,23 +1324,20 @@ async fn seed_server_channel(
         "
         INSERT INTO server_channels (
             channel_id,
-            server_id,
             name,
             kind,
             last_message_seq,
             created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::timestamptz)
         ON CONFLICT (channel_id) DO UPDATE
-        SET server_id = EXCLUDED.server_id,
-            name = EXCLUDED.name,
+        SET name = EXCLUDED.name,
             kind = EXCLUDED.kind,
             last_message_seq = EXCLUDED.last_message_seq,
             created_at = EXCLUDED.created_at
         ",
     )
     .bind(&channel.channel_id)
-    .bind(&channel.server_id)
     .bind(&channel.name)
     .bind(&channel.kind)
     .bind(
@@ -1675,23 +1613,6 @@ mod tests {
     }
 
     #[test]
-    fn server_chat_fixture_binds_to_local_node_authority_for_seeding() {
-        let scenario = bind_scenario_to_local_server(server_chat(), "local-node-for-test")
-            .expect("bind fixture to local node");
-
-        assert_eq!(scenario.servers.len(), 1);
-        assert_eq!(scenario.servers[0].server_id, "local-node-for-test");
-        assert!(scenario
-            .server_memberships
-            .iter()
-            .all(|membership| membership.server_id == "local-node-for-test"));
-        assert!(scenario
-            .server_channels
-            .iter()
-            .all(|channel| channel.server_id == "local-node-for-test"));
-    }
-
-    #[test]
     fn dm_basic_fixture_matches_seeded_chat_invariants() {
         let scenario = dm_basic();
 
@@ -1789,12 +1710,7 @@ mod tests {
 
         validate_scenario(&scenario).expect("server-chat fixture validates");
 
-        let server = scenario
-            .servers
-            .iter()
-            .find(|server| server.server_id == "fixture-server-atlas")
-            .expect("atlas server exists");
-        assert_eq!(server.name, "Atlas Test Server");
+        assert_eq!(scenario.servers[0].name, "Atlas Test Server");
         assert_eq!(scenario.server_memberships.len(), 3);
         assert!(scenario.server_memberships.iter().any(|membership| {
             membership.identity_id == "usr-test-alice" && membership.favorite && !membership.muted

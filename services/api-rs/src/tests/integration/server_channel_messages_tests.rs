@@ -32,7 +32,6 @@ async fn seed_server_channel_fixture(pool: &sqlx::PgPool) -> ServerChannelFixtur
 
     seed_server_channel(
         pool,
-        &server_id,
         "Channels",
         &channel_id,
         "general",
@@ -291,17 +290,15 @@ async fn seed_server_channel_rejects_duplicate_message_ids() {
         return;
     };
 
-    let server_id = format!("srv-seed-dup-{}", Uuid::new_v4().simple());
     let channel_id = format!("chn-seed-dup-{}", Uuid::new_v4().simple());
     let author_id = unique_identity("usr-seed-dup");
     let message_id = format!("scm-seed-dup-{}", Uuid::new_v4().simple());
 
-    seed_server_membership(&pool, &server_id, "Channels", &author_id, false, false, 0).await;
+    seed_server_membership(&pool, "Channels", &author_id, false, false, 0).await;
     server_channels_repo::insert_server_channel(
         &pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id: &channel_id,
-            server_id: &server_id,
             name: "general",
             kind: "text",
         },
@@ -350,139 +347,6 @@ async fn seed_server_channel_rejects_duplicate_message_ids() {
         .as_database_error()
         .expect("duplicate seed should return database error");
     assert_eq!(db_error.constraint(), Some("server_channel_messages_pkey"));
-}
-
-#[tokio::test]
-async fn rejects_server_channel_message_create_when_channel_is_not_in_requested_server() {
-    let Some(pool) = prepared_database_pool().await else {
-        return;
-    };
-    let member_id = unique_identity("usr-create-cross-server");
-    let server_a = TEST_NODE_FINGERPRINT.to_string();
-    let server_b = format!("srv-create-cross-b-{}", Uuid::new_v4().simple());
-    let channel_b = format!("chn-create-cross-b-{}", Uuid::new_v4().simple());
-
-    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
-    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
-    server_channels_repo::insert_server_channel(
-        &pool,
-        server_channels_repo::ServerChannelInsertParams {
-            channel_id: &channel_b,
-            server_id: &server_b,
-            name: "server-b-only",
-            kind: "text",
-        },
-    )
-    .await
-    .expect("insert server B channel");
-
-    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
-        return;
-    };
-
-    let request = Request::builder()
-        .method("POST")
-        .uri(format!("/servers/{server_a}/channels/{channel_b}/messages"))
-        .header("authorization", format!("Bearer {}", tokens[&member_id]))
-        .header("content-type", "application/json")
-        .body(Body::from(
-            serde_json::json!({ "content": "hello" }).to_string(),
-        ))
-        .expect("build cross-server create request");
-
-    let response = app
-        .oneshot(request)
-        .await
-        .expect("cross-server create response");
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
-
-    let body = to_bytes(response.into_body(), usize::MAX)
-        .await
-        .expect("read create response body");
-    let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode create body");
-    assert_eq!(payload["code"], "server_access_denied");
-}
-
-#[tokio::test]
-async fn rejects_server_channel_message_patch_and_delete_when_channel_is_not_in_requested_server() {
-    let Some(pool) = prepared_database_pool().await else {
-        return;
-    };
-    let member_id = unique_identity("usr-mutate-cross-server");
-    let server_a = TEST_NODE_FINGERPRINT.to_string();
-    let server_b = format!("srv-mutate-cross-b-{}", Uuid::new_v4().simple());
-    let channel_b = format!("chn-mutate-cross-b-{}", Uuid::new_v4().simple());
-    let message_b = format!("scm-mutate-cross-b-{}", Uuid::new_v4().simple());
-
-    seed_server_membership(&pool, &server_a, "Server A", &member_id, false, false, 0).await;
-    seed_server_membership(&pool, &server_b, "Server B", &member_id, false, false, 0).await;
-    seed_server_channel(
-        &pool,
-        &server_b,
-        "Server B",
-        &channel_b,
-        "server-b-only",
-        &[&member_id],
-        &[(
-            &message_b,
-            &member_id,
-            1,
-            "server b message",
-            None,
-            &[],
-            "2026-03-26T03:00:00Z",
-            None,
-            None,
-        )],
-    )
-    .await;
-
-    let Some((app, tokens, _)) = app_with_database_and_sessions(&[&member_id]).await else {
-        return;
-    };
-
-    let patch_request = Request::builder()
-        .method("PATCH")
-        .uri(format!(
-            "/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
-        ))
-        .header("authorization", format!("Bearer {}", tokens[&member_id]))
-        .header("content-type", "application/json")
-        .body(Body::from(
-            serde_json::json!({ "content": "edited" }).to_string(),
-        ))
-        .expect("build cross-server patch request");
-    let delete_request = Request::builder()
-        .method("DELETE")
-        .uri(format!(
-            "/servers/{server_a}/channels/{channel_b}/messages/{message_b}"
-        ))
-        .header("authorization", format!("Bearer {}", tokens[&member_id]))
-        .body(Body::empty())
-        .expect("build cross-server delete request");
-
-    let patch_response = app
-        .clone()
-        .oneshot(patch_request)
-        .await
-        .expect("patch response");
-    let delete_response = app.oneshot(delete_request).await.expect("delete response");
-
-    assert_eq!(patch_response.status(), StatusCode::FORBIDDEN);
-    assert_eq!(delete_response.status(), StatusCode::FORBIDDEN);
-
-    let patch_body = to_bytes(patch_response.into_body(), usize::MAX)
-        .await
-        .expect("read patch body");
-    let delete_body = to_bytes(delete_response.into_body(), usize::MAX)
-        .await
-        .expect("read delete body");
-    let patch_payload: serde_json::Value =
-        serde_json::from_slice(&patch_body).expect("decode patch body");
-    let delete_payload: serde_json::Value =
-        serde_json::from_slice(&delete_body).expect("decode delete body");
-    assert_eq!(patch_payload["code"], "server_access_denied");
-    assert_eq!(delete_payload["code"], "server_access_denied");
 }
 
 #[tokio::test]
@@ -580,7 +444,6 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
 
     seed_server_channel(
         &pool,
-        &server_id,
         "Permissioned",
         &channel_id,
         "general",
@@ -597,7 +460,6 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
             &pool,
             server_channels_repo::ServerRoleInsertParams {
                 role_id,
-                server_id: &server_id,
                 name,
                 rank,
             },
@@ -609,7 +471,6 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
         server_channels_repo::assign_server_membership_role(
             &pool,
             server_channels_repo::ServerMembershipRoleInsertParams {
-                server_id: &server_id,
                 identity_id,
                 role_id,
             },
@@ -620,7 +481,6 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &channel_id,
             role_id: &reader_role_id,
             can_read: true,
@@ -633,7 +493,6 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &channel_id,
             role_id: &poster_role_id,
             can_read: true,
@@ -776,7 +635,6 @@ async fn channel_role_read_permission_gates_server_channel_message_listing() {
 
     seed_server_channel(
         &pool,
-        &server_id,
         "Read Denied",
         &channel_id,
         "restricted",
@@ -788,7 +646,6 @@ async fn channel_role_read_permission_gates_server_channel_message_listing() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &role_id,
-            server_id: &server_id,
             name: "no-read",
             rank: 1,
         },
@@ -798,7 +655,6 @@ async fn channel_role_read_permission_gates_server_channel_message_listing() {
     server_channels_repo::assign_server_membership_role(
         &pool,
         server_channels_repo::ServerMembershipRoleInsertParams {
-            server_id: &server_id,
             identity_id: &member_id,
             role_id: &role_id,
         },
@@ -808,7 +664,6 @@ async fn channel_role_read_permission_gates_server_channel_message_listing() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &channel_id,
             role_id: &role_id,
             can_read: false,
@@ -1010,7 +865,6 @@ async fn rejects_server_channel_message_with_cross_channel_reply_target() {
     let other_message_id = format!("scm-other-{}", Uuid::new_v4().simple());
     seed_server_channel(
         &pool,
-        &fixture.server_id,
         "Channels",
         &other_channel_id,
         "random",
@@ -1709,7 +1563,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
 
     seed_server_channel(
         &pool,
-        &server_id,
         "Fanout",
         &channel_id,
         "general",
@@ -1721,7 +1574,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &reader_role_id,
-            server_id: &server_id,
             name: "Reader",
             rank: 10,
         },
@@ -1732,7 +1584,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &denied_role_id,
-            server_id: &server_id,
             name: "No Channel Read",
             rank: 1,
         },
@@ -1743,7 +1594,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         server_channels_repo::assign_server_membership_role(
             &pool,
             server_channels_repo::ServerMembershipRoleInsertParams {
-                server_id: &server_id,
                 identity_id,
                 role_id: &reader_role_id,
             },
@@ -1754,7 +1604,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     server_channels_repo::assign_server_membership_role(
         &pool,
         server_channels_repo::ServerMembershipRoleInsertParams {
-            server_id: &server_id,
             identity_id: &read_denied_id,
             role_id: &denied_role_id,
         },
@@ -1764,7 +1613,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &channel_id,
             role_id: &reader_role_id,
             can_read: true,
@@ -1777,7 +1625,6 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     server_channels_repo::upsert_server_channel_role_permissions(
         &pool,
         server_channels_repo::ServerChannelRolePermissionParams {
-            server_id: &server_id,
             channel_id: &channel_id,
             role_id: &denied_role_id,
             can_read: false,
@@ -2067,7 +1914,6 @@ async fn server_channel_create_succeeds_when_realtime_dispatch_is_unreachable() 
 
     seed_server_channel(
         &pool,
-        &server_id,
         "Dispatch Down",
         &channel_id,
         "general",
