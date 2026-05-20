@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-20
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added the local runtime testing quickstart and evidence adoption path.
+- Latest meaningful change: 2026-05-20 moved shared local fixture and profile JSON under top-level `fixtures/`.
 
 ## Project Stage
 
@@ -54,6 +54,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - `docs/planning/iterations/README.md`
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
+  - Shared local fixture/profile data in `fixtures`
   - One-command bootstrap via `npm run setup` (auto-detects Windows vs Unix)
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
 - One-command local startup via `npm run start -- --runtime-profile single` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)

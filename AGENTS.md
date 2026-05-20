@@ -17,7 +17,9 @@ Only project-specific constraints are defined here.
 
 - Keep architecture docs current in the canonical `docs/architecture/*` authorities when major runtime or boundary decisions change; update `docs/product/01-mvp-plan.md` as well when those decisions change product scope or strategy.
 - Keep requirements and dependency/risk state current in `docs/product/02-prd.md` and `docs/product/04-dependencies-risks.md` when behavior changes.
-- Prefer minimal diffs and avoid broad refactors during MVP setup.
+- During MVP setup, prefer clean canonical structure over minimal diffs. If a touched area contains obsolete names, old references, dead code, duplicated command paths, misplaced files, or incorrect structure, remove or refactor it in the same change.
+- Do not preserve wrappers, aliases, deprecated paths, compatibility layers, or old data shapes unless the user explicitly asks for compatibility or a real external integration requires it.
+- When cleanup breaks old local data, paths, fixtures, commands, or docs, update every in-repo caller and reference atomically instead of leaving transitional support.
 
 ## 3) Product Guardrails
 

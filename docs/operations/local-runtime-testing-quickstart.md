@@ -13,13 +13,14 @@
 
 - Purpose: provide the operational quickstart and troubleshooting guide for local fixture, runtime-profile, Docker runtime, and network-simulation workflows.
 - Primary edit location: update this file when local runtime commands, troubleshooting steps, or adoption guidance changes.
-- Latest meaningful change: 2026-05-20 centralized host-process start/status/stop in `scripts/runtime/local.mjs`, keeping PowerShell and Bash files as thin compatibility shims while preserving clean default startup.
+- Latest meaningful change: 2026-05-20 moved shared local fixture and profile JSON under top-level `fixtures/`.
 
 ## Purpose
 
 - Use this guide when you need to seed local fixture data, launch host-process runtime profiles, run Docker runtime/network smoke tests, or collect local runtime evidence.
 - Keep fixture/profile design authority in `docs/planning/local-runtime-testing-plan.md`.
 - Keep environment variable inventory in `docs/reference/runtime-config-reference.md`.
+- Shared local fixture/profile JSON lives under top-level `fixtures/`; test-private fixtures stay under `tests/`.
 
 ## Prerequisites
 

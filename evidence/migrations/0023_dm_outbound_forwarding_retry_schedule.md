@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `bash scripts/validate-dm-transport-policy.sh`.
+- Command(s) executed: `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `bash scripts/validators/dm-transport-policy.sh`.
 - Expected outcome: queued and failed outbound forwarding records get a due retry timestamp, and retry selection can find eligible server forwarding attempts deterministically.
 - Actual outcome: pass locally; PR CI identified this evidence artifact was required and is satisfied by this file.
 - Evidence path (logs/artifacts): local CLI validation and `evidence/migrations/0023_dm_outbound_forwarding_retry_schedule.md`.

@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-20 centralized host-process start/status/stop in one Node runtime manager and moved runtime/network implementation modules under organized script subdirectories.
+- Latest meaningful change: 2026-05-20 moved shared local fixture and profile JSON under top-level `fixtures/`, keeping `scripts/` focused on executable automation.
 
 ## Organization Decision
 
@@ -78,7 +78,7 @@
 - Use stable profile IDs in the form `<name>.<role>`.
 - Use stable identity IDs with the prefix `usr-test-`.
 - Use stable fixture IDs with the prefix `fixture-`.
-- Store fixture definitions under `scripts/fixtures/` when implemented.
+- Store shared fixture and profile definitions under top-level `fixtures/`; keep test-private fixtures beside their owning test harness under `tests/`.
 - Keep profile purpose text short enough to display in the web testing UI.
 
 ### Required Profiles
@@ -163,7 +163,7 @@
 |---|---|
 | `services/api-rs/src/bin/seed_dev.rs` | Rust entrypoint for transactional fixture seeding |
 | `services/api-rs/src/dev_seed.rs` | Shared seed implementation used by CLI and tests |
-| `scripts/fixtures/*.json` | Versioned fixture catalog and scenario definitions |
+| `fixtures/dev-seed/scenarios/*.json` | Versioned fixture catalog and scenario definitions |
 | `scripts/seed.ps1` | Windows seed wrapper |
 | `scripts/seed.sh` | Unix seed wrapper |
 | `scripts/reset-dev-db.ps1` | Windows local DB reset wrapper; reseeds only when `--profile` is supplied |
@@ -285,9 +285,9 @@ npm run reset-dev-db -- --profile all --yes
 
 | File | Purpose |
 |---|---|
-| `scripts/runtime/profiles/single.json` | One clean local server app instance with no seeded persona |
-| `scripts/runtime/profiles/dual.json` | Alice server plus Bob server |
-| `scripts/runtime/profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
+| `fixtures/runtime/profiles/single.json` | One clean local server app instance with no seeded persona |
+| `fixtures/runtime/profiles/dual.json` | Alice server plus Bob server |
+| `fixtures/runtime/profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
 
 ### Runtime Profile Shape
 
@@ -395,12 +395,12 @@ node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/
 
 | File | Purpose |
 |---|---|
-| `scripts/network/profiles/normal.json` | Clear all shaping and partitions |
-| `scripts/network/profiles/high-latency.json` | Add fixed latency to selected target |
-| `scripts/network/profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
-| `scripts/network/profiles/offline-alice.json` | Disconnect Alice server from selected network |
-| `scripts/network/profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
-| `scripts/network/profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
+| `fixtures/network/profiles/normal.json` | Clear all shaping and partitions |
+| `fixtures/network/profiles/high-latency.json` | Add fixed latency to selected target |
+| `fixtures/network/profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
+| `fixtures/network/profiles/offline-alice.json` | Disconnect Alice server from selected network |
+| `fixtures/network/profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
+| `fixtures/network/profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
 
 ### Target Commands
 
@@ -456,7 +456,7 @@ npm run network -- --reset
 - Network simulation must not add server-readable plaintext, private-key custody, unencrypted mailboxing, or plaintext relay behavior to DM runtime behavior.
 - Optional server-to-server failures under simulated networks should fail explicitly with user-visible guidance without blocking baseline encrypted-envelope message-server delivery.
 - Voice/media TURN/NAT tests remain separate under `docs/planning/turn-nat-test-profile.md`.
-- The existing `scripts/validate-dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
+- The existing `scripts/validators/dm-transport-policy.sh` guardrail should be extended if new runtime/config surfaces can affect DM plaintext, private keys, or envelope storage semantics.
 
 ## Validation Strategy
 
@@ -542,10 +542,10 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-01-EP-01-ST-01-TK-01 | Define fixture catalog schema | `scripts/fixtures/`, seed command parser | Unit test parser | Schema supports profiles, identities, sessions, contacts, DM data, server data, and devices | done |
-| PH-01-EP-01-ST-01-TK-02 | Add `dm-basic` fixture profile | `scripts/fixtures/scenarios/dm-basic.json` | Seed dry run | Alice and Bob are DM-ready and documented | done |
-| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `scripts/fixtures/scenarios/contacts-edge.json` | `cargo test -p api-rs dev_seed`; seed dry run | Pending and restricted states are reproducible | done |
-| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `scripts/fixtures/scenarios/server-chat.json` | `cargo test -p api-rs dev_seed`; seed dry run | Shared server, channels, memberships, and messages exist | done |
+| PH-01-EP-01-ST-01-TK-01 | Define fixture catalog schema | `fixtures/dev-seed/`, seed command parser | Unit test parser | Schema supports profiles, identities, sessions, contacts, DM data, server data, and devices | done |
+| PH-01-EP-01-ST-01-TK-02 | Add `dm-basic` fixture profile | `fixtures/dev-seed/scenarios/dm-basic.json` | Seed dry run | Alice and Bob are DM-ready and documented | done |
+| PH-01-EP-01-ST-01-TK-03 | Add contacts edge fixture profile | `fixtures/dev-seed/scenarios/contacts-edge.json` | `cargo test -p api-rs dev_seed`; seed dry run | Pending and restricted states are reproducible | done |
+| PH-01-EP-01-ST-01-TK-04 | Add server chat fixture profile | `fixtures/dev-seed/scenarios/server-chat.json` | `cargo test -p api-rs dev_seed`; seed dry run | Shared server, channels, memberships, and messages exist | done |
 
 ### PH-02 Tasks
 
@@ -568,7 +568,7 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime/profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
+| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `fixtures/runtime/profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
 | PH-04-EP-01-ST-01-TK-02 | Implement shared host-process runtime manager | `scripts/runtime/local.mjs`, `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --runtime-profile dual --seed-profile dm-basic`; `npm run status`; `npm run stop` | Starts multiple named instances with unique ports from one cross-platform implementation | done |
 | PH-04-EP-01-ST-01-TK-03 | Keep direct OS-native lifecycle shims | `scripts/run.ps1`, `scripts/status.ps1`, `scripts/stop.ps1`, `scripts/run.sh`, `scripts/status.sh`, `scripts/stop.sh` | `powershell -File scripts/run.ps1 -Help`; `bash -n scripts/run.sh scripts/status.sh scripts/stop.sh` | PowerShell and Bash users keep native commands without duplicated runtime logic | done |
 | PH-04-EP-01-ST-01-TK-04 | Add status and stop commands | `scripts/runtime/local.mjs`, `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
@@ -577,7 +577,7 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network/profiles/`, `scripts/validators/network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
+| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `fixtures/network/profiles/`, `scripts/validators/network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
 | PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network/index.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
 | PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network/index.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
 | PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network/index.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |

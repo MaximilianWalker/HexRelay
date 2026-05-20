@@ -175,7 +175,7 @@ Before each runtime implementation PR after approval:
 - run `npm --prefix apps/web run lint`;
 - run `npm --prefix apps/web run test:coverage`;
 - run `npm --prefix apps/web run build`;
-- run `./scripts/validate-dm-transport-policy.sh`;
+- run `./scripts/validators/dm-transport-policy.sh`;
 - run contract/docs validators when API contracts or canonical docs change;
 - run targeted Rust API/realtime tests if route, fanout, catch-up, or ack behavior changes;
 - capture browser screenshots/checklist evidence once visible UI behavior exists.

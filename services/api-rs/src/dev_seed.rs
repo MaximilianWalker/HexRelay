@@ -131,7 +131,7 @@ impl SeedCliOptions {
 }
 
 pub fn seed_usage() -> &'static str {
-    "Usage: seed_dev [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+    "Usage: seed_dev [--profile dm-basic] [--fixtures-root fixtures/dev-seed] [--json]"
 }
 
 impl ResetCliOptions {
@@ -202,7 +202,7 @@ impl ResetCliOptions {
 }
 
 pub fn reset_usage() -> &'static str {
-    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]\nOmit --profile to reset schema without seeding fixture data."
+    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root fixtures/dev-seed] [--json]\nOmit --profile to reset schema without seeding fixture data."
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -654,14 +654,14 @@ pub fn format_seed_summary(summary: &SeedSummary) -> String {
 fn default_fixtures_root() -> Result<PathBuf, DevSeedError> {
     let mut current = env::current_dir().map_err(DevSeedError::Io)?;
     loop {
-        let candidate = current.join("scripts").join("fixtures");
+        let candidate = current.join("fixtures").join("dev-seed");
         if candidate.join("scenarios").is_dir() {
             return Ok(candidate);
         }
 
         if !current.pop() {
             return Err(DevSeedError::Config(
-                "could not locate scripts/fixtures from current directory".to_string(),
+                "could not locate fixtures/dev-seed from current directory".to_string(),
             ));
         }
     }
@@ -1548,23 +1548,34 @@ mod tests {
 
     fn dm_basic() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/dm-basic.json"
+            "../../../fixtures/dev-seed/scenarios/dm-basic.json"
         ))
         .expect("parse dm-basic fixture")
     }
 
     fn contacts_edge() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/contacts-edge.json"
+            "../../../fixtures/dev-seed/scenarios/contacts-edge.json"
         ))
         .expect("parse contacts-edge fixture")
     }
 
     fn server_chat() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/server-chat.json"
+            "../../../fixtures/dev-seed/scenarios/server-chat.json"
         ))
         .expect("parse server-chat fixture")
+    }
+
+    #[test]
+    fn default_fixture_root_finds_dev_seed_scenarios() {
+        let options = SeedCliOptions {
+            profile: "dm-basic".to_string(),
+            fixtures_root: None,
+            json: false,
+        };
+
+        validate_seed_profile(&options).expect("default fixture root finds dm-basic");
     }
 
     #[test]

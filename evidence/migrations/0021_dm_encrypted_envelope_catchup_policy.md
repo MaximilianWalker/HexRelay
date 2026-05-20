@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs dm_policy`, `cargo test -p api-rs validates_fanout`, `cargo test -p api-rs dev_seed`, `npm --prefix apps/web test -- lib/api.test.ts`, `cargo test -p communication-core`, `bash scripts/validate-dm-transport-policy.sh`.
+- Command(s) executed: `cargo test -p api-rs dm_policy`, `cargo test -p api-rs validates_fanout`, `cargo test -p api-rs dev_seed`, `npm --prefix apps/web test -- lib/api.test.ts`, `cargo test -p communication-core`, `bash scripts/validators/dm-transport-policy.sh`.
 - Expected outcome: existing `dm_policies.offline_delivery_mode=best_effort_online` rows are rewritten to `encrypted_envelope_catchup`, and new rows are constrained to the current encrypted-envelope catch-up mode.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the current architecture-alignment pass.

@@ -13,12 +13,14 @@ Use the contributor guide as the source of truth for:
 
 ## Layout
 
-- Root `scripts/*.mjs`, `scripts/*.ps1`, and `scripts/*.sh` files are stable
-  developer-facing command shims.
+- Root `scripts/*.mjs`, `scripts/*.ps1`, and `scripts/*.sh` files are
+  developer-facing lifecycle commands.
 - `scripts/runtime/` contains shared host-process and Docker runtime managers.
-- `scripts/network/` contains network simulation commands and profiles.
-- `scripts/validators/` contains reusable validation implementation.
-- `scripts/fixtures/scenarios/` contains seedable local development scenarios.
+- `scripts/network/` contains network simulation commands.
+- `scripts/validators/` contains validation command entrypoints and reusable
+  validation implementation.
+- Top-level `fixtures/` contains shared dev seed scenarios plus runtime and
+  network profile JSON.
 - Top-level `tests/` contains test runners and test fixtures.
 
 Local runtime lifecycle logic is centralized in `scripts/runtime/local.mjs`.
@@ -35,7 +37,15 @@ Common script entrypoints include:
 - `scripts/status.*`
 - `scripts/stop.*`
 - `scripts/network.*`
-- `scripts/validate-*.sh`
+
+Validation entrypoints live under `scripts/validators/`:
+
+- `scripts/validators/cargo-audit-ignore.sh`
+- `scripts/validators/contract-parity.sh`
+- `scripts/validators/dm-transport-policy.sh`
+- `scripts/validators/docs-index-freshness.sh`
+- `scripts/validators/evidence-provenance.sh`
+- `scripts/validators/migration-evidence.sh`
 
 Common test entrypoints live outside this directory:
 
@@ -47,10 +57,10 @@ Common test entrypoints live outside this directory:
 Local runtime testing fixture and seed details live in
 `docs/planning/local-runtime-testing-plan.md`.
 
-Runtime profile files live in `scripts/runtime/profiles/` and are validated with
+Runtime profile files live in `fixtures/runtime/profiles/` and are validated with
 `npm run validate:runtime-profiles`.
 
-Network simulation profile files live in `scripts/network/profiles/` and are
+Network simulation profile files live in `fixtures/network/profiles/` and are
 validated with `npm run validate:network-profiles`.
 Apply or reset network simulation state with `npm run network -- --profile <profile>`
 or `npm run network -- --reset`.

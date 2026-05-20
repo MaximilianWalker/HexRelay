@@ -13,7 +13,7 @@
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-05-20 moved test runners and contract-parity regression fixtures into top-level `tests/`.
+- Latest meaningful change: 2026-05-20 clarified repository ownership for top-level `fixtures/`, `tests/`, and executable `scripts/`.
 
 ## Purpose
 
@@ -64,10 +64,10 @@
 - `cargo-audit` is pinned to `0.22.0` via `scripts/ensure-cargo-audit.sh` and CI uses the same version.
 - `npm run security` currently covers the fast Rust dependency audit path only; it is not full CI security parity by itself.
 - Full CI security parity additionally includes:
-  - `bash scripts/validate-cargo-audit-ignore.sh`
+  - `bash scripts/validators/cargo-audit-ignore.sh`
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error --exclude node_modules --exclude target`
-- Temporary cargo-audit ignore exceptions must pass `scripts/validate-cargo-audit-ignore.sh` expiry checks in CI.
+- Temporary cargo-audit ignore exceptions must pass `scripts/validators/cargo-audit-ignore.sh` expiry checks in CI.
 - Current ignore-expiry policy covers:
   - `RUSTSEC-2023-0071`
   - `RUSTSEC-2026-0049`
@@ -96,12 +96,12 @@ Non-localizable CI checks:
 Required local checks (run before opening PR):
 - `npm run security`
 - `npm run test`
-- `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
-- `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
-- `./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
+- `./scripts/validators/migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
+- `./scripts/validators/evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
+- `./scripts/validators/contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
 - `bash tests/contract-parity/run.sh`
-- `./scripts/validate-dm-transport-policy.sh`
-- `./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
+- `./scripts/validators/dm-transport-policy.sh`
+- `./scripts/validators/docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
 - Rust `fmt`/`clippy`/tests and coverage gate command
 - Web `lint`/`test:coverage`/`build`
 
@@ -117,13 +117,13 @@ npm run test
 DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
 BASE_SHA=$(git merge-base "origin/${DEFAULT_BRANCH:-master}" HEAD 2>/dev/null || git rev-parse HEAD~1)
 HEAD_SHA=$(git rev-parse HEAD)
-./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
-./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
-./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
+./scripts/validators/migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
+./scripts/validators/evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
+./scripts/validators/contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
 bash tests/contract-parity/run.sh
-./scripts/validate-dm-transport-policy.sh
-./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
-bash scripts/validate-cargo-audit-ignore.sh
+./scripts/validators/dm-transport-policy.sh
+./scripts/validators/docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
+bash scripts/validators/cargo-audit-ignore.sh
 python -m pip install semgrep
 semgrep scan --config p/security-audit --error --exclude node_modules --exclude target
 npm --prefix apps/web audit --omit=dev --audit-level=high

@@ -202,7 +202,7 @@ npm --prefix apps/web run e2e:smoke
   - `npm --prefix apps/web audit --omit=dev --audit-level=high`
   - `semgrep scan --config p/security-audit --error`
 - Advisory ignore governance:
-  - temporary ignores remain CI-blocked by `scripts/validate-cargo-audit-ignore.sh` expiry checks.
+  - temporary ignores remain CI-blocked by `scripts/validators/cargo-audit-ignore.sh` expiry checks.
 - Rust coverage gate:
   - `cargo llvm-cov --workspace --all-features --fail-under-lines 80`
 - Integration-smoke run collects evidence artifacts to `evidence/ci/<run_id>/` and uploads as CI artifact.

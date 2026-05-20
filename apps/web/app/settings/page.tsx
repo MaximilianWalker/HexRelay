@@ -1002,7 +1002,7 @@ export default function SettingsPage() {
               </div>
             </SettingRow>
             <SettingRow
-              description="Known fixture scenarios available in scripts/fixtures/scenarios."
+              description="Known fixture scenarios available in fixtures/dev-seed/scenarios."
               label="Seed scenarios"
               status="Dev only"
             >

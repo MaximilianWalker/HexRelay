@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo check -p api-rs`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs friends`, `bash scripts/validate-dm-transport-policy.sh`, `bash scripts/validate-contract-parity.sh origin/master HEAD`
+- Command(s) executed: `cargo check -p api-rs`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs friends`, `bash scripts/validators/dm-transport-policy.sh`, `bash scripts/validators/contract-parity.sh origin/master HEAD`
 - Expected outcome: DB startup can include migration `0019_remove_dm_direct_connect_tables` after earlier server-bypassing migrations, while runtime API and contract surfaces no longer reference pairing nonce or endpoint-card tables.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the DM E2EE envelope baseline pivot branch.

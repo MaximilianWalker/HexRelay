@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, "../..");
-const profilesDir = path.join(root, "scripts", "runtime", "profiles");
+const profilesDir = path.join(root, "fixtures", "runtime", "profiles");
 
 function fail(message) {
   throw new Error(`[runtime-profiles] ${message}`);

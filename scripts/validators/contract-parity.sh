@@ -14,4 +14,4 @@ else
   exit 1
 fi
 
-exec "${PYTHON_BIN[@]}" "$SCRIPT_DIR/validators/contract-parity/validator.py" "$@"
+exec "${PYTHON_BIN[@]}" "$SCRIPT_DIR/contract-parity/validator.py" "$@"

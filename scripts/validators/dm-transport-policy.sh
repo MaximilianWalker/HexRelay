@@ -65,7 +65,7 @@ fixture_matches="$(grep -RInEi "${contract_forbidden_pattern}" \
   --include='*.yml' \
   --include='*.rs' \
   --include='*.sql' \
-  "scripts/fixtures" \
+  "fixtures" \
   "tests/contract-parity/fixtures" \
   || true)"
 if [ -n "${fixture_matches}" ]; then
@@ -118,7 +118,7 @@ direct_dm_fixture_matches="$(grep -RInE "${direct_dm_forbidden_pattern}" \
   --include='*.json' \
   --include='*.yaml' \
   --include='*.yml' \
-  "scripts/fixtures" \
+  "fixtures" \
   "tests/contract-parity/fixtures" \
   || true)"
 if [ -n "${direct_dm_fixture_matches}" ]; then

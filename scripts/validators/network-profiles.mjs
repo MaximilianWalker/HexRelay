@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, "../..");
-const profilesDir = path.join(root, "scripts", "network", "profiles");
+const profilesDir = path.join(root, "fixtures", "network", "profiles");
 const validStrategies = new Set(["reset", "docker", "toxiproxy", "app-fault"]);
 const validPlatforms = new Set(["windows", "linux", "macos"]);
 const targetPattern = /^(argument|[a-z][a-z0-9-]*)$/;

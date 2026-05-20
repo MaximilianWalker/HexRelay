@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo check -p api-rs`, `cargo check -p realtime-rs`, `cargo test -p api-rs fanout_ack`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs dm_envelope_dispatch_ack_persists_through_realtime_websocket`, `cargo test -p realtime-rs dm`, `npm --prefix apps/web test -- lib/api.test.ts lib/dm-realtime.test.ts`, `bash scripts/validate-contract-parity.sh HEAD HEAD`, `bash scripts/validate-dm-transport-policy.sh`.
+- Command(s) executed: `cargo check -p api-rs`, `cargo check -p realtime-rs`, `cargo test -p api-rs fanout_ack`, `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs dm_envelope_dispatch_ack_persists_through_realtime_websocket`, `cargo test -p realtime-rs dm`, `npm --prefix apps/web test -- lib/api.test.ts lib/dm-realtime.test.ts`, `bash scripts/validators/contract-parity.sh HEAD HEAD`, `bash scripts/validators/dm-transport-policy.sh`.
 - Expected outcome: `dm_profile_devices` gains a non-plaintext `device_secret_hash` column and runtime DM catch-up/ack paths reject mismatched device secrets without storing raw device secrets.
 - Actual outcome: pending final validation in current hardening pass.
 - Evidence path (logs/artifacts): local CLI validation in the DM E2EE envelope baseline pivot branch.

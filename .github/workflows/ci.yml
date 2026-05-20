@@ -37,7 +37,7 @@ jobs:
         run: bash scripts/ensure-cargo-audit.sh
 
       - name: Validate cargo-audit ignore expiry
-        run: bash scripts/validate-cargo-audit-ignore.sh
+        run: bash scripts/validators/cargo-audit-ignore.sh
 
       - name: Rust dependency audit
         run: cargo audit --deny warnings --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0049 --ignore RUSTSEC-2026-0097
@@ -137,8 +137,8 @@ jobs:
           fi
           HEAD_SHA="${{ github.sha }}"
 
-          chmod +x scripts/validate-migration-evidence.sh
-          ./scripts/validate-migration-evidence.sh "${BASE_SHA}" "${HEAD_SHA}"
+          chmod +x scripts/validators/migration-evidence.sh
+          ./scripts/validators/migration-evidence.sh "${BASE_SHA}" "${HEAD_SHA}"
 
   evidence-provenance-check:
     name: evidence-provenance-check
@@ -157,8 +157,8 @@ jobs:
           fi
           HEAD_SHA="${{ github.sha }}"
 
-          chmod +x scripts/validate-evidence-provenance.sh
-          ./scripts/validate-evidence-provenance.sh "${BASE_SHA}" "${HEAD_SHA}"
+          chmod +x scripts/validators/evidence-provenance.sh
+          ./scripts/validators/evidence-provenance.sh "${BASE_SHA}" "${HEAD_SHA}"
 
   contract-parity-check:
     name: contract-parity-check
@@ -177,8 +177,8 @@ jobs:
           fi
           HEAD_SHA="${{ github.sha }}"
 
-          chmod +x scripts/validate-contract-parity.sh
-          ./scripts/validate-contract-parity.sh "${BASE_SHA}" "${HEAD_SHA}"
+          chmod +x scripts/validators/contract-parity.sh
+          ./scripts/validators/contract-parity.sh "${BASE_SHA}" "${HEAD_SHA}"
           bash tests/contract-parity/run.sh
 
   docs-index-freshness-check:
@@ -198,8 +198,8 @@ jobs:
           fi
           HEAD_SHA="${{ github.sha }}"
 
-          chmod +x scripts/validate-docs-index-freshness.sh
-          ./scripts/validate-docs-index-freshness.sh "${BASE_SHA}" "${HEAD_SHA}"
+          chmod +x scripts/validators/docs-index-freshness.sh
+          ./scripts/validators/docs-index-freshness.sh "${BASE_SHA}" "${HEAD_SHA}"
 
   dm-transport-policy-check:
     name: dm-transport-policy-check
@@ -210,8 +210,8 @@ jobs:
 
       - name: Validate DM E2EE envelope policy guardrails
         run: |
-          chmod +x scripts/validate-dm-transport-policy.sh
-          ./scripts/validate-dm-transport-policy.sh
+          chmod +x scripts/validators/dm-transport-policy.sh
+          ./scripts/validators/dm-transport-policy.sh
 
   runtime-network-smoke:
     name: runtime-network-smoke

@@ -357,7 +357,7 @@
   - `docs/product/README.md`
   - `docs/planning/README.md`
   - `docs/reference/glossary.md`
-  - `scripts/validate-dm-transport-policy.sh`
+  - `scripts/validators/dm-transport-policy.sh`
   - `.github/workflows/ci.yml`
 
 ### 2026-05-08 (T4.1.6 LAN discovery fast-path closeout)
@@ -647,7 +647,7 @@
 - Area affected: Iteration 2 DM transport policy enforcement and CI guardrails.
 - Change summary:
   - Confirmed the runtime already enforced the then-current server-bypassing DM transport through `communication-core` routing, DM endpoint-hint validation, and existing DM connectivity/runtime tests.
-  - Expanded `scripts/validate-dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
+  - Expanded `scripts/validators/dm-transport-policy.sh` so the CI guardrail now scans the actual DM runtime transport callsite plus DM-related workflow/config surfaces (`.github/workflows/ci.yml`, runtime config docs, and service config files) instead of only a narrow Rust filename subset.
   - Marked `T4.1.3` done on the Iteration 2 sprint board.
 - Rationale:
   - The story was only partially delivered: runtime behavior already matched policy, but the CI guardrail still missed forbidden config-style regressions. Widening the check closes the acceptance-criteria gap without inventing new transport behavior.
@@ -729,7 +729,7 @@
 
 - Area affected: Docs governance, deployment guidance, and readiness watch routing.
 - Change summary:
-  - Closed the docs-index freshness wording watch by matching `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validate-docs-index-freshness.sh`.
+  - Closed the docs-index freshness wording watch by matching `docs/README.md` and `docs/operations/contributor-guide.md` to the exact trigger enforced by `scripts/validators/docs-index-freshness.sh`.
   - Tightened dedicated deployment guidance so the currently validated topology is explicitly single-server and realtime websocket abuse controls are clearly documented as process-local.
   - Added dedicated deployment checklist sign-off language for operators who attempt multi-instance realtime topologies.
 - Rationale:
@@ -764,7 +764,7 @@
 - Change summary:
   - Made the `Active Watch Summary` in `docs/operations/readiness-corrections-log.md` exhaustive for the current open watches, including the web-coverage-policy and docs-index-freshness-policy watches.
   - Removed stale entry-doc caveats that still described DM replay-backlog durability as unresolved after the DM durability/docs alignment had already closed that finding.
-  - Aligned `docs/README.md` and contributor guidance with the strict docs-index metadata refresh rule enforced by `scripts/validate-docs-index-freshness.sh`.
+  - Aligned `docs/README.md` and contributor guidance with the strict docs-index metadata refresh rule enforced by `scripts/validators/docs-index-freshness.sh`.
 - Rationale:
   - Readiness entry points need one current watch authority; stale or incomplete caveats make planning and future audits drift-prone even when the underlying runtime/docs fixes are already complete.
 - Linked docs updated:
