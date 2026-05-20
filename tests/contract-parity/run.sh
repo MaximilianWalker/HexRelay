@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 SCRIPT_PATH="$ROOT_DIR/scripts/validate-contract-parity.sh"
-FIXTURES_DIR="$ROOT_DIR/scripts/fixtures/contract-parity"
+FIXTURES_DIR="$ROOT_DIR/tests/contract-parity/fixtures"
 FIXTURE_GIT_AUTHOR_NAME="OpenCode Fixture"
 FIXTURE_GIT_AUTHOR_EMAIL="fixture@hexrelay.local"
 

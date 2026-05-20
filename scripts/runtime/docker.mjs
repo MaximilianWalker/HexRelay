@@ -5,11 +5,11 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(scriptsDir, "..");
+const root = path.resolve(scriptsDir, "../..");
 const composeFile = path.join(root, "infra", "docker-compose.runtime-test.yml");
 const runDir = path.join(root, ".local-run");
 const runtimeStatePath = path.join(runDir, "runtime-state.json");
-const networkScript = path.join(scriptsDir, "network.mjs");
+const networkScript = path.join(root, "scripts", "network", "index.mjs");
 const projectName = "hexrelay-runtime";
 const networkName = "hexrelay-runtime_simulation";
 const toxiproxyUrl = "http://127.0.0.1:18474";
@@ -104,7 +104,7 @@ const toxiproxyProxies = [
 ];
 
 function usage() {
-  return "Usage: runtime-docker.mjs up|down|status|smoke [--seed-profile dm-basic] [--scope all|runtime|network] [--evidence-dir path] [--json] [--force]";
+  return "Usage: scripts/runtime/docker.mjs up|down|status|smoke [--seed-profile dm-basic] [--scope all|runtime|network] [--evidence-dir path] [--json] [--force]";
 }
 
 function logInfo(message) {
@@ -164,7 +164,7 @@ function parseArgs(args) {
         options.help = true;
         break;
       default:
-        throw new Error(`unknown runtime-docker option: ${arg}\n${usage()}`);
+        throw new Error(`unknown runtime docker option: ${arg}\n${usage()}`);
     }
   }
 
@@ -1027,7 +1027,7 @@ async function main() {
     printResult(await smoke(options), options.json);
     return;
   }
-  throw new Error(`unknown runtime-docker command '${options.command}'`);
+  throw new Error(`unknown runtime docker command '${options.command}'`);
 }
 
 main().catch((error) => {

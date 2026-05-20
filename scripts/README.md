@@ -1,35 +1,56 @@
 # Scripts
 
-Workspace automation entrypoints live here, but the canonical workflow and gate
-documentation now lives in `docs/operations/contributor-guide.md`.
+Workspace automation entrypoints and reusable script implementation modules live
+here. The canonical workflow and gate documentation lives in
+`docs/operations/contributor-guide.md`.
 
-Use this directory as implementation detail; use the contributor guide as the
-source of truth for:
+Use the contributor guide as the source of truth for:
 
 - local validation commands
 - PR gate expectations
 - smoke/bootstrap prerequisites
 - delivery and release workflow
 
-Common entrypoints still include:
+## Layout
 
-- `scripts/setup.sh`
-- `scripts/seed.sh`
-- `scripts/reset-dev-db.sh`
-- `scripts/run.sh`
-- `scripts/status.sh`
-- `scripts/stop.sh`
-- `scripts/network.sh`
-- `scripts/runtime-docker.mjs`
-- `scripts/test.sh`
+- Root `scripts/*.mjs`, `scripts/*.ps1`, and `scripts/*.sh` files are stable
+  developer-facing command shims.
+- `scripts/runtime/` contains shared host-process and Docker runtime managers.
+- `scripts/network/` contains network simulation commands and profiles.
+- `scripts/validators/` contains reusable validation implementation.
+- `scripts/fixtures/scenarios/` contains seedable local development scenarios.
+- Top-level `tests/` contains test runners and test fixtures.
+
+Local runtime lifecycle logic is centralized in `scripts/runtime/local.mjs`.
+`scripts/run.mjs`, `scripts/status.mjs`, and `scripts/stop.mjs` call that shared
+manager directly. The `.ps1` and `.sh` files are compatibility shims for
+developers who want native PowerShell or Bash commands.
+
+Common script entrypoints include:
+
+- `scripts/setup.*`
+- `scripts/seed.*`
+- `scripts/reset-dev-db.*`
+- `scripts/run.*`
+- `scripts/status.*`
+- `scripts/stop.*`
+- `scripts/network.*`
+- `scripts/validate-*.sh`
+
+Common test entrypoints live outside this directory:
+
+- `tests/run.*`
+- `tests/runtime/runtime-smoke.mjs`
+- `tests/runtime/network-smoke.mjs`
+- `tests/contract-parity/run.sh`
 
 Local runtime testing fixture and seed details live in
 `docs/planning/local-runtime-testing-plan.md`.
 
-Runtime profile files live in `scripts/runtime-profiles/` and are validated with
+Runtime profile files live in `scripts/runtime/profiles/` and are validated with
 `npm run validate:runtime-profiles`.
 
-Network simulation profile files live in `scripts/network-profiles/` and are
+Network simulation profile files live in `scripts/network/profiles/` and are
 validated with `npm run validate:network-profiles`.
 Apply or reset network simulation state with `npm run network -- --profile <profile>`
 or `npm run network -- --reset`.

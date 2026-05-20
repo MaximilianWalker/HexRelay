@@ -12,7 +12,7 @@ function Invoke-Checked {
 
     & $Command
     if ($LASTEXITCODE -ne 0) {
-        throw "[test.ps1] $Label failed with exit code $LASTEXITCODE"
+        throw "[tests/run.ps1] $Label failed with exit code $LASTEXITCODE"
     }
 }
 
@@ -21,7 +21,7 @@ Set-Location $root
 
 $previousSkipServiceBackedTests = $env:HEXRELAY_SKIP_SERVICE_BACKED_TESTS
 if ($SkipServiceBackedTests) {
-    Write-Host '[test.ps1] Skipping external service-backed Rust tests'
+    Write-Host '[tests/run.ps1] Skipping external service-backed Rust tests'
     $env:HEXRELAY_SKIP_SERVICE_BACKED_TESTS = '1'
 }
 
@@ -30,7 +30,7 @@ if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $cargoBin })) {
     $env:PATH = "$cargoBin;$($env:PATH)"
 }
 
-Write-Host '[test.ps1] Rust fmt/clippy/test'
+Write-Host '[tests/run.ps1] Rust fmt/clippy/test'
 Invoke-Checked -Label 'cargo fmt' -Command {
     cargo.exe fmt --all -- --check
 }
@@ -41,7 +41,7 @@ Invoke-Checked -Label 'cargo test' -Command {
     cargo.exe test --all-features
 }
 
-Write-Host '[test.ps1] Web lint/test/build'
+Write-Host '[tests/run.ps1] Web lint/test/build'
 Invoke-Checked -Label 'web lint' -Command {
     npm run lint --prefix 'apps/web'
 }
@@ -60,4 +60,4 @@ if ($SkipServiceBackedTests) {
     }
 }
 
-Write-Host '[test.ps1] Complete'
+Write-Host '[tests/run.ps1] Complete'

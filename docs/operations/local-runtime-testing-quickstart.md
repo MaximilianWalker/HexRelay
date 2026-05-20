@@ -13,7 +13,7 @@
 
 - Purpose: provide the operational quickstart and troubleshooting guide for local fixture, runtime-profile, Docker runtime, and network-simulation workflows.
 - Primary edit location: update this file when local runtime commands, troubleshooting steps, or adoption guidance changes.
-- Latest meaningful change: 2026-05-20 made default host-process startup clean: no seeded fixture persona, neutral `local-server` instance name, and reset without seeding unless `--profile` is supplied.
+- Latest meaningful change: 2026-05-20 centralized host-process start/status/stop in `scripts/runtime/local.mjs`, keeping PowerShell and Bash files as thin compatibility shims while preserving clean default startup.
 
 ## Purpose
 
@@ -97,6 +97,8 @@ npm run reset-dev-db -- --profile dm-basic --yes
 ```bash
 npm run start
 ```
+
+- The shared lifecycle implementation is `scripts/runtime/local.mjs`; `npm run start`, `npm run status`, and `npm run stop` are the preferred cross-platform entrypoints.
 
 - Start Alice/Bob side-by-side runtime instances only when explicitly testing fixture scenarios.
 
@@ -216,13 +218,13 @@ npm run test:network
 - Run runtime-only smoke with evidence output.
 
 ```bash
-node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
+node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
 ```
 
 - Run full runtime/network smoke with evidence output.
 
 ```bash
-node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evidence/local-runtime-smoke
+node scripts/runtime/docker.mjs smoke --scope all --evidence-dir .local-run/evidence/local-runtime-smoke
 ```
 
 ## Evidence Artifacts
@@ -245,7 +247,8 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 | `npm run stop` refuses to stop | Docker runtime state is active | Run `npm run runtime:docker -- down` |
 | Docker runtime smoke failed during cleanup | Containers or network state remained active | Run `npm run runtime:docker -- down --force`, then `npm run runtime:docker -- status --json` |
 | Network profile remains applied | `.local-run/network-state.json` still tracks a profile | Run `npm run network -- --reset`; use `--force` only after failed Docker cleanup |
-| Host-process ports are busy | Another local runtime or app is already running | Run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` |
+| Host-process ports are busy | Another local runtime or app is already running | The shared runner picks free fallback ports; run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` when the process is managed by this repo |
+| Next reports another dev server | A stale or unmanaged Next process is using an old dist directory | Managed starts use per-run `.next-*` directories; stop the unmanaged process separately only if you need its exact port |
 | Testing profiles are hidden or inert | `API_ENABLE_DEV_TESTING` is unset or false | Set `API_ENABLE_DEV_TESTING=true` only in local development and restart API/web |
 | Seed/reset refuses the database | Env points at a non-local or production-looking DB | Fix `API_DATABASE_URL` and `API_ENVIRONMENT=development`; do not bypass this for shared data |
 | Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-server` or `bob-server` |

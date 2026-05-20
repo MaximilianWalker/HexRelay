@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(scriptsDir, "..");
+const root = path.resolve(scriptsDir, "../..");
 const runDir = path.join(root, ".local-run");
 const runtimeStatePath = path.join(runDir, "runtime-state.json");
 const networkStatePath = path.join(runDir, "network-state.json");
@@ -13,7 +13,7 @@ const defaultNetworkName = process.env.HEXRELAY_DOCKER_NETWORK || "hexrelay_defa
 const defaultRealtimeInternalToken = process.env.HEXRELAY_REALTIME_INTERNAL_TOKEN || "hexrelay-dev-channel-dispatch-token-change-me";
 
 function usage() {
-  return "Usage: network.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
+  return "Usage: scripts/network/index.mjs [--profile normal|offline-alice|partition-alice-bob|path] [--target instance-id|container] [--reset] [--json] [--force]";
 }
 
 function parseArgs(args) {
@@ -76,7 +76,7 @@ function requireValue(args, index, flag) {
 }
 
 function readNetworkProfile(profileSpec) {
-  const validatorPath = path.join(scriptsDir, "validate-network-profiles.mjs");
+  const validatorPath = path.join(root, "scripts", "validators", "network-profiles.mjs");
   const result = spawnSync(process.execPath, [validatorPath, "--print", profileSpec], {
     cwd: root,
     encoding: "utf8",
@@ -548,7 +548,7 @@ async function resetNetworkState(options = {}) {
 
 function applyDockerProfile(profile, options) {
   if (fs.existsSync(networkStatePath)) {
-    throw new Error("A network profile is already active. Run scripts/network.mjs --reset before applying another profile.");
+    throw new Error("A network profile is already active. Run npm run network -- --reset before applying another profile.");
   }
 
   const runtimeState = readJsonIfExists(runtimeStatePath);
@@ -632,7 +632,7 @@ function applyDockerProfile(profile, options) {
 
 async function applyToxiproxyProfile(profile, options) {
   if (fs.existsSync(networkStatePath)) {
-    throw new Error("A network profile is already active. Run scripts/network.mjs --reset before applying another profile.");
+    throw new Error("A network profile is already active. Run npm run network -- --reset before applying another profile.");
   }
 
   const runtimeState = readJsonIfExists(runtimeStatePath);
@@ -691,7 +691,7 @@ async function applyToxiproxyProfile(profile, options) {
 
 async function applyAppFaultProfile(profile, options) {
   if (fs.existsSync(networkStatePath)) {
-    throw new Error("A network profile is already active. Run scripts/network.mjs --reset before applying another profile.");
+    throw new Error("A network profile is already active. Run npm run network -- --reset before applying another profile.");
   }
 
   const runtimeState = readJsonIfExists(runtimeStatePath);

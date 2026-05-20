@@ -16,7 +16,7 @@ if [[ -z "$NODE_BIN" ]]; then
   fi
 fi
 
-SCRIPT_PATH="$ROOT/scripts/network.mjs"
+SCRIPT_PATH="$ROOT/scripts/network/index.mjs"
 if [[ "$NODE_BIN" == *node.exe ]]; then
   if command -v wslpath >/dev/null 2>&1; then
     SCRIPT_PATH="$(wslpath -w "$SCRIPT_PATH")"

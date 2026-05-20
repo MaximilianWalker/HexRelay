@@ -16,7 +16,7 @@ if ($Help) {
 }
 
 $root = Split-Path -Parent $PSScriptRoot
-$argsList = @((Join-Path $PSScriptRoot 'network.mjs'))
+$argsList = @((Join-Path $PSScriptRoot 'network/index.mjs'))
 if ($Reset) {
     $argsList += '--reset'
 } else {

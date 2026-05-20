@@ -6,14 +6,14 @@
 - Owner: Maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-17
+- last_updated: 2026-05-20
 - Source of truth: `docs/operations/contributor-guide.md`
 
 ## Quick Context
 
 - Primary edit location for contribution workflow, docs QA checks, and PR hygiene.
 - Keep this aligned with `docs/README.md` source-of-truth ownership rules.
-- Latest meaningful change: 2026-05-17 added the Windows parity CI gate to the contributor validation baseline.
+- Latest meaningful change: 2026-05-20 moved test runners and contract-parity regression fixtures into top-level `tests/`.
 
 ## Purpose
 
@@ -99,7 +99,7 @@ Required local checks (run before opening PR):
 - `./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"`
 - `./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"`
-- `bash scripts/test-contract-parity.sh`
+- `bash tests/contract-parity/run.sh`
 - `./scripts/validate-dm-transport-policy.sh`
 - `./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"`
 - Rust `fmt`/`clippy`/tests and coverage gate command
@@ -120,7 +120,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 ./scripts/validate-migration-evidence.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-evidence-provenance.sh "$BASE_SHA" "$HEAD_SHA"
 ./scripts/validate-contract-parity.sh "$BASE_SHA" "$HEAD_SHA"
-bash scripts/test-contract-parity.sh
+bash tests/contract-parity/run.sh
 ./scripts/validate-dm-transport-policy.sh
 ./scripts/validate-docs-index-freshness.sh "$BASE_SHA" "$HEAD_SHA"
 bash scripts/validate-cargo-audit-ignore.sh

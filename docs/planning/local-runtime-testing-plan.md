@@ -13,7 +13,7 @@
 
 - Purpose: define the local testing profile, fixture, multi-instance runtime, and network simulation plan for HexRelay development.
 - Primary edit location: update this file when local fixture profiles, dev-session bootstrap, runtime profiles, or network simulation strategy changes.
-- Latest meaningful change: 2026-05-20 aligned server-chat fixture expectations with the accepted server-to-server authority model, local server id binding, and clean default host-process startup without seeded fixture personas.
+- Latest meaningful change: 2026-05-20 centralized host-process start/status/stop in one Node runtime manager and moved runtime/network implementation modules under organized script subdirectories.
 
 ## Organization Decision
 
@@ -48,8 +48,10 @@
 ## Current Repository Baseline
 
 - Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, runtime/network smoke tests, standard tests, and security checks through `package.json`.
-- Windows local startup is handled by `scripts/run.ps1`; it chooses conflict-free local ports and prints each instance's API, realtime, and web URLs.
-- Unix local startup is handled by `scripts/run.sh`; it uses the shared runtime profile JSON files for parity with Windows.
+- Host-process start/status/stop is implemented once in `scripts/runtime/local.mjs`; `npm run start`, `npm run status`, and `npm run stop` call that shared manager directly.
+- Windows `scripts/run.ps1`, `scripts/status.ps1`, and `scripts/stop.ps1` are thin compatibility shims for direct PowerShell usage.
+- Unix `scripts/run.sh`, `scripts/status.sh`, and `scripts/stop.sh` are thin compatibility shims for direct Bash usage.
+- The shared manager chooses conflict-free local ports, uses the shared runtime profile JSON files, isolates each managed Next dev server in a per-run `.next-*` directory, and prints each instance's API, realtime, and web URLs.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
 - The default host-process runtime profile starts one neutral `local-server` app instance without seed persona metadata; Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `local_server`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, `server_roles`, and `server_channel_messages`.
@@ -283,9 +285,9 @@ npm run reset-dev-db -- --profile all --yes
 
 | File | Purpose |
 |---|---|
-| `scripts/runtime-profiles/single.json` | One clean local server app instance with no seeded persona |
-| `scripts/runtime-profiles/dual.json` | Alice server plus Bob server |
-| `scripts/runtime-profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
+| `scripts/runtime/profiles/single.json` | One clean local server app instance with no seeded persona |
+| `scripts/runtime/profiles/dual.json` | Alice server plus Bob server |
+| `scripts/runtime/profiles/triple.json` | Alice, Bob, and Carol/Dave edge server |
 
 ### Runtime Profile Shape
 
@@ -368,7 +370,7 @@ Generic `npm run stop` refuses Docker runtime state; use `runtime:docker -- down
 ```bash
 npm run test:runtime
 npm run test:network
-node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
+node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
 ```
 
 ### Windows Parity
@@ -393,12 +395,12 @@ node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/
 
 | File | Purpose |
 |---|---|
-| `scripts/network-profiles/normal.json` | Clear all shaping and partitions |
-| `scripts/network-profiles/high-latency.json` | Add fixed latency to selected target |
-| `scripts/network-profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
-| `scripts/network-profiles/offline-alice.json` | Disconnect Alice server from selected network |
-| `scripts/network-profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
-| `scripts/network-profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
+| `scripts/network/profiles/normal.json` | Clear all shaping and partitions |
+| `scripts/network/profiles/high-latency.json` | Add fixed latency to selected target |
+| `scripts/network/profiles/packet-loss.json` | Force peer-link loss with Toxiproxy timeout toxicity |
+| `scripts/network/profiles/offline-alice.json` | Disconnect Alice server from selected network |
+| `scripts/network/profiles/partition-alice-bob.json` | Block Alice and Bob from reaching each other |
+| `scripts/network/profiles/flaky-mobile.json` | Delay plus intermittent disconnect/failure behavior |
 
 ### Target Commands
 
@@ -490,8 +492,8 @@ npm run network -- --reset
 - `test:runtime` validates app-level Alice/Bob API reachability before, during, and after Docker offline/partition profiles.
 - `test:runtime` validates Toxiproxy peer-link latency and timeout apply/reset without kernel-level network shaping.
 - `test:runtime` validates realtime app-fault apply/reset against the runtime stack.
-- `test:network` runs the same Docker runtime network scenario set explicitly through `scripts/test-network.mjs`.
-- `runtime-docker.mjs smoke --evidence-dir <path>` writes raw smoke output files that can be copied under a durable evidence bundle's `outputs/` directory.
+- `test:network` runs the same Docker runtime network scenario set explicitly through `tests/runtime/network-smoke.mjs`.
+- `scripts/runtime/docker.mjs smoke --evidence-dir <path>` writes raw smoke output files that can be copied under a durable evidence bundle's `outputs/` directory.
 
 ### CI Strategy
 
@@ -566,20 +568,20 @@ npm run network -- --reset
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime-profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
-| PH-04-EP-01-ST-01-TK-02 | Extend Windows runner for runtime profiles | `scripts/run.ps1` | `run.ps1 -RuntimeProfile dual -SeedProfile dm-basic` | Starts multiple named instances with unique ports | done |
-| PH-04-EP-01-ST-01-TK-03 | Extend Unix runner for runtime profiles | `scripts/run.sh` | `bash -n scripts/run.sh`; `bash scripts/status.sh`; `bash scripts/stop.sh --runtime-profile dual` | Unix flow reaches Windows parity | done |
-| PH-04-EP-01-ST-01-TK-04 | Add status and stop scripts | `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
+| PH-04-EP-01-ST-01-TK-01 | Define runtime profile JSON schema | `scripts/runtime/profiles/` | `npm run validate:runtime-profiles` | `single`, `dual`, and `triple` profile files validate | done |
+| PH-04-EP-01-ST-01-TK-02 | Implement shared host-process runtime manager | `scripts/runtime/local.mjs`, `scripts/run.mjs`, `scripts/status.mjs`, `scripts/stop.mjs` | `npm run start -- --runtime-profile dual --seed-profile dm-basic`; `npm run status`; `npm run stop` | Starts multiple named instances with unique ports from one cross-platform implementation | done |
+| PH-04-EP-01-ST-01-TK-03 | Keep direct OS-native lifecycle shims | `scripts/run.ps1`, `scripts/status.ps1`, `scripts/stop.ps1`, `scripts/run.sh`, `scripts/status.sh`, `scripts/stop.sh` | `powershell -File scripts/run.ps1 -Help`; `bash -n scripts/run.sh scripts/status.sh scripts/stop.sh` | PowerShell and Bash users keep native commands without duplicated runtime logic | done |
+| PH-04-EP-01-ST-01-TK-04 | Add status and stop commands | `scripts/runtime/local.mjs`, `scripts/status.*`, `scripts/stop.*` | Windows `single` and `dual` start/status/stop smoke | Processes are tracked and cleaned deterministically | done |
 
 ### PH-05 Tasks
 
 | Task ID | Task | Touchpoints | Validation | Acceptance Criteria | Status |
 |---|---|---|---|---|---|
-| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network-profiles/`, `scripts/validate-network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
-| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
-| PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
-| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
-| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime-docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime servers expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
+| PH-05-EP-01-ST-01-TK-01 | Add network profile schema | `scripts/network/profiles/`, `scripts/validators/network-profiles.mjs` | `npm run validate:network-profiles` | Normal, offline, partition, latency, and flaky profiles validate | done |
+| PH-05-EP-01-ST-01-TK-02 | Add Docker network simulation wrappers | `scripts/network/index.mjs`, `scripts/network.ps1`, `scripts/network.sh` | `npm run network -- --reset --json`; parser checks | Command layer and idempotent reset exist; Docker container targets are supported, while current host-process runtime targets fail safe | done |
+| PH-05-EP-01-ST-01-TK-03 | Add Toxiproxy latency/timeout support | `scripts/network/index.mjs`, `infra/docker-compose.runtime-test.yml` | Apply and reset latency/timeout profiles; `npm run test:runtime` | Docker runtime targets support cross-platform peer-link degradation without kernel shaping | done |
+| PH-05-EP-01-ST-01-TK-04 | Add dev app fault injection | `services/realtime-rs`, `scripts/network/index.mjs` | Realtime integration tests; `npm run test:runtime` | Delay/drop/disconnect knobs work only in dev/test mode | done |
+| PH-05-EP-01-ST-01-TK-05 | Add Docker runtime test stack | `infra/docker-compose.runtime-test.yml`, `scripts/runtime/docker.mjs`, `package.json` | Compose config validation; `npm run runtime:docker -- status --json`; `npm run test:runtime` | Alice/Bob containerized runtime servers expose API/realtime/web endpoints and validate offline, partition, Toxiproxy, app-fault, and reset paths | done |
 
 ### PH-06 Tasks
 
@@ -587,8 +589,8 @@ npm run network -- --reset
 |---|---|---|---|---|---|
 | PH-06-EP-01-ST-01-TK-01 | Add fixture invariant tests | `services/api-rs/src/dev_seed.rs` | `cargo test -p api-rs fixture` | Seeded profiles match expected local runtime scenario invariants | done |
 | PH-06-EP-01-ST-01-TK-02 | Add web persona tests | `apps/web/lib/personas.test.ts`, `apps/web/lib/sessions.test.ts` | `npm run test --prefix apps/web` | Persona/session helpers are covered | done |
-| PH-06-EP-01-ST-01-TK-03 | Add runtime smoke tests | `scripts/test-runtime.mjs`, `scripts/runtime-docker.mjs` | `npm run test:runtime`; `node scripts/runtime-docker.mjs smoke --scope runtime` | Docker runtime health checks pass and optional evidence can be emitted | done |
-| PH-06-EP-01-ST-01-TK-04 | Add network reset smoke tests | `scripts/test-network.mjs`, `scripts/runtime-docker.mjs` | `npm run test:network`; `npm run test:runtime` | Reset restores baseline connectivity after offline, partition, Toxiproxy, and app-fault profiles | done |
+| PH-06-EP-01-ST-01-TK-03 | Add runtime smoke tests | `tests/runtime/runtime-smoke.mjs`, `scripts/runtime/docker.mjs` | `npm run test:runtime`; `node scripts/runtime/docker.mjs smoke --scope runtime` | Docker runtime health checks pass and optional evidence can be emitted | done |
+| PH-06-EP-01-ST-01-TK-04 | Add network reset smoke tests | `tests/runtime/network-smoke.mjs`, `scripts/runtime/docker.mjs` | `npm run test:network`; `npm run test:runtime` | Reset restores baseline connectivity after offline, partition, Toxiproxy, and app-fault profiles | done |
 
 ### PH-07 Tasks
 

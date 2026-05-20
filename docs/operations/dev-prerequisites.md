@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-26
+- last_updated: 2026-05-20
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-04-26 aligned the local Node.js baseline with the checked-in `.nvmrc` and package engine constraints.
+- Latest meaningful change: 2026-05-20 clarified that host-process runtime lifecycle checks are handled by the shared Node runtime manager; curl remains useful for manual health probes.
 
 ## Purpose
 
@@ -27,13 +27,13 @@
 - Docker Engine: 24.x or newer.
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
 - Bash: required for repository scripts in `scripts/*.sh`.
-- curl: required for local health checks used by `scripts/run.sh`.
+- curl: required for manual health probes in the runbooks and contributor guide.
 - Python: 3.10+ (required for local Semgrep parity command in contributor guide).
 - pip: bundled with Python installation and required to install Semgrep locally.
 
 ### Platform Notes
 
-- Windows: use the PowerShell-backed `npm run setup` / `npm run start` path for normal local development; use Git Bash or WSL only when running `scripts/*.sh` directly.
+- Windows: use `npm run setup` / `npm run start` for normal local development; use the PowerShell wrappers only when you need direct native commands.
 - macOS/Linux: default system shell is sufficient.
 - The repository includes `.nvmrc` pinned to `24.15.0` for the default local toolchain baseline.
 

@@ -465,8 +465,8 @@
 - Change summary:
   - Added stronger fixture invariant coverage for `dm-basic`, `contacts-edge`, and `server-chat` local testing scenarios.
   - Added focused web helper coverage for fixture persona activation events and per-persona runtime session isolation.
-  - Added `scripts/test-runtime.mjs` and `scripts/test-network.mjs` entrypoints while preserving `npm run test:runtime` as the full Docker runtime/network smoke.
-  - Extended `scripts/runtime-docker.mjs smoke` with `--scope all|runtime|network` and optional `--evidence-dir` output for scenario config, runtime status before/after, event log, and verdict files.
+  - Added runtime and network smoke entrypoints, now located at `tests/runtime/runtime-smoke.mjs` and `tests/runtime/network-smoke.mjs`, while preserving `npm run test:runtime` as the full Docker runtime/network smoke.
+  - Extended the Docker runtime smoke command, now located at `scripts/runtime/docker.mjs smoke`, with `--scope all|runtime|network` and optional `--evidence-dir` output for scenario config, runtime status before/after, event log, and verdict files.
 - Rationale:
   - PH-05 made runtime/network simulation executable; PH-06 closes the validation/evidence loop so later DM/realtime work has a deterministic local harness instead of console-only smoke output.
 - Linked docs updated:
@@ -478,7 +478,7 @@
 - Area affected: Local runtime testing, Docker runtime/network simulation, and script discoverability.
 - Change summary:
   - Added `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob runtimes with API, realtime, and web containers.
-  - Added `scripts/runtime-docker.mjs` and root commands `npm run runtime:docker` and `npm run test:runtime`.
+  - Added the Docker runtime manager, now located at `scripts/runtime/docker.mjs`, and root commands `npm run runtime:docker` and `npm run test:runtime`.
   - Added shared runtime tsconfig generation for containerized Next dev instances.
   - Split per-server infra networks from the shared simulation network so offline/partition profiles do not sever Postgres/Redis/MinIO connectivity or leave an alternate Alice/Bob peer path.
   - Validated Docker offline and partition apply/reset flows through `npm run test:runtime` with app-level Alice/Bob API reachability assertions.
@@ -746,8 +746,8 @@
 
 - Area affected: CI contract parity, realtime contract enforcement, and readiness watch routing.
 - Change summary:
-  - Added selected realtime semantic parity validation for the receive-side `realtime.connected`, `presence.updated`, `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` envelopes in `scripts/contract_parity/engine.py` and `scripts/contract_parity/validator.py`.
-  - Added a `fail-realtime-envelope-semantics` fixture regression and wired it into `scripts/test-contract-parity.sh` so envelope/data drift fails deterministically.
+  - Added selected realtime semantic parity validation for the receive-side `realtime.connected`, `presence.updated`, `channel.message.created`, `channel.message.updated`, and `channel.message.deleted` envelopes in the contract parity validator, now located under `scripts/validators/contract-parity/`.
+  - Added a `fail-realtime-envelope-semantics` fixture regression and wired it into `tests/contract-parity/run.sh` so envelope/data drift fails deterministically.
   - Refreshed contract/readiness docs so they describe the stronger gate accurately without overstating closure of the broader semantic-depth watch.
 - Rationale:
   - The remaining parity-depth watch was still too broad on the realtime side; selected receive-side websocket event semantics were stable enough to enforce mechanically and high-value enough to deserve CI coverage now.

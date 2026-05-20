@@ -4,7 +4,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const runtimeDocker = path.join(scriptsDir, "runtime-docker.mjs");
+const root = path.resolve(scriptsDir, "../..");
+const runtimeDocker = path.join(root, "scripts", "runtime", "docker.mjs");
 
 const args = process.argv.slice(2);
 const hasScope = args.some((arg) =>
@@ -16,7 +17,7 @@ if (hasScope) {
 }
 
 const result = spawnSync(process.execPath, [runtimeDocker, "smoke", "--scope", "network", ...args], {
-  cwd: path.resolve(scriptsDir, ".."),
+  cwd: root,
   stdio: "inherit",
   shell: false,
 });

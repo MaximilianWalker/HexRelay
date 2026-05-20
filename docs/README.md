@@ -13,7 +13,7 @@
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-20 aligned documentation routing with the server authority terminology refactor.
+- Latest meaningful change: 2026-05-20 aligned documentation routing with the script/test layout cleanup and server authority terminology refactor.
 
 ## Purpose
 
