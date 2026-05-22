@@ -199,8 +199,8 @@ export default function IdentityOnboardingPage() {
                 New ed25519 keypair will be generated locally on continue.
               </div>
               <div className={styles.fieldGroup}>
-                <label className={styles.label}>Public fingerprint preview</label>
-                <input className={styles.input} value={SAMPLE_FINGERPRINT} readOnly />
+                <label className={styles.label} htmlFor="publicFingerprintPreview">Public fingerprint preview</label>
+                <input id="publicFingerprintPreview" className={styles.input} value={SAMPLE_FINGERPRINT} readOnly />
               </div>
             </>
           ) : (

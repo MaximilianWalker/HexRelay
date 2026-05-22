@@ -149,6 +149,7 @@ export default function ServersPage() {
           </button>
         </div>
         <input
+          aria-label="Search servers"
           className={styles.search}
           onChange={(event) =>
             setFilterState(() => {

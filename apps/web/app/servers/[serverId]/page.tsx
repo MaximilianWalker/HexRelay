@@ -1149,6 +1149,8 @@ export default function ServerWorkspacePage() {
                   ) : null}
 
                   <textarea
+                    aria-describedby="server-message-composer-help"
+                    aria-label={activeChannel ? `Message #${activeChannel.name}` : "Server channel message"}
                     className={styles.composerInput}
                     disabled={!activeChannel || sendBusy}
                     onChange={(event) => setComposer(event.target.value)}
@@ -1157,7 +1159,7 @@ export default function ServerWorkspacePage() {
                     value={composer}
                   />
                   <div className={styles.composerBar}>
-                    <div className={styles.composerHints}>
+                    <div className={styles.composerHints} id="server-message-composer-help">
                       {mentionIdentityIds.length > 0 ? (
                         mentionIdentityIds.map((mention) => (
                           <span className={styles.mentionToken} key={mention}>

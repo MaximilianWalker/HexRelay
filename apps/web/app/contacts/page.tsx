@@ -526,15 +526,17 @@ export default function ContactsPage() {
         {activePanel === "add" ? (
           <section className={styles.state} aria-label="Add contact">
             <p className={styles.title}>Add contact</p>
-            <p className={styles.meta}>Paste an invite link from someone you know.</p>
+            <p className={styles.meta} id="contact-invite-link-help">Paste an invite link from someone you know.</p>
             <div className={styles.inputWrap}>
               <IconLink className={styles.inputIcon} aria-hidden="true" />
-            <input
-              className={styles.search}
-              onChange={(event) => setRedeemToken(event.target.value)}
-              placeholder="Invite link"
-              value={redeemToken}
-            />
+              <input
+                aria-describedby="contact-invite-link-help"
+                aria-label="Contact invite link"
+                className={styles.search}
+                onChange={(event) => setRedeemToken(event.target.value)}
+                placeholder="Invite link"
+                value={redeemToken}
+              />
             </div>
             <div className={styles.row}>
               <button
@@ -583,9 +585,11 @@ export default function ContactsPage() {
                 Reusable {inviteMode === "multi_use" ? "selected" : ""}
               </button>
             </div>
-            <p className={styles.meta}>{inviteModeDescription(inviteMode)}</p>
+            <p className={styles.meta} id="contact-invite-max-uses-help">{inviteModeDescription(inviteMode)}</p>
             {inviteMode === "multi_use" ? (
               <input
+                aria-describedby="contact-invite-max-uses-help"
+                aria-label="Invite maximum uses"
                 className={styles.search}
                 min={1}
                 onChange={(event) => setInviteMaxUses(event.target.value)}
@@ -750,16 +754,17 @@ export default function ContactsPage() {
 
         <div className={styles.inputWrap}>
           <IconSearch className={styles.inputIcon} aria-hidden="true" />
-        <input
-          className={styles.search}
-          onChange={(event) =>
-            setFilterState(() => {
-              setSearch(event.target.value);
-            })
-          }
-          placeholder="Search contacts"
-          value={search}
-        />
+          <input
+            aria-label="Search contacts"
+            className={styles.search}
+            onChange={(event) =>
+              setFilterState(() => {
+                setSearch(event.target.value);
+              })
+            }
+            placeholder="Search contacts"
+            value={search}
+          />
         </div>
 
         {pageState === "loading" ? <p className={styles.state}>Loading contacts...</p> : null}
