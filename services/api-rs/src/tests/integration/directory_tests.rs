@@ -257,6 +257,38 @@ async fn create_server_claims_owner_and_seeds_text_and_voice_channels() {
 }
 
 #[tokio::test]
+async fn create_server_rejects_existing_member_without_owner_scope() {
+    let member_id = unique_identity("usr-server-create-member");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&member_id]).await else {
+        return;
+    };
+
+    seed_server_membership(&pool, "Existing Server", &member_id, false, false, 0).await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/servers")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens[&member_id]))
+        .body(Body::from(r#"{"name":"Escalation Attempt"}"#))
+        .expect("build server create request");
+    let create_response = app.oneshot(create_request).await.expect("create response");
+    assert_eq!(create_response.status(), StatusCode::FORBIDDEN);
+
+    let create_body = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("read create error body");
+    let create_payload: serde_json::Value =
+        serde_json::from_slice(&create_body).expect("decode create error body");
+    assert_eq!(create_payload["code"], "server_owner_required");
+
+    let admin_status = servers_repo::server_administration_for_identity(&pool, &member_id)
+        .await
+        .expect("load member admin status");
+    assert!(admin_status.is_none());
+}
+
+#[tokio::test]
 async fn join_server_accepts_invite_link_and_adds_membership() {
     let owner_id = unique_identity("usr-server-join-owner");
     let joiner_id = unique_identity("usr-server-joiner");
@@ -304,6 +336,88 @@ async fn join_server_accepts_invite_link_and_adds_membership() {
         serde_json::from_slice(&join_body).expect("decode join body");
     assert_eq!(join_payload["joined"], true);
     assert_eq!(join_payload["item"]["id"], TEST_SERVER_ID);
+}
+
+#[tokio::test]
+async fn join_server_repeat_does_not_consume_another_invite_use() {
+    let owner_id = unique_identity("usr-server-join-repeat-owner");
+    let joiner_id = unique_identity("usr-server-join-repeat");
+    let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&owner_id, &joiner_id]).await
+    else {
+        return;
+    };
+
+    let invite_request = Request::builder()
+        .method("POST")
+        .uri("/invites")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens[&owner_id]))
+        .body(Body::from(r#"{"mode":"multi_use","max_uses":2}"#))
+        .expect("build invite request");
+    let invite_response = app
+        .clone()
+        .oneshot(invite_request)
+        .await
+        .expect("invite response");
+    assert_eq!(invite_response.status(), StatusCode::CREATED);
+    let invite_body = to_bytes(invite_response.into_body(), usize::MAX)
+        .await
+        .expect("read invite body");
+    let invite_payload: serde_json::Value =
+        serde_json::from_slice(&invite_body).expect("decode invite body");
+    let token = invite_payload["token"].as_str().expect("invite token");
+    let join_body = serde_json::json!({
+        "server_id": TEST_SERVER_ID,
+        "invite_token": token
+    })
+    .to_string();
+
+    let first_join_request = Request::builder()
+        .method("POST")
+        .uri("/servers/join")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens[&joiner_id]))
+        .body(Body::from(join_body.clone()))
+        .expect("build first join request");
+    let first_join_response = app
+        .clone()
+        .oneshot(first_join_request)
+        .await
+        .expect("first join response");
+    assert_eq!(first_join_response.status(), StatusCode::OK);
+    let first_join_body = to_bytes(first_join_response.into_body(), usize::MAX)
+        .await
+        .expect("read first join body");
+    let first_join_payload: serde_json::Value =
+        serde_json::from_slice(&first_join_body).expect("decode first join body");
+    assert_eq!(first_join_payload["joined"], true);
+
+    let repeat_join_request = Request::builder()
+        .method("POST")
+        .uri("/servers/join")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", tokens[&joiner_id]))
+        .body(Body::from(join_body))
+        .expect("build repeat join request");
+    let repeat_join_response = app
+        .oneshot(repeat_join_request)
+        .await
+        .expect("repeat join response");
+    assert_eq!(repeat_join_response.status(), StatusCode::OK);
+    let repeat_join_body = to_bytes(repeat_join_response.into_body(), usize::MAX)
+        .await
+        .expect("read repeat join body");
+    let repeat_join_payload: serde_json::Value =
+        serde_json::from_slice(&repeat_join_body).expect("decode repeat join body");
+    assert_eq!(repeat_join_payload["joined"], false);
+
+    let token_hash = hex::encode(digest(&SHA256, token.as_bytes()).as_ref());
+    let uses = sqlx::query_scalar::<_, i32>("SELECT uses FROM invites WHERE token = $1")
+        .bind(token_hash)
+        .fetch_one(&pool)
+        .await
+        .expect("load invite uses");
+    assert_eq!(uses, 1);
 }
 
 #[tokio::test]

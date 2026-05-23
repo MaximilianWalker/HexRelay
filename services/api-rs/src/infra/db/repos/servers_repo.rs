@@ -77,6 +77,27 @@ pub async fn insert_server_membership(
     Ok(())
 }
 
+pub async fn insert_server_membership_if_absent(
+    executor: impl Executor<'_, Database = Postgres>,
+    params: ServerMembershipInsertParams<'_>,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "
+        INSERT INTO server_memberships (identity_id, pinned, muted, unread_count)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (identity_id) DO NOTHING
+        ",
+    )
+    .bind(params.identity_id)
+    .bind(params.pinned)
+    .bind(params.muted)
+    .bind(params.unread_count)
+    .execute(executor)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn insert_server_administrator(
     executor: impl Executor<'_, Database = Postgres>,
     params: ServerAdministratorInsertParams<'_>,
@@ -121,6 +142,38 @@ pub async fn insert_server_bootstrap_credential(
     .await?;
 
     Ok(())
+}
+
+pub async fn lock_server_bootstrap_state(
+    executor: impl Executor<'_, Database = Postgres>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        LOCK TABLE server_memberships, server_administrators IN SHARE ROW EXCLUSIVE MODE
+        ",
+    )
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn server_has_memberships(
+    executor: impl Executor<'_, Database = Postgres>,
+) -> Result<bool, sqlx::Error> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "
+        SELECT EXISTS (
+            SELECT 1
+            FROM server_memberships
+            LIMIT 1
+        )
+        ",
+    )
+    .fetch_one(executor)
+    .await?;
+
+    Ok(exists)
 }
 
 pub async fn identities_share_server(
@@ -168,7 +221,7 @@ pub async fn list_servers_for_identity(
 }
 
 pub async fn identity_has_server_membership(
-    pool: &PgPool,
+    executor: impl Executor<'_, Database = Postgres>,
     identity_id: &str,
 ) -> Result<bool, sqlx::Error> {
     let count = sqlx::query_scalar::<_, i64>(
@@ -179,7 +232,7 @@ pub async fn identity_has_server_membership(
         ",
     )
     .bind(identity_id)
-    .fetch_one(pool)
+    .fetch_one(executor)
     .await?;
 
     Ok(count > 0)
@@ -271,7 +324,7 @@ pub async fn delete_server_membership(
 }
 
 pub async fn server_administration_for_identity(
-    pool: &PgPool,
+    executor: impl Executor<'_, Database = Postgres>,
     identity_id: &str,
 ) -> Result<Option<(bool, bool)>, sqlx::Error> {
     let row = sqlx::query(
@@ -282,7 +335,7 @@ pub async fn server_administration_for_identity(
         ",
     )
     .bind(identity_id)
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await?;
 
     row.map(|row| {

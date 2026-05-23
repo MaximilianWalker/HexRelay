@@ -114,6 +114,24 @@ pub async fn create_server(
         .await
         .map_err(|_| internal_error("storage_unavailable", "failed to start server creation"))?;
 
+    servers_repo::lock_server_bootstrap_state(&mut *tx)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to lock server bootstrap"))?;
+    let is_configured_owner = state.server_owner_identity_ids.contains(&auth.identity_id);
+    let is_db_owner = servers_repo::server_administration_for_identity(&mut *tx, &auth.identity_id)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load server owner"))?
+        .is_some_and(|(is_owner, _)| is_owner);
+    let is_initial_bootstrap = !servers_repo::server_has_memberships(&mut *tx)
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to load server membership"))?;
+    if !(is_configured_owner || is_db_owner || is_initial_bootstrap) {
+        return Err(forbidden(
+            "server_owner_required",
+            "server creation requires server owner authorization",
+        ));
+    }
+
     servers_repo::insert_server(
         &mut *tx,
         servers_repo::ServerInsertParams {
@@ -245,31 +263,43 @@ pub async fn join_server(
     if invite.server_id != server_id {
         return Err(bad_request("server_mismatch", "invite server id mismatch"));
     }
-    if let Some(expires_at) = invite.expires_at {
-        if chrono::Utc::now() > expires_at {
-            return Err(bad_request("invite_expired", "invite token is expired"));
-        }
-    }
-    if let Some(max_uses) = invite.max_uses {
-        if invite.uses >= max_uses {
-            return Err(bad_request("invite_exhausted", "invite token is exhausted"));
-        }
-    }
 
-    invites_repo::increment_invite_use(&mut *tx, &token_hash)
+    let already_member = servers_repo::identity_has_server_membership(&mut *tx, &auth.identity_id)
         .await
-        .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
-    servers_repo::insert_server_membership(
-        &mut *tx,
-        servers_repo::ServerMembershipInsertParams {
-            identity_id: &auth.identity_id,
-            pinned: false,
-            muted: false,
-            unread_count: 0,
-        },
-    )
-    .await
-    .map_err(|_| internal_error("storage_unavailable", "failed to save server membership"))?;
+        .map_err(|_| internal_error("storage_unavailable", "failed to load server membership"))?;
+    let joined = if already_member {
+        false
+    } else {
+        if let Some(expires_at) = invite.expires_at {
+            if chrono::Utc::now() > expires_at {
+                return Err(bad_request("invite_expired", "invite token is expired"));
+            }
+        }
+        if let Some(max_uses) = invite.max_uses {
+            if invite.uses >= max_uses {
+                return Err(bad_request("invite_exhausted", "invite token is exhausted"));
+            }
+        }
+
+        let inserted = servers_repo::insert_server_membership_if_absent(
+            &mut *tx,
+            servers_repo::ServerMembershipInsertParams {
+                identity_id: &auth.identity_id,
+                pinned: false,
+                muted: false,
+                unread_count: 0,
+            },
+        )
+        .await
+        .map_err(|_| internal_error("storage_unavailable", "failed to save server membership"))?;
+        if inserted {
+            invites_repo::increment_invite_use(&mut *tx, &token_hash)
+                .await
+                .map_err(|_| internal_error("storage_unavailable", "failed to update invite"))?;
+        }
+
+        inserted
+    };
 
     tx.commit()
         .await
@@ -280,7 +310,7 @@ pub async fn join_server(
         .map_err(|_| internal_error("storage_unavailable", "failed to load joined server"))?
         .ok_or_else(|| internal_error("storage_unavailable", "joined server membership missing"))?;
 
-    Ok(Json(ServerJoinResponse { item, joined: true }))
+    Ok(Json(ServerJoinResponse { item, joined }))
 }
 
 pub async fn get_server(
