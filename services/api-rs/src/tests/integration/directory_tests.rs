@@ -174,15 +174,20 @@ async fn updates_server_preferences_and_leave_removes_membership() {
 async fn create_server_claims_owner_and_seeds_text_and_voice_channels() {
     let owner_id = unique_identity("usr-server-owner-create");
     let server_id = TEST_SERVER_ID.to_string();
-    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&[&owner_id]).await else {
+    let Some(pool) = prepared_database_pool().await else {
         return;
     };
+    let state = test_state_with_public_identity_registration()
+        .with_db_pool(pool.clone())
+        .with_server_owner_identity_ids(vec![owner_id.clone()]);
+    let token = issue_db_session_cookie(&pool, &state, &owner_id).await;
+    let app = build_app(state);
 
     let create_request = Request::builder()
         .method("POST")
         .uri("/servers")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens[&owner_id]))
+        .header("authorization", format!("Bearer {token}"))
         .body(Body::from(
             r#"{"name":"Atlas Local","description":"Local server"}"#,
         ))
@@ -211,7 +216,7 @@ async fn create_server_claims_owner_and_seeds_text_and_voice_channels() {
     let capabilities_request = Request::builder()
         .method("GET")
         .uri("/server/capabilities")
-        .header("authorization", format!("Bearer {}", tokens[&owner_id]))
+        .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build server capabilities request");
     let capabilities_response = app
@@ -233,7 +238,7 @@ async fn create_server_claims_owner_and_seeds_text_and_voice_channels() {
     let channels_request = Request::builder()
         .method("GET")
         .uri(format!("/servers/{server_id}/channels"))
-        .header("authorization", format!("Bearer {}", tokens[&owner_id]))
+        .header("authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .expect("build server channels request");
     let channels_response = app
