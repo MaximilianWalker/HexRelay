@@ -49,7 +49,14 @@ function stateHasLiveProcesses(state) {
   return false;
 }
 
-async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, reservedPorts, startedProcesses }) {
+async function startRuntimeInstance({
+  instance,
+  baseApiEnv,
+  baseRealtimeEnv,
+  reservedPorts,
+  startedProcesses,
+  useCustomWebDist,
+}) {
   const instanceId = instance.id;
   const apiPort = await getFreePort(instance.apiPort, reservedPorts);
   const realtimePort = await getFreePort(instance.realtimePort, reservedPorts);
@@ -116,12 +123,12 @@ async function startRuntimeInstance({ instance, baseApiEnv, baseRealtimeEnv, res
   realtimeProcess.servicePid = realtimePid;
 
   console.log(`[local-runtime] Starting ${instanceId} web dev server`);
-  const webDistId = instanceId.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const webDistId = useCustomWebDist ? instanceId.replace(/[^a-zA-Z0-9_-]/g, "-") : null;
   const { processInfo: webProcess, webUrl } = await startWebWithRetry({
     instanceId,
     webPort,
     webEnv: {
-      HEXRELAY_RUNTIME_INSTANCE: webDistId,
+      ...(webDistId ? { HEXRELAY_RUNTIME_INSTANCE: webDistId } : {}),
       NEXT_PUBLIC_API_BASE_URL: apiUrl,
       NEXT_PUBLIC_REALTIME_WS_URL: realtimeWsUrl,
     },
@@ -335,6 +342,7 @@ export async function startCommand(rawArgs) {
 
   try {
     const reservedPorts = new Set();
+    const useCustomWebDist = profile.instances.length > 1;
     for (const instance of profile.instances) {
       const instanceState = await startRuntimeInstance({
         instance,
@@ -342,6 +350,7 @@ export async function startCommand(rawArgs) {
         baseRealtimeEnv: realtimeEnv,
         reservedPorts,
         startedProcesses,
+        useCustomWebDist,
       });
       state.instances.push(instanceState);
       writeJson(statePath, state);

@@ -533,7 +533,7 @@
   - Added `single`, `dual`, and `triple` runtime profile JSON files plus a shared validator/normalizer.
   - Extended Windows and Unix runners to start named API/realtime/web instances with per-instance ports, logs, web env, and tracked runtime state.
   - Added cross-platform `status` and `stop` commands that inspect and stop only tracked `.local-run` processes.
-  - Isolated Next.js dev build directories per runtime instance so multiple web dev servers can run side by side.
+  - Kept single-instance web startup on standard `.next` and used stable per-instance `.next-*` directories when multiple web dev servers run side by side.
 - Rationale:
   - Manual local DM and multi-server testing needs deterministic multi-instance startup without hand-editing ports or killing broad process names.
 - Linked docs updated:

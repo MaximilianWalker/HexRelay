@@ -241,7 +241,7 @@ node scripts/runtime/docker.mjs smoke --scope all --evidence-dir .local-run/evid
 | Docker runtime smoke failed during cleanup | Containers or network state remained active | Run `npm run runtime:docker -- down --force`, then `npm run runtime:docker -- status --json` |
 | Network profile remains applied | `.local-run/network-state.json` still tracks a profile | Run `npm run network -- --reset`; use `--force` only after failed Docker cleanup |
 | Host-process ports are busy | Another local runtime or app is already running | The shared runner picks free fallback ports; run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` when the process is managed by this repo |
-| Next reports another dev server | A stale or unmanaged Next process is using the same stable per-instance dist directory | Stop the unmanaged process separately before rerunning the same runtime instance |
+| Next reports another dev server | A stale or unmanaged Next process is using the same `.next` or stable per-instance `.next-*` directory | Stop the unmanaged process separately before rerunning the same runtime instance |
 | Testing profiles are hidden or inert | `API_ENABLE_DEV_TESTING` is unset or false | Set `API_ENABLE_DEV_TESTING=true` only in local development and restart API/web |
 | Seed/reset refuses the database | Env points at a non-local or production-looking DB | Fix `API_DATABASE_URL` and `API_ENVIRONMENT=development`; do not bypass this for shared data |
 | Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-server` or `bob-server` |

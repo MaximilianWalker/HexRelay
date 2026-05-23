@@ -34,7 +34,9 @@ export async function startWebWithRetry({ instanceId, webPort, webEnv, webDistId
   const webBaseUrl = `http://localhost:${webPort}`;
   let webUrl = webBaseUrl;
   let processInfo = null;
-  writeRuntimeTsConfig(webDistId);
+  if (webDistId) {
+    writeRuntimeTsConfig(webDistId);
+  }
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     processInfo = startManagedProcess({

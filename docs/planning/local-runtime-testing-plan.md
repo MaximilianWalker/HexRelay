@@ -50,7 +50,7 @@
 - Root scripts currently expose setup, seed/reset, runtime start/status/stop, profile validation, runtime/network smoke tests, standard tests, and security checks through `package.json`.
 - Host-process start/status/stop is implemented once in `scripts/runtime/local.mjs`; `npm run start`, `npm run status`, and `npm run stop` call that shared manager directly.
 - Host-process lifecycle commands are single Node entrypoints, exposed through npm for the same Windows and Linux workflow.
-- The shared manager chooses conflict-free local ports, uses the shared runtime profile JSON files, gives each managed Next dev server a stable per-instance `.next-*` directory, and prints each instance's API, realtime, and web URLs.
+- The shared manager chooses conflict-free local ports, uses the shared runtime profile JSON files, keeps the single-instance web server on standard `.next`, gives multi-instance web servers stable per-instance `.next-*` directories, and prints each instance's API, realtime, and web URLs.
 - Local infra uses `infra/docker-compose.yml` for Postgres, Redis, MinIO, and a legacy coturn service.
 - The default host-process runtime profile starts one neutral `local-server` app instance without seed persona metadata; Docker runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob API, realtime, and web instances with `alice-server`/`bob-server` network targets and Toxiproxy inter-server links.
 - API migrations already provide the tables needed for realistic local profiles: `identity_keys`, `sessions`, `friend_requests`, `local_server`, `server_memberships`, `dm_policies`, `dm_profile_devices`, `dm_threads`, `dm_thread_participants`, `dm_messages`, `server_channels`, `server_roles`, and `server_channel_messages`.
@@ -320,6 +320,7 @@ npm run stop -- --runtime-profile dual
 - Each instance gets unique API, realtime, and web ports.
 - Each instance writes logs under `.local-run/<instance-id>/`.
 - Rust host-process services use the normal Cargo target directory; stale Windows process locks must be stopped instead of bypassed with fallback build folders.
+- Single-instance web startup uses the standard Next `.next` directory; multi-instance web startup uses stable per-instance `.next-*` directories so parallel dev servers do not share one Next build cache.
 - Each instance prints its API, realtime, websocket, and web URLs.
 - Each web instance receives matching `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_REALTIME_WS_URL`.
 - Status commands report process IDs, health, ports, and active runtime profile.
