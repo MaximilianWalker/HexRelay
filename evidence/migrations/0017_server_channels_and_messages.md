@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo fmt --all`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `cargo test -p api-rs server_channel_messages -- --nocapture`, `cargo test -p api-rs -- --nocapture`, `bash scripts/validate-contract-parity.sh`, `bash scripts/validate-docs-index-freshness.sh`
+- Command(s) executed: `cargo fmt --all`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `cargo test -p api-rs server_channel_messages -- --nocapture`, `cargo test -p api-rs -- --nocapture`, `node scripts/validators/contract-parity.mjs`, `node scripts/validators/docs-index-freshness.mjs`
 - Expected outcome: startup migration creates persisted server-channel tables, runtime `GET/POST /servers/{server_id}/channels/{channel_id}/messages` uses DB-backed channel/message storage, and reply/mention validation is enforced against persisted channel/server membership state.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the PR #66 delivery session; CI run `23564014637` for contract/docs and Rust validation jobs.

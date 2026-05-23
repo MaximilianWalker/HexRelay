@@ -1,0 +1,42 @@
+[
+  {
+    "name": "desktop-servers.png",
+    "url": "http://127.0.0.1:3001/servers",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    }
+  },
+  {
+    "name": "desktop-contacts.png",
+    "url": "http://127.0.0.1:3001/contacts",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    }
+  },
+  {
+    "name": "desktop-server-workspace.png",
+    "url": "http://127.0.0.1:3001/servers/hexrelay-local-server",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    }
+  },
+  {
+    "name": "mobile-servers.png",
+    "url": "http://127.0.0.1:3001/servers",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  {
+    "name": "mobile-contacts.png",
+    "url": "http://127.0.0.1:3001/contacts",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    }
+  }
+]

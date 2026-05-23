@@ -35,7 +35,7 @@
 - The desktop installer remains client-focused and runs in user space by default.
 - The desktop installer must not silently install or enable a public/network-facing dedicated server service.
 - Dedicated server artifacts are installed, configured, logged, backed up, upgraded, and secured as operator-managed services.
-- The normal HexRelay app is the intended administration surface for dedicated servers when the connected identity has node-owner/admin permissions.
+- The normal HexRelay app is the intended administration surface for dedicated servers when the connected identity has server-owner/admin permissions.
 - Dedicated server artifacts may expose authenticated admin/operator APIs, but they should remain headless and should not bundle a separate server-specific frontend by default.
 - App-mediated dedicated-server management should connect to an operator-installed dedicated server endpoint rather than bundling the server service into every desktop install.
 

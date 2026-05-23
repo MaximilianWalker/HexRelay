@@ -3,7 +3,7 @@ use crate::domain::{
     CommunicationMode, CommunicationReasonCode, ConnectIntent, DispatchOutcome, PolicyContext,
     PolicyError, SendEnvelope, SessionProvenance, TransportProfile,
 };
-use crate::transport::NodeClientTransport;
+use crate::transport::ServerClientTransport;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommunicationError {
@@ -14,17 +14,17 @@ pub struct CommunicationError {
 
 pub struct CommunicationRouter<N> {
     policy: PolicyContext,
-    node_client: N,
+    server_client: N,
 }
 
 impl<N> CommunicationRouter<N>
 where
-    N: NodeClientTransport,
+    N: ServerClientTransport,
 {
-    pub fn new(policy: PolicyContext, node_client: N) -> Self {
+    pub fn new(policy: PolicyContext, server_client: N) -> Self {
         Self {
             policy,
-            node_client,
+            server_client,
         }
     }
 
@@ -32,7 +32,7 @@ where
         let profile = self.route_profile(intent.mode, Some(intent))?;
 
         match profile {
-            TransportProfile::NodeClient => self.node_client.connect(intent).map_err(|_| {
+            TransportProfile::ServerClient => self.server_client.connect(intent).map_err(|_| {
                 transport_error(
                     CommunicationReasonCode::TransportConnectFailed,
                     intent.mode,
@@ -80,7 +80,7 @@ where
         profile: TransportProfile,
     ) -> Result<(), CommunicationError> {
         match profile {
-            TransportProfile::NodeClient => self.node_client.send(envelope).map_err(|_| {
+            TransportProfile::ServerClient => self.server_client.send(envelope).map_err(|_| {
                 transport_error(
                     CommunicationReasonCode::TransportSendFailed,
                     envelope.mode,

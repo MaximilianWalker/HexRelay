@@ -6,30 +6,30 @@
 - Owner: Product and realtime maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/10-infra-free-dm-connectivity-proposals.md`
 
 ## Quick Context
 
 - Primary edit location for detailed DM delivery solution candidates and trade-offs.
-- The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free node-bypassing DM connectivity.
+- The legacy file path is retained to avoid link churn; this document no longer defines infrastructure-free server-bypassing DM connectivity.
 - Cross-scenario networking implementation details are canonical in `docs/architecture/04-communication-networking-layer-plan.md`.
-- Latest meaningful change: 2026-05-11 added backend realtime dispatch summaries for recipient-targeted encrypted-envelope delivery.
+- Latest meaningful change: 2026-05-20 aligned relationship bootstrap wording with friend-request-only Contacts behavior.
 
 ## Purpose
 
 - Convert the MVP DM delivery baseline into concrete implementation options.
-- Keep the security boundary explicit: server nodes/message nodes may carry ciphertext envelopes, never DM plaintext or private keys.
-- Keep node-bypassing client DM transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, and parallel dial out of MVP scope.
+- Keep the security boundary explicit: servers/message servers may carry ciphertext envelopes, never DM plaintext or private keys.
+- Keep server-bypassing client DM transport, endpoint hints/cards, pairing QR/manual-code bootstrap, connectivity preflight, WAN wizard, and parallel dial out of MVP scope.
 - Keep execution sequencing in `docs/planning/infra-free-dm-connectivity-execution-plan.md` and avoid duplicating full implementation architecture here.
 
 ## Locked Constraints
 
 - DM plaintext, decrypted views, and private keys remain client/device-only.
-- Server nodes/message nodes in the server-node P2P network may carry and store only E2EE DM envelopes plus minimal delivery metadata.
-- Normal DM send success uses server-node P2P encrypted-envelope delivery.
+- Servers/message servers in the server-to-server network may carry and store only E2EE DM envelopes plus minimal delivery metadata.
+- Normal DM send success uses server-to-server P2P encrypted-envelope delivery.
 - Contact/friend bootstrap may expose only the identity and profile-device material required for client-side E2EE setup after relationship acceptance.
-- Unencrypted DM mailboxing, server-side decryption, server-readable DM content, private-key upload/custody, plaintext relay behavior, and node-bypassing DM transport/bootstrap are out of scope.
+- Unencrypted DM mailboxing, server-side decryption, server-readable DM content, private-key upload/custody, plaintext relay behavior, and server-bypassing DM transport/bootstrap are out of scope.
 
 ## Evaluation Criteria
 
@@ -40,20 +40,20 @@
 - **Relationship-gated bootstrap**: public identity and profile-device material are released only through accepted contact/friend state.
 - **Implementation risk**: complexity and portability across target desktop environments.
 
-## Proposition 1 (Rank 1): E2EE Envelope Message-Node Baseline
+## Proposition 1 (Rank 1): E2EE Envelope Message-Server Baseline
 
 ### What Changes
 
-- Make server nodes/message nodes in the server-node P2P network the default and only MVP DM delivery path for ciphertext envelopes.
+- Make servers/message servers in the server-to-server network the default and only MVP DM delivery path for ciphertext envelopes.
 - Store canonical encrypted DM history and minimal delivery metadata before sender-visible success.
-- Remove node-bypassing bootstrap/connectivity assumptions from API, realtime, web, contracts, docs, and tests.
+- Remove server-bypassing bootstrap/connectivity assumptions from API, realtime, web, contracts, docs, and tests.
 
 ### How It Works
 
 1. Sender client validates relationship, DM policy, block state, and trusted bootstrap material.
 2. Sender client encrypts per-recipient/device DM envelopes locally.
-3. Message node accepts only ciphertext envelopes and minimal metadata for routing, dedupe, delivery state, retention, and abuse controls.
-4. Message node fans out envelopes to active recipient devices and exposes per-device cursor catch-up for later-active devices.
+3. Message server accepts only ciphertext envelopes and minimal metadata for routing, dedupe, delivery state, retention, and abuse controls.
+4. Message server fans out envelopes to active recipient devices and exposes per-device cursor catch-up for later-active devices.
 5. Recipient clients decrypt locally and merge delivery/read state deterministically.
 
 ### Trade-Offs and Risks
@@ -74,34 +74,34 @@
 ### What Changes
 
 - Add durable guardrails around key custody, envelope shapes, logging, and server-side validation.
-- Reject unsafe semantics and reintroduced node-bypassing DM surfaces mechanically.
+- Reject unsafe semantics and reintroduced server-bypassing DM surfaces mechanically.
 
 ### How It Works
 
 1. Client-side crypto owns private keys and envelope encryption/decryption.
 2. Runtime APIs accept ciphertext envelope fields and reject plaintext-like DM payload fields.
 3. Logs and audit events record ids, state, and reason codes only.
-4. CI policy checks reject server-readable plaintext, private-key upload/custody, unencrypted mailbox, plaintext relay semantics, and node-bypassing DM routes/config/contracts.
+4. CI policy checks reject server-readable plaintext, private-key upload/custody, unencrypted mailbox, plaintext relay semantics, and server-bypassing DM routes/config/contracts.
 
 ### Acceptance Criteria
 
-- CI guardrail passes legitimate `encrypted envelope`, `store-and-forward`, and `message node` terminology.
-- CI guardrail fails fixtures or callsites that introduce plaintext DM storage, server-side decryption, private-key upload semantics, or node-bypassing DM endpoints.
+- CI guardrail passes legitimate `encrypted envelope`, `store-and-forward`, and `message server` terminology.
+- CI guardrail fails fixtures or callsites that introduce plaintext DM storage, server-side decryption, private-key upload semantics, or server-bypassing DM endpoints.
 - Crypto and API tests cover envelope-only server handling and client-only decrypt behavior.
 
 ## Proposition 3 (Rank 3): Relationship and Encryption Bootstrap
 
 ### What Changes
 
-- Use accepted contact-invite redemption and accepted mediated friend requests as trust gates for identity and encryption bootstrap material.
+- Use accepted friend-request state as the trust gate for identity and encryption bootstrap material.
 - Decouple bootstrap from recipient-device endpoint reachability entirely.
 
 ### How It Works
 
-1. Contact-invite redemption or accepted friend request establishes trusted relationship state.
+1. Accepted friend request establishes trusted relationship state.
 2. API returns only the peer identity key and profile-device snapshot required for client-side E2EE setup.
 3. Block state, request state, and DM policy checks fail closed before bootstrap material is released.
-4. Once trusted, the message-node path carries encrypted envelopes without requiring recipient-device dial success.
+4. Once trusted, the message-server path carries encrypted envelopes without requiring recipient-device dial success.
 
 ### Acceptance Criteria
 
@@ -113,7 +113,7 @@
 
 ### What Changes
 
-- Define the minimum metadata message nodes need to route, dedupe, retain, delete, and rate-limit encrypted envelopes.
+- Define the minimum metadata message servers need to route, dedupe, retain, delete, and rate-limit encrypted envelopes.
 - Add explicit retention/deletion behavior for encrypted envelopes and delivery receipts.
 
 ### How It Works
@@ -131,14 +131,14 @@
 
 ### Current Implementation Baseline
 
-- Message nodes persist canonical DM history as ciphertext in `dm_messages` and delivery replay metadata in `dm_fanout_delivery_log`.
+- Message servers persist canonical DM history as ciphertext in `dm_messages` and delivery replay metadata in `dm_fanout_delivery_log`.
 - Delivery replay metadata contains recipient identity, cursor, thread id, message id, sender identity, ciphertext, optional source device id, delivery/reachability state, delivered-device ids, and timestamps.
-- Outbound server-node forwarding metadata contains sender identity, destination node id, message/thread/recipient ids, ciphertext, optional source device id, delivery cursor, forwarding state, attempt count, last error summary, retry timestamp, and timestamps.
+- Outbound server-to-server forwarding metadata contains sender identity, destination server id, message/thread/recipient ids, ciphertext, optional source device id, delivery cursor, forwarding state, attempt count, last error summary, retry timestamp, and timestamps.
 - Explicitly excluded metadata: DM plaintext, decrypted previews, private keys, recipient-device endpoint hints/cards, LAN/WAN addresses, QR/manual-code pairing payloads, and direct user-to-user transport state.
 - Default retention windows are 30 days for fanout delivery-log metadata and 7 days for outbound forwarding metadata.
 - Fanout metadata is deleted after expiry when every registered profile device has cursor-converged, or after expiry when no profile device is registered. Ciphertext history is not deleted by this metadata purge.
 - Outbound metadata purge deletes expired `forwarded` and terminal `failed` rows, while preserving queued or retry-scheduled rows.
-- Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up is identity scoped across profile devices, ack is identity/device scoped, and authenticated node-forward ingress is origin-node scoped.
+- Abuse controls are request-count and policy based: DM dispatch is sender scoped, catch-up is identity scoped across profile devices, ack is identity/device scoped, and authenticated server-forward ingress is origin-server scoped.
 - Realtime dispatch summaries are backend-only and classify each target profile device by queued-to-verified-websocket, pending/no connection, pending/unverified device binding, pending/saturated outbound queue, plus stale connection cleanup count.
 - Final delivery remains ack-backed: API dispatch responses still report `delivered_device_ids` only after recipient-device ack, and live dispatch summaries must not be treated as user-visible read/delivery UX.
 
@@ -146,7 +146,7 @@
 
 ### What Changes
 
-- Model delivery states around node acceptance, live fanout, pending delivery, and catch-up rather than peer connectivity.
+- Model delivery states around server acceptance, live fanout, pending delivery, and catch-up rather than peer connectivity.
 - Keep all UX flow, copy, control, and behavior changes behind explicit user approval.
 
 ### How It Works
@@ -154,7 +154,7 @@
 1. Sender-visible success means durable envelope acceptance.
 2. Live fanout failures become pending delivery states with bounded retry/catch-up semantics.
 3. Later-active devices use per-device cursor replay and dedupe to converge.
-4. Delivery diagnostics explain policy blocks, missing bootstrap, message-node availability, and replay/catch-up failures without adding DM preflight/troubleshooter controls or asking normal users to configure routers or LAN discovery.
+4. Delivery diagnostics explain policy blocks, missing bootstrap, message-server availability, and replay/catch-up failures without adding DM preflight/troubleshooter controls or asking normal users to configure routers or LAN discovery.
 
 ### Acceptance Criteria
 
@@ -173,7 +173,7 @@
 - Server-readable DM content.
 - Private-key upload, escrow, or server custody.
 - Unencrypted DM mailboxing or plaintext relay behavior.
-- Node-bypassing LAN/WAN DM transport, endpoint hints/cards, connectivity preflight, pairing QR/manual-code bootstrap, WAN wizard, or parallel dial.
+- Server-bypassing LAN/WAN DM transport, endpoint hints/cards, connectivity preflight, pairing QR/manual-code bootstrap, WAN wizard, or parallel dial.
 - Reworking unrelated app-layer features while implementing DM delivery changes.
 
 ## Related Documents

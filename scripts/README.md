@@ -1,46 +1,72 @@
 # Scripts
 
-Workspace automation entrypoints live here, but the canonical workflow and gate
-documentation now lives in `docs/operations/contributor-guide.md`.
+Workspace automation entrypoints and reusable script implementation modules live
+here. The canonical workflow and gate documentation lives in
+`docs/operations/contributor-guide.md`.
 
-Use this directory as implementation detail; use the contributor guide as the
-source of truth for:
+## Layout
 
-- local validation commands
-- PR gate expectations
-- smoke/bootstrap prerequisites
-- delivery and release workflow
+- Root `scripts/*.mjs` files are developer-facing lifecycle commands.
+- `scripts/lib/` contains shared cross-platform helpers for process, HTTP, JSON,
+  env, path, git, and command execution code.
+- `scripts/security/` contains cargo-audit policy and audit execution.
+- `scripts/runtime/local/` contains host-process runtime helpers.
+- `scripts/runtime/docker/` contains Docker runtime config, stack, evidence, and
+  smoke assertion helpers.
+- `scripts/network/` contains network simulation argument, profile, and Docker
+  target helpers.
+- `scripts/validators/` contains validation command entrypoints and focused
+  validator implementation packages.
+- `scripts/ci/` contains CI-only artifact collection.
+- Top-level `fixtures/` contains shared dev seed scenarios plus runtime,
+  network, and contract-parity fixture data.
+- Top-level `tests/` contains test runners and test implementation.
 
-Common entrypoints still include:
+## Commands
 
-- `scripts/setup.sh`
-- `scripts/seed.sh`
-- `scripts/reset-dev-db.sh`
-- `scripts/run.sh`
-- `scripts/status.sh`
-- `scripts/stop.sh`
-- `scripts/network.sh`
-- `scripts/runtime-docker.mjs`
-- `scripts/test.sh`
+- `npm run setup`
+- `npm run seed -- --profile dm-basic`
+- `npm run reset-dev-db -- --yes`
+- `npm run start`
+- `npm run status`
+- `npm run stop`
+- `npm run network -- --profile <profile>`
+- `npm run network -- --reset`
+- `npm run runtime:docker -- status`
+- `npm run check -- --skip-service-backed-tests`
+- `npm run security`
+- `npm run test -- --skip-service-backed-tests`
+- `npm run test:contract-parity`
+- `npm run test:runtime`
+- `npm run test:network`
 
-Local runtime testing fixture and seed details live in
-`docs/planning/local-runtime-testing-plan.md`.
+Validation entrypoints:
 
-Runtime profile files live in `scripts/runtime-profiles/` and are validated with
-`npm run validate:runtime-profiles`.
+- `node scripts/validators/cargo-audit-ignore.mjs`
+- `node scripts/validators/contract-parity.mjs <base> <head>`
+- `node scripts/validators/dm-transport-policy.mjs`
+- `node scripts/validators/docs-index-freshness.mjs <base> <head>`
+- `node scripts/validators/evidence-provenance.mjs <base> <head>`
+- `node scripts/validators/migration-evidence.mjs <base> <head>`
+- `npm run validate:runtime-profiles`
+- `npm run validate:network-profiles`
 
-Network simulation profile files live in `scripts/network-profiles/` and are
-validated with `npm run validate:network-profiles`.
-Apply or reset network simulation state with `npm run network -- --profile <profile>`
-or `npm run network -- --reset`.
-Profiles can target runtime instance IDs, for example `alice-node` or `bob-node`.
-Docker-backed profiles use Docker network controls, Toxiproxy profiles configure
-Docker-only peer-link latency and timeout behavior, and app-fault profiles
-configure dev-only realtime fault hooks.
-Use `npm run network -- --reset --force` only for failed Docker runtime cleanup.
+Runtime profile files live in `fixtures/runtime/profiles/`.
+Network simulation profile files live in `fixtures/network/profiles/`.
 
 The Docker runtime test stack is managed with `npm run runtime:docker`. Use it
-for heavier PH-05 runtime/network testing; keep normal development on
-host-process `npm run start`. If the Docker runtime stack is active, use
+for heavier runtime/network testing; keep normal development on host-process
+`npm run start`. If the Docker runtime stack is active, use
 `npm run runtime:docker -- down`; generic `npm run stop` refuses Docker runtime
 state to avoid orphaning containers.
+
+Host-process Rust services use the normal Cargo target directory. Startup may
+choose alternate ports when old listeners are still bound, but it does not create
+fallback Cargo target directories to work around a locked binary; stop the stale
+Rust service from its owning shell or an elevated terminal before starting.
+
+Docker runtime host ports default to Alice API/realtime/web `18080`/`18081`/`3002`,
+Bob API/realtime/web `18180`/`18181`/`3012`, and Toxiproxy `18474`. Override them
+with the `HEXRELAY_RUNTIME_*_PORT` environment variables when a local service
+already owns one of those ports; the `npm run test:runtime` and
+`npm run test:network` wrappers choose available ports automatically.

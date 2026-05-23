@@ -10,7 +10,7 @@
 ## Investigation Focus
 
 - Inspect authn/authz boundaries, input validation, secret handling, dependency exposure, logging, and secure defaults.
-- Treat server-readable DM plaintext, private-key upload, or node-bypassing DM transport as severe findings.
+- Treat server-readable DM plaintext, private-key upload, or server-bypassing DM transport as severe findings.
 
 ## Active Findings
 

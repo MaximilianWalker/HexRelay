@@ -28,7 +28,7 @@ export type DmProfileDeviceHeartbeatResponse = {
 export type DmFanoutCatchUpResponse = {
   status: "ready" | "blocked";
   reason_code: string;
-  transport_profile: "encrypted_envelope_node";
+  transport_profile: "encrypted_envelope_server";
   device_id: string;
   replay_count: number;
   next_cursor: string;
@@ -61,7 +61,7 @@ export type ServerSummary = {
   id: string;
   name: string;
   unread: number;
-  favorite: boolean;
+  pinned: boolean;
   muted: boolean;
 };
 
@@ -303,7 +303,7 @@ export async function createInvite(input: {
 
 export async function fetchServers(input: {
   search?: string;
-  favoritesOnly?: boolean;
+  pinnedOnly?: boolean;
   unreadOnly?: boolean;
   mutedOnly?: boolean;
 }): Promise<
@@ -315,8 +315,8 @@ export async function fetchServers(input: {
   if (input.search) {
     params.set("search", input.search);
   }
-  if (input.favoritesOnly) {
-    params.set("favorites_only", "true");
+  if (input.pinnedOnly) {
+    params.set("pinned_only", "true");
   }
   if (input.unreadOnly) {
     params.set("unread_only", "true");
@@ -333,12 +333,102 @@ export async function fetchServers(input: {
   return parseResponse(response);
 }
 
+export async function createServer(input: {
+  name: string;
+  description?: string;
+  bootstrapCredential?: string;
+}): Promise<
+  ApiResult<{
+    item: ServerSummary;
+    owner_identity_id: string;
+    bootstrap_credential: string;
+  }>
+> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/servers`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description,
+      bootstrap_credential: input.bootstrapCredential,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
+export async function joinServer(input: {
+  inviteLink?: string;
+  endpoint?: string;
+  serverId?: string;
+  inviteToken?: string;
+}): Promise<ApiResult<{ item: ServerSummary; joined: boolean }>> {
+  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/servers/join`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      invite_link: input.inviteLink,
+      endpoint: input.endpoint,
+      server_id: input.serverId,
+      invite_token: input.inviteToken,
+    }),
+  });
+
+  return parseResponse(response);
+}
+
 export async function fetchServer(input: {
   serverId: string;
 }): Promise<ApiResult<{ item: ServerSummary }>> {
   const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(input.serverId)}`,
     { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function updateServerPreferences(input: {
+  serverId: string;
+  pinned?: boolean;
+  muted?: boolean;
+}): Promise<ApiResult<{ item: ServerSummary }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(input.serverId)}/preferences`,
+    {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        pinned: input.pinned,
+        muted: input.muted,
+      }),
+    },
+  );
+
+  return parseResponse(response);
+}
+
+export async function leaveServer(input: {
+  serverId: string;
+  deleteLocalData: boolean;
+}): Promise<ApiResult<{ left: boolean; deleted_local_data: boolean }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/servers/${encodeURIComponent(input.serverId)}/leave`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        delete_local_data: input.deleteLocalData,
+      }),
+    },
   );
 
   return parseResponse(response);
@@ -409,9 +499,9 @@ export async function createServerChannelMessage(input: {
 
 export async function fetchContacts(input: {
   search?: string;
-  onlineOnly?: boolean;
   unreadOnly?: boolean;
-  favoritesOnly?: boolean;
+  pinnedOnly?: boolean;
+  mutedOnly?: boolean;
 }): Promise<
   ApiResult<{
     items: Array<{
@@ -419,7 +509,8 @@ export async function fetchContacts(input: {
       name: string;
       status: string;
       unread: number;
-      favorite: boolean;
+      pinned: boolean;
+      muted: boolean;
       inbound_request: boolean;
       pending_request: boolean;
     }>;
@@ -429,19 +520,63 @@ export async function fetchContacts(input: {
   if (input.search) {
     params.set("search", input.search);
   }
-  if (input.onlineOnly) {
-    params.set("online_only", "true");
-  }
   if (input.unreadOnly) {
     params.set("unread_only", "true");
   }
-  if (input.favoritesOnly) {
-    params.set("favorites_only", "true");
+  if (input.pinnedOnly) {
+    params.set("pinned_only", "true");
+  }
+  if (input.mutedOnly) {
+    params.set("muted_only", "true");
   }
 
   const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/contacts?${params.toString()}`,
     { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function updateContactPreferences(input: {
+  contactId: string;
+  pinned?: boolean;
+  muted?: boolean;
+}): Promise<
+  ApiResult<{
+    id: string;
+    name: string;
+    status: string;
+    unread: number;
+    pinned: boolean;
+    muted: boolean;
+    inbound_request: boolean;
+    pending_request: boolean;
+  }>
+> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/contacts/${encodeURIComponent(input.contactId)}/preferences`,
+    {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        pinned: input.pinned,
+        muted: input.muted,
+      }),
+    },
+  );
+
+  return parseResponse(response);
+}
+
+export async function blockRemoveContact(input: {
+  contactId: string;
+}): Promise<ApiResult<{ blocked_identity_id: string; relationship_removed: boolean }>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/contacts/${encodeURIComponent(input.contactId)}/block-remove`,
+    { method: "POST" },
   );
 
   return parseResponse(response);
@@ -493,6 +628,43 @@ export async function fetchFriendRequests(input: {
   return parseResponse(response);
 }
 
+export async function fetchDiscoveryUsers(input: {
+  query?: string;
+  scope?: "global" | "shared_server";
+  limit?: number;
+}): Promise<
+  ApiResult<{
+    items: Array<{
+      identity_id: string;
+      display_name: string;
+      avatar_url: string | null;
+      relationship_state: string;
+      shared_server_count: number;
+      can_send_friend_request: boolean;
+      has_pending_inbound_request: boolean;
+      has_pending_outbound_request: boolean;
+    }>;
+  }>
+> {
+  const params = new URLSearchParams();
+  if (input.query) {
+    params.set("query", input.query);
+  }
+  if (input.scope) {
+    params.set("scope", input.scope);
+  }
+  if (input.limit !== undefined) {
+    params.set("limit", String(input.limit));
+  }
+
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/discovery/users?${params.toString()}`,
+    { method: "GET" },
+  );
+
+  return parseResponse(response);
+}
+
 export async function acceptFriendRequest(input: {
   requestId: string;
 }): Promise<ApiResult<{ request_id: string; status: string }>> {
@@ -509,6 +681,17 @@ export async function declineFriendRequest(input: {
 }): Promise<ApiResult<undefined>> {
   const response = await apiFetch(
     `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/decline`,
+    { method: "POST" },
+  );
+
+  return parseResponse(response);
+}
+
+export async function cancelFriendRequest(input: {
+  requestId: string;
+}): Promise<ApiResult<undefined>> {
+  const response = await apiFetch(
+    `${env.NEXT_PUBLIC_API_BASE_URL}/friends/requests/${input.requestId}/cancel`,
     { method: "POST" },
   );
 
@@ -589,7 +772,7 @@ export async function catchUpDmFanout(input: {
 
 export async function redeemInvite(input: {
   token: string;
-  nodeFingerprint: string;
+  serverId: string;
 }): Promise<ApiResult<{ accepted: boolean }>> {
   const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/invites/redeem`, {
     method: "POST",
@@ -598,62 +781,9 @@ export async function redeemInvite(input: {
     },
     body: JSON.stringify({
       token: input.token,
-      node_fingerprint: input.nodeFingerprint,
+      server_id: input.serverId,
     }),
   });
 
   return parseResponse<{ accepted: boolean }>(response);
-}
-
-export async function createContactInvite(input: {
-  mode: "one_time" | "multi_use";
-  maxUses?: number;
-  expiresAt?: string;
-}): Promise<
-  ApiResult<{
-    invite_id: string;
-    token: string;
-    mode: string;
-    expires_at?: string;
-    max_uses?: number;
-    created_at: string;
-  }>
-> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      mode: input.mode,
-      max_uses: input.maxUses,
-      expires_at: input.expiresAt,
-    }),
-  });
-
-  return parseResponse(response);
-}
-
-export async function redeemContactInvite(input: {
-  token: string;
-}): Promise<
-  ApiResult<{
-    request_id: string;
-    requester_identity_id: string;
-    target_identity_id: string;
-    status: string;
-    created_at: string;
-  }>
-> {
-  const response = await apiFetch(`${env.NEXT_PUBLIC_API_BASE_URL}/contact-invites/redeem`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      token: input.token,
-    }),
-  });
-
-  return parseResponse(response);
 }

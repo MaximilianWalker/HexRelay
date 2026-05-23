@@ -70,10 +70,8 @@ pub struct InviteCreateResponse {
 
 #[derive(Clone)]
 pub struct InviteRecord {
-    pub invite_id: Option<String>,
-    pub creator_identity_id: Option<String>,
     pub mode: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
     pub expires_at: Option<DateTime<Utc>>,
     pub max_uses: Option<u32>,
     pub uses: u32,
@@ -82,7 +80,7 @@ pub struct InviteRecord {
 #[derive(Deserialize)]
 pub struct InviteRedeemRequest {
     pub token: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
 }
 
 #[derive(Serialize)]
@@ -91,14 +89,9 @@ pub struct InviteRedeemResponse {
 }
 
 #[derive(Deserialize)]
-pub struct ContactInviteRedeemRequest {
-    pub token: String,
-}
-
-#[derive(Deserialize)]
 pub struct ServerListQuery {
     pub search: Option<String>,
-    pub favorites_only: Option<bool>,
+    pub pinned_only: Option<bool>,
     pub unread_only: Option<bool>,
     pub muted_only: Option<bool>,
 }
@@ -108,7 +101,7 @@ pub struct ServerSummary {
     pub id: String,
     pub name: String,
     pub unread: u32,
-    pub favorite: bool,
+    pub pinned: bool,
     pub muted: bool,
 }
 
@@ -120,6 +113,52 @@ pub struct ServerListResponse {
 #[derive(Serialize)]
 pub struct ServerDetailResponse {
     pub item: ServerSummary,
+}
+
+#[derive(Deserialize)]
+pub struct ServerCreateRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub bootstrap_credential: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ServerCreateResponse {
+    pub item: ServerSummary,
+    pub owner_identity_id: String,
+    pub bootstrap_credential: String,
+}
+
+#[derive(Deserialize)]
+pub struct ServerJoinRequest {
+    pub invite_link: Option<String>,
+    pub endpoint: Option<String>,
+    pub server_id: Option<String>,
+    pub invite_token: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ServerJoinResponse {
+    pub item: ServerSummary,
+    pub joined: bool,
+}
+
+#[derive(Deserialize)]
+pub struct HubPreferenceUpdateRequest {
+    pub pinned: Option<bool>,
+    pub muted: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct ServerLeaveRequest {
+    #[serde(default)]
+    pub delete_local_data: bool,
+}
+
+#[derive(Serialize)]
+pub struct ServerLeaveResponse {
+    pub left: bool,
+    pub deleted_local_data: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -178,9 +217,9 @@ pub struct ServerChannelMessagePage {
 #[derive(Deserialize)]
 pub struct ContactListQuery {
     pub search: Option<String>,
-    pub online_only: Option<bool>,
     pub unread_only: Option<bool>,
-    pub favorites_only: Option<bool>,
+    pub pinned_only: Option<bool>,
+    pub muted_only: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -189,7 +228,8 @@ pub struct ContactSummary {
     pub name: String,
     pub status: String,
     pub unread: u32,
-    pub favorite: bool,
+    pub pinned: bool,
+    pub muted: bool,
     pub inbound_request: bool,
     pub pending_request: bool,
 }
@@ -197,6 +237,12 @@ pub struct ContactSummary {
 #[derive(Serialize)]
 pub struct ContactListResponse {
     pub items: Vec<ContactSummary>,
+}
+
+#[derive(Serialize)]
+pub struct ContactBlockRemoveResponse {
+    pub blocked_identity_id: String,
+    pub relationship_removed: bool,
 }
 
 #[derive(Deserialize)]
@@ -267,7 +313,7 @@ pub struct DmFanoutDispatchRequest {
     pub message_id: String,
     pub ciphertext: String,
     pub source_device_id: Option<String>,
-    pub destination_node_id: Option<String>,
+    pub destination_server_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -336,7 +382,7 @@ pub struct DmFanoutDeliveryRecord {
 #[derive(Clone)]
 pub struct DmOutboundForwardRecord {
     pub sender_identity_id: String,
-    pub destination_node_id: String,
+    pub destination_server_id: String,
     pub message_id: String,
     pub thread_id: String,
     pub recipient_identity_id: String,
@@ -444,35 +490,35 @@ pub struct HealthResponse {
 }
 
 #[derive(Serialize)]
-pub struct NodeConnectionResponse {
+pub struct ServerConnectionResponse {
     pub service: &'static str,
-    pub node_id: String,
-    pub node_fingerprint: String,
+    pub server_id: String,
+    pub server_public_key: Option<String>,
     pub runtime_api: &'static str,
-    pub auth_endpoints: NodeAuthEndpoints,
+    pub auth_endpoints: ServerAuthEndpoints,
     pub capabilities_endpoint: &'static str,
 }
 
 #[derive(Serialize)]
-pub struct NodeAuthEndpoints {
+pub struct ServerAuthEndpoints {
     pub challenge: &'static str,
     pub verify: &'static str,
     pub session_validate: &'static str,
 }
 
 #[derive(Serialize)]
-pub struct NodeCapabilitiesResponse {
-    pub node_id: String,
-    pub node_fingerprint: String,
+pub struct ServerCapabilitiesResponse {
+    pub server_id: String,
+    pub server_public_key: Option<String>,
     pub identity_id: String,
     pub capabilities: Vec<&'static str>,
-    pub administration: NodeAdministrationStatus,
+    pub administration: ServerAdministrationStatus,
 }
 
 #[derive(Serialize)]
-pub struct NodeAdministrationStatus {
-    pub is_node_owner: bool,
-    pub is_node_admin: bool,
+pub struct ServerAdministrationStatus {
+    pub is_server_owner: bool,
+    pub is_server_admin: bool,
     pub scopes: Vec<&'static str>,
 }
 

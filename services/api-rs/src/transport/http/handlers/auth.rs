@@ -611,7 +611,7 @@ fn identity_rate_limit_key(
     format!(
         "identity:{}:source:{}",
         identity_hint,
-        request_source_fingerprint(state, headers, peer_addr)
+        request_source_key(state, headers, peer_addr)
     )
 }
 
@@ -620,13 +620,10 @@ fn source_rate_limit_key(
     headers: &HeaderMap,
     peer_addr: Option<SocketAddr>,
 ) -> String {
-    format!(
-        "source:{}",
-        request_source_fingerprint(state, headers, peer_addr)
-    )
+    format!("source:{}", request_source_key(state, headers, peer_addr))
 }
 
-fn request_source_fingerprint(
+fn request_source_key(
     state: &AppState,
     headers: &HeaderMap,
     peer_addr: Option<SocketAddr>,

@@ -56,7 +56,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T2.1.4 | Implement mandatory recovery phrase onboarding step | E2 / S2.1 | M | Web | T2.1.2 | Onboarding cannot complete until recovery phrase confirmation passes |
 | T2.2.1 | Add invite token create/redeem flow (one-time or multi-use + optional expiration/max-uses) | E2 / S2.2 | L | API | T2.1.1 | Server owner can issue invite modes with optional expiration/max-uses, including non-expiring multi-use links; role/channel scoped grants are rejected in MVP |
 | T2.3.1 | Implement nonce challenge-signature auth + session revoke endpoint | E2 / S2.4 | M | API | T2.1.1 | Auth succeeds only with valid signature; nonce is single-use with TTL/replay rejection; sessions are revocable |
-| T2.4.1 | Add node fingerprint verification in join flow + security tests | E2 / S2.3 | M | API | T2.2.1, T2.3.1 | Client fails closed on fingerprint mismatch and tests cover replay/invalid token/exhausted invite cases |
+| T2.4.1 | Add server id verification in join flow + security tests | E2 / S2.3 | M | API | T2.2.1, T2.3.1 | Client fails closed on server mismatch and tests cover replay/invalid token/exhausted invite cases |
 
 ## Task Touchpoints and Validation Gates
 
@@ -74,7 +74,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T2.1.4 | Recovery phrase onboarding UI + confirmation step | User cannot proceed without phrase confirmation and receives deterministic recovery backup status |
 | T2.2.1 | Invite API handlers + invite persistence model | Expired/exhausted/invalid invite cases return expected error codes; non-expiring multi-use token path is test-covered |
 | T2.3.1 | Auth challenge/verify handlers + session store | Duplicate/expired nonce fails with `nonce_invalid`; valid signature yields session |
-| T2.4.1 | Join flow verification path + security test suite | Fingerprint mismatch blocks join (no warning-only path) and logs no secret-bearing fields |
+| T2.4.1 | Join flow verification path + security test suite | Server mismatch blocks join (no warning-only path) and logs no secret-bearing fields |
 
 ## Entry Criteria
 
@@ -85,7 +85,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 ## Exit Evidence
 
 - Evidence pack includes startup output, CI run links, and contract reference checks.
-- Security test output for nonce replay, fingerprint mismatch, and invite exhaustion is attached.
+- Security test output for nonce replay, server mismatch, and invite exhaustion is attached.
 - Final demo notes include end-to-end identity join/auth scenario and session revoke verification.
 
 ## Evidence Ledger
@@ -107,7 +107,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 |---|---|---|---|
 | T1.1.1 | Monorepo layout | 2026-03-04 | `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts` initialized with runnable scaffolds |
 | T1.1.2 | Local infra compose stack | 2026-03-04 | Postgres/Redis/MinIO/coturn compose stack with health checks and infra runbook |
-| T1.1.3 | Setup/run/test scripts | 2026-03-04 | Root `Makefile`, `scripts/*.sh`, and root npm scripts provide one-command setup/run/test |
+| T1.1.3 | Setup/run/test scripts | 2026-03-04 | Root `Makefile`, `scripts/*.mjs`, and root npm scripts provide one-command setup/run/test |
 | T1.2.1 | CI matrix (Rust + web) | 2026-03-04 | `.github/workflows/ci.yml` enforces active Rust/Web lint/test/build gates on `master` and PRs |
 | T1.2.2 | Runtime REST OpenAPI contract artifact | 2026-03-04 | Runtime REST authority is published at `docs/contracts/runtime-rest.openapi.yaml` and referenced by later iteration work |
 | T1.3.1 | Env schema validation + config templates | 2026-03-04 | Runtime env validation added in services and web; `.env.example` templates added for web/api/realtime/infra |
@@ -117,7 +117,7 @@ Scope: Iteration 1 (Weeks 1-3) from `docs/product/01-mvp-plan.md`.
 | T2.1.4 | Mandatory recovery phrase onboarding step | 2026-03-16 | Onboarding enforces recovery confirmation before completion and then hands off into the main app surfaces |
 | T2.2.1 | Invite token create/redeem flow | 2026-03-16 | Invite create/redeem endpoints and UI integration cover invalid, expired, exhausted, and bounded multi-use cases |
 | T2.3.1 | Nonce challenge-signature auth + session revoke endpoint | 2026-03-16 | Challenge, verify, validate, and revoke session flows are implemented with DB-backed persistence and regression tests |
-| T2.4.1 | Node fingerprint verification in join flow + security tests | 2026-03-16 | Invite redeem enforces fingerprint match and onboarding surfaces real mismatch failures |
+| T2.4.1 | Server id verification in join flow + security tests | 2026-03-16 | Invite redeem enforces server id match and onboarding surfaces real mismatch failures |
 
 ## Suggested Sprint Sequencing
 
@@ -149,7 +149,7 @@ Week 3:
 - Invite creation and redeem flow working with mode and expiration checks.
 - Recovery phrase onboarding is mandatory and validated.
 - Session revoke working in UI and API.
-- Security baseline checks complete (challenge-signature auth + token constraints + fingerprint verification).
+- Security baseline checks complete (challenge-signature auth + token constraints + server identity verification).
 
 ## Execution Notes
 
@@ -173,7 +173,7 @@ Week 3:
 
 | State | Trigger | UI Behavior | Recovery Action |
 |---|---|---|---|
-| `fingerprint_mismatch` | Node fingerprint does not match invite metadata | Blocking warning with explicit mismatch details | Abort join or retry with trusted invite |
+| `server id_mismatch` | Server id does not match invite metadata | Blocking warning with explicit mismatch details | Abort join or retry with trusted invite |
 | `invite_exhausted` | Invite max-uses reached | Blocking error with usage reason | Request a new invite from server owner |
 | `invite_expired` | Invite expiration passed | Blocking error with expiration info | Request a new invite |
 | `nonce_invalid` | Nonce expired/duplicate/invalid | Auth error state with retry option | Start a new auth challenge |

@@ -1,0 +1,12 @@
+{
+  "name": "single",
+  "infraMode": "shared",
+  "instances": [
+    {
+      "id": "local-server",
+      "apiPort": 18080,
+      "realtimePort": 18081,
+      "webPort": 3002
+    }
+  ]
+}

@@ -27,7 +27,7 @@
 - Frontend baseline: Next.js with TypeScript.
 - Backend baseline: Rust services for API/realtime/core flows.
 - Data/infra baseline: PostgreSQL, Redis, S3-compatible object storage, WebRTC with coturn.
-- Local developer environment baseline: Docker Compose for single-node setup.
+- Local developer environment baseline: Docker Compose for single-server setup.
 
 ## Rationale
 

@@ -30,8 +30,8 @@ async fn creates_and_redeems_multi_use_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build redeem invite request");
 
@@ -47,8 +47,8 @@ async fn creates_and_redeems_multi_use_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build second redeem invite request");
 
@@ -89,8 +89,8 @@ async fn rejects_exhausted_one_time_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build first redeem request");
     let first_redeem_response = app
@@ -105,8 +105,8 @@ async fn rejects_exhausted_one_time_invite() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            created.token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            created.token, TEST_SERVER_ID
         )))
         .expect("build second redeem request");
     let second_redeem_response = app
@@ -152,7 +152,7 @@ async fn rejects_expired_invite() {
 }
 
 #[tokio::test]
-async fn rejects_fingerprint_mismatch_on_redeem() {
+async fn rejects_server_mismatch_on_redeem() {
     let (app, tokens) = app_with_sessions(&["usr-invite"]);
 
     let create_request = Request::builder()
@@ -181,7 +181,7 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"mismatch-node"}}"#,
+            r#"{{"token":"{}","server_id":"mismatch-server"}}"#,
             created.token
         )))
         .expect("build redeem request");
@@ -194,13 +194,13 @@ async fn rejects_fingerprint_mismatch_on_redeem() {
         .expect("read mismatch redeem body");
     let redeem_payload: serde_json::Value =
         serde_json::from_slice(&redeem_body).expect("decode mismatch redeem body");
-    assert_eq!(redeem_payload["code"], "fingerprint_mismatch");
+    assert_eq!(redeem_payload["code"], "server_mismatch");
 }
 
 #[tokio::test]
 async fn rate_limits_invite_redeem_requests() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -239,10 +239,8 @@ async fn rate_limits_invite_redeem_requests() {
         .insert(
             token_hash,
             crate::models::InviteRecord {
-                invite_id: None,
-                creator_identity_id: None,
                 mode: "multi_use".to_string(),
-                node_fingerprint: TEST_NODE_FINGERPRINT.to_string(),
+                server_id: TEST_SERVER_ID.to_string(),
                 expires_at: None,
                 max_uses: None,
                 uses: 0,
@@ -256,8 +254,8 @@ async fn rate_limits_invite_redeem_requests() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            token, TEST_SERVER_ID
         )))
         .expect("build first redeem request");
     let first_response = app
@@ -272,8 +270,8 @@ async fn rate_limits_invite_redeem_requests() {
         .uri("/invites/redeem")
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"token":"{}","node_fingerprint":"{}"}}"#,
-            token, TEST_NODE_FINGERPRINT
+            r#"{{"token":"{}","server_id":"{}"}}"#,
+            token, TEST_SERVER_ID
         )))
         .expect("build second redeem request");
     let second_response = app
@@ -281,179 +279,6 @@ async fn rate_limits_invite_redeem_requests() {
         .await
         .expect("second redeem response");
     assert_eq!(second_response.status(), StatusCode::TOO_MANY_REQUESTS);
-}
-
-#[tokio::test]
-async fn contact_invite_redeem_creates_pending_friend_request() {
-    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
-
-    let create_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
-        .expect("build contact invite create request");
-
-    let create_response = app
-        .clone()
-        .oneshot(create_request)
-        .await
-        .expect("create contact invite response");
-    assert_eq!(create_response.status(), StatusCode::CREATED);
-
-    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
-        .await
-        .expect("read contact invite create body");
-    let created: InviteCreateResponse =
-        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
-    assert!(!created.invite_id.is_empty());
-
-    let redeem_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites/redeem")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
-        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
-        .expect("build contact invite redeem request");
-
-    let redeem_response = app
-        .oneshot(redeem_request)
-        .await
-        .expect("redeem contact invite response");
-    assert_eq!(redeem_response.status(), StatusCode::OK);
-
-    let redeem_bytes = to_bytes(redeem_response.into_body(), usize::MAX)
-        .await
-        .expect("read contact invite redeem body");
-    let friend_request: FriendRequestRecord =
-        serde_json::from_slice(&redeem_bytes).expect("decode friend request body");
-
-    assert_eq!(friend_request.requester_identity_id, "usr-target");
-    assert_eq!(friend_request.target_identity_id, "usr-invite");
-    assert_eq!(friend_request.status, "pending");
-}
-
-#[tokio::test]
-async fn contact_invite_redeem_is_idempotent_for_pending_pair() {
-    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
-
-    let create_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
-        .expect("build contact invite create request");
-
-    let create_response = app
-        .clone()
-        .oneshot(create_request)
-        .await
-        .expect("create contact invite response");
-    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
-        .await
-        .expect("read contact invite create body");
-    let created: InviteCreateResponse =
-        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
-
-    let first_redeem_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites/redeem")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
-        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
-        .expect("build first contact invite redeem request");
-    let first_redeem_response = app
-        .clone()
-        .oneshot(first_redeem_request)
-        .await
-        .expect("first redeem response");
-    let first_bytes = to_bytes(first_redeem_response.into_body(), usize::MAX)
-        .await
-        .expect("read first redeem body");
-    let first_record: FriendRequestRecord =
-        serde_json::from_slice(&first_bytes).expect("decode first friend request");
-
-    let second_redeem_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites/redeem")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
-        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
-        .expect("build second contact invite redeem request");
-    let second_redeem_response = app
-        .oneshot(second_redeem_request)
-        .await
-        .expect("second redeem response");
-    let second_bytes = to_bytes(second_redeem_response.into_body(), usize::MAX)
-        .await
-        .expect("read second redeem body");
-    let second_record: FriendRequestRecord =
-        serde_json::from_slice(&second_bytes).expect("decode second friend request");
-
-    assert_eq!(first_record.request_id, second_record.request_id);
-}
-
-#[tokio::test]
-async fn contact_invite_redeem_rejects_blocked_pair() {
-    let (app, tokens) = app_with_sessions(&["usr-invite", "usr-target"]);
-
-    let block_request = Request::builder()
-        .method("POST")
-        .uri("/users/block")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-target"}"#))
-        .expect("build block request");
-    let block_response = app
-        .clone()
-        .oneshot(block_request)
-        .await
-        .expect("block response");
-    assert_eq!(block_response.status(), StatusCode::CREATED);
-
-    let create_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
-        .expect("build contact invite create request");
-
-    let create_response = app
-        .clone()
-        .oneshot(create_request)
-        .await
-        .expect("create contact invite response");
-    assert_eq!(create_response.status(), StatusCode::CREATED);
-
-    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
-        .await
-        .expect("read contact invite create body");
-    let created: InviteCreateResponse =
-        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
-
-    let redeem_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites/redeem")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-target"]))
-        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
-        .expect("build contact invite redeem request");
-
-    let redeem_response = app
-        .oneshot(redeem_request)
-        .await
-        .expect("redeem contact invite response");
-    assert_eq!(redeem_response.status(), StatusCode::FORBIDDEN);
-
-    let redeem_body = to_bytes(redeem_response.into_body(), usize::MAX)
-        .await
-        .expect("read blocked contact invite body");
-    let redeem_payload: serde_json::Value =
-        serde_json::from_slice(&redeem_body).expect("decode blocked contact invite body");
-    assert_eq!(redeem_payload["code"], "blocked_user");
 }
 
 #[tokio::test]
@@ -480,51 +305,4 @@ async fn rejects_invalid_invite_create_mode() {
     let create_payload: serde_json::Value =
         serde_json::from_slice(&create_body).expect("decode invalid create invite body");
     assert_eq!(create_payload["code"], "invite_invalid");
-}
-
-#[tokio::test]
-async fn contact_invite_redeem_rejects_self_redeem() {
-    let (app, tokens) = app_with_sessions(&["usr-invite"]);
-
-    let create_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(r#"{"mode":"multi_use","max_uses":3}"#))
-        .expect("build contact invite create request");
-
-    let create_response = app
-        .clone()
-        .oneshot(create_request)
-        .await
-        .expect("create contact invite response");
-    assert_eq!(create_response.status(), StatusCode::CREATED);
-
-    let create_bytes = to_bytes(create_response.into_body(), usize::MAX)
-        .await
-        .expect("read contact invite create body");
-    let created: InviteCreateResponse =
-        serde_json::from_slice(&create_bytes).expect("decode contact invite create body");
-
-    let redeem_request = Request::builder()
-        .method("POST")
-        .uri("/contact-invites/redeem")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-invite"]))
-        .body(Body::from(format!(r#"{{"token":"{}"}}"#, created.token)))
-        .expect("build self redeem contact invite request");
-
-    let redeem_response = app
-        .oneshot(redeem_request)
-        .await
-        .expect("self redeem contact invite response");
-    assert_eq!(redeem_response.status(), StatusCode::CONFLICT);
-
-    let redeem_body = to_bytes(redeem_response.into_body(), usize::MAX)
-        .await
-        .expect("read self redeem contact invite body");
-    let redeem_payload: serde_json::Value =
-        serde_json::from_slice(&redeem_body).expect("decode self redeem contact invite body");
-    assert_eq!(redeem_payload["code"], "invite_invalid");
 }

@@ -6,7 +6,7 @@ use axum::{
 };
 
 use crate::{
-    infra::db::repos::discovery_repo,
+    infra::db::repos::{contacts_repo, discovery_repo},
     models::{
         DiscoveryUserListQuery, DiscoveryUserListResponse, DiscoveryUserRecord,
         DiscoveryUserSummary,
@@ -24,13 +24,6 @@ pub async fn list_discovery_users(
     let scope = normalize_scope(query.scope.as_deref())?;
     let search = normalize_search(query.query.as_deref());
     let limit = normalize_limit(query.limit);
-    let blocked = in_memory_blocked_peers(&state, &auth.identity_id);
-    let excluded_identity_ids = discovery_exclusions(
-        &auth.identity_id,
-        &blocked,
-        state.discovery_denylist.as_ref(),
-    );
-
     let allowed = if let Some(pool) = state.db_pool.as_ref() {
         allow_distributed(
             pool,
@@ -62,6 +55,16 @@ pub async fn list_discovery_users(
     }
 
     if let Some(pool) = state.db_pool.as_ref() {
+        let blocked = contacts_repo::blocked_peers_for_identity(pool, &auth.identity_id)
+            .await
+            .map_err(|_| internal_error("storage_unavailable", "failed to list blocked users"))?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let excluded_identity_ids = discovery_exclusions(
+            &auth.identity_id,
+            &blocked,
+            state.discovery_denylist.as_ref(),
+        );
         let candidates = match scope {
             "global" => {
                 discovery_repo::list_global_discovery_candidates(
@@ -378,6 +381,7 @@ fn in_memory_shared_counts(_state: &AppState, _actor_identity_id: &str) -> HashM
     HashMap::new()
 }
 
+#[cfg(test)]
 fn in_memory_blocked_peers(state: &AppState, actor_identity_id: &str) -> HashSet<String> {
     let guard = state
         .blocked_users

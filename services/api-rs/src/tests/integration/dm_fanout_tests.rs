@@ -2,8 +2,8 @@ use super::*;
 use axum::{extract::State as AxumState, http::HeaderMap, routing::post, Router};
 use communication_core::{
     ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
-    NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RelayPolicy,
-    StaticPeerRegistry, StoragePolicy,
+    NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor, ServerSignature,
+    ServerSignatureAlgorithm, StaticPeerRegistry, StoragePolicy,
 };
 use std::{sync::LazyLock, time::Duration as StdDuration};
 
@@ -11,7 +11,7 @@ use crate::{
     domain::{
         dm::{
             forwarding::{
-                forward_signature_payload, NodeForwardDmEnvelopeRequest, NODE_FORWARD_PATH,
+                forward_signature_payload, ServerForwardDmEnvelopeRequest, SERVER_FORWARD_PATH,
             },
             outbound_forwarding::{retry_due_dm_outbound_forwards, DmOutboundForwardRetryConfig},
             outbound_forwarding::{
@@ -19,7 +19,7 @@ use crate::{
             },
             validation::DM_OFFLINE_DELIVERY_MODE,
         },
-        node_identity::LocalNodeIdentity,
+        server_identity::LocalServerIdentity,
     },
     infra::db::repos::dm_repo,
     models::{DmPolicy, DmProfileDeviceRecord},
@@ -37,33 +37,33 @@ const TEST_RETRY_STALE_ATTEMPT_SECONDS: i64 = 60;
 static OUTBOUND_FORWARD_RETRY_TEST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
-struct SignedNodeDescriptor {
-    descriptor: NodeDescriptor,
+struct SignedServerDescriptor {
+    descriptor: ServerDescriptor,
     private_key_pkcs8: Vec<u8>,
 }
 
-struct CapturedNodeForward {
+struct CapturedServerForward {
     headers: HeaderMap,
     body: Vec<u8>,
 }
 
-struct NodeForwardCaptureState {
-    sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedNodeForward>>>,
+struct ServerForwardCaptureState {
+    sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<CapturedServerForward>>>,
     status: StatusCode,
 }
 
-fn signed_node_descriptor(
-    node_id: &str,
+fn signed_server_descriptor(
+    server_id: &str,
     descriptor_id: &str,
     address: &str,
-) -> SignedNodeDescriptor {
-    let pkcs8 =
-        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate node descriptor key");
-    let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive node public key");
+) -> SignedServerDescriptor {
+    let pkcs8 = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
+        .expect("generate server descriptor key");
+    let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive server public key");
     let now = Utc::now().timestamp();
-    let mut descriptor = NodeDescriptor {
-        node_id: node_id.to_string(),
-        node_public_key: public_key,
+    let mut descriptor = ServerDescriptor {
+        server_id: server_id.to_string(),
+        server_public_key: public_key,
         descriptor_id: descriptor_id.to_string(),
         issued_at_epoch_seconds: now - 1,
         expires_at_epoch_seconds: now + 300,
@@ -74,54 +74,54 @@ fn signed_node_descriptor(
         dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
         storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
         addresses: vec![address.to_string()],
-        supported_protocols: vec!["hexrelay-node-http".to_string()],
+        supported_protocols: vec!["hexrelay-server-http".to_string()],
         rate_limits: Vec::new(),
         trust_labels: Vec::new(),
         revocation_pointer: None,
-        signature: NodeSignature {
-            algorithm: NodeSignatureAlgorithm::Ed25519,
+        signature: ServerSignature {
+            algorithm: ServerSignatureAlgorithm::Ed25519,
             value: String::new(),
         },
     };
     descriptor.signature.value =
         sign_descriptor_ed25519_pkcs8(&descriptor, pkcs8.as_ref()).expect("sign descriptor");
 
-    SignedNodeDescriptor {
+    SignedServerDescriptor {
         descriptor,
         private_key_pkcs8: pkcs8.as_ref().to_vec(),
     }
 }
 
-fn signed_node_forward_body(
-    origin: &SignedNodeDescriptor,
-    destination_node_id: &str,
+fn signed_server_forward_body(
+    origin: &SignedServerDescriptor,
+    destination_server_id: &str,
     sender_identity_id: &str,
     recipient_identity_id: &str,
     message_id: &str,
 ) -> (Vec<u8>, String, String, String) {
-    let request = NodeForwardDmEnvelopeRequest {
+    let request = ServerForwardDmEnvelopeRequest {
         route_kind: "static_peer_direct".to_string(),
-        origin_node_descriptor: origin.descriptor.clone(),
-        destination_node_id: destination_node_id.to_string(),
-        relay_node_id: None,
+        origin_server_descriptor: origin.descriptor.clone(),
+        destination_server_id: destination_server_id.to_string(),
+        relay_server_id: None,
         message_id: message_id.to_string(),
         thread_id: "thread-origin-forward".to_string(),
         sender_identity_id: sender_identity_id.to_string(),
         recipient_identity_id: recipient_identity_id.to_string(),
-        ciphertext: "enc:node-forwarded-ciphertext".to_string(),
+        ciphertext: "enc:server-forwarded-ciphertext".to_string(),
         source_device_id: Some("desktop-main".to_string()),
         accepted_at: Utc::now().to_rfc3339(),
         delivery_cursor: 1,
         target_device_ids: vec!["phone-main".to_string()],
     };
-    let body = serde_json::to_vec(&request).expect("encode node forward request");
+    let body = serde_json::to_vec(&request).expect("encode server forward request");
     let timestamp = Utc::now().timestamp().to_string();
     let nonce = format!("nonce-{}", Uuid::new_v4().simple());
     let key_pair =
-        Ed25519KeyPair::from_pkcs8(&origin.private_key_pkcs8).expect("decode origin node key");
+        Ed25519KeyPair::from_pkcs8(&origin.private_key_pkcs8).expect("decode origin server key");
     let signature = hex::encode(key_pair.sign(&forward_signature_payload(
         "POST",
-        NODE_FORWARD_PATH,
+        SERVER_FORWARD_PATH,
         &timestamp,
         &nonce,
         &body,
@@ -130,13 +130,13 @@ fn signed_node_forward_body(
     (body, timestamp, nonce, signature)
 }
 
-fn api_node_state(
-    local: &SignedNodeDescriptor,
-    static_peers: Vec<NodeDescriptor>,
+fn api_server_state(
+    local: &SignedServerDescriptor,
+    static_peers: Vec<ServerDescriptor>,
     pool: sqlx::PgPool,
 ) -> AppState {
     AppState::new(
-        local.descriptor.node_id.clone(),
+        local.descriptor.server_id.clone(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -167,30 +167,32 @@ fn api_node_state(
     )
     .with_public_identity_registration(true)
     .with_db_pool(pool)
-    .with_local_node_identity(Some(LocalNodeIdentity {
+    .with_local_server_identity(Some(LocalServerIdentity {
         descriptor: local.descriptor.clone(),
         private_key_pkcs8: local.private_key_pkcs8.clone(),
     }))
     .with_static_peer_registry(
-        StaticPeerRegistry::try_new(static_peers).expect("API node static peer registry"),
+        StaticPeerRegistry::try_new(static_peers).expect("API server static peer registry"),
     )
 }
 
-async fn start_node_forward_capture(
-) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
-    start_node_forward_capture_with_status(StatusCode::ACCEPTED).await
+async fn start_server_forward_capture() -> (
+    String,
+    tokio::sync::oneshot::Receiver<CapturedServerForward>,
+) {
+    start_server_forward_capture_with_status(StatusCode::ACCEPTED).await
 }
 
-async fn bind_api_node() -> (String, tokio::net::TcpListener) {
+async fn bind_api_server() -> (String, tokio::net::TcpListener) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
-        .expect("bind API node");
-    let addr = listener.local_addr().expect("API node address");
+        .expect("bind API server");
+    let addr = listener.local_addr().expect("API server address");
 
     (format!("http://{}", addr), listener)
 }
 
-fn spawn_api_node(
+fn spawn_api_server(
     listener: tokio::net::TcpListener,
     app: axum::Router,
 ) -> tokio::task::JoinHandle<()> {
@@ -199,20 +201,25 @@ fn spawn_api_node(
     })
 }
 
-async fn start_node_forward_capture_with_status(
+async fn start_server_forward_capture_with_status(
     status: StatusCode,
-) -> (String, tokio::sync::oneshot::Receiver<CapturedNodeForward>) {
+) -> (
+    String,
+    tokio::sync::oneshot::Receiver<CapturedServerForward>,
+) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
-        .expect("bind node forward capture server");
-    let addr = listener.local_addr().expect("node forward capture address");
-    let (tx, rx) = tokio::sync::oneshot::channel::<CapturedNodeForward>();
-    let state = std::sync::Arc::new(NodeForwardCaptureState {
+        .expect("bind server forward capture server");
+    let addr = listener
+        .local_addr()
+        .expect("server forward capture address");
+    let (tx, rx) = tokio::sync::oneshot::channel::<CapturedServerForward>();
+    let state = std::sync::Arc::new(ServerForwardCaptureState {
         sender: tokio::sync::Mutex::new(Some(tx)),
         status,
     });
     let app = Router::new()
-        .route(NODE_FORWARD_PATH, post(capture_node_forward))
+        .route(SERVER_FORWARD_PATH, post(capture_server_forward))
         .with_state(state);
 
     tokio::spawn(async move {
@@ -222,13 +229,13 @@ async fn start_node_forward_capture_with_status(
     (format!("http://{}", addr), rx)
 }
 
-async fn capture_node_forward(
-    AxumState(state): AxumState<std::sync::Arc<NodeForwardCaptureState>>,
+async fn capture_server_forward(
+    AxumState(state): AxumState<std::sync::Arc<ServerForwardCaptureState>>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> axum::http::StatusCode {
     if let Some(sender) = state.sender.lock().await.take() {
-        let _ = sender.send(CapturedNodeForward {
+        let _ = sender.send(CapturedServerForward {
             headers,
             body: body.to_vec(),
         });
@@ -258,7 +265,7 @@ async fn seed_due_failed_outbound_forward(
     pool: &sqlx::PgPool,
     sender: &str,
     recipient: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
 ) {
     ensure_db_identity_key(pool, sender).await;
@@ -266,7 +273,7 @@ async fn seed_due_failed_outbound_forward(
         pool,
         &dm_repo::DmOutboundForwardWrite {
             sender_identity_id: sender,
-            destination_node_id,
+            destination_server_id,
             message_id,
             thread_id: "thread-seeded-outbound-forward",
             recipient_identity_id: recipient,
@@ -280,7 +287,7 @@ async fn seed_due_failed_outbound_forward(
     dm_repo::mark_dm_outbound_forward_failed(
         pool,
         sender,
-        destination_node_id,
+        destination_server_id,
         message_id,
         "seeded retryable failure",
         Some(Utc::now() - Duration::seconds(1)),
@@ -292,19 +299,19 @@ async fn seed_due_failed_outbound_forward(
 async fn delete_outbound_forward_record(
     pool: &sqlx::PgPool,
     sender: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
 ) {
     sqlx::query(
         "
         DELETE FROM dm_outbound_forwarding_log
         WHERE sender_identity_id = $1
-          AND destination_node_id = $2
+          AND destination_server_id = $2
           AND message_id = $3
         ",
     )
     .bind(sender)
-    .bind(destination_node_id)
+    .bind(destination_server_id)
     .bind(message_id)
     .execute(pool)
     .await
@@ -327,7 +334,7 @@ async fn delete_retry_test_outbound_forward_records(pool: &sqlx::PgPool) {
 async fn wait_for_outbound_forward_state(
     pool: &sqlx::PgPool,
     sender: &str,
-    destination_node_id: &str,
+    destination_server_id: &str,
     message_id: &str,
     expected_state: &str,
 ) -> crate::models::DmOutboundForwardRecord {
@@ -336,7 +343,7 @@ async fn wait_for_outbound_forward_state(
             if let Some(record) = dm_repo::get_dm_outbound_forward_record(
                 pool,
                 sender,
-                destination_node_id,
+                destination_server_id,
                 message_id,
             )
             .await
@@ -484,7 +491,7 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
             "
             INSERT INTO dm_outbound_forwarding_log (
                 sender_identity_id,
-                destination_node_id,
+                destination_server_id,
                 message_id,
                 thread_id,
                 recipient_identity_id,
@@ -500,7 +507,7 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
                 created_at,
                 updated_at
             )
-            VALUES ($1, 'node-retention-peer', $2, $3, $4, 'enc:retention-outbound', 'desktop-main', 1, $5, 1, NULL, $6, $7, NULL, $6, $6)
+            VALUES ($1, 'server-retention-peer', $2, $3, $4, 'enc:retention-outbound', 'desktop-main', 1, $5, 1, NULL, $6, $7, NULL, $6, $6)
             ",
         )
         .bind(&sender)
@@ -563,7 +570,8 @@ async fn dm_delivery_metadata_retention_purges_only_expired_delivery_metadata() 
     .expect("count retained queued outbound metadata");
     assert_eq!(queued_rows, 1);
 
-    delete_outbound_forward_record(&pool, &sender, "node-retention-peer", &queued_message_id).await;
+    delete_outbound_forward_record(&pool, &sender, "server-retention-peer", &queued_message_id)
+        .await;
 }
 
 #[tokio::test]
@@ -608,12 +616,12 @@ async fn fanout_dispatch_rate_limits_per_sender_identity() {
 }
 
 #[tokio::test]
-async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
+async fn fanout_dispatch_forwards_between_two_local_api_servers_over_http() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
-    let sender = unique_identity("usr-two-node-sender");
-    let recipient = unique_identity("usr-two-node-recipient");
+    let sender = unique_identity("usr-two-server-sender");
+    let recipient = unique_identity("usr-two-server-recipient");
     ensure_db_identity_key(&pool, &sender).await;
     ensure_db_identity_key(&pool, &recipient).await;
     dm_repo::upsert_dm_policy(
@@ -639,38 +647,40 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     .await
     .expect("upsert recipient profile device");
 
-    let (node_a_base_url, node_a_listener) = bind_api_node().await;
-    let (node_b_base_url, node_b_listener) = bind_api_node().await;
-    let node_a = signed_node_descriptor("node-a", "descriptor-node-a", &node_a_base_url);
-    let node_b = signed_node_descriptor("node-b", "descriptor-node-b", &node_b_base_url);
-    let node_a_state = api_node_state(&node_a, vec![node_b.descriptor.clone()], pool.clone());
-    let sender_token = issue_db_session_cookie(&pool, &node_a_state, &sender).await;
-    let node_b_state = api_node_state(&node_b, vec![node_a.descriptor.clone()], pool.clone());
-    let node_b_handle = spawn_api_node(node_b_listener, build_app(node_b_state));
-    let node_a_handle = spawn_api_node(node_a_listener, build_app(node_a_state));
+    let (server_a_base_url, server_a_listener) = bind_api_server().await;
+    let (server_b_base_url, server_b_listener) = bind_api_server().await;
+    let server_a = signed_server_descriptor("server-a", "descriptor-server-a", &server_a_base_url);
+    let server_b = signed_server_descriptor("server-b", "descriptor-server-b", &server_b_base_url);
+    let server_a_state =
+        api_server_state(&server_a, vec![server_b.descriptor.clone()], pool.clone());
+    let sender_token = issue_db_session_cookie(&pool, &server_a_state, &sender).await;
+    let server_b_state =
+        api_server_state(&server_b, vec![server_a.descriptor.clone()], pool.clone());
+    let server_b_handle = spawn_api_server(server_b_listener, build_app(server_b_state));
+    let server_a_handle = spawn_api_server(server_a_listener, build_app(server_a_state));
 
-    let message_id = unique_message_id("msg-two-node-http");
+    let message_id = unique_message_id("msg-two-server-http");
     let response = reqwest::Client::new()
-        .post(format!("{node_a_base_url}/dm/fanout/dispatch"))
+        .post(format!("{server_a_base_url}/dm/fanout/dispatch"))
         .header("authorization", format!("Bearer {sender_token}"))
         .json(&serde_json::json!({
             "recipient_identity_id": recipient.as_str(),
             "message_id": message_id.as_str(),
-            "ciphertext": "enc:two-node-http-smoke",
+            "ciphertext": "enc:two-server-http-smoke",
             "source_device_id": "desktop-main",
-            "destination_node_id": node_b.descriptor.node_id.as_str(),
+            "destination_server_id": server_b.descriptor.server_id.as_str(),
         }))
         .send()
         .await
-        .expect("two-node fanout response");
+        .expect("two-server fanout response");
     let status = response.status();
     let body = response
         .text()
         .await
-        .expect("read two-node fanout response");
+        .expect("read two-server fanout response");
     assert_eq!(status.as_u16(), StatusCode::OK.as_u16(), "{body}");
     let payload: serde_json::Value =
-        serde_json::from_str(&body).expect("decode two-node fanout response");
+        serde_json::from_str(&body).expect("decode two-server fanout response");
     assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_forwarded_to_static_peer");
     assert_eq!(payload["delivery_state"], "forwarded");
@@ -678,41 +688,42 @@ async fn fanout_dispatch_forwards_between_two_local_api_nodes_over_http() {
     let outbound = dm_repo::get_dm_outbound_forward_record(
         &pool,
         &sender,
-        &node_b.descriptor.node_id,
+        &server_b.descriptor.server_id,
         &message_id,
     )
     .await
-    .expect("load two-node outbound forward")
-    .expect("two-node outbound forward");
+    .expect("load two-server outbound forward")
+    .expect("two-server outbound forward");
     assert_eq!(outbound.forwarding_state, "forwarded");
     assert_eq!(outbound.attempt_count, 1);
     assert!(outbound.last_error.is_none());
 
     let records = dm_repo::list_dm_fanout_delivery_records_page(&pool, &recipient, 0, 10)
         .await
-        .expect("load node B delivery records");
+        .expect("load server B delivery records");
     let accepted = records
         .iter()
         .find(|record| record.message_id == message_id)
-        .expect("node B accepted forwarded envelope");
+        .expect("server B accepted forwarded envelope");
     assert_eq!(accepted.sender_identity_id, sender);
-    assert_eq!(accepted.ciphertext, "enc:two-node-http-smoke");
+    assert_eq!(accepted.ciphertext, "enc:two-server-http-smoke");
     assert_eq!(accepted.source_device_id.as_deref(), Some("desktop-main"));
     assert_eq!(accepted.delivery_state, "pending_delivery");
     assert_eq!(accepted.reachability_state, "unknown");
 
-    delete_outbound_forward_record(&pool, &sender, &node_b.descriptor.node_id, &message_id).await;
-    node_a_handle.abort();
-    node_b_handle.abort();
+    delete_outbound_forward_record(&pool, &sender, &server_b.descriptor.server_id, &message_id)
+        .await;
+    server_a_handle.abort();
+    server_b_handle.abort();
 }
 
 #[tokio::test]
-async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
+async fn server_forward_endpoint_accepts_authenticated_static_peer_envelope() {
     let Some(pool) = prepared_database_pool().await else {
         return;
     };
-    let sender = unique_identity("usr-node-forward-sender");
-    let recipient = unique_identity("usr-node-forward-recipient");
+    let sender = unique_identity("usr-server-forward-sender");
+    let recipient = unique_identity("usr-server-forward-recipient");
     ensure_db_identity_key(&pool, &sender).await;
     ensure_db_identity_key(&pool, &recipient).await;
     dm_repo::upsert_dm_policy(
@@ -738,16 +749,16 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
     .await
     .expect("upsert recipient profile device");
 
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let origin = signed_server_descriptor(
+        "server-origin",
+        "descriptor-origin",
+        "https://origin.example",
     );
-    let origin =
-        signed_node_descriptor("node-origin", "descriptor-origin", "https://origin.example");
     let state = test_state_with_public_identity_registration()
         .with_db_pool(pool.clone())
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -755,10 +766,10 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
             StaticPeerRegistry::try_new(vec![origin.descriptor.clone()]).expect("registry"),
         );
     let app = build_app(state);
-    let message_id = unique_message_id("msg-node-forward");
-    let (body, timestamp, nonce, signature) = signed_node_forward_body(
+    let message_id = unique_message_id("msg-server-forward");
+    let (body, timestamp, nonce, signature) = signed_server_forward_body(
         &origin,
-        &local.descriptor.node_id,
+        &local.descriptor.server_id,
         &sender,
         &recipient,
         &message_id,
@@ -766,29 +777,29 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
 
     let request = Request::builder()
         .method("POST")
-        .uri(NODE_FORWARD_PATH)
+        .uri(SERVER_FORWARD_PATH)
         .header("content-type", "application/json")
-        .header("x-hexrelay-node-id", origin.descriptor.node_id.as_str())
+        .header("x-hexrelay-server-id", origin.descriptor.server_id.as_str())
         .header(
-            "x-hexrelay-node-descriptor-id",
+            "x-hexrelay-server-descriptor-id",
             origin.descriptor.descriptor_id.as_str(),
         )
-        .header("x-hexrelay-node-signature-algorithm", "ed25519")
-        .header("x-hexrelay-node-signature-timestamp", timestamp)
-        .header("x-hexrelay-node-signature-nonce", nonce)
-        .header("x-hexrelay-node-signature", signature)
+        .header("x-hexrelay-server-signature-algorithm", "ed25519")
+        .header("x-hexrelay-server-signature-timestamp", timestamp)
+        .header("x-hexrelay-server-signature-nonce", nonce)
+        .header("x-hexrelay-server-signature", signature)
         .body(Body::from(body))
-        .expect("build node forward request");
+        .expect("build server forward request");
     let response = app
         .clone()
         .oneshot(request)
         .await
-        .expect("node forward response");
+        .expect("server forward response");
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read node forward body");
+        .expect("read server forward body");
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("decode response");
     assert_eq!(payload["status"], "accepted");
     assert_eq!(payload["reason_code"], "fanout_pending_delivery");
@@ -801,13 +812,13 @@ async fn node_forward_endpoint_accepts_authenticated_static_peer_envelope() {
         .find(|record| record.message_id == message_id)
         .expect("forwarded delivery record");
     assert_eq!(record.sender_identity_id, sender);
-    assert_eq!(record.ciphertext, "enc:node-forwarded-ciphertext");
+    assert_eq!(record.ciphertext, "enc:server-forwarded-ciphertext");
     assert_eq!(record.source_device_id.as_deref(), Some("desktop-main"));
 }
 
 #[tokio::test]
-async fn fanout_dispatch_forwards_to_explicit_destination_node() {
-    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+async fn fanout_dispatch_forwards_to_explicit_destination_server() {
+    let (destination_base_url, capture_rx) = start_server_forward_capture().await;
     let sender = unique_identity("usr-origin-sender");
     let recipient = unique_identity("usr-remote-recipient");
     let Some(pool) = prepared_database_pool().await else {
@@ -815,18 +826,15 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     };
     let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
     let token = issue_db_session_cookie(&pool, &state, &sender).await;
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
-    );
-    let destination = signed_node_descriptor(
-        "node-destination",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let destination = signed_server_descriptor(
+        "server-destination",
         "descriptor-destination",
         &destination_base_url,
     );
     let state = state
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -842,19 +850,19 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
-            destination.descriptor.node_id
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer","source_device_id":"desktop-main","destination_server_id":"{}"}}"#,
+            destination.descriptor.server_id
         )))
-        .expect("build destination-node fanout request");
+        .expect("build destination-server fanout request");
     let response = app
         .clone()
         .oneshot(request)
         .await
-        .expect("destination-node fanout response");
+        .expect("destination-server fanout response");
     assert_eq!(response.status(), StatusCode::OK);
     let response_body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read destination-node fanout body");
+        .expect("read destination-server fanout body");
     let response_payload: serde_json::Value =
         serde_json::from_slice(&response_body).expect("decode fanout response");
     assert_eq!(response_payload["status"], "accepted");
@@ -864,19 +872,19 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     );
     assert_eq!(response_payload["delivery_state"], "forwarded");
 
-    let captured = capture_rx.await.expect("capture node-forwarded request");
+    let captured = capture_rx.await.expect("capture server-forwarded request");
     assert_eq!(
         captured
             .headers
-            .get("x-hexrelay-node-id")
+            .get("x-hexrelay-server-id")
             .and_then(|value| value.to_str().ok()),
-        Some(local.descriptor.node_id.as_str())
+        Some(local.descriptor.server_id.as_str())
     );
-    let forwarded: NodeForwardDmEnvelopeRequest =
-        serde_json::from_slice(&captured.body).expect("decode node forward body");
+    let forwarded: ServerForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode server forward body");
     assert_eq!(
-        forwarded.destination_node_id,
-        destination.descriptor.node_id
+        forwarded.destination_server_id,
+        destination.descriptor.server_id
     );
     assert_eq!(forwarded.sender_identity_id, sender);
     assert_eq!(forwarded.recipient_identity_id, recipient);
@@ -886,14 +894,17 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     let record = dm_repo::get_dm_outbound_forward_record(
         &pool,
         &sender,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await
     .expect("load outbound forward record")
     .expect("outbound forward record");
     assert_eq!(record.sender_identity_id, sender);
-    assert_eq!(record.destination_node_id, destination.descriptor.node_id);
+    assert_eq!(
+        record.destination_server_id,
+        destination.descriptor.server_id
+    );
     assert_eq!(record.message_id, message_id);
     assert_eq!(record.recipient_identity_id, recipient);
     assert_eq!(record.ciphertext, "enc:static-peer");
@@ -903,14 +914,19 @@ async fn fanout_dispatch_forwards_to_explicit_destination_node() {
     assert_eq!(record.attempt_count, 1);
     assert!(record.last_error.is_none());
 
-    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
-        .await;
+    delete_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.server_id,
+        &message_id,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn fanout_dispatch_records_failed_outbound_destination_forward() {
     let (destination_base_url, capture_rx) =
-        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+        start_server_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
     let sender = unique_identity("usr-origin-sender");
     let recipient = unique_identity("usr-remote-recipient");
     let Some(pool) = prepared_database_pool().await else {
@@ -918,18 +934,15 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
     };
     let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
     let token = issue_db_session_cookie(&pool, &state, &sender).await;
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
-    );
-    let destination = signed_node_descriptor(
-        "node-destination",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let destination = signed_server_descriptor(
+        "server-destination",
         "descriptor-destination",
         &destination_base_url,
     );
     let state = state
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -945,28 +958,28 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")
         .body(Body::from(format!(
-            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer-failed","source_device_id":"desktop-main","destination_node_id":"{}"}}"#,
-            destination.descriptor.node_id
+            r#"{{"recipient_identity_id":"{recipient}","message_id":"{message_id}","ciphertext":"enc:static-peer-failed","source_device_id":"desktop-main","destination_server_id":"{}"}}"#,
+            destination.descriptor.server_id
         )))
-        .expect("build destination-node fanout request");
+        .expect("build destination-server fanout request");
     let response = app
         .clone()
         .oneshot(request)
         .await
-        .expect("destination-node fanout response");
+        .expect("destination-server fanout response");
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let response_body = to_bytes(response.into_body(), usize::MAX)
         .await
-        .expect("read failed destination-node fanout body");
+        .expect("read failed destination-server fanout body");
     let response_payload: serde_json::Value =
         serde_json::from_slice(&response_body).expect("decode failed fanout response");
     assert_eq!(response_payload["code"], "fanout_forwarding_failed");
 
     let captured = capture_rx
         .await
-        .expect("capture failed node-forwarded request");
-    let forwarded: NodeForwardDmEnvelopeRequest =
-        serde_json::from_slice(&captured.body).expect("decode node forward body");
+        .expect("capture failed server-forwarded request");
+    let forwarded: ServerForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode server forward body");
     assert_eq!(forwarded.sender_identity_id, sender);
     assert_eq!(forwarded.recipient_identity_id, recipient);
     assert_eq!(forwarded.ciphertext, "enc:static-peer-failed");
@@ -974,7 +987,7 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
     let record = dm_repo::get_dm_outbound_forward_record(
         &pool,
         &sender,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await
@@ -987,13 +1000,18 @@ async fn fanout_dispatch_records_failed_outbound_destination_forward() {
         .as_deref()
         .is_some_and(|value| value.contains("500 Internal Server Error")));
 
-    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
-        .await;
+    delete_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.server_id,
+        &message_id,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
-    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let (destination_base_url, capture_rx) = start_server_forward_capture().await;
     let sender = unique_identity("usr-origin-retry-sender");
     let recipient = unique_identity("usr-remote-retry-recipient");
     let Some(pool) = prepared_database_pool().await else {
@@ -1001,13 +1019,10 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     };
     let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
     delete_retry_test_outbound_forward_records(&pool).await;
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
-    );
-    let destination = signed_node_descriptor(
-        "node-destination",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let destination = signed_server_descriptor(
+        "server-destination",
         "descriptor-destination",
         &destination_base_url,
     );
@@ -1016,13 +1031,13 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
         &pool,
         &sender,
         &recipient,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await;
     let state = test_state_with_public_identity_registration()
         .with_db_pool(pool.clone())
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -1048,9 +1063,9 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     assert_eq!(summary.terminal_failed, 0);
     let captured = capture_rx
         .await
-        .expect("capture retried node-forwarded request");
-    let forwarded: NodeForwardDmEnvelopeRequest =
-        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+        .expect("capture retried server-forwarded request");
+    let forwarded: ServerForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried server forward body");
     assert_eq!(forwarded.sender_identity_id, sender);
     assert_eq!(forwarded.recipient_identity_id, recipient);
     assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
@@ -1058,7 +1073,7 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     let record = dm_repo::get_dm_outbound_forward_record(
         &pool,
         &sender,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await
@@ -1068,13 +1083,18 @@ async fn outbound_forward_retry_forwards_due_failed_static_peer_record() {
     assert_eq!(record.attempt_count, 2);
     assert!(record.next_attempt_at.is_none());
 
-    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
-        .await;
+    delete_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.server_id,
+        &message_id,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
-    let (destination_base_url, capture_rx) = start_node_forward_capture().await;
+    let (destination_base_url, capture_rx) = start_server_forward_capture().await;
     let sender = unique_identity("usr-origin-retry-worker-sender");
     let recipient = unique_identity("usr-remote-retry-worker-recipient");
     let Some(pool) = prepared_database_pool().await else {
@@ -1082,13 +1102,10 @@ async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
     };
     let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
     delete_retry_test_outbound_forward_records(&pool).await;
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
-    );
-    let destination = signed_node_descriptor(
-        "node-destination",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let destination = signed_server_descriptor(
+        "server-destination",
         "descriptor-destination",
         &destination_base_url,
     );
@@ -1097,13 +1114,13 @@ async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
         &pool,
         &sender,
         &recipient,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await;
     let state = test_state_with_public_identity_registration()
         .with_db_pool(pool.clone())
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -1126,9 +1143,9 @@ async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
     let captured = tokio::time::timeout(StdDuration::from_secs(5), capture_rx)
         .await
         .expect("worker should forward due outbound record")
-        .expect("capture worker node-forwarded request");
-    let forwarded: NodeForwardDmEnvelopeRequest =
-        serde_json::from_slice(&captured.body).expect("decode worker retried node forward body");
+        .expect("capture worker server-forwarded request");
+    let forwarded: ServerForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode worker retried server forward body");
     assert_eq!(forwarded.sender_identity_id, sender);
     assert_eq!(forwarded.recipient_identity_id, recipient);
     assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
@@ -1136,7 +1153,7 @@ async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
     let record = wait_for_outbound_forward_state(
         &pool,
         &sender,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
         "forwarded",
     )
@@ -1146,8 +1163,13 @@ async fn outbound_forward_retry_worker_drives_due_failed_static_peer_record() {
 
     worker.abort();
     let _ = worker.await;
-    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
-        .await;
+    delete_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.server_id,
+        &message_id,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -1159,10 +1181,16 @@ async fn outbound_forward_retry_worker_waits_for_forwarding_prerequisites() {
     };
     let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
     delete_retry_test_outbound_forward_records(&pool).await;
-    let destination_node_id = "node-missing-prerequisites";
+    let destination_server_id = "server-missing-prerequisites";
     let message_id = unique_message_id("msg-static-peer-retry-worker-gated");
-    seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
-        .await;
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        destination_server_id,
+        &message_id,
+    )
+    .await;
     let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
 
     let worker = spawn_dm_outbound_forward_retry_worker(
@@ -1182,7 +1210,7 @@ async fn outbound_forward_retry_worker_waits_for_forwarding_prerequisites() {
     let _ = worker.await;
 
     let record =
-        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_node_id, &message_id)
+        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_server_id, &message_id)
             .await
             .expect("load gated outbound forward record")
             .expect("gated outbound forward record");
@@ -1194,13 +1222,13 @@ async fn outbound_forward_retry_worker_waits_for_forwarding_prerequisites() {
     );
     assert!(record.next_attempt_at.is_some());
 
-    delete_outbound_forward_record(&pool, &sender, destination_node_id, &message_id).await;
+    delete_outbound_forward_record(&pool, &sender, destination_server_id, &message_id).await;
 }
 
 #[tokio::test]
 async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     let (destination_base_url, capture_rx) =
-        start_node_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
+        start_server_forward_capture_with_status(StatusCode::INTERNAL_SERVER_ERROR).await;
     let sender = unique_identity("usr-origin-retry-sender");
     let recipient = unique_identity("usr-remote-retry-recipient");
     let Some(pool) = prepared_database_pool().await else {
@@ -1208,13 +1236,10 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     };
     let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
     delete_retry_test_outbound_forward_records(&pool).await;
-    let local = signed_node_descriptor(
-        TEST_NODE_FINGERPRINT,
-        "descriptor-local",
-        "https://local.example",
-    );
-    let destination = signed_node_descriptor(
-        "node-destination",
+    let local =
+        signed_server_descriptor(TEST_SERVER_ID, "descriptor-local", "https://local.example");
+    let destination = signed_server_descriptor(
+        "server-destination",
         "descriptor-destination",
         &destination_base_url,
     );
@@ -1223,14 +1248,14 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
         &pool,
         &sender,
         &recipient,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await;
     let before_retry = Utc::now();
     let state = test_state_with_public_identity_registration()
         .with_db_pool(pool.clone())
-        .with_local_node_identity(Some(LocalNodeIdentity {
+        .with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }))
@@ -1256,15 +1281,15 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
     assert_eq!(summary.terminal_failed, 0);
     let captured = capture_rx
         .await
-        .expect("capture failed retried node-forwarded request");
-    let forwarded: NodeForwardDmEnvelopeRequest =
-        serde_json::from_slice(&captured.body).expect("decode retried node forward body");
+        .expect("capture failed retried server-forwarded request");
+    let forwarded: ServerForwardDmEnvelopeRequest =
+        serde_json::from_slice(&captured.body).expect("decode retried server forward body");
     assert_eq!(forwarded.ciphertext, "enc:seeded-outbound-forward");
 
     let record = dm_repo::get_dm_outbound_forward_record(
         &pool,
         &sender,
-        &destination.descriptor.node_id,
+        &destination.descriptor.server_id,
         &message_id,
     )
     .await
@@ -1280,8 +1305,13 @@ async fn outbound_forward_retry_reschedules_retryable_transport_failure() {
         .next_attempt_at
         .is_some_and(|value| value > before_retry));
 
-    delete_outbound_forward_record(&pool, &sender, &destination.descriptor.node_id, &message_id)
-        .await;
+    delete_outbound_forward_record(
+        &pool,
+        &sender,
+        &destination.descriptor.server_id,
+        &message_id,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -1293,10 +1323,16 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
     };
     let _retry_guard = OUTBOUND_FORWARD_RETRY_TEST_LOCK.lock().await;
     delete_retry_test_outbound_forward_records(&pool).await;
-    let destination_node_id = "node-missing";
+    let destination_server_id = "server-missing";
     let message_id = unique_message_id("msg-static-peer-retry-terminal");
-    seed_due_failed_outbound_forward(&pool, &sender, &recipient, destination_node_id, &message_id)
-        .await;
+    seed_due_failed_outbound_forward(
+        &pool,
+        &sender,
+        &recipient,
+        destination_server_id,
+        &message_id,
+    )
+    .await;
     let state = test_state_with_public_identity_registration().with_db_pool(pool.clone());
 
     let summary = retry_due_dm_outbound_forwards(
@@ -1317,7 +1353,7 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
     assert_eq!(summary.terminal_failed, 1);
 
     let record =
-        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_node_id, &message_id)
+        dm_repo::get_dm_outbound_forward_record(&pool, &sender, destination_server_id, &message_id)
             .await
             .expect("load terminal outbound forward record")
             .expect("terminal outbound forward record");
@@ -1334,7 +1370,7 @@ async fn outbound_forward_retry_stops_when_destination_policy_is_not_configured(
         .expect("list due outbound forwards after terminal failure");
     assert!(due.iter().all(|record| record.message_id != message_id));
 
-    delete_outbound_forward_record(&pool, &sender, destination_node_id, &message_id).await;
+    delete_outbound_forward_record(&pool, &sender, destination_server_id, &message_id).await;
 }
 
 #[tokio::test]
@@ -1716,26 +1752,8 @@ async fn fanout_dispatch_allows_when_recipient_policy_is_same_server_and_members
     };
     let message_id = unique_message_id("msg-shared-server");
 
-    seed_server_membership(
-        &pool,
-        "srv-shared-lab",
-        "Shared Lab",
-        sender.as_str(),
-        false,
-        false,
-        0,
-    )
-    .await;
-    seed_server_membership(
-        &pool,
-        "srv-shared-lab",
-        "Shared Lab",
-        recipient.as_str(),
-        false,
-        false,
-        0,
-    )
-    .await;
+    seed_server_membership(&pool, "Shared Lab", sender.as_str(), false, false, 0).await;
+    seed_server_membership(&pool, "Shared Lab", recipient.as_str(), false, false, 0).await;
 
     let policy_request = Request::builder()
         .method("POST")

@@ -68,7 +68,7 @@ pub struct SeedCliOptions {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetCliOptions {
-    pub profile: String,
+    pub profile: Option<String>,
     pub fixtures_root: Option<PathBuf>,
     pub json: bool,
     pub yes: bool,
@@ -131,7 +131,7 @@ impl SeedCliOptions {
 }
 
 pub fn seed_usage() -> &'static str {
-    "Usage: seed_dev [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+    "Usage: seed_dev [--profile dm-basic] [--fixtures-root fixtures/dev-seed] [--json]"
 }
 
 impl ResetCliOptions {
@@ -139,7 +139,7 @@ impl ResetCliOptions {
     where
         I: IntoIterator<Item = String>,
     {
-        let mut profile = DEFAULT_PROFILE.to_string();
+        let mut profile = None;
         let mut fixtures_root = None;
         let mut json = false;
         let mut yes = false;
@@ -148,9 +148,15 @@ impl ResetCliOptions {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--profile" | "-p" => {
-                    profile = args.next().ok_or_else(|| {
+                    let value = args.next().ok_or_else(|| {
                         DevSeedError::InvalidArgs("--profile requires a value".to_string())
                     })?;
+                    if value.trim().is_empty() {
+                        return Err(DevSeedError::InvalidArgs(
+                            "--profile must not be empty".to_string(),
+                        ));
+                    }
+                    profile = Some(value);
                 }
                 "--fixtures-root" => {
                     let value = args.next().ok_or_else(|| {
@@ -178,12 +184,6 @@ impl ResetCliOptions {
             }
         }
 
-        if profile.trim().is_empty() {
-            return Err(DevSeedError::InvalidArgs(
-                "--profile must not be empty".to_string(),
-            ));
-        }
-
         Ok(Self {
             profile,
             fixtures_root,
@@ -192,17 +192,17 @@ impl ResetCliOptions {
         })
     }
 
-    pub fn seed_options(&self) -> SeedCliOptions {
-        SeedCliOptions {
-            profile: self.profile.clone(),
+    pub fn seed_options(&self) -> Option<SeedCliOptions> {
+        self.profile.as_ref().map(|profile| SeedCliOptions {
+            profile: profile.clone(),
             fixtures_root: self.fixtures_root.clone(),
             json: self.json,
-        }
+        })
     }
 }
 
 pub fn reset_usage() -> &'static str {
-    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root scripts/fixtures] [--json]"
+    "Usage: reset_dev_db --yes [--profile dm-basic] [--fixtures-root fixtures/dev-seed] [--json]\nOmit --profile to reset schema without seeding fixture data."
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -296,8 +296,7 @@ struct InviteFixture {
     invite_id: String,
     token_hash: String,
     mode: String,
-    creator_identity_id: String,
-    node_fingerprint: String,
+    server_id: String,
     expires_at: Option<String>,
     max_uses: Option<i32>,
     uses: i32,
@@ -306,16 +305,14 @@ struct InviteFixture {
 
 #[derive(Clone, Debug, Deserialize)]
 struct ServerFixture {
-    server_id: String,
     name: String,
     created_at: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct ServerMembershipFixture {
-    server_id: String,
     identity_id: String,
-    favorite: bool,
+    pinned: bool,
     muted: bool,
     unread_count: i32,
     joined_at: String,
@@ -324,7 +321,6 @@ struct ServerMembershipFixture {
 #[derive(Clone, Debug, Deserialize)]
 struct ServerChannelFixture {
     channel_id: String,
-    server_id: String,
     name: String,
     kind: String,
     last_message_seq: u64,
@@ -658,14 +654,14 @@ pub fn format_seed_summary(summary: &SeedSummary) -> String {
 fn default_fixtures_root() -> Result<PathBuf, DevSeedError> {
     let mut current = env::current_dir().map_err(DevSeedError::Io)?;
     loop {
-        let candidate = current.join("scripts").join("fixtures");
+        let candidate = current.join("fixtures").join("dev-seed");
         if candidate.join("scenarios").is_dir() {
             return Ok(candidate);
         }
 
         if !current.pop() {
             return Err(DevSeedError::Config(
-                "could not locate scripts/fixtures from current directory".to_string(),
+                "could not locate fixtures/dev-seed from current directory".to_string(),
             ));
         }
     }
@@ -795,10 +791,9 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 invite.mode
             )));
         }
-        require_identity(&identity_ids, &invite.creator_identity_id, "invite creator")?;
-        if invite.node_fingerprint.trim().is_empty() {
+        if invite.server_id.trim().is_empty() {
             return Err(DevSeedError::Config(format!(
-                "invite '{}' requires node_fingerprint",
+                "invite '{}' requires server_id",
                 invite.invite_id
             )));
         }
@@ -823,37 +818,33 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
         }
     }
 
-    let mut server_ids = HashSet::new();
+    if scenario.servers.len() > 1 {
+        return Err(DevSeedError::Config(
+            "server fixtures seed one local server at a time".to_string(),
+        ));
+    }
+
+    if scenario.servers.is_empty()
+        && (!scenario.server_memberships.is_empty()
+            || !scenario.server_channels.is_empty()
+            || !scenario.server_channel_messages.is_empty())
+    {
+        return Err(DevSeedError::Config(
+            "server fixtures require one local server definition".to_string(),
+        ));
+    }
+
     for server in &scenario.servers {
-        if !server.server_id.starts_with("fixture-server-") {
-            return Err(DevSeedError::Config(format!(
-                "server '{}' must use fixture-server-* prefix",
-                server.server_id
-            )));
-        }
-        if !server_ids.insert(server.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "duplicate fixture server '{}'",
-                server.server_id
-            )));
-        }
         if server.name.trim().is_empty() {
-            return Err(DevSeedError::Config(format!(
-                "server '{}' requires name",
-                server.server_id
-            )));
+            return Err(DevSeedError::Config(
+                "local server fixture requires name".to_string(),
+            ));
         }
         validate_timestamp(&server.created_at, "server created_at")?;
     }
 
     let mut memberships = HashSet::new();
     for membership in &scenario.server_memberships {
-        if !server_ids.contains(membership.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "server membership references unknown server '{}'",
-                membership.server_id
-            )));
-        }
         require_identity(&identity_ids, &membership.identity_id, "server membership")?;
         if membership.unread_count < 0 {
             return Err(DevSeedError::Config(format!(
@@ -861,18 +852,16 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 membership.identity_id
             )));
         }
-        let key = format!("{}:{}", membership.server_id, membership.identity_id);
-        if !memberships.insert(key) {
+        if !memberships.insert(membership.identity_id.as_str()) {
             return Err(DevSeedError::Config(format!(
-                "duplicate server membership '{}:{}'",
-                membership.server_id, membership.identity_id
+                "duplicate server membership '{}'",
+                membership.identity_id
             )));
         }
         validate_timestamp(&membership.joined_at, "server membership joined_at")?;
     }
 
     let mut channel_ids = HashSet::new();
-    let mut channel_servers = HashMap::new();
     let mut channel_last_seqs: HashMap<&str, u64> = HashMap::new();
     for channel in &scenario.server_channels {
         if !channel.channel_id.starts_with("fixture-channel-") {
@@ -881,19 +870,12 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 channel.channel_id
             )));
         }
-        if !server_ids.contains(channel.server_id.as_str()) {
-            return Err(DevSeedError::Config(format!(
-                "server channel '{}' references unknown server '{}'",
-                channel.channel_id, channel.server_id
-            )));
-        }
         if !channel_ids.insert(channel.channel_id.as_str()) {
             return Err(DevSeedError::Config(format!(
                 "duplicate server channel '{}'",
                 channel.channel_id
             )));
         }
-        channel_servers.insert(channel.channel_id.as_str(), channel.server_id.as_str());
         channel_last_seqs.insert(channel.channel_id.as_str(), channel.last_message_seq);
         if channel.name.trim().is_empty() || channel.kind != "text" {
             return Err(DevSeedError::Config(format!(
@@ -920,14 +902,11 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 message.message_id, message.channel_id
             )));
         }
-        let server_id = channel_servers
-            .get(message.channel_id.as_str())
-            .expect("validated channel has server id");
         require_identity(&identity_ids, &message.author_id, "server message author")?;
-        if !memberships.contains(&format!("{}:{}", server_id, message.author_id)) {
+        if !memberships.contains(message.author_id.as_str()) {
             return Err(DevSeedError::Config(format!(
-                "server message '{}' author is not a member of server '{}'",
-                message.message_id, server_id
+                "server message '{}' author is not a local server member",
+                message.message_id
             )));
         }
         if message.channel_seq == 0 || message.content.trim().is_empty() {
@@ -967,7 +946,7 @@ fn validate_scenario(scenario: &SeedScenario) -> Result<(), DevSeedError> {
                 mentioned_identity_id,
                 "server message mention",
             )?;
-            if !memberships.contains(&format!("{}:{}", server_id, mentioned_identity_id)) {
+            if !memberships.contains(mentioned_identity_id.as_str()) {
                 return Err(DevSeedError::Config(format!(
                     "server message '{}' mentions non-member '{}'",
                     message.message_id, mentioned_identity_id
@@ -1246,19 +1225,17 @@ async fn seed_invite(
             invite_id,
             token,
             mode,
-            creator_identity_id,
-            node_fingerprint,
+            server_id,
             expires_at,
             max_uses,
             uses,
             created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::timestamptz, $6, $7, $8::timestamptz)
         ON CONFLICT (token) DO UPDATE
         SET invite_id = EXCLUDED.invite_id,
             mode = EXCLUDED.mode,
-            creator_identity_id = EXCLUDED.creator_identity_id,
-            node_fingerprint = EXCLUDED.node_fingerprint,
+            server_id = EXCLUDED.server_id,
             expires_at = EXCLUDED.expires_at,
             max_uses = EXCLUDED.max_uses,
             uses = EXCLUDED.uses,
@@ -1268,8 +1245,7 @@ async fn seed_invite(
     .bind(&invite.invite_id)
     .bind(&invite.token_hash)
     .bind(&invite.mode)
-    .bind(&invite.creator_identity_id)
-    .bind(&invite.node_fingerprint)
+    .bind(&invite.server_id)
     .bind(invite.expires_at.as_deref())
     .bind(invite.max_uses)
     .bind(invite.uses)
@@ -1286,14 +1262,13 @@ async fn seed_server(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "
-        INSERT INTO servers (server_id, name, created_at)
-        VALUES ($1, $2, $3::timestamptz)
-        ON CONFLICT (server_id) DO UPDATE
+        INSERT INTO local_server (singleton, name, created_at)
+        VALUES (TRUE, $1, $2::timestamptz)
+        ON CONFLICT (singleton) DO UPDATE
         SET name = EXCLUDED.name,
             created_at = EXCLUDED.created_at
         ",
     )
-    .bind(&server.server_id)
     .bind(&server.name)
     .bind(&server.created_at)
     .execute(&mut **tx)
@@ -1309,24 +1284,22 @@ async fn seed_server_membership(
     sqlx::query(
         "
         INSERT INTO server_memberships (
-            server_id,
             identity_id,
-            favorite,
+            pinned,
             muted,
             unread_count,
             joined_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
-        ON CONFLICT (server_id, identity_id) DO UPDATE
-        SET favorite = EXCLUDED.favorite,
+        VALUES ($1, $2, $3, $4, $5::timestamptz)
+        ON CONFLICT (identity_id) DO UPDATE
+        SET pinned = EXCLUDED.pinned,
             muted = EXCLUDED.muted,
             unread_count = EXCLUDED.unread_count,
             joined_at = EXCLUDED.joined_at
         ",
     )
-    .bind(&membership.server_id)
     .bind(&membership.identity_id)
-    .bind(membership.favorite)
+    .bind(membership.pinned)
     .bind(membership.muted)
     .bind(membership.unread_count)
     .bind(&membership.joined_at)
@@ -1346,23 +1319,20 @@ async fn seed_server_channel(
         "
         INSERT INTO server_channels (
             channel_id,
-            server_id,
             name,
             kind,
             last_message_seq,
             created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::timestamptz)
         ON CONFLICT (channel_id) DO UPDATE
-        SET server_id = EXCLUDED.server_id,
-            name = EXCLUDED.name,
+        SET name = EXCLUDED.name,
             kind = EXCLUDED.kind,
             last_message_seq = EXCLUDED.last_message_seq,
             created_at = EXCLUDED.created_at
         ",
     )
     .bind(&channel.channel_id)
-    .bind(&channel.server_id)
     .bind(&channel.name)
     .bind(&channel.kind)
     .bind(
@@ -1578,23 +1548,34 @@ mod tests {
 
     fn dm_basic() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/dm-basic.json"
+            "../../../fixtures/dev-seed/scenarios/dm-basic.json"
         ))
         .expect("parse dm-basic fixture")
     }
 
     fn contacts_edge() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/contacts-edge.json"
+            "../../../fixtures/dev-seed/scenarios/contacts-edge.json"
         ))
         .expect("parse contacts-edge fixture")
     }
 
     fn server_chat() -> SeedScenario {
         serde_json::from_str(include_str!(
-            "../../../scripts/fixtures/scenarios/server-chat.json"
+            "../../../fixtures/dev-seed/scenarios/server-chat.json"
         ))
         .expect("parse server-chat fixture")
+    }
+
+    #[test]
+    fn default_fixture_root_finds_dev_seed_scenarios() {
+        let options = SeedCliOptions {
+            profile: "dm-basic".to_string(),
+            fixtures_root: None,
+            json: false,
+        };
+
+        validate_seed_profile(&options).expect("default fixture root finds dm-basic");
     }
 
     #[test]
@@ -1620,7 +1601,7 @@ mod tests {
         assert_eq!(scenario.identities.len(), 3);
         assert_eq!(scenario.sessions.len(), 3);
         assert_eq!(scenario.friend_requests.len(), 2);
-        assert_eq!(scenario.invites.len(), 2);
+        assert!(scenario.invites.is_empty());
     }
 
     #[test]
@@ -1718,14 +1699,7 @@ mod tests {
         );
         assert_dm_policy(&scenario, "usr-test-carol", "same_server");
         assert_dm_policy(&scenario, "usr-test-dave", "friends_only");
-
-        let exhausted = scenario
-            .invites
-            .iter()
-            .find(|invite| invite.invite_id == "fixture-invite-carol-contact-exhausted")
-            .expect("exhausted Carol invite exists");
-        assert_eq!(exhausted.mode, "multi_use");
-        assert_eq!(exhausted.max_uses, Some(exhausted.uses));
+        assert!(scenario.invites.is_empty());
         assert!(scenario.dm_threads.is_empty());
     }
 
@@ -1735,18 +1709,13 @@ mod tests {
 
         validate_scenario(&scenario).expect("server-chat fixture validates");
 
-        let server = scenario
-            .servers
-            .iter()
-            .find(|server| server.server_id == "fixture-server-atlas")
-            .expect("atlas server exists");
-        assert_eq!(server.name, "Atlas Test Server");
+        assert_eq!(scenario.servers[0].name, "Atlas Test Server");
         assert_eq!(scenario.server_memberships.len(), 3);
         assert!(scenario.server_memberships.iter().any(|membership| {
-            membership.identity_id == "usr-test-alice" && membership.favorite && !membership.muted
+            membership.identity_id == "usr-test-alice" && membership.pinned && !membership.muted
         }));
         assert!(scenario.server_memberships.iter().any(|membership| {
-            membership.identity_id == "usr-test-carol" && !membership.favorite && membership.muted
+            membership.identity_id == "usr-test-carol" && !membership.pinned && membership.muted
         }));
 
         let general = scenario
@@ -1885,7 +1854,16 @@ mod tests {
     #[test]
     fn rejects_invite_uses_above_max() {
         let mut scenario = contacts_edge();
-        scenario.invites[0].uses = 2;
+        scenario.invites.push(InviteFixture {
+            invite_id: "fixture-invite-overused-server".to_string(),
+            token_hash: "1".repeat(64),
+            mode: "one_time".to_string(),
+            server_id: "dev-server-alice".to_string(),
+            expires_at: None,
+            max_uses: Some(1),
+            uses: 2,
+            created_at: "2026-05-04T10:00:00Z".to_string(),
+        });
 
         let error = validate_scenario(&scenario).expect_err("overused invite rejected");
 
@@ -1909,11 +1887,19 @@ mod tests {
             "--json".to_string(),
         ])
         .expect("parse reset options");
-        let seed_options = options.seed_options();
+        let seed_options = options.seed_options().expect("seed options exist");
 
         assert!(options.yes);
         assert_eq!(seed_options.profile, "dm-basic");
         assert!(seed_options.json);
+    }
+
+    #[test]
+    fn reset_defaults_to_no_seed_profile() {
+        let options = ResetCliOptions::parse(["--yes".to_string()]).expect("parse reset options");
+
+        assert!(options.yes);
+        assert_eq!(options.seed_options(), None);
     }
 
     #[tokio::test]

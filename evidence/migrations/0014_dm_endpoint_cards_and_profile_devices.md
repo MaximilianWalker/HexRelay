@@ -13,7 +13,7 @@
 
 - Purpose: record deterministic validation evidence for migration `0014_dm_endpoint_cards_and_profile_devices.sql`.
 - Primary edit location: update when persisted endpoint-card or profile-device evidence changes.
-- Latest meaningful change: 2026-05-11 clarified that endpoint-card evidence is historical and superseded by the server-node P2P DM envelope baseline.
+- Latest meaningful change: 2026-05-11 clarified that endpoint-card evidence is historical and superseded by the server P2P DM envelope baseline.
 
 ## Migration Metadata
 

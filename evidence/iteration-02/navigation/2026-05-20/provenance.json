@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-05-20T06:51:11.2512042+01:00",
+  "generated_at_utc": "2026-05-20T05:51:11Z",
+  "commit_sha": "dc2e89a10806c9a44b8e0f35b2803004aa383408",
+  "run_id": "manual-navigation-evidence-2026-05-20",
+  "working_tree_dirty": true,
+  "screenshot_runtime": {
+    "app": "apps/web",
+    "mode": "next production build",
+    "url": "http://127.0.0.1:3001"
+  },
+  "screenshot_tool": "local headless Chrome",
+  "notes": [
+    "The in-app browser loaded pages and verified visible text, but screenshot capture timed out at the CDP layer.",
+    "Port 3000 was already occupied by an older local Next development process and was left untouched.",
+    "Port 3001 was used temporarily for current-build evidence capture and then stopped."
+  ]
+}

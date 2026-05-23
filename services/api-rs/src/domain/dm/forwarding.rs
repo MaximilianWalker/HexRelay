@@ -3,7 +3,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use communication_core::{
     CandidatePeerPolicy, DescriptorValidationContext, DiscoveryPath, Ed25519DescriptorVerifier,
-    NodeDescriptor, PeerRouteKind, PeeringPolicy, SelectedPeerRoute,
+    PeerRouteKind, PeeringPolicy, SelectedPeerRoute, ServerDescriptor,
 };
 use reqwest::Url;
 use ring::{
@@ -20,25 +20,25 @@ use crate::{
             DM_FANOUT_CIPHERTEXT_MAX_LENGTH, DM_FANOUT_MESSAGE_ID_MAX_LENGTH,
             DM_PROFILE_DEVICE_ID_MAX_LENGTH,
         },
-        node_identity::LocalNodeIdentity,
+        server_identity::LocalServerIdentity,
     },
     state::AppState,
 };
 
-pub(crate) const NODE_FORWARD_PATH: &str = "/internal/dm/envelopes/forward";
-pub(crate) const NODE_FORWARD_SIGNATURE_DOMAIN: &str = "hexrelay.node_forward_request";
-const NODE_FORWARD_SIGNATURE_ALGORITHM: &str = "ed25519";
-const NODE_FORWARD_ROUTE_KIND_DIRECT: &str = "static_peer_direct";
-const NODE_FORWARD_SIGNATURE_MAX_SKEW_SECONDS: i64 = 300;
-const NODE_FORWARD_NONCE_MIN_LENGTH: usize = 16;
-const NODE_FORWARD_NONCE_MAX_LENGTH: usize = 128;
-const NODE_FORWARD_TARGET_DEVICE_MAX_COUNT: usize = 100;
-const HEADER_NODE_ID: &str = "x-hexrelay-node-id";
-const HEADER_NODE_DESCRIPTOR_ID: &str = "x-hexrelay-node-descriptor-id";
-const HEADER_SIGNATURE_ALGORITHM: &str = "x-hexrelay-node-signature-algorithm";
-const HEADER_SIGNATURE_TIMESTAMP: &str = "x-hexrelay-node-signature-timestamp";
-const HEADER_SIGNATURE_NONCE: &str = "x-hexrelay-node-signature-nonce";
-const HEADER_SIGNATURE: &str = "x-hexrelay-node-signature";
+pub(crate) const SERVER_FORWARD_PATH: &str = "/internal/dm/envelopes/forward";
+pub(crate) const SERVER_FORWARD_SIGNATURE_DOMAIN: &str = "hexrelay.server_forward_request";
+const SERVER_FORWARD_SIGNATURE_ALGORITHM: &str = "ed25519";
+const SERVER_FORWARD_ROUTE_KIND_DIRECT: &str = "static_peer_direct";
+const SERVER_FORWARD_SIGNATURE_MAX_SKEW_SECONDS: i64 = 300;
+const SERVER_FORWARD_NONCE_MIN_LENGTH: usize = 16;
+const SERVER_FORWARD_NONCE_MAX_LENGTH: usize = 128;
+const SERVER_FORWARD_TARGET_DEVICE_MAX_COUNT: usize = 100;
+const HEADER_SERVER_ID: &str = "x-hexrelay-server-id";
+const HEADER_SERVER_DESCRIPTOR_ID: &str = "x-hexrelay-server-descriptor-id";
+const HEADER_SIGNATURE_ALGORITHM: &str = "x-hexrelay-server-signature-algorithm";
+const HEADER_SIGNATURE_TIMESTAMP: &str = "x-hexrelay-server-signature-timestamp";
+const HEADER_SIGNATURE_NONCE: &str = "x-hexrelay-server-signature-nonce";
+const HEADER_SIGNATURE: &str = "x-hexrelay-server-signature";
 
 pub struct ForwardDmEnvelopeInput<'a> {
     pub message_id: &'a str,
@@ -53,11 +53,11 @@ pub struct ForwardDmEnvelopeInput<'a> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeForwardDmEnvelopeRequest {
+pub struct ServerForwardDmEnvelopeRequest {
     pub route_kind: String,
-    pub origin_node_descriptor: NodeDescriptor,
-    pub destination_node_id: String,
-    pub relay_node_id: Option<String>,
+    pub origin_server_descriptor: ServerDescriptor,
+    pub destination_server_id: String,
+    pub relay_server_id: Option<String>,
     pub message_id: String,
     pub thread_id: String,
     pub sender_identity_id: String,
@@ -70,13 +70,13 @@ pub struct NodeForwardDmEnvelopeRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthenticatedNodeForwardRequest {
-    pub origin_node_id: String,
-    pub request: NodeForwardDmEnvelopeRequest,
+pub struct AuthenticatedServerForwardRequest {
+    pub origin_server_id: String,
+    pub request: ServerForwardDmEnvelopeRequest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NodeForwardRequestErrorStatus {
+pub enum ServerForwardRequestErrorStatus {
     BadRequest,
     Unauthorized,
     Forbidden,
@@ -84,16 +84,16 @@ pub enum NodeForwardRequestErrorStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NodeForwardRequestError {
-    pub status: NodeForwardRequestErrorStatus,
+pub struct ServerForwardRequestError {
+    pub status: ServerForwardRequestErrorStatus,
     pub code: &'static str,
     pub message: &'static str,
 }
 
-impl NodeForwardRequestError {
+impl ServerForwardRequestError {
     const fn bad_request(code: &'static str, message: &'static str) -> Self {
         Self {
-            status: NodeForwardRequestErrorStatus::BadRequest,
+            status: ServerForwardRequestErrorStatus::BadRequest,
             code,
             message,
         }
@@ -101,7 +101,7 @@ impl NodeForwardRequestError {
 
     const fn unauthorized(code: &'static str, message: &'static str) -> Self {
         Self {
-            status: NodeForwardRequestErrorStatus::Unauthorized,
+            status: ServerForwardRequestErrorStatus::Unauthorized,
             code,
             message,
         }
@@ -109,7 +109,7 @@ impl NodeForwardRequestError {
 
     const fn forbidden(code: &'static str, message: &'static str) -> Self {
         Self {
-            status: NodeForwardRequestErrorStatus::Forbidden,
+            status: ServerForwardRequestErrorStatus::Forbidden,
             code,
             message,
         }
@@ -117,7 +117,7 @@ impl NodeForwardRequestError {
 
     const fn conflict(code: &'static str, message: &'static str) -> Self {
         Self {
-            status: NodeForwardRequestErrorStatus::Conflict,
+            status: ServerForwardRequestErrorStatus::Conflict,
             code,
             message,
         }
@@ -131,21 +131,20 @@ pub async fn forward_dm_envelope_to_static_peer(
 ) -> Result<(), String> {
     if route.kind != PeerRouteKind::Direct {
         return Err(format!(
-            "server-node relay forwarding transport is not implemented for route kind {:?}",
+            "server-to-server relay forwarding transport is not implemented for route kind {:?}",
             route.kind
         ));
     }
 
-    let identity = state
-        .local_node_identity
-        .as_ref()
-        .ok_or_else(|| "local node identity is required for server-node forwarding".to_string())?;
+    let identity = state.local_server_identity.as_ref().ok_or_else(|| {
+        "local server identity is required for server-to-server forwarding".to_string()
+    })?;
     let url = peer_forward_url(&route.destination.descriptor)?;
-    let request = NodeForwardDmEnvelopeRequest {
-        route_kind: NODE_FORWARD_ROUTE_KIND_DIRECT.to_string(),
-        origin_node_descriptor: identity.descriptor.clone(),
-        destination_node_id: route.destination.descriptor.node_id.clone(),
-        relay_node_id: None,
+    let request = ServerForwardDmEnvelopeRequest {
+        route_kind: SERVER_FORWARD_ROUTE_KIND_DIRECT.to_string(),
+        origin_server_descriptor: identity.descriptor.clone(),
+        destination_server_id: route.destination.descriptor.server_id.clone(),
+        relay_server_id: None,
         message_id: input.message_id.to_string(),
         thread_id: input.thread_id.to_string(),
         sender_identity_id: input.sender_identity_id.to_string(),
@@ -157,13 +156,13 @@ pub async fn forward_dm_envelope_to_static_peer(
         target_device_ids: input.target_device_ids.to_vec(),
     };
     let body = serde_json::to_vec(&request)
-        .map_err(|error| format!("encode node-forwarded DM envelope: {error}"))?;
+        .map_err(|error| format!("encode server-forwarded DM envelope: {error}"))?;
     let timestamp = Utc::now().timestamp().to_string();
     let nonce = Uuid::new_v4().to_string();
     let signature = sign_forward_request(
         identity,
         "POST",
-        NODE_FORWARD_PATH,
+        SERVER_FORWARD_PATH,
         &timestamp,
         &nonce,
         &body,
@@ -173,126 +172,129 @@ pub async fn forward_dm_envelope_to_static_peer(
         .http_client
         .post(url)
         .header("content-type", "application/json")
-        .header(HEADER_NODE_ID, identity.descriptor.node_id.as_str())
+        .header(HEADER_SERVER_ID, identity.descriptor.server_id.as_str())
         .header(
-            HEADER_NODE_DESCRIPTOR_ID,
+            HEADER_SERVER_DESCRIPTOR_ID,
             identity.descriptor.descriptor_id.as_str(),
         )
-        .header(HEADER_SIGNATURE_ALGORITHM, NODE_FORWARD_SIGNATURE_ALGORITHM)
+        .header(
+            HEADER_SIGNATURE_ALGORITHM,
+            SERVER_FORWARD_SIGNATURE_ALGORITHM,
+        )
         .header(HEADER_SIGNATURE_TIMESTAMP, timestamp)
         .header(HEADER_SIGNATURE_NONCE, nonce)
         .header(HEADER_SIGNATURE, signature)
         .body(body)
         .send()
         .await
-        .map_err(|error| format!("send node-forwarded DM envelope: {error}"))?;
+        .map_err(|error| format!("send server-forwarded DM envelope: {error}"))?;
 
     if response.status().is_success() {
         Ok(())
     } else {
         Err(format!(
-            "node-forwarded DM envelope rejected with status {}",
+            "server-forwarded DM envelope rejected with status {}",
             response.status()
         ))
     }
 }
 
-pub fn authenticate_node_forward_request(
+pub fn authenticate_server_forward_request(
     state: &AppState,
     headers: &HeaderMap,
     body: &[u8],
-) -> Result<AuthenticatedNodeForwardRequest, NodeForwardRequestError> {
-    let request = serde_json::from_slice::<NodeForwardDmEnvelopeRequest>(body).map_err(|_| {
-        NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
-            "node-forwarded DM envelope body must be valid JSON",
+) -> Result<AuthenticatedServerForwardRequest, ServerForwardRequestError> {
+    let request = serde_json::from_slice::<ServerForwardDmEnvelopeRequest>(body).map_err(|_| {
+        ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
+            "server-forwarded DM envelope body must be valid JSON",
         )
     })?;
-    validate_node_forward_body(&request)?;
+    validate_server_forward_body(&request)?;
 
-    let local_identity = state.local_node_identity.as_ref().ok_or_else(|| {
-        NodeForwardRequestError::forbidden(
-            "node_forward_local_identity_required",
-            "local node identity is required to receive server-node forwarded DM envelopes",
+    let local_identity = state.local_server_identity.as_ref().ok_or_else(|| {
+        ServerForwardRequestError::forbidden(
+            "server_forward_local_identity_required",
+            "local server identity is required to receive server-to-server forwarded DM envelopes",
         )
     })?;
-    if request.destination_node_id != local_identity.descriptor.node_id
-        || request.destination_node_id != state.node_fingerprint
+    if request.destination_server_id != local_identity.descriptor.server_id
+        || request.destination_server_id != state.server_id
     {
-        return Err(NodeForwardRequestError::forbidden(
-            "node_forward_destination_mismatch",
-            "node-forwarded DM envelope destination does not match this node",
+        return Err(ServerForwardRequestError::forbidden(
+            "server_forward_destination_mismatch",
+            "server-forwarded DM envelope destination does not match this server",
         ));
     }
-    if request.origin_node_descriptor.node_id == local_identity.descriptor.node_id {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
-            "origin node must differ from destination node",
+    if request.origin_server_descriptor.server_id == local_identity.descriptor.server_id {
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
+            "origin server must differ from destination server",
         ));
     }
     if !local_identity.descriptor.accepts_local_recipient_delivery() {
-        return Err(NodeForwardRequestError::forbidden(
-            "node_forward_delivery_disabled",
-            "local node descriptor does not accept local recipient delivery",
+        return Err(ServerForwardRequestError::forbidden(
+            "server_forward_delivery_disabled",
+            "local server descriptor does not accept local recipient delivery",
         ));
     }
 
-    let header_node_id = required_header(headers, HEADER_NODE_ID)?;
-    let header_descriptor_id = required_header(headers, HEADER_NODE_DESCRIPTOR_ID)?;
+    let header_server_id = required_header(headers, HEADER_SERVER_ID)?;
+    let header_descriptor_id = required_header(headers, HEADER_SERVER_DESCRIPTOR_ID)?;
     let algorithm = required_header(headers, HEADER_SIGNATURE_ALGORITHM)?;
     let timestamp = required_header(headers, HEADER_SIGNATURE_TIMESTAMP)?;
     let nonce = required_header(headers, HEADER_SIGNATURE_NONCE)?;
     let signature = required_header(headers, HEADER_SIGNATURE)?;
 
-    if header_node_id != request.origin_node_descriptor.node_id {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_node_mismatch",
-            "node forwarding node header does not match the origin descriptor",
+    if header_server_id != request.origin_server_descriptor.server_id {
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_server_mismatch",
+            "server forwarding server header does not match the origin descriptor",
         ));
     }
-    if header_descriptor_id != request.origin_node_descriptor.descriptor_id {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_descriptor_mismatch",
-            "node forwarding descriptor header does not match the origin descriptor",
+    if header_descriptor_id != request.origin_server_descriptor.descriptor_id {
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_descriptor_mismatch",
+            "server forwarding descriptor header does not match the origin descriptor",
         ));
     }
-    if algorithm != NODE_FORWARD_SIGNATURE_ALGORITHM {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_signature_invalid",
-            "node forwarding signature algorithm is unsupported",
+    if algorithm != SERVER_FORWARD_SIGNATURE_ALGORITHM {
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_signature_invalid",
+            "server forwarding signature algorithm is unsupported",
         ));
     }
     validate_nonce(nonce)?;
 
     let now = Utc::now().timestamp();
     let timestamp_epoch = timestamp.parse::<i64>().map_err(|_| {
-        NodeForwardRequestError::unauthorized(
-            "node_forward_timestamp_invalid",
-            "node forwarding signature timestamp must be numeric",
+        ServerForwardRequestError::unauthorized(
+            "server_forward_timestamp_invalid",
+            "server forwarding signature timestamp must be numeric",
         )
     })?;
-    if timestamp_epoch < now - NODE_FORWARD_SIGNATURE_MAX_SKEW_SECONDS
-        || timestamp_epoch > now + NODE_FORWARD_SIGNATURE_MAX_SKEW_SECONDS
+    if timestamp_epoch < now - SERVER_FORWARD_SIGNATURE_MAX_SKEW_SECONDS
+        || timestamp_epoch > now + SERVER_FORWARD_SIGNATURE_MAX_SKEW_SECONDS
     {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_timestamp_invalid",
-            "node forwarding signature timestamp is outside the allowed window",
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_timestamp_invalid",
+            "server forwarding signature timestamp is outside the allowed window",
         ));
     }
 
     let configured_descriptor = state
         .static_peer_registry
-        .find(&request.origin_node_descriptor.node_id)
+        .find(&request.origin_server_descriptor.server_id)
         .ok_or_else(|| {
-            NodeForwardRequestError::unauthorized(
-                "node_forward_peer_not_allowed",
-                "origin node is not an allowed static peer",
+            ServerForwardRequestError::unauthorized(
+                "server_forward_peer_not_allowed",
+                "origin server is not an allowed static peer",
             )
         })?;
-    if configured_descriptor != &request.origin_node_descriptor {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_descriptor_mismatch",
-            "origin node descriptor does not match the allowed static peer descriptor",
+    if configured_descriptor != &request.origin_server_descriptor {
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_descriptor_mismatch",
+            "origin server descriptor does not match the allowed static peer descriptor",
         ));
     }
 
@@ -310,20 +312,20 @@ pub fn authenticate_node_forward_request(
     state
         .static_peer_registry
         .validate_candidate(
-            &request.origin_node_descriptor.node_id,
+            &request.origin_server_descriptor.server_id,
             &context,
             &Ed25519DescriptorVerifier,
             &origin_policy,
         )
         .map_err(|_| {
-            NodeForwardRequestError::unauthorized(
-                "node_forward_peer_not_allowed",
-                "origin node descriptor is not valid for private static peering",
+            ServerForwardRequestError::unauthorized(
+                "server_forward_peer_not_allowed",
+                "origin server descriptor is not valid for private static peering",
             )
         })?;
 
     verify_forward_signature(
-        &request.origin_node_descriptor,
+        &request.origin_server_descriptor,
         signature,
         timestamp,
         nonce,
@@ -331,46 +333,47 @@ pub fn authenticate_node_forward_request(
     )?;
     remember_forward_nonce(
         state,
-        &request.origin_node_descriptor.node_id,
-        &request.origin_node_descriptor.descriptor_id,
+        &request.origin_server_descriptor.server_id,
+        &request.origin_server_descriptor.descriptor_id,
         nonce,
         now,
     )?;
 
-    Ok(AuthenticatedNodeForwardRequest {
-        origin_node_id: request.origin_node_descriptor.node_id.clone(),
+    Ok(AuthenticatedServerForwardRequest {
+        origin_server_id: request.origin_server_descriptor.server_id.clone(),
         request,
     })
 }
 
-fn peer_forward_url(descriptor: &NodeDescriptor) -> Result<String, String> {
+fn peer_forward_url(descriptor: &ServerDescriptor) -> Result<String, String> {
     let address = descriptor
         .addresses
         .iter()
         .map(|value| value.trim())
         .find(|value| !value.is_empty())
-        .ok_or_else(|| "destination node descriptor has no forwarding address".to_string())?;
+        .ok_or_else(|| "destination server descriptor has no forwarding address".to_string())?;
     let parsed = Url::parse(address)
-        .map_err(|_| "destination node descriptor address must be an absolute URL".to_string())?;
+        .map_err(|_| "destination server descriptor address must be an absolute URL".to_string())?;
     let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
-        return Err("destination node descriptor address must use http or https".to_string());
+        return Err("destination server descriptor address must use http or https".to_string());
     }
     if scheme == "http" && !is_loopback_host(parsed.host_str()) {
         return Err(
-            "destination node descriptor address must use https for non-loopback hosts".to_string(),
+            "destination server descriptor address must use https for non-loopback hosts"
+                .to_string(),
         );
     }
 
     Ok(format!(
         "{}{}",
         address.trim_end_matches('/'),
-        NODE_FORWARD_PATH
+        SERVER_FORWARD_PATH
     ))
 }
 
 fn sign_forward_request(
-    identity: &LocalNodeIdentity,
+    identity: &LocalServerIdentity,
     method: &str,
     path: &str,
     timestamp: &str,
@@ -378,10 +381,10 @@ fn sign_forward_request(
     body: &[u8],
 ) -> Result<String, String> {
     let key_pair = Ed25519KeyPair::from_pkcs8(&identity.private_key_pkcs8)
-        .map_err(|_| "local node private key is invalid".to_string())?;
+        .map_err(|_| "local server private key is invalid".to_string())?;
     let public_key = hex::encode(key_pair.public_key().as_ref());
-    if public_key != identity.descriptor.node_public_key {
-        return Err("local node private key does not match descriptor".to_string());
+    if public_key != identity.descriptor.server_public_key {
+        return Err("local server private key does not match descriptor".to_string());
     }
 
     Ok(hex::encode(key_pair.sign(&forward_signature_payload(
@@ -397,7 +400,7 @@ pub(crate) fn forward_signature_payload(
     body: &[u8],
 ) -> Vec<u8> {
     [
-        NODE_FORWARD_SIGNATURE_DOMAIN,
+        SERVER_FORWARD_SIGNATURE_DOMAIN,
         method,
         path,
         timestamp,
@@ -408,59 +411,59 @@ pub(crate) fn forward_signature_payload(
     .into_bytes()
 }
 
-fn validate_node_forward_body(
-    request: &NodeForwardDmEnvelopeRequest,
-) -> Result<(), NodeForwardRequestError> {
-    if request.route_kind != NODE_FORWARD_ROUTE_KIND_DIRECT {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_route_unsupported",
-            "only direct static-peer node forwarding is supported",
+fn validate_server_forward_body(
+    request: &ServerForwardDmEnvelopeRequest,
+) -> Result<(), ServerForwardRequestError> {
+    if request.route_kind != SERVER_FORWARD_ROUTE_KIND_DIRECT {
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_route_unsupported",
+            "only direct static-peer server forwarding is supported",
         ));
     }
-    if request.relay_node_id.is_some() {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_route_unsupported",
-            "relay node forwarding is not implemented",
+    if request.relay_server_id.is_some() {
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_route_unsupported",
+            "relay server forwarding is not implemented",
         ));
     }
     validate_required_id(
-        &request.destination_node_id,
-        "node_forward_invalid",
-        "destination_node_id must be non-empty and <= 128 chars",
+        &request.destination_server_id,
+        "server_forward_invalid",
+        "destination_server_id must be non-empty and <= 128 chars",
     )?;
     validate_required_id(
         &request.thread_id,
-        "node_forward_invalid",
+        "server_forward_invalid",
         "thread_id must be non-empty and <= 128 chars",
     )?;
     validate_required_id(
         &request.message_id,
-        "node_forward_invalid",
+        "server_forward_invalid",
         "message_id must be non-empty and <= 128 chars",
     )?;
     if request.message_id.len() > DM_FANOUT_MESSAGE_ID_MAX_LENGTH {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "message_id must be non-empty and <= 128 chars",
         ));
     }
     if !is_valid_identity_id(&request.sender_identity_id) {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "sender_identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
     if !is_valid_identity_id(&request.recipient_identity_id) {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "recipient_identity_id must be 3-64 chars using letters, numbers, _ or -",
         ));
     }
     if request.ciphertext.trim().is_empty()
         || request.ciphertext.len() > DM_FANOUT_CIPHERTEXT_MAX_LENGTH
     {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "ciphertext must be non-empty and <= 8192 chars",
         ));
     }
@@ -470,20 +473,20 @@ fn validate_node_forward_body(
     if DateTime::parse_from_rfc3339(&request.accepted_at).is_err()
         || request.accepted_at.trim() != request.accepted_at
     {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "accepted_at must be an RFC3339 date-time without surrounding whitespace",
         ));
     }
     if request.delivery_cursor == 0 {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "delivery_cursor must be greater than zero",
         ));
     }
-    if request.target_device_ids.len() > NODE_FORWARD_TARGET_DEVICE_MAX_COUNT {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+    if request.target_device_ids.len() > SERVER_FORWARD_TARGET_DEVICE_MAX_COUNT {
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             "target_device_ids exceeds maximum item count",
         ));
     }
@@ -498,21 +501,21 @@ fn validate_required_id(
     value: &str,
     code: &'static str,
     message: &'static str,
-) -> Result<(), NodeForwardRequestError> {
+) -> Result<(), ServerForwardRequestError> {
     if value.trim().is_empty() || value.len() > 128 || value.trim() != value {
-        return Err(NodeForwardRequestError::bad_request(code, message));
+        return Err(ServerForwardRequestError::bad_request(code, message));
     }
 
     Ok(())
 }
 
-fn validate_device_id(value: &str, field: &'static str) -> Result<(), NodeForwardRequestError> {
+fn validate_device_id(value: &str, field: &'static str) -> Result<(), ServerForwardRequestError> {
     if value.trim().is_empty()
         || value.len() > DM_PROFILE_DEVICE_ID_MAX_LENGTH
         || value.trim() != value
     {
-        return Err(NodeForwardRequestError::bad_request(
-            "node_forward_invalid",
+        return Err(ServerForwardRequestError::bad_request(
+            "server_forward_invalid",
             match field {
                 "source_device_id" => {
                     "source_device_id must be non-empty and <= 64 chars without surrounding whitespace"
@@ -528,40 +531,42 @@ fn validate_device_id(value: &str, field: &'static str) -> Result<(), NodeForwar
 fn required_header<'a>(
     headers: &'a HeaderMap,
     name: &'static str,
-) -> Result<&'a str, NodeForwardRequestError> {
+) -> Result<&'a str, ServerForwardRequestError> {
     let value = headers
         .get(name)
         .and_then(|value| value.to_str().ok())
         .ok_or_else(|| {
-            NodeForwardRequestError::unauthorized(
-                "node_forward_signature_missing",
-                "node forwarding signature headers are required",
+            ServerForwardRequestError::unauthorized(
+                "server_forward_signature_missing",
+                "server forwarding signature headers are required",
             )
         })?;
     if value.trim().is_empty() || value.trim() != value {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_signature_invalid",
-            "node forwarding signature headers must not be empty or padded",
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_signature_invalid",
+            "server forwarding signature headers must not be empty or padded",
         ));
     }
 
     Ok(value)
 }
 
-fn validate_nonce(nonce: &str) -> Result<(), NodeForwardRequestError> {
-    if nonce.len() < NODE_FORWARD_NONCE_MIN_LENGTH || nonce.len() > NODE_FORWARD_NONCE_MAX_LENGTH {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_nonce_invalid",
-            "node forwarding signature nonce length is invalid",
+fn validate_nonce(nonce: &str) -> Result<(), ServerForwardRequestError> {
+    if nonce.len() < SERVER_FORWARD_NONCE_MIN_LENGTH
+        || nonce.len() > SERVER_FORWARD_NONCE_MAX_LENGTH
+    {
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_nonce_invalid",
+            "server forwarding signature nonce length is invalid",
         ));
     }
     if !nonce
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
     {
-        return Err(NodeForwardRequestError::unauthorized(
-            "node_forward_nonce_invalid",
-            "node forwarding signature nonce contains unsupported characters",
+        return Err(ServerForwardRequestError::unauthorized(
+            "server_forward_nonce_invalid",
+            "server forwarding signature nonce contains unsupported characters",
         ));
     }
 
@@ -569,62 +574,62 @@ fn validate_nonce(nonce: &str) -> Result<(), NodeForwardRequestError> {
 }
 
 fn verify_forward_signature(
-    descriptor: &NodeDescriptor,
+    descriptor: &ServerDescriptor,
     signature: &str,
     timestamp: &str,
     nonce: &str,
     body: &[u8],
-) -> Result<(), NodeForwardRequestError> {
-    let public_key = hex::decode(&descriptor.node_public_key).map_err(|_| {
-        NodeForwardRequestError::unauthorized(
-            "node_forward_signature_invalid",
-            "origin node descriptor public key is invalid",
+) -> Result<(), ServerForwardRequestError> {
+    let public_key = hex::decode(&descriptor.server_public_key).map_err(|_| {
+        ServerForwardRequestError::unauthorized(
+            "server_forward_signature_invalid",
+            "origin server descriptor public key is invalid",
         )
     })?;
     let signature = hex::decode(signature).map_err(|_| {
-        NodeForwardRequestError::unauthorized(
-            "node_forward_signature_invalid",
-            "node forwarding signature must be hex encoded",
+        ServerForwardRequestError::unauthorized(
+            "server_forward_signature_invalid",
+            "server forwarding signature must be hex encoded",
         )
     })?;
 
     UnparsedPublicKey::new(&ED25519, public_key)
         .verify(
-            &forward_signature_payload("POST", NODE_FORWARD_PATH, timestamp, nonce, body),
+            &forward_signature_payload("POST", SERVER_FORWARD_PATH, timestamp, nonce, body),
             &signature,
         )
         .map_err(|_| {
-            NodeForwardRequestError::unauthorized(
-                "node_forward_signature_invalid",
-                "node forwarding signature could not be verified",
+            ServerForwardRequestError::unauthorized(
+                "server_forward_signature_invalid",
+                "server forwarding signature could not be verified",
             )
         })
 }
 
 fn remember_forward_nonce(
     state: &AppState,
-    node_id: &str,
+    server_id: &str,
     descriptor_id: &str,
     nonce: &str,
     now_epoch_seconds: i64,
-) -> Result<(), NodeForwardRequestError> {
+) -> Result<(), ServerForwardRequestError> {
     let mut nonces = state
-        .node_forwarding_nonces
+        .server_forwarding_nonces
         .write()
-        .expect("acquire node forwarding nonce write lock");
+        .expect("acquire server forwarding nonce write lock");
     nonces.retain(|_, expires_at| *expires_at >= now_epoch_seconds);
 
-    let key = format!("{node_id}:{descriptor_id}:{nonce}");
+    let key = format!("{server_id}:{descriptor_id}:{nonce}");
     if nonces.contains_key(&key) {
-        return Err(NodeForwardRequestError::conflict(
-            "node_forward_replay",
-            "node forwarding signature nonce has already been used",
+        return Err(ServerForwardRequestError::conflict(
+            "server_forward_replay",
+            "server forwarding signature nonce has already been used",
         ));
     }
 
     nonces.insert(
         key,
-        now_epoch_seconds + NODE_FORWARD_SIGNATURE_MAX_SKEW_SECONDS,
+        now_epoch_seconds + SERVER_FORWARD_SIGNATURE_MAX_SKEW_SECONDS,
     );
     Ok(())
 }
@@ -649,8 +654,8 @@ mod tests {
     use axum::{extract::State, http::HeaderMap, routing::post, Router};
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
-        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
-        RelayPolicy, StaticPeerRegistry, StoragePolicy,
+        NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor, ServerSignature,
+        ServerSignatureAlgorithm, StaticPeerRegistry, StoragePolicy,
     };
     use ring::rand::SystemRandom;
     use ring::signature::{UnparsedPublicKey, ED25519};
@@ -660,14 +665,14 @@ mod tests {
     use crate::{
         domain::{
             dm::routing::{plan_dm_envelope_route, DmEnvelopeRouteRequest},
-            node_identity::{generate_node_identity, NodeIdentityGenerateOptions},
             peer_invites::{issue_peer_invite, PeerInviteIssueOptions},
+            server_identity::{generate_server_identity, ServerIdentityGenerateOptions},
         },
         state::AppState,
     };
 
     struct SignedDescriptor {
-        descriptor: NodeDescriptor,
+        descriptor: ServerDescriptor,
         private_key_pkcs8: Vec<u8>,
     }
 
@@ -677,14 +682,14 @@ mod tests {
         body: Vec<u8>,
     }
 
-    fn signed_descriptor(node_id: &str, descriptor_id: &str, address: &str) -> SignedDescriptor {
+    fn signed_descriptor(server_id: &str, descriptor_id: &str, address: &str) -> SignedDescriptor {
         let pkcs8 =
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
         let now = Utc::now().timestamp();
-        let mut descriptor = NodeDescriptor {
-            node_id: node_id.to_string(),
-            node_public_key: public_key,
+        let mut descriptor = ServerDescriptor {
+            server_id: server_id.to_string(),
+            server_public_key: public_key,
             descriptor_id: descriptor_id.to_string(),
             issued_at_epoch_seconds: now - 1,
             expires_at_epoch_seconds: now + 300,
@@ -695,12 +700,12 @@ mod tests {
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
             addresses: vec![address.to_string()],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
             revocation_pointer: None,
-            signature: NodeSignature {
-                algorithm: NodeSignatureAlgorithm::Ed25519,
+            signature: ServerSignature {
+                algorithm: ServerSignatureAlgorithm::Ed25519,
                 value: String::new(),
             },
         };
@@ -718,7 +723,7 @@ mod tests {
         origin: &SignedDescriptor,
     ) -> AppState {
         AppState::default()
-            .with_local_node_identity(Some(LocalNodeIdentity {
+            .with_local_server_identity(Some(LocalServerIdentity {
                 descriptor: local.descriptor.clone(),
                 private_key_pkcs8: local.private_key_pkcs8.clone(),
             }))
@@ -728,20 +733,24 @@ mod tests {
     }
 
     fn state_for_generated_identity(
-        local: &LocalNodeIdentity,
+        local: &LocalServerIdentity,
         registry: StaticPeerRegistry,
     ) -> AppState {
         let mut state = AppState::default()
-            .with_local_node_identity(Some(local.clone()))
+            .with_local_server_identity(Some(local.clone()))
             .with_static_peer_registry(registry);
-        state.node_fingerprint = local.descriptor.node_id.clone();
+        state.server_id = local.descriptor.server_id.clone();
         state
     }
 
-    fn generated_identity(node_id: &str, descriptor_id: &str, address: &str) -> LocalNodeIdentity {
-        let (_, identity) = generate_node_identity(
-            &NodeIdentityGenerateOptions {
-                node_id: node_id.to_string(),
+    fn generated_identity(
+        server_id: &str,
+        descriptor_id: &str,
+        address: &str,
+    ) -> LocalServerIdentity {
+        let (_, identity) = generate_server_identity(
+            &ServerIdentityGenerateOptions {
+                server_id: server_id.to_string(),
                 descriptor_id: Some(descriptor_id.to_string()),
                 ttl_seconds: 300,
                 max_ttl_seconds: 86_400,
@@ -752,29 +761,29 @@ mod tests {
                 dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
                 storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
                 addresses: vec![address.to_string()],
-                supported_protocols: vec!["hexrelay-node-http".to_string()],
+                supported_protocols: vec!["hexrelay-server-http".to_string()],
                 trust_labels: Vec::new(),
                 revocation_pointer: None,
             },
             Utc::now().timestamp() - 1,
         )
-        .expect("generate node identity");
+        .expect("generate server identity");
 
         identity
     }
 
     fn registry_from_signed_invite(
-        issuer: &LocalNodeIdentity,
-        subject_node_id: &str,
+        issuer: &LocalServerIdentity,
+        subject_server_id: &str,
     ) -> StaticPeerRegistry {
         let envelope = issue_peer_invite(
             issuer,
             &PeerInviteIssueOptions {
                 invite_id: Some(format!(
-                    "peer-invite-{}-to-{subject_node_id}",
-                    issuer.descriptor.node_id
+                    "peer-invite-{}-to-{subject_server_id}",
+                    issuer.descriptor.server_id
                 )),
-                subject_node_id: Some(subject_node_id.to_string()),
+                subject_server_id: Some(subject_server_id.to_string()),
                 allow_unbound: false,
                 ttl_seconds: 300,
                 max_ttl_seconds: 86_400,
@@ -790,15 +799,15 @@ mod tests {
 
     fn signed_forward_request(
         origin: &SignedDescriptor,
-        destination_node_id: &str,
+        destination_server_id: &str,
         nonce: &str,
     ) -> (HeaderMap, Vec<u8>) {
-        let request = NodeForwardDmEnvelopeRequest {
-            route_kind: NODE_FORWARD_ROUTE_KIND_DIRECT.to_string(),
-            origin_node_descriptor: origin.descriptor.clone(),
-            destination_node_id: destination_node_id.to_string(),
-            relay_node_id: None,
-            message_id: "msg-node-forward-1".to_string(),
+        let request = ServerForwardDmEnvelopeRequest {
+            route_kind: SERVER_FORWARD_ROUTE_KIND_DIRECT.to_string(),
+            origin_server_descriptor: origin.descriptor.clone(),
+            destination_server_id: destination_server_id.to_string(),
+            relay_server_id: None,
+            message_id: "msg-server-forward-1".to_string(),
             thread_id: "thread-origin-1".to_string(),
             sender_identity_id: "usr-sender".to_string(),
             recipient_identity_id: "usr-recipient".to_string(),
@@ -808,13 +817,13 @@ mod tests {
             delivery_cursor: 1,
             target_device_ids: vec!["phone-main".to_string()],
         };
-        let body = serde_json::to_vec(&request).expect("encode node forward request");
+        let body = serde_json::to_vec(&request).expect("encode server forward request");
         let timestamp = Utc::now().timestamp().to_string();
         let key_pair =
             Ed25519KeyPair::from_pkcs8(&origin.private_key_pkcs8).expect("decode origin key");
         let signature = hex::encode(key_pair.sign(&forward_signature_payload(
             "POST",
-            NODE_FORWARD_PATH,
+            SERVER_FORWARD_PATH,
             &timestamp,
             nonce,
             &body,
@@ -822,11 +831,15 @@ mod tests {
 
         let mut headers = HeaderMap::new();
         headers.insert(
-            HEADER_NODE_ID,
-            origin.descriptor.node_id.parse().expect("node id header"),
+            HEADER_SERVER_ID,
+            origin
+                .descriptor
+                .server_id
+                .parse()
+                .expect("server id header"),
         );
         headers.insert(
-            HEADER_NODE_DESCRIPTOR_ID,
+            HEADER_SERVER_DESCRIPTOR_ID,
             origin
                 .descriptor
                 .descriptor_id
@@ -835,7 +848,7 @@ mod tests {
         );
         headers.insert(
             HEADER_SIGNATURE_ALGORITHM,
-            NODE_FORWARD_SIGNATURE_ALGORITHM
+            SERVER_FORWARD_SIGNATURE_ALGORITHM
                 .parse()
                 .expect("algorithm header"),
         );
@@ -853,17 +866,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forwards_direct_static_peer_envelope_with_node_signature() {
+    async fn forwards_direct_static_peer_envelope_with_server_signature() {
         let (base_url, capture_rx) = start_capture_server().await;
-        let local = signed_descriptor("node-local", "descriptor-local", "https://local.example");
+        let local = signed_descriptor("server-local", "descriptor-local", "https://local.example");
         let destination =
-            signed_descriptor("node-destination", "descriptor-destination", &base_url);
+            signed_descriptor("server-destination", "descriptor-destination", &base_url);
         let registry =
             StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry");
         let route = match plan_dm_envelope_route(
-            "node-local",
+            "server-local",
             &registry,
-            DmEnvelopeRouteRequest::static_destination("node-destination"),
+            DmEnvelopeRouteRequest::static_destination("server-destination"),
         )
         .expect("route should plan")
         {
@@ -871,7 +884,7 @@ mod tests {
             _ => panic!("expected static peer route"),
         };
         let state = AppState::default()
-            .with_local_node_identity(Some(LocalNodeIdentity {
+            .with_local_server_identity(Some(LocalServerIdentity {
                 descriptor: local.descriptor.clone(),
                 private_key_pkcs8: local.private_key_pkcs8,
             }))
@@ -899,45 +912,46 @@ mod tests {
         assert_eq!(
             captured
                 .headers
-                .get("x-hexrelay-node-id")
+                .get("x-hexrelay-server-id")
                 .and_then(|value| value.to_str().ok()),
-            Some("node-local")
+            Some("server-local")
         );
         assert_eq!(
             captured
                 .headers
-                .get("x-hexrelay-node-signature-algorithm")
+                .get("x-hexrelay-server-signature-algorithm")
                 .and_then(|value| value.to_str().ok()),
-            Some(NODE_FORWARD_SIGNATURE_ALGORITHM)
+            Some(SERVER_FORWARD_SIGNATURE_ALGORITHM)
         );
 
         let body: Value = serde_json::from_slice(&captured.body).expect("decode body");
         assert_eq!(body["route_kind"], "static_peer_direct");
-        assert_eq!(body["destination_node_id"], "node-destination");
+        assert_eq!(body["destination_server_id"], "server-destination");
         assert_eq!(body["ciphertext"], "enc:abcdefghijklmnopqrstuvwxyz");
 
         let timestamp = captured
             .headers
-            .get("x-hexrelay-node-signature-timestamp")
+            .get("x-hexrelay-server-signature-timestamp")
             .and_then(|value| value.to_str().ok())
             .expect("timestamp header");
         let nonce = captured
             .headers
-            .get("x-hexrelay-node-signature-nonce")
+            .get("x-hexrelay-server-signature-nonce")
             .and_then(|value| value.to_str().ok())
             .expect("nonce header");
         let signature = captured
             .headers
-            .get("x-hexrelay-node-signature")
+            .get("x-hexrelay-server-signature")
             .and_then(|value| value.to_str().ok())
             .expect("signature header");
-        let public_key = hex::decode(local.descriptor.node_public_key).expect("decode public key");
+        let public_key =
+            hex::decode(local.descriptor.server_public_key).expect("decode public key");
         let signature = hex::decode(signature).expect("decode signature");
         UnparsedPublicKey::new(&ED25519, public_key)
             .verify(
                 &forward_signature_payload(
                     "POST",
-                    NODE_FORWARD_PATH,
+                    SERVER_FORWARD_PATH,
                     timestamp,
                     nonce,
                     &captured.body,
@@ -948,30 +962,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forwards_invite_backed_private_mesh_envelope_with_authenticated_node_request() {
-        let (node_a_forward_url, capture_rx) = start_capture_server().await;
-        let node_a = generated_identity("node-a", "descriptor-node-a", &node_a_forward_url);
-        let node_b = generated_identity("node-b", "descriptor-node-b", "https://node-b.example");
-        let node_b_registry = registry_from_signed_invite(&node_a, "node-b");
+    async fn forwards_invite_backed_private_mesh_envelope_with_authenticated_server_request() {
+        let (server_a_forward_url, capture_rx) = start_capture_server().await;
+        let server_a = generated_identity("server-a", "descriptor-server-a", &server_a_forward_url);
+        let server_b = generated_identity(
+            "server-b",
+            "descriptor-server-b",
+            "https://server-b.example",
+        );
+        let server_b_registry = registry_from_signed_invite(&server_a, "server-b");
         let route = match plan_dm_envelope_route(
-            "node-b",
-            &node_b_registry,
-            DmEnvelopeRouteRequest::static_destination("node-a"),
+            "server-b",
+            &server_b_registry,
+            DmEnvelopeRouteRequest::static_destination("server-a"),
         )
         .expect("invite-backed route should plan")
         {
             crate::domain::dm::routing::DmEnvelopeForwardingRoute::StaticPeer { route } => route,
             _ => panic!("expected static peer route"),
         };
-        assert_eq!(route.destination.descriptor.node_id, "node-a");
+        assert_eq!(route.destination.descriptor.server_id, "server-a");
         assert_eq!(
             route.destination.descriptor.peering_policy,
             PeeringPolicy::InviteToken
         );
 
-        let node_b_state = state_for_generated_identity(&node_b, node_b_registry);
+        let server_b_state = state_for_generated_identity(&server_b, server_b_registry);
         forward_dm_envelope_to_static_peer(
-            &node_b_state,
+            &server_b_state,
             &route,
             ForwardDmEnvelopeInput {
                 message_id: "msg-private-mesh-1",
@@ -992,29 +1010,29 @@ mod tests {
         assert_eq!(
             captured
                 .headers
-                .get(HEADER_NODE_ID)
+                .get(HEADER_SERVER_ID)
                 .and_then(|value| value.to_str().ok()),
-            Some("node-b")
+            Some("server-b")
         );
         assert!(captured.headers.contains_key(HEADER_SIGNATURE));
 
-        let node_a_registry = registry_from_signed_invite(&node_b, "node-a");
-        let node_a_state = state_for_generated_identity(&node_a, node_a_registry);
+        let server_a_registry = registry_from_signed_invite(&server_b, "server-a");
+        let server_a_state = state_for_generated_identity(&server_a, server_a_registry);
         let authenticated =
-            authenticate_node_forward_request(&node_a_state, &captured.headers, &captured.body)
-                .expect("captured request should authenticate at destination node");
-        assert_eq!(authenticated.origin_node_id, "node-b");
-        assert_eq!(authenticated.request.destination_node_id, "node-a");
+            authenticate_server_forward_request(&server_a_state, &captured.headers, &captured.body)
+                .expect("captured request should authenticate at destination server");
+        assert_eq!(authenticated.origin_server_id, "server-b");
+        assert_eq!(authenticated.request.destination_server_id, "server-a");
         assert_eq!(
             authenticated.request.ciphertext,
             "sealed:private-mesh-envelope-ciphertext"
         );
 
         let body: Value = serde_json::from_slice(&captured.body).expect("decode body");
-        assert_eq!(body["route_kind"], NODE_FORWARD_ROUTE_KIND_DIRECT);
-        assert_eq!(body["origin_node_descriptor"]["node_id"], "node-b");
-        assert_eq!(body["destination_node_id"], "node-a");
-        assert_eq!(body["relay_node_id"], Value::Null);
+        assert_eq!(body["route_kind"], SERVER_FORWARD_ROUTE_KIND_DIRECT);
+        assert_eq!(body["origin_server_descriptor"]["server_id"], "server-b");
+        assert_eq!(body["destination_server_id"], "server-a");
+        assert_eq!(body["relay_server_id"], Value::Null);
         assert_eq!(
             body["ciphertext"],
             "sealed:private-mesh-envelope-ciphertext"
@@ -1025,18 +1043,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rejects_direct_static_peer_forward_without_local_node_identity() {
+    async fn rejects_direct_static_peer_forward_without_local_server_identity() {
         let destination = signed_descriptor(
-            "node-destination",
+            "server-destination",
             "descriptor-destination",
-            "https://node.example",
+            "https://server.example",
         );
         let registry =
             StaticPeerRegistry::try_new(vec![destination.descriptor.clone()]).expect("registry");
         let route = match plan_dm_envelope_route(
-            "node-local",
+            "server-local",
             &registry,
-            DmEnvelopeRouteRequest::static_destination("node-destination"),
+            DmEnvelopeRouteRequest::static_destination("server-destination"),
         )
         .expect("route should plan")
         {
@@ -1062,29 +1080,32 @@ mod tests {
         .await
         .expect_err("missing identity should fail");
 
-        assert!(error.contains("local node identity"));
+        assert!(error.contains("local server identity"));
     }
 
     #[test]
     fn authenticates_static_peer_forward_request() {
         let local = signed_descriptor(
-            "hexrelay-local-fingerprint",
+            "hexrelay-local-server",
             "descriptor-local",
             "https://local.example",
         );
-        let origin =
-            signed_descriptor("node-origin", "descriptor-origin", "https://origin.example");
+        let origin = signed_descriptor(
+            "server-origin",
+            "descriptor-origin",
+            "https://origin.example",
+        );
         let state = state_with_forwarding_identity(&local, &origin);
         let (headers, body) =
-            signed_forward_request(&origin, &local.descriptor.node_id, "nonce-forward-auth-1");
+            signed_forward_request(&origin, &local.descriptor.server_id, "nonce-forward-auth-1");
 
-        let authenticated = authenticate_node_forward_request(&state, &headers, &body)
+        let authenticated = authenticate_server_forward_request(&state, &headers, &body)
             .expect("forward request should authenticate");
 
-        assert_eq!(authenticated.origin_node_id, "node-origin");
+        assert_eq!(authenticated.origin_server_id, "server-origin");
         assert_eq!(
-            authenticated.request.destination_node_id,
-            local.descriptor.node_id
+            authenticated.request.destination_server_id,
+            local.descriptor.server_id
         );
         assert_eq!(
             authenticated.request.ciphertext,
@@ -1095,70 +1116,79 @@ mod tests {
     #[test]
     fn rejects_replayed_static_peer_forward_nonce() {
         let local = signed_descriptor(
-            "hexrelay-local-fingerprint",
+            "hexrelay-local-server",
             "descriptor-local",
             "https://local.example",
         );
-        let origin =
-            signed_descriptor("node-origin", "descriptor-origin", "https://origin.example");
+        let origin = signed_descriptor(
+            "server-origin",
+            "descriptor-origin",
+            "https://origin.example",
+        );
         let state = state_with_forwarding_identity(&local, &origin);
         let (headers, body) =
-            signed_forward_request(&origin, &local.descriptor.node_id, "nonce-forward-replay");
+            signed_forward_request(&origin, &local.descriptor.server_id, "nonce-forward-replay");
 
-        authenticate_node_forward_request(&state, &headers, &body)
+        authenticate_server_forward_request(&state, &headers, &body)
             .expect("first request should authenticate");
-        let error = authenticate_node_forward_request(&state, &headers, &body)
+        let error = authenticate_server_forward_request(&state, &headers, &body)
             .expect_err("replayed nonce should fail");
 
-        assert_eq!(error.status, NodeForwardRequestErrorStatus::Conflict);
-        assert_eq!(error.code, "node_forward_replay");
+        assert_eq!(error.status, ServerForwardRequestErrorStatus::Conflict);
+        assert_eq!(error.code, "server_forward_replay");
     }
 
     #[test]
-    fn rejects_forward_request_from_unconfigured_origin_node() {
+    fn rejects_forward_request_from_unconfigured_origin_server() {
         let local = signed_descriptor(
-            "hexrelay-local-fingerprint",
+            "hexrelay-local-server",
             "descriptor-local",
             "https://local.example",
         );
-        let origin =
-            signed_descriptor("node-origin", "descriptor-origin", "https://origin.example");
-        let state = AppState::default().with_local_node_identity(Some(LocalNodeIdentity {
+        let origin = signed_descriptor(
+            "server-origin",
+            "descriptor-origin",
+            "https://origin.example",
+        );
+        let state = AppState::default().with_local_server_identity(Some(LocalServerIdentity {
             descriptor: local.descriptor.clone(),
             private_key_pkcs8: local.private_key_pkcs8,
         }));
         let (headers, body) =
-            signed_forward_request(&origin, &local.descriptor.node_id, "nonce-forward-denied");
+            signed_forward_request(&origin, &local.descriptor.server_id, "nonce-forward-denied");
 
-        let error = authenticate_node_forward_request(&state, &headers, &body)
+        let error = authenticate_server_forward_request(&state, &headers, &body)
             .expect_err("unconfigured origin should fail");
 
-        assert_eq!(error.status, NodeForwardRequestErrorStatus::Unauthorized);
-        assert_eq!(error.code, "node_forward_peer_not_allowed");
+        assert_eq!(error.status, ServerForwardRequestErrorStatus::Unauthorized);
+        assert_eq!(error.code, "server_forward_peer_not_allowed");
     }
 
     #[test]
     fn rejects_forward_request_with_invalid_signature() {
         let local = signed_descriptor(
-            "hexrelay-local-fingerprint",
+            "hexrelay-local-server",
             "descriptor-local",
             "https://local.example",
         );
-        let origin =
-            signed_descriptor("node-origin", "descriptor-origin", "https://origin.example");
+        let origin = signed_descriptor(
+            "server-origin",
+            "descriptor-origin",
+            "https://origin.example",
+        );
         let state = state_with_forwarding_identity(&local, &origin);
         let (mut headers, body) = signed_forward_request(
             &origin,
-            &local.descriptor.node_id,
+            &local.descriptor.server_id,
             "nonce-forward-bad-signature",
         );
         headers.insert(HEADER_SIGNATURE, "00".parse().expect("signature header"));
 
-        let error = authenticate_node_forward_request(&state, &headers, &body)
+        let error = authenticate_server_forward_request(&state, &headers, &body)
             .expect_err("invalid signature should fail");
 
-        assert_eq!(error.status, NodeForwardRequestErrorStatus::Unauthorized);
-        assert_eq!(error.code, "node_forward_signature_invalid");
+        assert_eq!(error.status, ServerForwardRequestErrorStatus::Unauthorized);
+        assert_eq!(error.code, "server_forward_signature_invalid");
     }
 
     async fn start_capture_server() -> (String, oneshot::Receiver<CapturedForward>) {
@@ -1169,7 +1199,7 @@ mod tests {
         let (tx, rx) = oneshot::channel::<CapturedForward>();
         let state = std::sync::Arc::new(tokio::sync::Mutex::new(Some(tx)));
         let app = Router::new()
-            .route(NODE_FORWARD_PATH, post(capture_forward))
+            .route(SERVER_FORWARD_PATH, post(capture_forward))
             .with_state(state);
 
         tokio::spawn(async move {

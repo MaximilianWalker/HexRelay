@@ -34,6 +34,11 @@ import {
 } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
+import {
+  readMessageLayout,
+  subscribeWorkspacePreferences,
+  type MessageLayout,
+} from "@/lib/workspace-preferences";
 
 import styles from "../../surfaces.module.css";
 
@@ -46,10 +51,10 @@ const SEEDED_IDENTITIES: Record<string, { name: string; handle: string }> = {
 };
 
 const PREVIEW_SERVER: ServerSummary = {
-  id: "fixture-server-atlas",
+  id: "hexrelay-local-server",
   name: "Atlas Test Server",
   unread: 2,
-  favorite: true,
+  pinned: true,
   muted: false,
 };
 
@@ -157,7 +162,7 @@ const PREVIEW_MEMBERS = [
     role: "Admins",
     title: "Server owner",
     presence: "online",
-    favorite: true,
+    pinned: true,
     muted: false,
     unread: 2,
     joinedAt: "2026-05-04T11:01:00Z",
@@ -168,7 +173,7 @@ const PREVIEW_MEMBERS = [
     role: "Maintainers",
     title: "Fixture maintainer",
     presence: "online",
-    favorite: false,
+    pinned: false,
     muted: false,
     unread: 1,
     joinedAt: "2026-05-04T11:02:00Z",
@@ -179,7 +184,7 @@ const PREVIEW_MEMBERS = [
     role: "Members",
     title: "Validation member",
     presence: "away",
-    favorite: false,
+    pinned: false,
     muted: true,
     unread: 0,
     joinedAt: "2026-05-04T11:03:00Z",
@@ -372,17 +377,24 @@ function MessageBubble({
   message,
   replyTo,
   ownMessage,
+  layout,
   onReply,
 }: {
   message: ServerChannelMessage;
   replyTo?: ServerChannelMessage;
   ownMessage: boolean;
+  layout: MessageLayout;
   onReply: (message: ServerChannelMessage) => void;
 }) {
   const deleted = Boolean(message.deleted_at);
+  const continuous = layout === "continuous-feed";
 
   return (
-    <article className={`${styles.serverMessage} ${ownMessage ? styles.serverMessageOwn : ""}`}>
+    <article
+      className={`${styles.serverMessage} ${ownMessage && !continuous ? styles.serverMessageOwn : ""} ${
+        continuous ? styles.serverMessageContinuous : ""
+      }`}
+    >
       <div className={styles.messageAvatar}>{initials(authorLabel(message.author_id))}</div>
       <div className={styles.messageBody}>
         <div className={styles.messageHeader}>
@@ -462,10 +474,10 @@ function MemberCard({ member, current }: { member: PreviewMember; current: boole
           )}
           {member.muted ? "Muted" : "Audible"}
         </span>
-        {member.favorite ? (
+        {member.pinned ? (
           <span>
             <IconStar className={styles.icon} aria-hidden="true" />
-            Favorite
+            Pinned
           </span>
         ) : null}
         {member.unread > 0 ? <strong>{member.unread}</strong> : null}
@@ -535,6 +547,11 @@ export default function ServerWorkspacePage() {
     [browserReady, personas],
   );
   const hasSession = useMemo(() => browserReady && getPersonaSession(identityId) !== null, [browserReady, identityId]);
+  const messageLayout = useSyncExternalStore<MessageLayout>(
+    subscribeWorkspacePreferences,
+    readMessageLayout,
+    () => "bubble-cards",
+  );
   const [server, setServer] = useState<ServerSummary | null>(null);
   const [channels, setChannels] = useState<ServerChannelSummary[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -1107,7 +1124,11 @@ export default function ServerWorkspacePage() {
               {messageState === "loading" ? <p className={styles.state}>Loading channel history...</p> : null}
               {messageState === "error" ? <p className={styles.state}>Could not load channel history.</p> : null}
 
-              <div className={styles.messageTimeline}>
+              <div
+                className={`${styles.messageTimeline} ${
+                  messageLayout === "continuous-feed" ? styles.messageTimelineContinuous : ""
+                }`}
+              >
                 {nextCursor && hasSession ? (
                   <button
                     className={styles.loadOlderButton}
@@ -1123,6 +1144,7 @@ export default function ServerWorkspacePage() {
                   visibleMessages.map((message) => (
                     <MessageBubble
                       key={message.message_id}
+                      layout={messageLayout}
                       message={message}
                       onReply={setReplyTo}
                       ownMessage={message.author_id === identityId}

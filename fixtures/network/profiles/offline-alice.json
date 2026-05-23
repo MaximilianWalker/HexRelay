@@ -1,0 +1,12 @@
+{
+  "name": "offline-alice",
+  "description": "Disconnect Alice's local runtime instance from the simulated runtime network.",
+  "strategy": "docker",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "disconnect",
+      "target": "alice-server"
+    }
+  ]
+}

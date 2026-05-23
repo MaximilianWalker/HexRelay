@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptFriendRequest,
   activateTestingSession,
-  createContactInvite,
+  blockRemoveContact,
+  cancelFriendRequest,
+  createServer,
   createFriendRequest,
   createInvite,
   createServerChannelMessage,
@@ -11,20 +13,24 @@ import {
   declineFriendRequest,
   fetchDmPolicy,
   fetchContacts,
+  fetchDiscoveryUsers,
   fetchFriendRequests,
   fetchServer,
   fetchServerChannelMessages,
   fetchServerChannels,
   fetchServers,
   fetchTestingProfiles,
+  joinServer,
+  leaveServer,
   issueAuthChallenge,
   heartbeatDmProfileDevice,
-  redeemContactInvite,
   redeemInvite,
   registerIdentityKey,
   revokeSession,
   storeCsrfToken,
+  updateContactPreferences,
   updateDmPolicy,
+  updateServerPreferences,
   verifyAuthChallenge,
 } from "./api";
 
@@ -107,14 +113,14 @@ describe("api auth transport", () => {
 
     await fetchServers({
       search: "atlas",
-      favoritesOnly: true,
+      pinnedOnly: true,
       unreadOnly: true,
       mutedOnly: true,
     });
 
     const [url] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain("search=atlas");
-    expect(String(url)).toContain("favorites_only=true");
+    expect(String(url)).toContain("pinned_only=true");
     expect(String(url)).toContain("unread_only=true");
     expect(String(url)).toContain("muted_only=true");
   });
@@ -126,10 +132,10 @@ describe("api auth transport", () => {
         new Response(
           JSON.stringify({
             item: {
-              id: "fixture-server-atlas",
+              id: "hexrelay-local-server",
               name: "Atlas Test Server",
               unread: 2,
-              favorite: true,
+              pinned: true,
               muted: false,
             },
           }),
@@ -174,10 +180,10 @@ describe("api auth transport", () => {
         ),
       );
 
-    const server = await fetchServer({ serverId: "fixture-server-atlas" });
-    const channels = await fetchServerChannels({ serverId: "fixture-server-atlas" });
+    const server = await fetchServer({ serverId: "hexrelay-local-server" });
+    const channels = await fetchServerChannels({ serverId: "hexrelay-local-server" });
     const messages = await fetchServerChannelMessages({
-      serverId: "fixture-server-atlas",
+      serverId: "hexrelay-local-server",
       channelId: "fixture-channel-atlas-general",
       cursor: "3",
       limit: 10,
@@ -189,10 +195,10 @@ describe("api auth transport", () => {
     const [serverUrl, serverInit] = fetchMock.mock.calls[0] ?? [];
     const [channelsUrl, channelsInit] = fetchMock.mock.calls[1] ?? [];
     const [messagesUrl, messagesInit] = fetchMock.mock.calls[2] ?? [];
-    expect(String(serverUrl)).toContain("/servers/fixture-server-atlas");
-    expect(String(channelsUrl)).toContain("/servers/fixture-server-atlas/channels");
+    expect(String(serverUrl)).toContain("/servers/hexrelay-local-server");
+    expect(String(channelsUrl)).toContain("/servers/hexrelay-local-server/channels");
     expect(String(messagesUrl)).toContain(
-      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-server/channels/fixture-channel-atlas-general/messages",
     );
     expect(String(messagesUrl)).toContain("cursor=3");
     expect(String(messagesUrl)).toContain("limit=10");
@@ -221,7 +227,7 @@ describe("api auth transport", () => {
     );
 
     const result = await createServerChannelMessage({
-      serverId: "fixture-server-atlas",
+      serverId: "hexrelay-local-server",
       channelId: "fixture-channel-atlas-general",
       content: "Checking in with Bob.",
       replyToMessageId: "fixture-server-message-general-003",
@@ -231,7 +237,7 @@ describe("api auth transport", () => {
     expect(result.ok).toBe(true);
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toContain(
-      "/servers/fixture-server-atlas/channels/fixture-channel-atlas-general/messages",
+      "/servers/hexrelay-local-server/channels/fixture-channel-atlas-general/messages",
     );
     expect(init?.method).toBe("POST");
     const headers = new Headers(init?.headers ?? {});
@@ -412,7 +418,7 @@ describe("api auth transport", () => {
       signature: "b".repeat(128),
     });
     const invite = await createInvite({ mode: "one_time" });
-    const redeem = await redeemInvite({ token: "inv-1", nodeFingerprint: "node-1" });
+    const redeem = await redeemInvite({ token: "inv-1", serverId: "server-1" });
 
     expect(verify.ok).toBe(true);
     expect(invite.ok).toBe(true);
@@ -433,6 +439,7 @@ describe("api auth transport", () => {
           headers: { "content-type": "application/json" },
         }),
       )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const list = await fetchFriendRequests({
@@ -441,89 +448,138 @@ describe("api auth transport", () => {
     });
     const accept = await acceptFriendRequest({ requestId: "fr-1" });
     const decline = await declineFriendRequest({ requestId: "fr-2" });
+    const cancel = await cancelFriendRequest({ requestId: "fr-3" });
 
     expect(list.ok).toBe(true);
     expect(accept.ok).toBe(true);
     expect(decline.ok).toBe(true);
+    expect(cancel.ok).toBe(true);
   });
 
-  it("sends csrf and correct URL for contact invite creation", async () => {
+  it("supports server create, join, preference, and leave actions", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
+      .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            invite_id: "ci-1",
-            token: "contact-token-abc",
-            mode: "one_time",
-            created_at: "2026-03-20T00:00:00Z",
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: true, muted: false },
+            owner_identity_id: "usr-a",
+            bootstrap_credential: "srv-bootstrap",
           }),
           { status: 201, headers: { "content-type": "application/json" } },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: false, muted: false },
+            joined: true,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            item: { id: "hexrelay-local-server", name: "Atlas", unread: 0, pinned: true, muted: true },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ left: true, deleted_local_data: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
       );
 
-    const result = await createContactInvite({ mode: "one_time" });
+    await createServer({ name: "Atlas", description: "Local", bootstrapCredential: "manual" });
+    await joinServer({ inviteLink: "hexrelay://join?server_id=hexrelay-local-server&token=inv" });
+    await updateServerPreferences({ serverId: "hexrelay-local-server", pinned: true, muted: true });
+    await leaveServer({ serverId: "hexrelay-local-server", deleteLocalData: true });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.token).toBe("contact-token-abc");
-      expect(result.data.invite_id).toBe("ci-1");
-    }
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/contact-invites");
-    expect(String(url)).not.toContain("/redeem");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(headers.get("content-type")).toBe("application/json");
-    expect(init?.body).toContain('"mode":"one_time"');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      '{"name":"Atlas","description":"Local","bootstrap_credential":"manual"}',
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/servers/join");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/servers/hexrelay-local-server/preferences");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/servers/hexrelay-local-server/leave");
   });
 
-  it("sends csrf and correct URL for contact invite redeem", async () => {
+  it("supports contact preference and block-remove actions", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "usr-b",
+            name: "usr-b",
+            status: "offline",
+            unread: 0,
+            pinned: true,
+            muted: true,
+            inbound_request: false,
+            pending_request: false,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ blocked_identity_id: "usr-b", relationship_removed: true }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    await updateContactPreferences({ contactId: "usr-b", pinned: true, muted: true });
+    await blockRemoveContact({ contactId: "usr-b" });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/contacts/usr-b/preferences");
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PATCH");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/contacts/usr-b/block-remove");
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+  });
+
+  it("queries discovery users for contact add search", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
         new Response(
           JSON.stringify({
-            request_id: "fr-99",
-            requester_identity_id: "usr-inviter",
-            target_identity_id: "usr-redeemer",
-            status: "pending",
-            created_at: "2026-03-20T00:00:00Z",
+            items: [
+              {
+                identity_id: "usr-b",
+                display_name: "Bea",
+                avatar_url: null,
+                relationship_state: "none",
+                shared_server_count: 1,
+                can_send_friend_request: true,
+                has_pending_inbound_request: false,
+                has_pending_outbound_request: false,
+              },
+            ],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
       );
 
-    const result = await redeemContactInvite({ token: "contact-token-abc" });
+    const result = await fetchDiscoveryUsers({
+      query: "bea",
+      scope: "shared_server",
+      limit: 8,
+    });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.request_id).toBe("fr-99");
-      expect(result.data.status).toBe("pending");
-      expect(result.data.requester_identity_id).toBe("usr-inviter");
+      expect(result.data.items[0]?.identity_id).toBe("usr-b");
     }
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/contact-invites/redeem");
-    const headers = new Headers(init?.headers ?? {});
-    expect(headers.get("x-csrf-token")).toBe("csrf-123");
-    expect(init?.body).toBe('{"token":"contact-token-abc"}');
-  });
-
-  it("returns error codes for failed contact invite redeem", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ code: "invite_expired", message: "Invite has expired" }),
-        { status: 400, headers: { "content-type": "application/json" } },
-      ),
-    );
-
-    const result = await redeemContactInvite({ token: "expired-token" });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("invite_expired");
-      expect(result.message).toBe("Invite has expired");
-    }
+    expect(String(url)).toContain("/discovery/users?");
+    expect(String(url)).toContain("query=bea");
+    expect(String(url)).toContain("scope=shared_server");
+    expect(String(url)).toContain("limit=8");
+    expect(init?.method).toBe("GET");
   });
 
   it("loads and updates the DM privacy policy", async () => {
@@ -588,7 +644,7 @@ describe("api auth transport", () => {
           JSON.stringify({
             status: "ready",
             reason_code: "fanout_catch_up_ok",
-            transport_profile: "encrypted_envelope_node",
+            transport_profile: "encrypted_envelope_server",
             device_id: "web-main",
             replay_count: 1,
             next_cursor: "7",

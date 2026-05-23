@@ -281,7 +281,7 @@ mod tests {
     fn testing_profiles_match_dm_basic_fixture_identity_and_sessions() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../scripts/fixtures/scenarios/dm-basic.json"
+            "/../../fixtures/dev-seed/scenarios/dm-basic.json"
         )))
         .expect("parse dm-basic fixture");
         let identities = fixture["identities"]

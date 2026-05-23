@@ -29,7 +29,7 @@ Runtime work that changes the DM workspace flow, copy, controls, or behavior mus
 | `docs/product/02-prd.md` | Product requirements for E2EE private messaging, delivery diagnostics, and device convergence |
 | `docs/product/08-screen-state-spec.md` | Required DM workspace states, delivery indicators, and UX approval gate |
 | `docs/contracts/runtime-rest.openapi.yaml` | Current runtime REST endpoints for DM fanout, catch-up, threads, messages, and read state |
-| `docs/architecture/04-communication-networking-layer-plan.md` | Server-node/message-node DM delivery and no node-bypassing UX constraints |
+| `docs/architecture/04-communication-networking-layer-plan.md` | Server-to-server/message-server DM delivery and no server-bypassing UX constraints |
 | `docs/planning/iterations/02-sprint-board.md` | Iteration 2 E2EE DM and messaging task context |
 | `docs/operations/quality-audits/17-ux-product-quality.md` | Original quality finding and supersession record |
 
@@ -37,7 +37,7 @@ Runtime work that changes the DM workspace flow, copy, controls, or behavior mus
 
 | Source | Finding | Target |
 |---|---|---|
-| `QA-17-20260514-dm-workspace-send-not-wired` | DM workspace exposes a composer and send button, but accepted contacts still cannot send or load E2EE DM history. | After explicit approval, accepted contacts can load encrypted DM history, send client-encrypted envelopes through the server-node delivery path, and see deterministic loading, empty, blocked, policy, retry, and reconnect states. |
+| `QA-17-20260514-dm-workspace-send-not-wired` | DM workspace exposes a composer and send button, but accepted contacts still cannot send or load E2EE DM history. | After explicit approval, accepted contacts can load encrypted DM history, send client-encrypted envelopes through the server-to-server delivery path, and see deterministic loading, empty, blocked, policy, retry, and reconnect states. |
 
 ## Current Plan-Only Split Rationale
 
@@ -59,14 +59,14 @@ Disallowed without explicit UX approval:
 - editing `apps/web` runtime UI, route behavior, visible fixtures, browser tests, or styles for the DM workspace;
 - changing API/realtime contracts solely to support unapproved product behavior;
 - adding evidence that claims DM workspace runtime delivery is complete;
-- adding endpoint cards, preflight checks, WAN setup, LAN discovery, parallel dial controls, or other node-bypassing DM concepts.
+- adding endpoint cards, preflight checks, WAN setup, LAN discovery, parallel dial controls, or other server-bypassing DM concepts.
 
 Plan-only PRs may merge before UX approval because they do not change product behavior. The first runtime implementation PR must cite the exact approval reference and approved `DMW-APP-*` values it implements.
 
 ## Implementation Principles
 
 - Keep DM plaintext and private keys client/device-only.
-- Send only client-encrypted envelopes plus minimal delivery metadata to server nodes/message nodes.
+- Send only client-encrypted envelopes plus minimal delivery metadata to servers/message servers.
 - Prefer existing DM thread, fanout, catch-up, mark-read, and realtime helper contracts before adding new API shape.
 - Treat API durable acceptance as `Sent`; recipient-device acknowledgement is the only source for `Delivered`.
 - Keep read receipts separate from delivery acknowledgement and respect participant-visible read settings.
@@ -86,7 +86,7 @@ Flow:
 3. For an accepted contact, the client loads the matching DM thread and message page from runtime DM history. If the existing API cannot deterministically map a contact to a thread, the first runtime slice must add the missing non-UX contract and tests before changing visible behavior.
 4. The client decrypts messages locally from ciphertext envelopes and never sends plaintext or private keys to the server.
 5. Empty history shows the approved empty state and keeps the composer enabled only when the accepted relationship, bootstrap, and policy checks pass.
-6. Sending a non-empty message prepares client-side encrypted envelope payloads, adds a local pending row, and calls the server-node fanout dispatch path.
+6. Sending a non-empty message prepares client-side encrypted envelope payloads, adds a local pending row, and calls the server-to-server fanout dispatch path.
 7. Durable API acceptance replaces the pending row with `Sent` state using the persisted message/thread identity.
 8. Recipient-device ack or catch-up reconciliation can advance the row to `Delivered`; read state appears only when an approved participant-visible read receipt exists.
 9. Retryable send failures preserve the submitted text and show approved retry controls. Reconnect refreshes from durable history and does not auto-resend without explicit user action.
@@ -175,7 +175,7 @@ Before each runtime implementation PR after approval:
 - run `npm --prefix apps/web run lint`;
 - run `npm --prefix apps/web run test:coverage`;
 - run `npm --prefix apps/web run build`;
-- run `./scripts/validate-dm-transport-policy.sh`;
+- run `node scripts/validators/dm-transport-policy.mjs`;
 - run contract/docs validators when API contracts or canonical docs change;
 - run targeted Rust API/realtime tests if route, fanout, catch-up, or ack behavior changes;
 - capture browser screenshots/checklist evidence once visible UI behavior exists.

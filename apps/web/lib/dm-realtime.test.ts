@@ -58,7 +58,7 @@ const dispatchEvent = {
     accepted_at: "2026-05-08T15:00:00Z",
     dispatched_at: "2026-05-08T15:00:01Z",
     delivery_cursor: "7",
-    transport_scope: "encrypted_envelope_node",
+    transport_scope: "encrypted_envelope_server",
   },
 };
 

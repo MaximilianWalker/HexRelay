@@ -16,7 +16,8 @@ use crate::infra::db::repos::{auth_repo, dm_history_repo, dm_repo, friends_repo,
 use crate::transport::http::middleware::rate_limit;
 use crate::{
     domain::dm::forwarding::{
-        authenticate_node_forward_request, NodeForwardRequestError, NodeForwardRequestErrorStatus,
+        authenticate_server_forward_request, ServerForwardRequestError,
+        ServerForwardRequestErrorStatus,
     },
     domain::dm::outbound_forwarding::{
         forwarding_error_summary, next_retry_attempt_after_failure,
@@ -46,7 +47,7 @@ use crate::{
 
 const DEFAULT_PAGE_LIMIT: usize = 20;
 const MAX_PAGE_LIMIT: usize = 100;
-const DM_ENVELOPE_NODE_TRANSPORT_PROFILE: &str = "encrypted_envelope_node";
+const DM_ENVELOPE_SERVER_TRANSPORT_PROFILE: &str = "encrypted_envelope_server";
 const DM_RATE_SCOPE_DISPATCH: &str = "dm_fanout_dispatch";
 const DM_RATE_SCOPE_CATCH_UP: &str = "dm_fanout_catch_up";
 const DM_RATE_SCOPE_ACK: &str = "dm_envelope_ack";
@@ -254,12 +255,12 @@ pub async fn forward_dm_envelope_internal(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
-    let authenticated =
-        authenticate_node_forward_request(&state, &headers, &body).map_err(node_forward_error)?;
+    let authenticated = authenticate_server_forward_request(&state, &headers, &body)
+        .map_err(server_forward_error)?;
     enforce_dm_rate_limit(
         &state,
         DM_RATE_SCOPE_INTERNAL_FORWARD,
-        &authenticated.origin_node_id,
+        &authenticated.origin_server_id,
         state.rate_limits.dm_internal_forward_per_window,
     )
     .await?;
@@ -298,16 +299,16 @@ pub async fn run_dm_active_fanout(
     .await?;
     apply_dm_delivery_metadata_retention(&state).await?;
 
-    if let Some(destination_node_id) = payload
-        .destination_node_id
+    if let Some(destination_server_id) = payload
+        .destination_server_id
         .as_deref()
-        .filter(|node_id| *node_id != state.node_fingerprint)
+        .filter(|server_id| *server_id != state.server_id)
     {
-        return forward_dm_envelope_to_destination_node(
+        return forward_dm_envelope_to_destination_server(
             &state,
             &auth,
             &payload,
-            destination_node_id,
+            destination_server_id,
         )
         .await;
     }
@@ -327,11 +328,11 @@ pub async fn run_dm_active_fanout(
     Ok(Json(response))
 }
 
-async fn forward_dm_envelope_to_destination_node(
+async fn forward_dm_envelope_to_destination_server(
     state: &AppState,
     auth: &AuthSession,
     payload: &DmFanoutDispatchRequest,
-    destination_node_id: &str,
+    destination_server_id: &str,
 ) -> ApiResult<Json<DmFanoutDispatchResponse>> {
     let pool = state.db_pool.as_ref().ok_or_else(|| {
         internal_error(
@@ -348,7 +349,7 @@ async fn forward_dm_envelope_to_destination_node(
         pool,
         &dm_repo::DmOutboundForwardWrite {
             sender_identity_id: &auth.identity_id,
-            destination_node_id,
+            destination_server_id,
             message_id: &payload.message_id,
             thread_id: &thread_id,
             recipient_identity_id: &payload.recipient_identity_id,
@@ -368,7 +369,7 @@ async fn forward_dm_envelope_to_destination_node(
     let dispatch_result = dispatch_dm_envelope(
         state,
         DispatchDmEnvelopeInput {
-            destination_node_id: Some(destination_node_id),
+            destination_server_id: Some(destination_server_id),
             message_id: &payload.message_id,
             thread_id: &thread_id,
             sender_identity_id: &auth.identity_id,
@@ -387,7 +388,7 @@ async fn forward_dm_envelope_to_destination_node(
             let updated = dm_repo::mark_dm_outbound_forward_succeeded(
                 pool,
                 &auth.identity_id,
-                destination_node_id,
+                destination_server_id,
                 &payload.message_id,
             )
             .await
@@ -408,7 +409,7 @@ async fn forward_dm_envelope_to_destination_node(
             let stored_error = forwarding_error_summary(&error);
             let next_attempt_at = next_retry_attempt_after_failure(
                 Utc::now(),
-                destination_node_id,
+                destination_server_id,
                 &payload.message_id,
                 attempt_count,
                 DM_OUTBOUND_FORWARD_MAX_ATTEMPTS,
@@ -417,7 +418,7 @@ async fn forward_dm_envelope_to_destination_node(
             if let Err(update_error) = dm_repo::mark_dm_outbound_forward_failed(
                 pool,
                 &auth.identity_id,
-                destination_node_id,
+                destination_server_id,
                 &payload.message_id,
                 &stored_error,
                 next_attempt_at,
@@ -426,7 +427,7 @@ async fn forward_dm_envelope_to_destination_node(
             {
                 warn!(
                     message_id = %payload.message_id,
-                    destination_node_id,
+                    destination_server_id,
                     error = %update_error,
                     "failed to persist DM outbound forwarding failure"
                 );
@@ -434,7 +435,7 @@ async fn forward_dm_envelope_to_destination_node(
 
             return Err(internal_error(
                 "fanout_forwarding_failed",
-                "failed to forward encrypted DM envelope to destination node",
+                "failed to forward encrypted DM envelope to destination server",
             ));
         }
     }
@@ -442,7 +443,7 @@ async fn forward_dm_envelope_to_destination_node(
     Ok(Json(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
         reason_code: "fanout_forwarded_to_static_peer".to_string(),
-        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+        transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
         delivery_state: "forwarded".to_string(),
         reachability_state: "unknown".to_string(),
         fanout_count: 0,
@@ -491,11 +492,11 @@ async fn accept_dm_envelope_for_local_recipient(
         ));
     }
 
-    if is_blocked_bidirectional(state, sender_identity_id, recipient_identity_id)? {
+    if is_blocked_bidirectional(state, sender_identity_id, recipient_identity_id).await? {
         return Ok(DmFanoutDispatchResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_blocked_user".to_string(),
-            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+            transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
             delivery_state: "rejected".to_string(),
             reachability_state: "blocked".to_string(),
             fanout_count: 0,
@@ -511,7 +512,7 @@ async fn accept_dm_envelope_for_local_recipient(
             return Ok(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_policy_blocked".to_string(),
-                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+                transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
                 delivery_state: "rejected".to_string(),
                 reachability_state: "blocked".to_string(),
                 fanout_count: 0,
@@ -523,7 +524,7 @@ async fn accept_dm_envelope_for_local_recipient(
             return Ok(DmFanoutDispatchResponse {
                 status: "blocked".to_string(),
                 reason_code: "fanout_same_server_context_required".to_string(),
-                transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+                transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
                 delivery_state: "rejected".to_string(),
                 reachability_state: "blocked".to_string(),
                 fanout_count: 0,
@@ -661,7 +662,7 @@ async fn accept_dm_envelope_for_local_recipient(
         if let Err(error) = dispatch_dm_envelope(
             state,
             DispatchDmEnvelopeInput {
-                destination_node_id: None,
+                destination_server_id: None,
                 message_id: &message_id,
                 thread_id: &thread_id,
                 sender_identity_id,
@@ -688,7 +689,7 @@ async fn accept_dm_envelope_for_local_recipient(
     Ok(DmFanoutDispatchResponse {
         status: "accepted".to_string(),
         reason_code,
-        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+        transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
         delivery_state,
         reachability_state,
         fanout_count,
@@ -720,7 +721,7 @@ pub async fn run_dm_fanout_catch_up(
         return Ok(Json(DmFanoutCatchUpResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_device_unknown".to_string(),
-            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+            transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
             device_id,
             replay_count: 0,
             next_cursor: "0".to_string(),
@@ -740,7 +741,7 @@ pub async fn run_dm_fanout_catch_up(
         return Ok(Json(DmFanoutCatchUpResponse {
             status: "blocked".to_string(),
             reason_code: "fanout_device_inactive".to_string(),
-            transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+            transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
             device_id,
             replay_count: 0,
             next_cursor: "0".to_string(),
@@ -832,7 +833,7 @@ pub async fn run_dm_fanout_catch_up(
             entry.message_id.clone(),
             entry.sender_identity_id.clone(),
             entry.source_device_id.clone(),
-            ciphertext_fingerprint(&entry.ciphertext),
+            ciphertext_hash(&entry.ciphertext),
         );
         if !seen_delivery_keys.insert(dedupe_key) {
             deduped_message_ids.push(entry.message_id.clone());
@@ -865,7 +866,7 @@ pub async fn run_dm_fanout_catch_up(
     Ok(Json(DmFanoutCatchUpResponse {
         status: "ready".to_string(),
         reason_code: reason_code.to_string(),
-        transport_profile: DM_ENVELOPE_NODE_TRANSPORT_PROFILE.to_string(),
+        transport_profile: DM_ENVELOPE_SERVER_TRANSPORT_PROFILE.to_string(),
         device_id,
         replay_count: items.len() as u32,
         next_cursor: response_cursor.to_string(),
@@ -1108,12 +1109,12 @@ fn parse_message_cursor(value: Option<String>) -> ApiResult<Option<u64>> {
         .map_err(|_| bad_request("cursor_invalid", "message cursor must be numeric"))
 }
 
-fn node_forward_error(error: NodeForwardRequestError) -> (StatusCode, Json<ApiError>) {
+fn server_forward_error(error: ServerForwardRequestError) -> (StatusCode, Json<ApiError>) {
     match error.status {
-        NodeForwardRequestErrorStatus::BadRequest => bad_request(error.code, error.message),
-        NodeForwardRequestErrorStatus::Unauthorized => unauthorized(error.code, error.message),
-        NodeForwardRequestErrorStatus::Forbidden => forbidden(error.code, error.message),
-        NodeForwardRequestErrorStatus::Conflict => conflict(error.code, error.message),
+        ServerForwardRequestErrorStatus::BadRequest => bad_request(error.code, error.message),
+        ServerForwardRequestErrorStatus::Unauthorized => unauthorized(error.code, error.message),
+        ServerForwardRequestErrorStatus::Forbidden => forbidden(error.code, error.message),
+        ServerForwardRequestErrorStatus::Conflict => conflict(error.code, error.message),
     }
 }
 
@@ -1446,7 +1447,7 @@ fn lower_hex(bytes: &[u8]) -> String {
     output
 }
 
-fn ciphertext_fingerprint(value: &str) -> [u8; 32] {
+fn ciphertext_hash(value: &str) -> [u8; 32] {
     let digest = digest::digest(&digest::SHA256, value.as_bytes());
     let mut bytes = [0_u8; 32];
     bytes.copy_from_slice(digest.as_ref());

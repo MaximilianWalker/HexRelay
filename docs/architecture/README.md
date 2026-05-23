@@ -6,14 +6,14 @@
 - Owner: Architecture maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-11
+- last_updated: 2026-05-20
 - Source of truth: `docs/architecture/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-11 refreshed the communication networking summary for the dynamic server-node policy graph and clarified app-mediated dedicated-server administration.
+- Latest meaningful change: 2026-05-20 added the accepted server authority ADR that maps one user-facing server to one separately runnable server runtime authority.
 
 ## Purpose
 
@@ -30,9 +30,10 @@
 - `docs/architecture/adr-0001-stack-baseline.md`: MVP stack baseline (accepted).
 - `docs/architecture/adr-0002-runtime-deployment-modes.md`: Runtime/deployment mode, release target parity, desktop/server package boundary, and dedicated-server administration surface baseline (accepted).
 - `docs/architecture/adr-0003-rust-service-module-architecture.md`: Rust service module architecture contract baseline (accepted).
+- `docs/architecture/adr-0004-server-authority.md`: Server authority model: one user-facing server maps to one separately runnable server runtime (accepted).
 
 ## Architecture Specs
 
 - `docs/architecture/02-data-lifecycle-retention-replication.md`: persistence boundaries, retention, and reconciliation behavior.
 - `docs/architecture/03-rust-service-migration-baseline.md`: migration baseline, coverage snapshot, and current-to-target module mapping for Rust service structure migration.
-- `docs/architecture/04-communication-networking-layer-plan.md`: shared communication layer architecture, server-node policy graph, opt-in discovery/relay model, and DM-vs-server networking implementation plan.
+- `docs/architecture/04-communication-networking-layer-plan.md`: shared communication layer architecture, server-to-server policy graph, opt-in discovery/relay model, and DM-vs-server networking implementation plan.

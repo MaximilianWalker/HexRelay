@@ -8,13 +8,13 @@ use std::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use communication_core::{
     ed25519_public_key_hex, verify_peer_invite_ed25519, DescriptorValidationContext,
-    Ed25519DescriptorVerifier, NodeDescriptor, PeerInviteEnvelope, PeerInviteValidationContext,
+    Ed25519DescriptorVerifier, PeerInviteEnvelope, PeerInviteValidationContext, ServerDescriptor,
     StaticPeerRegistry,
 };
 use reqwest::Url;
 
 use crate::domain::auth::validation::is_valid_identity_id;
-use crate::domain::node_identity::LocalNodeIdentity;
+use crate::domain::server_identity::LocalServerIdentity;
 
 #[derive(Clone)]
 pub struct ApiRateLimitConfig {
@@ -52,10 +52,10 @@ pub struct ApiConfig {
     pub channel_dispatch_internal_token: String,
     pub allowed_origins: Vec<String>,
     pub database_url: String,
-    pub node_fingerprint: String,
-    pub node_admin_identity_ids: Vec<String>,
-    pub node_owner_identity_ids: Vec<String>,
-    pub local_node_identity: Option<LocalNodeIdentity>,
+    pub server_id: String,
+    pub server_admin_identity_ids: Vec<String>,
+    pub server_owner_identity_ids: Vec<String>,
+    pub local_server_identity: Option<LocalServerIdentity>,
     pub discovery_denylist: Vec<String>,
     pub static_peer_registry: StaticPeerRegistry,
     pub presence_watcher_internal_token: String,
@@ -73,7 +73,7 @@ pub struct ApiConfig {
 
 impl ApiConfig {
     pub fn from_env() -> Result<Self, String> {
-        const DEFAULT_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+        const DEFAULT_SERVER_ID: &str = "hexrelay-local-server";
         const DEFAULT_DATABASE_URL: &str =
             "postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay";
         const DEFAULT_CHANNEL_DISPATCH_INTERNAL_TOKEN: &str =
@@ -102,33 +102,32 @@ impl ApiConfig {
         let allow_public_identity_registration =
             parse_bool_env("API_ALLOW_PUBLIC_IDENTITY_REGISTRATION", false)?;
         let enable_dev_testing = parse_bool_env("API_ENABLE_DEV_TESTING", false)?;
-        let node_fingerprint = env::var("API_NODE_FINGERPRINT")
-            .unwrap_or_else(|_| DEFAULT_NODE_FINGERPRINT.to_string());
+        let server_id = env::var("API_SERVER_ID").unwrap_or_else(|_| DEFAULT_SERVER_ID.to_string());
         let allowed_origins_raw = env::var("API_ALLOWED_ORIGINS")
             .unwrap_or_else(|_| "http://localhost:3002,http://127.0.0.1:3002".to_string());
         let database_url =
             env::var("API_DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let discovery_denylist = parse_csv_env("API_DISCOVERY_DENYLIST");
-        let node_owner_identity_ids = parse_identity_id_csv_env("API_NODE_OWNER_IDENTITY_IDS")?;
-        let node_admin_identity_ids = parse_identity_id_csv_env("API_NODE_ADMIN_IDENTITY_IDS")?;
-        if node_fingerprint.trim().is_empty() {
-            return Err("Invalid API_NODE_FINGERPRINT. Value must not be empty".to_string());
+        let server_owner_identity_ids = parse_identity_id_csv_env("API_SERVER_OWNER_IDENTITY_IDS")?;
+        let server_admin_identity_ids = parse_identity_id_csv_env("API_SERVER_ADMIN_IDENTITY_IDS")?;
+        if server_id.trim().is_empty() {
+            return Err("Invalid API_SERVER_ID. Value must not be empty".to_string());
         }
 
         let static_peer_descriptor_max_ttl_seconds =
             parse_i64_env("API_STATIC_PEER_DESCRIPTOR_MAX_TTL_SECONDS", 86_400)?;
         let revoked_static_peer_invite_ids = parse_csv_env("API_REVOKED_STATIC_PEER_INVITE_IDS");
-        let local_node_identity = parse_local_node_identity(
-            "API_LOCAL_NODE_DESCRIPTOR_JSON",
-            "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+        let local_server_identity = parse_local_server_identity(
+            "API_LOCAL_SERVER_DESCRIPTOR_JSON",
+            "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
             static_peer_descriptor_max_ttl_seconds,
-            &node_fingerprint,
+            &server_id,
         )?;
         let static_peer_registry = parse_static_peer_registry(
             "API_STATIC_PEER_DESCRIPTORS_JSON",
             "API_STATIC_PEER_INVITES_JSON",
             static_peer_descriptor_max_ttl_seconds,
-            node_fingerprint.trim(),
+            server_id.trim(),
             &revoked_static_peer_invite_ids,
         )?;
         let channel_dispatch_internal_token = env::var("API_CHANNEL_DISPATCH_INTERNAL_TOKEN")
@@ -297,9 +296,9 @@ impl ApiConfig {
                 );
             }
 
-            if node_fingerprint == DEFAULT_NODE_FINGERPRINT {
+            if server_id == DEFAULT_SERVER_ID {
                 return Err(
-                    "Invalid API_NODE_FINGERPRINT for production. Configure a deployment-specific value"
+                    "Invalid API_SERVER_ID for production. Configure a deployment-specific value"
                         .to_string(),
                 );
             }
@@ -364,10 +363,10 @@ impl ApiConfig {
             channel_dispatch_internal_token,
             allowed_origins,
             database_url,
-            node_fingerprint,
-            node_admin_identity_ids,
-            node_owner_identity_ids,
-            local_node_identity,
+            server_id,
+            server_admin_identity_ids,
+            server_owner_identity_ids,
+            local_server_identity,
             discovery_denylist,
             static_peer_registry,
             presence_watcher_internal_token,
@@ -557,7 +556,7 @@ fn parse_static_peer_registry(
     descriptor_env_key: &str,
     invite_env_key: &str,
     max_ttl_seconds: i64,
-    local_node_id: &str,
+    local_server_id: &str,
     revoked_invite_ids: &[String],
 ) -> Result<StaticPeerRegistry, String> {
     let context = DescriptorValidationContext {
@@ -573,7 +572,7 @@ fn parse_static_peer_registry(
         &context,
         &verifier,
         max_ttl_seconds,
-        local_node_id,
+        local_server_id,
         revoked_invite_ids,
     )?);
 
@@ -589,13 +588,13 @@ fn parse_static_peer_descriptors(
     env_key: &str,
     context: &DescriptorValidationContext,
     verifier: &Ed25519DescriptorVerifier,
-) -> Result<Vec<NodeDescriptor>, String> {
+) -> Result<Vec<ServerDescriptor>, String> {
     let raw = env::var(env_key).unwrap_or_default();
     if raw.trim().is_empty() {
         return Ok(Vec::new());
     }
 
-    let descriptors = serde_json::from_str::<Vec<NodeDescriptor>>(&raw)
+    let descriptors = serde_json::from_str::<Vec<ServerDescriptor>>(&raw)
         .map_err(|error| format!("Invalid {env_key}. Expected JSON array: {error}"))?;
 
     for descriptor in &descriptors {
@@ -617,9 +616,9 @@ fn parse_static_peer_invites(
     descriptor_context: &DescriptorValidationContext,
     verifier: &Ed25519DescriptorVerifier,
     max_ttl_seconds: i64,
-    local_node_id: &str,
+    local_server_id: &str,
     revoked_invite_ids: &[String],
-) -> Result<Vec<NodeDescriptor>, String> {
+) -> Result<Vec<ServerDescriptor>, String> {
     let raw = env::var(env_key).unwrap_or_default();
     if raw.trim().is_empty() {
         return Ok(Vec::new());
@@ -631,7 +630,7 @@ fn parse_static_peer_invites(
         now_epoch_seconds: descriptor_context.now_epoch_seconds,
         max_ttl_seconds,
         revoked_invite_ids: revoked_invite_ids.to_vec(),
-        expected_subject_node_id: Some(local_node_id.to_string()),
+        expected_subject_server_id: Some(local_server_id.to_string()),
     };
     let mut descriptors = Vec::with_capacity(envelopes.len());
 
@@ -668,12 +667,12 @@ fn parse_static_peer_invites(
     Ok(descriptors)
 }
 
-fn parse_local_node_identity(
+fn parse_local_server_identity(
     descriptor_env_key: &str,
     private_key_env_key: &str,
     max_ttl_seconds: i64,
-    expected_node_id: &str,
-) -> Result<Option<LocalNodeIdentity>, String> {
+    expected_server_id: &str,
+) -> Result<Option<LocalServerIdentity>, String> {
     let descriptor_raw = env::var(descriptor_env_key)
         .ok()
         .map(|value| value.trim().to_string())
@@ -686,26 +685,26 @@ fn parse_local_node_identity(
     match (descriptor_raw, private_key_raw) {
         (None, None) => Ok(None),
         (Some(_), None) => Err(format!(
-            "Invalid {descriptor_env_key}. {private_key_env_key} is required when local node descriptor is configured"
+            "Invalid {descriptor_env_key}. {private_key_env_key} is required when local server descriptor is configured"
         )),
         (None, Some(_)) => Err(format!(
-            "Invalid {private_key_env_key}. {descriptor_env_key} is required when local node private key is configured"
+            "Invalid {private_key_env_key}. {descriptor_env_key} is required when local server private key is configured"
         )),
-        (Some(_), Some(_)) => Ok(Some(parse_required_local_node_identity(
+        (Some(_), Some(_)) => Ok(Some(parse_required_local_server_identity(
             descriptor_env_key,
             private_key_env_key,
             max_ttl_seconds,
-            Some(expected_node_id),
+            Some(expected_server_id),
         )?)),
     }
 }
 
-pub fn parse_required_local_node_identity(
+pub fn parse_required_local_server_identity(
     descriptor_env_key: &str,
     private_key_env_key: &str,
     max_ttl_seconds: i64,
-    expected_node_id: Option<&str>,
-) -> Result<LocalNodeIdentity, String> {
+    expected_server_id: Option<&str>,
+) -> Result<LocalServerIdentity, String> {
     let descriptor_raw = env::var(descriptor_env_key)
         .map_err(|_| format!("Missing {descriptor_env_key}"))?
         .trim()
@@ -727,7 +726,7 @@ pub fn parse_required_local_node_identity(
         ));
     }
 
-    let descriptor = serde_json::from_str::<NodeDescriptor>(&descriptor_raw)
+    let descriptor = serde_json::from_str::<ServerDescriptor>(&descriptor_raw)
         .map_err(|error| format!("Invalid {descriptor_env_key}. Expected JSON object: {error}"))?;
     let private_key_pkcs8 = BASE64.decode(private_key_raw.as_bytes()).map_err(|_| {
         format!("Invalid {private_key_env_key}. Expected base64-encoded Ed25519 PKCS#8 bytes")
@@ -736,17 +735,17 @@ pub fn parse_required_local_node_identity(
         format!("Invalid {private_key_env_key}. Could not derive Ed25519 public key: {error:?}")
     })?;
 
-    if let Some(expected_node_id) = expected_node_id {
-        if descriptor.node_id != expected_node_id.trim() {
+    if let Some(expected_server_id) = expected_server_id {
+        if descriptor.server_id != expected_server_id.trim() {
             return Err(format!(
-                "Invalid {descriptor_env_key}. descriptor node_id must match API_NODE_FINGERPRINT"
+                "Invalid {descriptor_env_key}. descriptor server_id must match API_SERVER_ID"
             ));
         }
     }
 
-    if descriptor.node_public_key != public_key {
+    if descriptor.server_public_key != public_key {
         return Err(format!(
-            "Invalid {private_key_env_key}. Private key does not match local node descriptor public key"
+            "Invalid {private_key_env_key}. Private key does not match local server descriptor public key"
         ));
     }
 
@@ -764,7 +763,7 @@ pub fn parse_required_local_node_identity(
             )
         })?;
 
-    Ok(LocalNodeIdentity {
+    Ok(LocalServerIdentity {
         descriptor,
         private_key_pkcs8,
     })
@@ -785,19 +784,19 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPath, DiscoveryPolicy,
-        DmForwardingPolicy, NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm,
-        PeeringPolicy, RelayPolicy, StoragePolicy,
+        DmForwardingPolicy, NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor,
+        ServerSignature, ServerSignatureAlgorithm, StoragePolicy,
     };
     use ring::rand::SystemRandom;
     use ring::signature::Ed25519KeyPair;
     use std::sync::{Mutex, OnceLock};
 
     use crate::domain::{
-        node_identity::{
-            generate_node_identity, GeneratedNodeIdentity, LocalNodeIdentity,
-            NodeIdentityGenerateOptions,
-        },
         peer_invites::{issue_peer_invite, PeerInviteIssueOptions},
+        server_identity::{
+            generate_server_identity, GeneratedServerIdentity, LocalServerIdentity,
+            ServerIdentityGenerateOptions,
+        },
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -810,14 +809,14 @@ mod tests {
         "API_ENVIRONMENT",
         "API_ALLOW_PUBLIC_IDENTITY_REGISTRATION",
         "API_ENABLE_DEV_TESTING",
-        "API_NODE_FINGERPRINT",
-        "API_NODE_OWNER_IDENTITY_IDS",
-        "API_NODE_ADMIN_IDENTITY_IDS",
+        "API_SERVER_ID",
+        "API_SERVER_OWNER_IDENTITY_IDS",
+        "API_SERVER_ADMIN_IDENTITY_IDS",
         "API_DATABASE_URL",
         "API_ALLOWED_ORIGINS",
         "API_DISCOVERY_DENYLIST",
-        "API_LOCAL_NODE_DESCRIPTOR_JSON",
-        "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+        "API_LOCAL_SERVER_DESCRIPTOR_JSON",
+        "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
         "API_STATIC_PEER_DESCRIPTORS_JSON",
         "API_STATIC_PEER_INVITES_JSON",
         "API_REVOKED_STATIC_PEER_INVITE_IDS",
@@ -889,22 +888,22 @@ mod tests {
         }
     }
 
-    fn signed_descriptor(node_id: &str, descriptor_id: &str) -> (NodeDescriptor, Vec<u8>) {
-        signed_descriptor_with_peering(node_id, descriptor_id, PeeringPolicy::StaticAllowlist)
+    fn signed_descriptor(server_id: &str, descriptor_id: &str) -> (ServerDescriptor, Vec<u8>) {
+        signed_descriptor_with_peering(server_id, descriptor_id, PeeringPolicy::StaticAllowlist)
     }
 
     fn signed_descriptor_with_peering(
-        node_id: &str,
+        server_id: &str,
         descriptor_id: &str,
         peering_policy: PeeringPolicy,
-    ) -> (NodeDescriptor, Vec<u8>) {
+    ) -> (ServerDescriptor, Vec<u8>) {
         let pkcs8 =
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
         let now = current_epoch_seconds().expect("read current epoch");
-        let mut descriptor = NodeDescriptor {
-            node_id: node_id.to_string(),
-            node_public_key: public_key,
+        let mut descriptor = ServerDescriptor {
+            server_id: server_id.to_string(),
+            server_public_key: public_key,
             descriptor_id: descriptor_id.to_string(),
             issued_at_epoch_seconds: now - 1,
             expires_at_epoch_seconds: now + 300,
@@ -914,13 +913,13 @@ mod tests {
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec![format!("https://{node_id}.example")],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            addresses: vec![format!("https://{server_id}.example")],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
             revocation_pointer: None,
-            signature: NodeSignature {
-                algorithm: NodeSignatureAlgorithm::Ed25519,
+            signature: ServerSignature {
+                algorithm: ServerSignatureAlgorithm::Ed25519,
                 value: String::new(),
             },
         };
@@ -931,25 +930,25 @@ mod tests {
     }
 
     fn signed_static_peer_json() -> String {
-        let (descriptor, _) = signed_descriptor("node-a", "descriptor-a");
+        let (descriptor, _) = signed_descriptor("server-a", "descriptor-a");
         serde_json::to_string(&vec![descriptor]).expect("serialize static peer descriptor")
     }
 
-    fn signed_static_peer_invite_json(subject_node_id: &str) -> String {
+    fn signed_static_peer_invite_json(subject_server_id: &str) -> String {
         let (issuer_descriptor, issuer_private_key) = signed_descriptor_with_peering(
-            "node-inviter",
+            "server-inviter",
             "descriptor-inviter",
             PeeringPolicy::InviteToken,
         );
         let now = current_epoch_seconds().expect("read current epoch");
         let envelope = issue_peer_invite(
-            &LocalNodeIdentity {
+            &LocalServerIdentity {
                 descriptor: issuer_descriptor,
                 private_key_pkcs8: issuer_private_key,
             },
             &PeerInviteIssueOptions {
-                invite_id: Some("peer-invite-node-inviter".to_string()),
-                subject_node_id: Some(subject_node_id.to_string()),
+                invite_id: Some("peer-invite-server-inviter".to_string()),
+                subject_server_id: Some(subject_server_id.to_string()),
                 allow_unbound: false,
                 ttl_seconds: 300,
                 max_ttl_seconds: 86_400,
@@ -963,13 +962,13 @@ mod tests {
         serde_json::to_string(&vec![envelope]).expect("serialize static peer invite")
     }
 
-    fn generated_node_identity(
-        node_id: &str,
+    fn generated_server_identity(
+        server_id: &str,
         descriptor_id: &str,
-    ) -> (GeneratedNodeIdentity, LocalNodeIdentity) {
-        generate_node_identity(
-            &NodeIdentityGenerateOptions {
-                node_id: node_id.to_string(),
+    ) -> (GeneratedServerIdentity, LocalServerIdentity) {
+        generate_server_identity(
+            &ServerIdentityGenerateOptions {
+                server_id: server_id.to_string(),
                 descriptor_id: Some(descriptor_id.to_string()),
                 ttl_seconds: 300,
                 max_ttl_seconds: 86_400,
@@ -979,14 +978,14 @@ mod tests {
                 relay_policy: RelayPolicy::None,
                 dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
                 storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-                addresses: vec![format!("https://{node_id}.example")],
-                supported_protocols: vec!["hexrelay-node-http".to_string()],
+                addresses: vec![format!("https://{server_id}.example")],
+                supported_protocols: vec!["hexrelay-server-http".to_string()],
                 trust_labels: Vec::new(),
                 revocation_pointer: None,
             },
             current_epoch_seconds().expect("read current epoch") - 1,
         )
-        .expect("generate local node identity")
+        .expect("generate local server identity")
     }
 
     #[test]
@@ -1027,11 +1026,14 @@ mod tests {
     }
 
     #[test]
-    fn parses_node_owner_and_admin_identity_ids() {
+    fn parses_server_owner_and_admin_identity_ids() {
         with_api_env(
             &[
-                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner_2")),
-                ("API_NODE_ADMIN_IDENTITY_IDS", Some("usr-admin")),
+                (
+                    "API_SERVER_OWNER_IDENTITY_IDS",
+                    Some("usr-owner,usr-owner_2"),
+                ),
+                ("API_SERVER_ADMIN_IDENTITY_IDS", Some("usr-admin")),
                 (
                     "API_SESSION_SIGNING_KEY",
                     Some("hexrelay-dev-signing-key-change-me"),
@@ -1040,11 +1042,11 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert_eq!(
-                    config.node_owner_identity_ids,
+                    config.server_owner_identity_ids,
                     vec!["usr-owner".to_string(), "usr-owner_2".to_string()]
                 );
                 assert_eq!(
-                    config.node_admin_identity_ids,
+                    config.server_admin_identity_ids,
                     vec!["usr-admin".to_string()]
                 );
             },
@@ -1052,11 +1054,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_node_admin_identity_ids() {
+    fn rejects_invalid_server_admin_identity_ids() {
         with_api_env(
             &[
                 (
-                    "API_NODE_ADMIN_IDENTITY_IDS",
+                    "API_SERVER_ADMIN_IDENTITY_IDS",
                     Some("valid-admin, bad admin "),
                 ),
                 (
@@ -1069,16 +1071,16 @@ mod tests {
                     Ok(_) => panic!("invalid admin identity should fail"),
                     Err(err) => err,
                 };
-                assert!(err.contains("API_NODE_ADMIN_IDENTITY_IDS"));
+                assert!(err.contains("API_SERVER_ADMIN_IDENTITY_IDS"));
             },
         );
     }
 
     #[test]
-    fn rejects_duplicate_node_owner_identity_ids() {
+    fn rejects_duplicate_server_owner_identity_ids() {
         with_api_env(
             &[
-                ("API_NODE_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner")),
+                ("API_SERVER_OWNER_IDENTITY_IDS", Some("usr-owner,usr-owner")),
                 (
                     "API_SESSION_SIGNING_KEY",
                     Some("hexrelay-dev-signing-key-change-me"),
@@ -1089,7 +1091,7 @@ mod tests {
                     Ok(_) => panic!("duplicate owner identity should fail"),
                     Err(err) => err,
                 };
-                assert!(err.contains("API_NODE_OWNER_IDENTITY_IDS"));
+                assert!(err.contains("API_SERVER_OWNER_IDENTITY_IDS"));
             },
         );
     }
@@ -1110,8 +1112,8 @@ mod tests {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert_eq!(config.static_peer_registry.descriptors().len(), 1);
                 assert_eq!(
-                    config.static_peer_registry.descriptors()[0].node_id,
-                    "node-a"
+                    config.static_peer_registry.descriptors()[0].server_id,
+                    "server-a"
                 );
             },
         );
@@ -1119,11 +1121,11 @@ mod tests {
 
     #[test]
     fn parses_and_validates_static_peer_invites() {
-        let invite_json = signed_static_peer_invite_json("node-local");
+        let invite_json = signed_static_peer_invite_json("server-local");
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-local")),
+                ("API_SERVER_ID", Some("server-local")),
                 ("API_STATIC_PEER_INVITES_JSON", Some(invite_json.as_str())),
                 (
                     "API_SESSION_SIGNING_KEY",
@@ -1134,8 +1136,8 @@ mod tests {
                 let config = ApiConfig::from_env().expect("config should load");
                 assert_eq!(config.static_peer_registry.descriptors().len(), 1);
                 assert_eq!(
-                    config.static_peer_registry.descriptors()[0].node_id,
-                    "node-inviter"
+                    config.static_peer_registry.descriptors()[0].server_id,
+                    "server-inviter"
                 );
                 assert_eq!(
                     config.static_peer_registry.descriptors()[0].peering_policy,
@@ -1146,15 +1148,15 @@ mod tests {
     }
 
     #[test]
-    fn bootstraps_two_node_private_mesh_from_generated_identity_and_signed_invite() {
-        let (_, node_a_identity) = generated_node_identity("node-a", "descriptor-node-a");
-        let (node_b_output, node_b_identity) =
-            generated_node_identity("node-b", "descriptor-node-b");
+    fn bootstraps_two_server_private_mesh_from_generated_identity_and_signed_invite() {
+        let (_, server_a_identity) = generated_server_identity("server-a", "descriptor-server-a");
+        let (server_b_output, server_b_identity) =
+            generated_server_identity("server-b", "descriptor-server-b");
         let invite = issue_peer_invite(
-            &node_a_identity,
+            &server_a_identity,
             &PeerInviteIssueOptions {
-                invite_id: Some("peer-invite-node-a-to-node-b".to_string()),
-                subject_node_id: Some("node-b".to_string()),
+                invite_id: Some("peer-invite-server-a-to-server-b".to_string()),
+                subject_server_id: Some("server-b".to_string()),
                 allow_unbound: false,
                 ttl_seconds: 300,
                 max_ttl_seconds: 86_400,
@@ -1163,25 +1165,25 @@ mod tests {
             },
             current_epoch_seconds().expect("read current epoch") - 1,
         )
-        .expect("issue node-a to node-b peer invite");
+        .expect("issue server-a to server-b peer invite");
         let invite_json =
-            serde_json::to_string(&vec![invite]).expect("serialize node-a peer invite");
-        let node_b_descriptor_json =
-            serde_json::to_string(&node_b_output.api_local_node_descriptor_json)
-                .expect("serialize node-b local descriptor");
+            serde_json::to_string(&vec![invite]).expect("serialize server-a peer invite");
+        let server_b_descriptor_json =
+            serde_json::to_string(&server_b_output.api_local_server_descriptor_json)
+                .expect("serialize server-b local descriptor");
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-b")),
+                ("API_SERVER_ID", Some("server-b")),
                 (
-                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
-                    Some(node_b_descriptor_json.as_str()),
+                    "API_LOCAL_SERVER_DESCRIPTOR_JSON",
+                    Some(server_b_descriptor_json.as_str()),
                 ),
                 (
-                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+                    "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
                     Some(
-                        node_b_output
-                            .api_local_node_private_key_pkcs8_base64
+                        server_b_output
+                            .api_local_server_private_key_pkcs8_base64
                             .as_str(),
                     ),
                 ),
@@ -1192,35 +1194,35 @@ mod tests {
                 ),
             ],
             || {
-                let config = ApiConfig::from_env().expect("node-b config should load");
+                let config = ApiConfig::from_env().expect("server-b config should load");
                 let local_identity = config
-                    .local_node_identity
-                    .expect("node-b local identity should parse");
-                assert_eq!(local_identity.descriptor.node_id, "node-b");
+                    .local_server_identity
+                    .expect("server-b local identity should parse");
+                assert_eq!(local_identity.descriptor.server_id, "server-b");
                 assert_eq!(
                     local_identity.private_key_pkcs8,
-                    node_b_identity.private_key_pkcs8
+                    server_b_identity.private_key_pkcs8
                 );
 
                 let descriptors = config.static_peer_registry.descriptors();
                 assert_eq!(descriptors.len(), 1);
-                assert_eq!(descriptors[0].node_id, "node-a");
+                assert_eq!(descriptors[0].server_id, "server-a");
                 assert_eq!(descriptors[0].peering_policy, PeeringPolicy::InviteToken);
                 assert_eq!(
                     descriptors[0].addresses,
-                    vec!["https://node-a.example".to_string()]
+                    vec!["https://server-a.example".to_string()]
                 );
             },
         );
     }
 
     #[test]
-    fn rejects_static_peer_invite_for_different_subject_node() {
-        let invite_json = signed_static_peer_invite_json("node-other");
+    fn rejects_static_peer_invite_for_different_subject_server() {
+        let invite_json = signed_static_peer_invite_json("server-other");
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-local")),
+                ("API_SERVER_ID", Some("server-local")),
                 ("API_STATIC_PEER_INVITES_JSON", Some(invite_json.as_str())),
                 (
                     "API_SESSION_SIGNING_KEY",
@@ -1233,22 +1235,22 @@ mod tests {
                     Err(err) => err,
                 };
                 assert!(err.contains("API_STATIC_PEER_INVITES_JSON"));
-                assert!(err.contains("SubjectNodeMismatch"));
+                assert!(err.contains("SubjectServerMismatch"));
             },
         );
     }
 
     #[test]
     fn rejects_revoked_static_peer_invite() {
-        let invite_json = signed_static_peer_invite_json("node-local");
+        let invite_json = signed_static_peer_invite_json("server-local");
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-local")),
+                ("API_SERVER_ID", Some("server-local")),
                 ("API_STATIC_PEER_INVITES_JSON", Some(invite_json.as_str())),
                 (
                     "API_REVOKED_STATIC_PEER_INVITE_IDS",
-                    Some("peer-invite-node-inviter"),
+                    Some("peer-invite-server-inviter"),
                 ),
                 (
                     "API_SESSION_SIGNING_KEY",
@@ -1269,7 +1271,7 @@ mod tests {
     #[test]
     fn rejects_invalid_static_peer_descriptor_signature() {
         let mut descriptors =
-            serde_json::from_str::<Vec<NodeDescriptor>>(&signed_static_peer_json())
+            serde_json::from_str::<Vec<ServerDescriptor>>(&signed_static_peer_json())
                 .expect("parse generated peer json");
         descriptors[0].signature.value = "00".repeat(64);
         let peer_json = serde_json::to_string(&descriptors).expect("serialize tampered peer json");
@@ -1293,22 +1295,22 @@ mod tests {
     }
 
     #[test]
-    fn parses_and_validates_local_node_identity() {
+    fn parses_and_validates_local_server_identity() {
         let (generated, generated_identity) =
-            generated_node_identity("node-local", "descriptor-local");
-        let descriptor_json = serde_json::to_string(&generated.api_local_node_descriptor_json)
-            .expect("serialize local node descriptor");
+            generated_server_identity("server-local", "descriptor-local");
+        let descriptor_json = serde_json::to_string(&generated.api_local_server_descriptor_json)
+            .expect("serialize local server descriptor");
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-local")),
+                ("API_SERVER_ID", Some("server-local")),
                 (
-                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
+                    "API_LOCAL_SERVER_DESCRIPTOR_JSON",
                     Some(descriptor_json.as_str()),
                 ),
                 (
-                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
-                    Some(generated.api_local_node_private_key_pkcs8_base64.as_str()),
+                    "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
+                    Some(generated.api_local_server_private_key_pkcs8_base64.as_str()),
                 ),
                 (
                     "API_SESSION_SIGNING_KEY",
@@ -1318,9 +1320,9 @@ mod tests {
             || {
                 let config = ApiConfig::from_env().expect("config should load");
                 let identity = config
-                    .local_node_identity
-                    .expect("local node identity should parse");
-                assert_eq!(identity.descriptor.node_id, "node-local");
+                    .local_server_identity
+                    .expect("local server identity should parse");
+                assert_eq!(identity.descriptor.server_id, "server-local");
                 assert_eq!(
                     identity.private_key_pkcs8,
                     generated_identity.private_key_pkcs8
@@ -1330,22 +1332,22 @@ mod tests {
     }
 
     #[test]
-    fn rejects_local_node_identity_when_private_key_mismatches_descriptor() {
-        let (descriptor, _) = signed_descriptor("node-local", "descriptor-local");
-        let (_, wrong_private_key_pkcs8) = signed_descriptor("node-other", "descriptor-other");
+    fn rejects_local_server_identity_when_private_key_mismatches_descriptor() {
+        let (descriptor, _) = signed_descriptor("server-local", "descriptor-local");
+        let (_, wrong_private_key_pkcs8) = signed_descriptor("server-other", "descriptor-other");
         let descriptor_json =
-            serde_json::to_string(&descriptor).expect("serialize local node descriptor");
+            serde_json::to_string(&descriptor).expect("serialize local server descriptor");
         let private_key = BASE64.encode(wrong_private_key_pkcs8);
 
         with_api_env(
             &[
-                ("API_NODE_FINGERPRINT", Some("node-local")),
+                ("API_SERVER_ID", Some("server-local")),
                 (
-                    "API_LOCAL_NODE_DESCRIPTOR_JSON",
+                    "API_LOCAL_SERVER_DESCRIPTOR_JSON",
                     Some(descriptor_json.as_str()),
                 ),
                 (
-                    "API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64",
+                    "API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64",
                     Some(private_key.as_str()),
                 ),
                 (
@@ -1355,10 +1357,10 @@ mod tests {
             ],
             || {
                 let err = match ApiConfig::from_env() {
-                    Ok(_) => panic!("mismatched local node key should fail"),
+                    Ok(_) => panic!("mismatched local server key should fail"),
                     Err(err) => err,
                 };
-                assert!(err.contains("API_LOCAL_NODE_PRIVATE_KEY_PKCS8_BASE64"));
+                assert!(err.contains("API_LOCAL_SERVER_PRIVATE_KEY_PKCS8_BASE64"));
             },
         );
     }
@@ -1390,7 +1392,7 @@ mod tests {
                     "API_DATABASE_URL",
                     Some("postgres://hexrelay:pw@db.example.com:5432/hexrelay_prod"),
                 ),
-                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+                ("API_SERVER_ID", Some("prod-server")),
                 ("API_SESSION_COOKIE_SECURE", Some("true")),
                 (
                     "API_SESSION_SIGNING_KEYS",
@@ -1524,7 +1526,7 @@ mod tests {
                 ),
                 ("API_SESSION_SIGNING_KEY_ID", Some("primary")),
                 ("API_SESSION_COOKIE_SECURE", Some("false")),
-                ("API_NODE_FINGERPRINT", Some("prod-fingerprint")),
+                ("API_SERVER_ID", Some("prod-server")),
             ],
             || {
                 let err = match ApiConfig::from_env() {

@@ -4,26 +4,22 @@ use crate::models::{ServerChannelMessage, ServerChannelSummary};
 
 pub struct ServerChannelInsertParams<'a> {
     pub channel_id: &'a str,
-    pub server_id: &'a str,
     pub name: &'a str,
     pub kind: &'a str,
 }
 
 pub struct ServerRoleInsertParams<'a> {
     pub role_id: &'a str,
-    pub server_id: &'a str,
     pub name: &'a str,
     pub rank: i32,
 }
 
 pub struct ServerMembershipRoleInsertParams<'a> {
-    pub server_id: &'a str,
     pub identity_id: &'a str,
     pub role_id: &'a str,
 }
 
 pub struct ServerChannelRolePermissionParams<'a> {
-    pub server_id: &'a str,
     pub channel_id: &'a str,
     pub role_id: &'a str,
     pub can_read: bool,
@@ -44,7 +40,6 @@ pub struct ServerChannelMessageInsertParams<'a> {
 }
 
 pub struct CreateServerChannelMessageParams {
-    pub server_id: String,
     pub channel_id: String,
     pub message_id: String,
     pub author_id: String,
@@ -55,7 +50,6 @@ pub struct CreateServerChannelMessageParams {
 }
 
 pub struct UpdateServerChannelMessageParams {
-    pub server_id: String,
     pub channel_id: String,
     pub message_id: String,
     pub author_id: String,
@@ -131,16 +125,14 @@ pub async fn insert_server_channel(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "
-        INSERT INTO server_channels (channel_id, server_id, name, kind)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO server_channels (channel_id, name, kind)
+        VALUES ($1, $2, $3)
         ON CONFLICT (channel_id) DO UPDATE
-        SET server_id = EXCLUDED.server_id,
-            name = EXCLUDED.name,
+        SET name = EXCLUDED.name,
             kind = EXCLUDED.kind
         ",
     )
     .bind(params.channel_id)
-    .bind(params.server_id)
     .bind(params.name)
     .bind(params.kind)
     .execute(executor)
@@ -153,28 +145,20 @@ pub async fn insert_server_role(
     executor: impl Executor<'_, Database = Postgres>,
     params: ServerRoleInsertParams<'_>,
 ) -> Result<(), sqlx::Error> {
-    let result = sqlx::query(
+    sqlx::query(
         "
-        INSERT INTO server_roles (role_id, server_id, name, rank)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO server_roles (role_id, name, rank)
+        VALUES ($1, $2, $3)
         ON CONFLICT (role_id) DO UPDATE
         SET name = EXCLUDED.name,
             rank = EXCLUDED.rank
-        WHERE server_roles.server_id = EXCLUDED.server_id
         ",
     )
     .bind(params.role_id)
-    .bind(params.server_id)
     .bind(params.name)
     .bind(params.rank)
     .execute(executor)
     .await?;
-
-    if result.rows_affected() == 0 {
-        return Err(sqlx::Error::Protocol(
-            "role_id already belongs to a different server".into(),
-        ));
-    }
 
     Ok(())
 }
@@ -185,12 +169,11 @@ pub async fn assign_server_membership_role(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "
-        INSERT INTO server_membership_roles (server_id, identity_id, role_id)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (server_id, identity_id, role_id) DO NOTHING
+        INSERT INTO server_membership_roles (identity_id, role_id)
+        VALUES ($1, $2)
+        ON CONFLICT (identity_id, role_id) DO NOTHING
         ",
     )
-    .bind(params.server_id)
     .bind(params.identity_id)
     .bind(params.role_id)
     .execute(executor)
@@ -206,22 +189,20 @@ pub async fn upsert_server_channel_role_permissions(
     sqlx::query(
         "
         INSERT INTO server_channel_role_permissions (
-            server_id,
             channel_id,
             role_id,
             can_read,
             can_send,
             can_manage
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (server_id, channel_id, role_id) DO UPDATE
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (channel_id, role_id) DO UPDATE
         SET can_read = EXCLUDED.can_read,
             can_send = EXCLUDED.can_send,
             can_manage = EXCLUDED.can_manage,
             updated_at = NOW()
         ",
     )
-    .bind(params.server_id)
     .bind(params.channel_id)
     .bind(params.role_id)
     .bind(params.can_read)
@@ -308,35 +289,6 @@ pub async fn insert_server_channel_message(
     tx.commit().await
 }
 
-pub async fn list_server_channels(
-    pool: &PgPool,
-    server_id: &str,
-) -> Result<Vec<ServerChannelSummary>, sqlx::Error> {
-    let rows = sqlx::query(
-        "
-        SELECT channel_id, name, kind, last_message_seq
-        FROM server_channels
-        WHERE server_id = $1
-        ORDER BY created_at ASC, channel_id ASC
-        ",
-    )
-    .bind(server_id)
-    .fetch_all(pool)
-    .await?;
-
-    rows.into_iter()
-        .map(map_server_channel_summary_row)
-        .collect()
-}
-
-pub async fn server_channel_exists(
-    pool: &PgPool,
-    server_id: &str,
-    channel_id: &str,
-) -> Result<bool, sqlx::Error> {
-    server_channel_exists_with_executor(pool, server_id, channel_id).await
-}
-
 pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar::<_, bool>(
         "
@@ -352,39 +304,49 @@ pub async fn channel_id_exists(pool: &PgPool, channel_id: &str) -> Result<bool, 
     .await
 }
 
+pub async fn get_server_channel_kind(
+    pool: &PgPool,
+    channel_id: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "
+        SELECT kind
+        FROM server_channels
+        WHERE channel_id = $1
+        ",
+    )
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn list_server_channels_for_identity(
     pool: &PgPool,
-    server_id: &str,
     identity_id: &str,
 ) -> Result<Vec<ServerChannelSummary>, sqlx::Error> {
     let rows = sqlx::query(
         "
         SELECT c.channel_id, c.name, c.kind, c.last_message_seq
         FROM server_channels c
-        WHERE c.server_id = $1
-          AND (
+        WHERE (
               NOT EXISTS (
                   SELECT 1
                   FROM server_channel_role_permissions p
-                  WHERE p.server_id = c.server_id
-                    AND p.channel_id = c.channel_id
+                  WHERE p.channel_id = c.channel_id
               )
               OR EXISTS (
                   SELECT 1
                   FROM server_channel_role_permissions p
                   INNER JOIN server_membership_roles mr
-                    ON mr.server_id = p.server_id
-                   AND mr.role_id = p.role_id
-                  WHERE p.server_id = c.server_id
-                    AND p.channel_id = c.channel_id
-                    AND mr.identity_id = $2
+                    ON mr.role_id = p.role_id
+                  WHERE p.channel_id = c.channel_id
+                    AND mr.identity_id = $1
                     AND p.can_read = TRUE
               )
           )
         ORDER BY c.created_at ASC, c.channel_id ASC
         ",
     )
-    .bind(server_id)
     .bind(identity_id)
     .fetch_all(pool)
     .await?;
@@ -396,12 +358,11 @@ pub async fn list_server_channels_for_identity(
 
 pub async fn list_server_channel_messages(
     pool: &PgPool,
-    server_id: &str,
     channel_id: &str,
     cursor: Option<u64>,
     limit: usize,
 ) -> Result<Option<Vec<ServerChannelMessage>>, sqlx::Error> {
-    if !server_channel_exists(pool, server_id, channel_id).await? {
+    if !channel_id_exists(pool, channel_id).await? {
         return Ok(None);
     }
 
@@ -473,7 +434,6 @@ pub async fn list_server_channel_messages(
 
 pub async fn identity_has_server_channel_permission(
     pool: &PgPool,
-    server_id: &str,
     channel_id: &str,
     identity_id: &str,
     permission: ServerChannelPermission,
@@ -490,13 +450,12 @@ pub async fn identity_has_server_channel_permission(
             SELECT EXISTS (
                 SELECT 1
                 FROM server_channel_role_permissions
-                WHERE server_id = $1
-                  AND channel_id = $2
+                WHERE channel_id = $1
             ) AS configured
         ),
         matching_roles AS (
             SELECT BOOL_OR(
-                CASE $4
+                CASE $3
                     WHEN 'read' THEN p.can_read
                     WHEN 'send' THEN p.can_send
                     WHEN 'manage' THEN p.can_manage
@@ -505,11 +464,9 @@ pub async fn identity_has_server_channel_permission(
             ) AS allowed
             FROM server_channel_role_permissions p
             INNER JOIN server_membership_roles mr
-                ON mr.server_id = p.server_id
-               AND mr.role_id = p.role_id
-            WHERE p.server_id = $1
-              AND p.channel_id = $2
-              AND mr.identity_id = $3
+                ON mr.role_id = p.role_id
+            WHERE p.channel_id = $1
+              AND mr.identity_id = $2
         )
         SELECT CASE
             WHEN NOT permission_state.configured THEN TRUE
@@ -518,7 +475,6 @@ pub async fn identity_has_server_channel_permission(
         FROM permission_state, matching_roles
         ",
     )
-    .bind(server_id)
     .bind(channel_id)
     .bind(identity_id)
     .bind(permission_name)
@@ -528,35 +484,29 @@ pub async fn identity_has_server_channel_permission(
 
 pub async fn list_server_channel_event_recipient_identity_ids(
     pool: &PgPool,
-    server_id: &str,
     channel_id: &str,
 ) -> Result<Vec<String>, sqlx::Error> {
     sqlx::query_scalar::<_, String>(
         "
         SELECT m.identity_id
         FROM server_memberships m
-        WHERE m.server_id = $1
-          AND EXISTS (
+        WHERE EXISTS (
               SELECT 1
               FROM server_channels c
-              WHERE c.server_id = $1
-                AND c.channel_id = $2
+              WHERE c.channel_id = $1
           )
           AND (
               NOT EXISTS (
                   SELECT 1
                   FROM server_channel_role_permissions p
-                  WHERE p.server_id = $1
-                    AND p.channel_id = $2
+                  WHERE p.channel_id = $1
               )
               OR EXISTS (
                   SELECT 1
                   FROM server_channel_role_permissions p
                   INNER JOIN server_membership_roles mr
-                    ON mr.server_id = p.server_id
-                   AND mr.role_id = p.role_id
-                  WHERE p.server_id = $1
-                    AND p.channel_id = $2
+                    ON mr.role_id = p.role_id
+                  WHERE p.channel_id = $1
                     AND mr.identity_id = m.identity_id
                     AND p.can_read = TRUE
               )
@@ -564,7 +514,6 @@ pub async fn list_server_channel_event_recipient_identity_ids(
         ORDER BY m.identity_id ASC
         ",
     )
-    .bind(server_id)
     .bind(channel_id)
     .fetch_all(pool)
     .await
@@ -580,17 +529,16 @@ pub async fn create_server_channel_message(
         "
         UPDATE server_channels
         SET last_message_seq = last_message_seq + 1
-        WHERE server_id = $1 AND channel_id = $2
+        WHERE channel_id = $1
         RETURNING last_message_seq
         ",
     )
-    .bind(&params.server_id)
     .bind(&params.channel_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(CreateServerChannelMessageError::ChannelNotFound)?;
 
-    if !server_membership_exists(&mut tx, &params.server_id, &params.author_id).await? {
+    if !server_membership_exists(&mut tx, &params.author_id).await? {
         return Err(CreateServerChannelMessageError::AuthorNotMember);
     }
 
@@ -617,10 +565,9 @@ pub async fn create_server_channel_message(
             "
             SELECT COUNT(*)
             FROM server_memberships
-            WHERE server_id = $1 AND identity_id = ANY($2)
+            WHERE identity_id = ANY($1)
             ",
         )
-        .bind(&params.server_id)
         .bind(&params.mention_identity_ids)
         .fetch_one(&mut *tx)
         .await?;
@@ -722,18 +669,12 @@ pub async fn update_server_channel_message(
 ) -> Result<UpdateServerChannelMessageResult, UpdateServerChannelMessageError> {
     let mut tx = pool.begin().await?;
 
-    let message = get_message_for_mutation(
-        &mut tx,
-        &params.server_id,
-        &params.channel_id,
-        &params.message_id,
-    )
-    .await?;
+    let message = get_message_for_mutation(&mut tx, &params.channel_id, &params.message_id).await?;
 
     let message = match message {
         Some(message) => message,
         None => {
-            if channel_exists(&mut tx, &params.server_id, &params.channel_id).await? {
+            if channel_exists(&mut tx, &params.channel_id).await? {
                 return Err(UpdateServerChannelMessageError::MessageNotFound);
             }
             return Err(UpdateServerChannelMessageError::ChannelNotFound);
@@ -744,7 +685,7 @@ pub async fn update_server_channel_message(
         return Err(UpdateServerChannelMessageError::EditForbidden);
     }
 
-    if !server_membership_exists(&mut tx, &params.server_id, &params.author_id).await? {
+    if !server_membership_exists(&mut tx, &params.author_id).await? {
         return Err(UpdateServerChannelMessageError::AuthorNotMember);
     }
 
@@ -757,10 +698,9 @@ pub async fn update_server_channel_message(
             "
             SELECT COUNT(*)
             FROM server_memberships
-            WHERE server_id = $1 AND identity_id = ANY($2)
+            WHERE identity_id = ANY($1)
             ",
         )
-        .bind(&params.server_id)
         .bind(&params.mention_identity_ids)
         .fetch_one(&mut *tx)
         .await?;
@@ -823,7 +763,6 @@ pub async fn update_server_channel_message(
 
 pub async fn soft_delete_server_channel_message(
     pool: &PgPool,
-    server_id: &str,
     channel_id: &str,
     message_id: &str,
     author_id: &str,
@@ -831,12 +770,12 @@ pub async fn soft_delete_server_channel_message(
 ) -> Result<SoftDeleteServerChannelMessageResult, SoftDeleteServerChannelMessageError> {
     let mut tx = pool.begin().await?;
 
-    let message = get_message_for_mutation(&mut tx, server_id, channel_id, message_id).await?;
+    let message = get_message_for_mutation(&mut tx, channel_id, message_id).await?;
 
     let message = match message {
         Some(message) => message,
         None => {
-            if channel_exists(&mut tx, server_id, channel_id).await? {
+            if channel_exists(&mut tx, channel_id).await? {
                 return Err(SoftDeleteServerChannelMessageError::MessageNotFound);
             }
             return Err(SoftDeleteServerChannelMessageError::ChannelNotFound);
@@ -847,7 +786,7 @@ pub async fn soft_delete_server_channel_message(
         return Err(SoftDeleteServerChannelMessageError::DeleteForbidden);
     }
 
-    if !server_membership_exists(&mut tx, server_id, author_id).await? {
+    if !server_membership_exists(&mut tx, author_id).await? {
         return Err(SoftDeleteServerChannelMessageError::AuthorNotMember);
     }
 
@@ -893,15 +832,13 @@ struct MutationMessageState {
 
 async fn channel_exists(
     tx: &mut Transaction<'_, Postgres>,
-    server_id: &str,
     channel_id: &str,
 ) -> Result<bool, sqlx::Error> {
-    server_channel_exists_with_executor(&mut **tx, server_id, channel_id).await
+    server_channel_exists_with_executor(&mut **tx, channel_id).await
 }
 
 async fn server_membership_exists(
     tx: &mut Transaction<'_, Postgres>,
-    server_id: &str,
     identity_id: &str,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar::<_, bool>(
@@ -909,11 +846,10 @@ async fn server_membership_exists(
         SELECT EXISTS (
             SELECT 1
             FROM server_memberships
-            WHERE server_id = $1 AND identity_id = $2
+            WHERE identity_id = $1
         )
         ",
     )
-    .bind(server_id)
     .bind(identity_id)
     .fetch_one(&mut **tx)
     .await
@@ -921,7 +857,6 @@ async fn server_membership_exists(
 
 async fn server_channel_exists_with_executor<'e, E>(
     executor: E,
-    server_id: &str,
     channel_id: &str,
 ) -> Result<bool, sqlx::Error>
 where
@@ -932,11 +867,10 @@ where
         SELECT EXISTS (
             SELECT 1
             FROM server_channels
-            WHERE server_id = $1 AND channel_id = $2
+            WHERE channel_id = $1
         )
         ",
     )
-    .bind(server_id)
     .bind(channel_id)
     .fetch_one(executor)
     .await
@@ -944,7 +878,6 @@ where
 
 async fn get_message_for_mutation(
     tx: &mut Transaction<'_, Postgres>,
-    server_id: &str,
     channel_id: &str,
     message_id: &str,
 ) -> Result<Option<MutationMessageState>, sqlx::Error> {
@@ -954,7 +887,7 @@ async fn get_message_for_mutation(
             SELECT m.message_id, m.author_id, m.content, m.deleted_at
             FROM server_channel_messages m
             INNER JOIN server_channels c ON c.channel_id = m.channel_id
-            WHERE c.server_id = $1 AND m.channel_id = $2 AND m.message_id = $3
+            WHERE m.channel_id = $1 AND m.message_id = $2
             FOR UPDATE OF m
         )
         SELECT
@@ -974,7 +907,6 @@ async fn get_message_for_mutation(
         GROUP BY lm.author_id, lm.content, lm.deleted_at
         "#,
     )
-    .bind(server_id)
     .bind(channel_id)
     .bind(message_id)
     .fetch_optional(&mut **tx)

@@ -4,5 +4,5 @@ $env:REALTIME_PRESENCE_REDIS_URL='redis://127.0.0.1:6379/0'; $env:RUST_TEST_THRE
 $env:REALTIME_PRESENCE_REDIS_URL='redis://127.0.0.1:6379/0'; $env:RUST_TEST_THREADS='1'; cargo test -p realtime-rs --all-features websocket_channel_message
 $env:REALTIME_PRESENCE_REDIS_URL='redis://127.0.0.1:6379/0'; $env:RUST_TEST_THREADS='1'; cargo test -p realtime-rs --all-features websocket_channel_events_hydrate_late_device_without_prior_active_connection
 $env:API_DATABASE_URL='postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay'; $env:API_PRESENCE_REDIS_URL='redis://127.0.0.1:6379/0'; $env:API_CHANNEL_DISPATCH_INTERNAL_TOKEN='ci-channel-dispatch-token-12345'; $env:API_PRESENCE_WATCHER_INTERNAL_TOKEN='ci-presence-watcher-token-12345'; $env:API_SESSION_SIGNING_KEYS='primary:ci-signing-key-hexrelay-12345'; $env:API_SESSION_SIGNING_KEY_ID='primary'; $env:REALTIME_CHANNEL_DISPATCH_INTERNAL_TOKEN='ci-channel-dispatch-token-12345'; $env:REALTIME_PRESENCE_WATCHER_INTERNAL_TOKEN='ci-presence-watcher-token-12345'; $env:REALTIME_PRESENCE_REDIS_URL='redis://127.0.0.1:6379/0'; $env:RUST_TEST_THREADS='1'; cargo test -p api-rs --all-features api_server_channel_mutations_fan_out_over_realtime_websocket
-bash scripts/validate-evidence-provenance.sh origin/master HEAD
-bash scripts/validate-docs-index-freshness.sh origin/master HEAD
+node scripts/validators/evidence-provenance.mjs origin/master HEAD
+node scripts/validators/docs-index-freshness.mjs origin/master HEAD

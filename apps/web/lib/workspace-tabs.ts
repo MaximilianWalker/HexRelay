@@ -139,7 +139,7 @@ function dedupeTabs(tabs: WorkspaceTab[]): WorkspaceTab[] {
       return first.pinned ? -1 : 1;
     }
 
-    return first.updatedAt.localeCompare(second.updatedAt);
+    return 0;
   });
 }
 
@@ -294,6 +294,14 @@ export function closeWorkspaceTab(tabId: string): void {
   notifyTabsChange();
 }
 
+export function closeWorkspaceTabsForServer(serverId: string): void {
+  closeWorkspaceTab(`server:${serverId}`);
+}
+
+export function closeWorkspaceTabsForContact(contactId: string): void {
+  closeWorkspaceTab(`dm:${contactId}`);
+}
+
 export function toggleWorkspaceTabPinned(tabId: string): void {
   const next = readWorkspaceTabsSnapshot().map((tab) =>
     tab.id === tabId ? { ...tab, pinned: !tab.pinned } : tab,
@@ -304,6 +312,51 @@ export function toggleWorkspaceTabPinned(tabId: string): void {
   if (toggled) {
     upsertAllTab(toggled);
   }
+  notifyTabsChange();
+}
+
+export function moveWorkspaceTab(tabId: string, direction: -1 | 1): void {
+  const tabs = readWorkspaceTabsSnapshot();
+  const index = tabs.findIndex((tab) => tab.id === tabId);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= tabs.length) {
+    return;
+  }
+  if (tabs[index]?.pinned !== tabs[nextIndex]?.pinned) {
+    return;
+  }
+
+  const next = [...tabs];
+  const [tab] = next.splice(index, 1);
+  if (!tab) {
+    return;
+  }
+  next.splice(nextIndex, 0, tab);
+  persistTabs(next);
+  notifyTabsChange();
+}
+
+export function reorderWorkspaceTab(tabId: string, beforeTabId: string): void {
+  if (tabId === beforeTabId) {
+    return;
+  }
+
+  const tabs = readWorkspaceTabsSnapshot();
+  const tab = tabs.find((item) => item.id === tabId);
+  const beforeTab = tabs.find((item) => item.id === beforeTabId);
+  if (!tab || !beforeTab || tab.pinned !== beforeTab.pinned) {
+    return;
+  }
+
+  const withoutTab = tabs.filter((item) => item.id !== tabId);
+  const beforeIndex = withoutTab.findIndex((item) => item.id === beforeTabId);
+  if (beforeIndex < 0) {
+    return;
+  }
+
+  const next = [...withoutTab];
+  next.splice(beforeIndex, 0, tab);
+  persistTabs(next);
   notifyTabsChange();
 }
 

@@ -16,7 +16,10 @@ use crate::{
             block_user, list_blocked_users, list_muted_users, mute_user, unblock_user, unmute_user,
         },
         dev_testing::{activate_testing_session, list_testing_profiles},
-        directory::{get_server, list_contacts, list_servers},
+        directory::{
+            block_remove_contact, create_server, get_server, join_server, leave_server,
+            list_contacts, list_servers, update_contact_preferences, update_server_preferences,
+        },
         discovery::list_discovery_users,
         dm::{
             ack_dm_envelope_internal, forward_dm_envelope_internal, get_dm_policy,
@@ -29,9 +32,9 @@ use crate::{
             decline_friend_request, get_friend_request_bootstrap, list_friend_requests,
         },
         health::health,
-        invites::{create_contact_invite, create_invite, redeem_contact_invite, redeem_invite},
-        node::{get_node_capabilities, get_node_connection},
+        invites::{create_invite, redeem_invite},
         presence::list_presence_watchers,
+        server::{get_server_capabilities, get_server_connection},
         server_channels::{
             create_server_channel_message, edit_server_channel_message,
             list_server_channel_messages, list_server_channels, soft_delete_server_channel_message,
@@ -58,8 +61,8 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
-        .route("/node/connection", get(get_node_connection))
-        .route("/node/capabilities", get(get_node_capabilities))
+        .route("/server/connection", get(get_server_connection))
+        .route("/server/capabilities", get(get_server_capabilities))
         .route("/identity/keys/register", post(register_identity_key))
         .route("/auth/challenge", post(issue_auth_challenge))
         .route("/auth/verify", post(verify_auth_challenge))
@@ -69,10 +72,14 @@ pub fn build_app(state: AppState) -> Router {
         .route("/dev/testing/sessions", post(activate_testing_session))
         .route("/invites", post(create_invite))
         .route("/invites/redeem", post(redeem_invite))
-        .route("/contact-invites", post(create_contact_invite))
-        .route("/contact-invites/redeem", post(redeem_contact_invite))
-        .route("/servers", get(list_servers))
+        .route("/servers", get(list_servers).post(create_server))
+        .route("/servers/join", post(join_server))
         .route("/servers/:server_id", get(get_server))
+        .route(
+            "/servers/:server_id/preferences",
+            patch(update_server_preferences),
+        )
+        .route("/servers/:server_id/leave", post(leave_server))
         .route("/servers/:server_id/channels", get(list_server_channels))
         .route(
             "/servers/:server_id/channels/:channel_id/messages",
@@ -83,6 +90,14 @@ pub fn build_app(state: AppState) -> Router {
             patch(edit_server_channel_message).delete(soft_delete_server_channel_message),
         )
         .route("/contacts", get(list_contacts))
+        .route(
+            "/contacts/:identity_id/preferences",
+            patch(update_contact_preferences),
+        )
+        .route(
+            "/contacts/:identity_id/block-remove",
+            post(block_remove_contact),
+        )
         .route(
             "/internal/presence/watchers/:identity_id",
             get(list_presence_watchers),

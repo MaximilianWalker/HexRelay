@@ -11,7 +11,7 @@ use sqlx::PgPool;
 use crate::{
     config::{ApiDmRetentionConfig, ApiRateLimitConfig},
     domain::{
-        node_identity::LocalNodeIdentity, server_channels::realtime::ServerChannelDispatchQueue,
+        server_channels::realtime::ServerChannelDispatchQueue, server_identity::LocalServerIdentity,
     },
     models::{
         AuthChallengeRecord, DmFanoutDeliveryRecord, DmPolicy, DmProfileDeviceRecord,
@@ -44,11 +44,11 @@ pub struct AppState {
     pub identity_keys: Arc<RwLock<HashMap<String, RegisteredIdentityKey>>>,
     pub invites: Arc<RwLock<HashMap<String, InviteRecord>>>,
     pub muted_users: Arc<RwLock<HashMap<String, HashMap<String, i64>>>>,
-    pub node_admin_identity_ids: Arc<HashSet<String>>,
-    pub node_fingerprint: String,
-    pub node_forwarding_nonces: Arc<RwLock<HashMap<String, i64>>>,
-    pub node_owner_identity_ids: Arc<HashSet<String>>,
-    pub local_node_identity: Option<LocalNodeIdentity>,
+    pub server_admin_identity_ids: Arc<HashSet<String>>,
+    pub server_id: String,
+    pub server_forwarding_nonces: Arc<RwLock<HashMap<String, i64>>>,
+    pub server_owner_identity_ids: Arc<HashSet<String>>,
+    pub local_server_identity: Option<LocalServerIdentity>,
     pub rate_limiter: RateLimiter,
     pub rate_limits: ApiRateLimitConfig,
     pub dm_retention: ApiDmRetentionConfig,
@@ -64,7 +64,7 @@ pub struct AppState {
 impl AppState {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        node_fingerprint: String,
+        server_id: String,
         allowed_origins: Vec<String>,
         active_signing_key_id: String,
         discovery_denylist: Vec<String>,
@@ -108,11 +108,11 @@ impl AppState {
             identity_keys: Arc::default(),
             invites: Arc::default(),
             muted_users: Arc::default(),
-            node_admin_identity_ids: Arc::default(),
-            node_fingerprint,
-            node_forwarding_nonces: Arc::default(),
-            node_owner_identity_ids: Arc::default(),
-            local_node_identity: None,
+            server_admin_identity_ids: Arc::default(),
+            server_id,
+            server_forwarding_nonces: Arc::default(),
+            server_owner_identity_ids: Arc::default(),
+            local_server_identity: None,
             rate_limiter: RateLimiter::default(),
             rate_limits,
             dm_retention: ApiDmRetentionConfig::default(),
@@ -146,18 +146,18 @@ impl AppState {
         self
     }
 
-    pub fn with_local_node_identity(mut self, identity: Option<LocalNodeIdentity>) -> Self {
-        self.local_node_identity = identity;
+    pub fn with_local_server_identity(mut self, identity: Option<LocalServerIdentity>) -> Self {
+        self.local_server_identity = identity;
         self
     }
 
-    pub fn with_node_owner_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
-        self.node_owner_identity_ids = Arc::new(identity_ids.into_iter().collect());
+    pub fn with_server_owner_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.server_owner_identity_ids = Arc::new(identity_ids.into_iter().collect());
         self
     }
 
-    pub fn with_node_admin_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
-        self.node_admin_identity_ids = Arc::new(identity_ids.into_iter().collect());
+    pub fn with_server_admin_identity_ids(mut self, identity_ids: Vec<String>) -> Self {
+        self.server_admin_identity_ids = Arc::new(identity_ids.into_iter().collect());
         self
     }
 
@@ -170,7 +170,7 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new(
-            "hexrelay-local-fingerprint".to_string(),
+            "hexrelay-local-server".to_string(),
             vec!["http://localhost:3002".to_string()],
             "primary".to_string(),
             Vec::new(),

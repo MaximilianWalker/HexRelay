@@ -6,20 +6,21 @@
 - Owner: Platform and QA maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-20
 - Source of truth: `docs/operations/local-runtime-testing-quickstart.md`
 
 ## Quick Context
 
 - Purpose: provide the operational quickstart and troubleshooting guide for local fixture, runtime-profile, Docker runtime, and network-simulation workflows.
 - Primary edit location: update this file when local runtime commands, troubleshooting steps, or adoption guidance changes.
-- Latest meaningful change: 2026-05-07 added the PH-07 adoption guide for the PH-01 through PH-06 local runtime testing workflow.
+- Latest meaningful change: 2026-05-20 moved shared local fixture and profile JSON under top-level `fixtures/`.
 
 ## Purpose
 
 - Use this guide when you need to seed local fixture data, launch host-process runtime profiles, run Docker runtime/network smoke tests, or collect local runtime evidence.
 - Keep fixture/profile design authority in `docs/planning/local-runtime-testing-plan.md`.
 - Keep environment variable inventory in `docs/reference/runtime-config-reference.md`.
+- Shared local fixture/profile JSON lives under top-level `fixtures/`; test-private fixtures stay under `tests/`.
 
 ## Prerequisites
 
@@ -45,13 +46,13 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml up -d postgres 
 3. Confirm local env files exist.
 
 ```bash
-npm run start -- --runtime-profile single
+npm run start
 ```
 
 4. Stop the first-run stack if you only needed env bootstrap.
 
 ```bash
-npm run stop -- --runtime-profile single
+npm run stop
 ```
 
 5. Set local signing values in `services/api-rs/.env` if they are missing.
@@ -75,7 +76,13 @@ API_ENABLE_DEV_TESTING=true
 npm run seed -- --profile dm-basic --json
 ```
 
-- Reset and reseed the local dev database when you need a known baseline.
+- Reset the local dev database without fixture data.
+
+```bash
+npm run reset-dev-db -- --yes
+```
+
+- Reset and reseed the local dev database when you need a known fixture baseline.
 
 ```bash
 npm run reset-dev-db -- --profile dm-basic --yes
@@ -86,13 +93,15 @@ npm run reset-dev-db -- --profile dm-basic --yes
 
 ## Host-Process Runtime Profiles
 
-- Start one local app instance.
+- Start one clean local app instance. This is the default startup path and does not seed data or activate fixture personas.
 
 ```bash
-npm run start -- --runtime-profile single --seed-profile dm-basic
+npm run start
 ```
 
-- Start Alice/Bob side-by-side runtime instances.
+- The shared lifecycle implementation is `scripts/runtime/local.mjs`; `npm run start`, `npm run status`, and `npm run stop` are the preferred cross-platform entrypoints.
+
+- Start Alice/Bob side-by-side runtime instances only when explicitly testing fixture scenarios.
 
 ```bash
 npm run start -- --runtime-profile dual --seed-profile dm-basic
@@ -110,20 +119,12 @@ npm run status
 npm run stop -- --runtime-profile dual
 ```
 
-- Windows direct wrappers are available when you need PowerShell explicitly.
+- The npm commands below are canonical on Windows and Linux.
 
-```powershell
-.\scripts\run.ps1 -RuntimeProfile dual -SeedProfile dm-basic
-.\scripts\status.ps1
-.\scripts\stop.ps1 -RuntimeProfile dual
-```
-
-- Unix direct wrappers are available when you need Bash explicitly.
-
-```bash
-./scripts/run.sh --runtime-profile dual --seed-profile dm-basic
-./scripts/status.sh
-./scripts/stop.sh --runtime-profile dual
+```text
+npm run start -- --runtime-profile dual --seed-profile dm-basic
+npm run status
+npm run stop -- --runtime-profile dual
 ```
 
 ## Testing Profile UI
@@ -158,14 +159,14 @@ npm run network -- --profile partition-alice-bob
 - Apply a Toxiproxy-backed profile against a runtime target.
 
 ```bash
-npm run network -- --profile high-latency --target alice-node
-npm run network -- --profile packet-loss --target alice-node
+npm run network -- --profile high-latency --target alice-server
+npm run network -- --profile packet-loss --target alice-server
 ```
 
 - Apply a realtime app-fault profile against a runtime target.
 
 ```bash
-npm run network -- --profile flaky-mobile --target alice-node
+npm run network -- --profile flaky-mobile --target alice-server
 ```
 
 - Reset network simulation state after every manual profile run.
@@ -210,13 +211,13 @@ npm run test:network
 - Run runtime-only smoke with evidence output.
 
 ```bash
-node scripts/runtime-docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
+node scripts/runtime/docker.mjs smoke --scope runtime --evidence-dir .local-run/evidence/runtime-smoke
 ```
 
 - Run full runtime/network smoke with evidence output.
 
 ```bash
-node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evidence/local-runtime-smoke
+node scripts/runtime/docker.mjs smoke --scope all --evidence-dir .local-run/evidence/local-runtime-smoke
 ```
 
 ## Evidence Artifacts
@@ -239,10 +240,11 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 | `npm run stop` refuses to stop | Docker runtime state is active | Run `npm run runtime:docker -- down` |
 | Docker runtime smoke failed during cleanup | Containers or network state remained active | Run `npm run runtime:docker -- down --force`, then `npm run runtime:docker -- status --json` |
 | Network profile remains applied | `.local-run/network-state.json` still tracks a profile | Run `npm run network -- --reset`; use `--force` only after failed Docker cleanup |
-| Host-process ports are busy | Another local runtime or app is already running | Run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` |
+| Host-process ports are busy | Another local runtime or app is already running | The shared runner picks free fallback ports; run `npm run status`, then stop tracked profiles with `npm run stop -- --runtime-profile <profile>` when the process is managed by this repo |
+| Next reports another dev server | A stale or unmanaged Next process is using the same `.next` or stable per-instance `.next-*` directory | Stop the unmanaged process separately before rerunning the same runtime instance |
 | Testing profiles are hidden or inert | `API_ENABLE_DEV_TESTING` is unset or false | Set `API_ENABLE_DEV_TESTING=true` only in local development and restart API/web |
 | Seed/reset refuses the database | Env points at a non-local or production-looking DB | Fix `API_DATABASE_URL` and `API_ENVIRONMENT=development`; do not bypass this for shared data |
-| Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-node` or `bob-node` |
+| Docker network profile fails on host-process profile | Docker profiles need Docker container targets | Start `npm run runtime:docker -- up --seed-profile dm-basic` and target `alice-server` or `bob-server` |
 | Runtime status is stale | `.local-run/` references old processes | Run the matching stop/down command first; delete stale `.local-run/` files only after confirming no owned process/container is running |
 
 ## Safety Rules
@@ -250,7 +252,7 @@ node scripts/runtime-docker.mjs smoke --scope all --evidence-dir .local-run/evid
 - Keep fixture/session endpoints dev-only.
 - Keep local runtime test ports bound to loopback.
 - Keep seed/reset restricted to local development databases.
-- Do not use network simulation to add node-bypassing DM transport or plaintext relay behavior.
+- Do not use network simulation to add server-bypassing DM transport or plaintext relay behavior.
 - Reset network simulation state after manual failure testing.
 
 ## Related Documents

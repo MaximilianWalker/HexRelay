@@ -1,10 +1,10 @@
-.PHONY: setup run test
+.PHONY: setup start test
 
 setup:
-	bash scripts/setup.sh
+	npm run setup
 
-run:
-	bash scripts/run.sh
+start:
+	npm run start
 
 test:
-	bash scripts/test.sh
+	npm run test

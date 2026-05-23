@@ -8,14 +8,14 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-07
+- last_updated: 2026-05-20
 - Source of truth: `README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-07 added the local runtime testing quickstart and evidence adoption path.
+- Latest meaningful change: 2026-05-20 moved shared local fixture and profile JSON under top-level `fixtures/`.
 
 ## Project Stage
 
@@ -54,6 +54,7 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
   - `docs/planning/iterations/README.md`
 - Baseline runnable components:
   - Monorepo layout in `apps/web`, `services/api-rs`, `services/realtime-rs`, `infra`, and `scripts`
+  - Shared local fixture/profile data in `fixtures`
   - One-command bootstrap via `npm run setup` (auto-detects Windows vs Unix)
   - Local infra via `docker compose --env-file infra/.env -f infra/docker-compose.yml up -d`
 - One-command local startup via `npm run start -- --runtime-profile single` after setting `API_SESSION_SIGNING_KEYS` + `API_SESSION_SIGNING_KEY_ID` in `services/api-rs/.env` (canonical env contract: `docs/reference/runtime-config-reference.md`)
@@ -65,10 +66,10 @@ Open-source, self-hostable communication platform with Discord-like UX and stron
 - Operational quickstart and troubleshooting for local runtime testing: `docs/operations/local-runtime-testing-quickstart.md`
 - Start multiple local instances with `npm run start -- --runtime-profile dual --seed-profile dm-basic`; inspect with `npm run status`; stop tracked processes with `npm run stop -- --runtime-profile dual`.
 - Validate network simulation profile definitions with `npm run validate:network-profiles`.
-- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-node` or `bob-node`.
-- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-node`/`bob-node`; stop it with `npm run runtime:docker -- down`.
+- Reset network simulation state with `npm run network -- --reset`; Docker-backed, Toxiproxy, and app-fault profiles can target runtime instances such as `alice-server` or `bob-server`.
+- Start the Docker runtime test stack with `npm run runtime:docker -- up --seed-profile dm-basic`; apply network profiles against `alice-server`/`bob-server`; stop it with `npm run runtime:docker -- down`.
 - Run the heavier Docker runtime/network smoke with `npm run test:runtime` to validate offline, partition, Toxiproxy, app-fault, and reset paths.
-- Cross-platform direct wrapper commands are documented in `docs/operations/local-runtime-testing-quickstart.md` for both PowerShell and Bash paths.
+- Cross-platform runtime commands are documented in `docs/operations/local-runtime-testing-quickstart.md`.
 
 ### Pre-Dev Gate (Deterministic)
 

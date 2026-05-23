@@ -205,4 +205,32 @@ describe("workspace tabs", () => {
     toggleWorkspaceTabPinned("server:local");
     expect(readWorkspaceTabsSnapshot()).toMatchObject([{ id: "server:local", pinned: true }]);
   });
+
+  it("supports manual reorder and server/contact tab cleanup", async () => {
+    installWindow(new MemoryStorage(), new MemoryStorage());
+    const {
+      closeWorkspaceTabsForContact,
+      closeWorkspaceTabsForServer,
+      moveWorkspaceTab,
+      openWorkspaceTab,
+      readWorkspaceTabsSnapshot,
+      reorderWorkspaceTab,
+      setTabRestoreMode,
+    } = await loadModules();
+
+    setTabRestoreMode("all");
+    openWorkspaceTab(makeTab("server:a"));
+    openWorkspaceTab(makeTab("server:b"));
+    openWorkspaceTab(makeTab("dm:c"));
+
+    moveWorkspaceTab("server:b", -1);
+    expect(readWorkspaceTabsSnapshot().map((tab) => tab.id)).toEqual(["server:b", "server:a", "dm:c"]);
+
+    reorderWorkspaceTab("dm:c", "server:b");
+    expect(readWorkspaceTabsSnapshot().map((tab) => tab.id)).toEqual(["dm:c", "server:b", "server:a"]);
+
+    closeWorkspaceTabsForServer("b");
+    closeWorkspaceTabsForContact("c");
+    expect(readWorkspaceTabsSnapshot().map((tab) => tab.id)).toEqual(["server:a"]);
+  });
 });

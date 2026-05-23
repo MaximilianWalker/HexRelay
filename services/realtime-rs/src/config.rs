@@ -5,7 +5,7 @@ use std::{
 };
 
 use communication_core::{
-    DescriptorValidationContext, Ed25519DescriptorVerifier, NodeDescriptor, StaticPeerRegistry,
+    DescriptorValidationContext, Ed25519DescriptorVerifier, ServerDescriptor, StaticPeerRegistry,
 };
 use reqwest::Url;
 
@@ -321,7 +321,7 @@ fn parse_static_peer_registry(
         return Ok(StaticPeerRegistry::default());
     }
 
-    let descriptors = serde_json::from_str::<Vec<NodeDescriptor>>(&raw)
+    let descriptors = serde_json::from_str::<Vec<ServerDescriptor>>(&raw)
         .map_err(|error| format!("Invalid {env_key}. Expected JSON array: {error}"))?;
     let context = DescriptorValidationContext {
         now_epoch_seconds: current_epoch_seconds()?,
@@ -359,8 +359,8 @@ mod tests {
     use super::{current_epoch_seconds, is_loopback_host, RealtimeConfig};
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
-        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
-        RelayPolicy, StoragePolicy,
+        NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor, ServerSignature,
+        ServerSignatureAlgorithm, StoragePolicy,
     };
     use ring::rand::SystemRandom;
     use ring::signature::Ed25519KeyPair;
@@ -449,9 +449,9 @@ mod tests {
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
         let now = current_epoch_seconds().expect("read current epoch");
-        let mut descriptor = NodeDescriptor {
-            node_id: "node-a".to_string(),
-            node_public_key: public_key,
+        let mut descriptor = ServerDescriptor {
+            server_id: "server-a".to_string(),
+            server_public_key: public_key,
             descriptor_id: "descriptor-a".to_string(),
             issued_at_epoch_seconds: now - 1,
             expires_at_epoch_seconds: now + 300,
@@ -461,13 +461,13 @@ mod tests {
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec!["https://node-a.example".to_string()],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            addresses: vec!["https://server-a.example".to_string()],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
             revocation_pointer: None,
-            signature: NodeSignature {
-                algorithm: NodeSignatureAlgorithm::Ed25519,
+            signature: ServerSignature {
+                algorithm: ServerSignatureAlgorithm::Ed25519,
                 value: String::new(),
             },
         };
@@ -525,8 +525,8 @@ mod tests {
                 let config = RealtimeConfig::from_env().expect("config should parse");
                 assert_eq!(config.static_peer_registry.descriptors().len(), 1);
                 assert_eq!(
-                    config.static_peer_registry.descriptors()[0].node_id,
-                    "node-a"
+                    config.static_peer_registry.descriptors()[0].server_id,
+                    "server-a"
                 );
             },
         );
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn rejects_invalid_static_peer_descriptor_signature() {
         let mut descriptors =
-            serde_json::from_str::<Vec<NodeDescriptor>>(&signed_static_peer_json())
+            serde_json::from_str::<Vec<ServerDescriptor>>(&signed_static_peer_json())
                 .expect("parse generated peer json");
         descriptors[0].signature.value = "00".repeat(64);
         let peer_json = serde_json::to_string(&descriptors).expect("serialize tampered peer json");

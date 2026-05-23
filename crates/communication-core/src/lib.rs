@@ -9,7 +9,7 @@ pub use domain::{
     canonical_descriptor_signing_payload, canonical_peer_invite_signing_payload,
     ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, sign_peer_invite_ed25519_pkcs8,
     verify_descriptor_ed25519, verify_peer_invite_ed25519, Ed25519DescriptorVerifier,
-    NodeDescriptorSignatureError, PeerInviteSignatureError,
+    PeerInviteSignatureError, ServerDescriptorSignatureError,
 };
 pub use domain::{
     ed25519_public_key_base64, sign_dm_session_bootstrap_ed25519_pkcs8,
@@ -32,14 +32,15 @@ pub use domain::{
 };
 pub use domain::{
     DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
-    DmForwardingPolicy, NetworkMode, NodeDescriptor, NodeDescriptorValidationError, NodeRateLimit,
-    NodeSignature, NodeSignatureAlgorithm, PeerInvite, PeerInviteEnvelope,
-    PeerInviteValidationContext, PeerInviteValidationError, PeeringPolicy, RateLimitScope,
-    RelayPolicy, StoragePolicy,
+    DmForwardingPolicy, NetworkMode, PeerInvite, PeerInviteEnvelope, PeerInviteValidationContext,
+    PeerInviteValidationError, PeeringPolicy, RateLimitScope, RelayPolicy, ServerDescriptor,
+    ServerDescriptorValidationError, ServerRateLimit, ServerSignature, ServerSignatureAlgorithm,
+    StoragePolicy,
 };
 pub use transport::{
-    send_via_node_dispatch, send_via_node_dispatch_with_provenance, DispatchingNodeClientTransport,
-    NodeClientTransport, NodeDispatch, TransportError, UnsupportedNodeClientTransport,
+    send_via_server_dispatch, send_via_server_dispatch_with_provenance,
+    DispatchingServerClientTransport, ServerClientTransport, ServerDispatch, TransportError,
+    UnsupportedServerClientTransport,
 };
 
 #[cfg(test)]

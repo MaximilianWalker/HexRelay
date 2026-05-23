@@ -2,16 +2,16 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 
 use super::{
-    DescriptorSignatureVerifier, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, NodeDescriptor,
-    NodeRateLimit, NodeSignatureAlgorithm, PeerInvite, PeeringPolicy, RateLimitScope, RelayPolicy,
-    StoragePolicy,
+    DescriptorSignatureVerifier, DiscoveryPolicy, DmForwardingPolicy, NetworkMode, PeerInvite,
+    PeeringPolicy, RateLimitScope, RelayPolicy, ServerDescriptor, ServerRateLimit,
+    ServerSignatureAlgorithm, StoragePolicy,
 };
 
-const DESCRIPTOR_SIGNING_DOMAIN: &str = "hexrelay.node_descriptor";
+const DESCRIPTOR_SIGNING_DOMAIN: &str = "hexrelay.server_descriptor";
 const PEER_INVITE_SIGNING_DOMAIN: &str = "hexrelay.peer_invite";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeDescriptorSignatureError {
+pub enum ServerDescriptorSignatureError {
     UnsupportedAlgorithm,
     InvalidPublicKeyEncoding,
     InvalidSignatureEncoding,
@@ -32,21 +32,21 @@ pub enum PeerInviteSignatureError {
 pub struct Ed25519DescriptorVerifier;
 
 impl DescriptorSignatureVerifier for Ed25519DescriptorVerifier {
-    fn verify(&self, descriptor: &NodeDescriptor) -> bool {
+    fn verify(&self, descriptor: &ServerDescriptor) -> bool {
         verify_descriptor_ed25519(descriptor).is_ok()
     }
 }
 
 pub fn sign_descriptor_ed25519_pkcs8(
-    descriptor: &NodeDescriptor,
+    descriptor: &ServerDescriptor,
     private_key_pkcs8: &[u8],
-) -> Result<String, NodeDescriptorSignatureError> {
-    if descriptor.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
-        return Err(NodeDescriptorSignatureError::UnsupportedAlgorithm);
+) -> Result<String, ServerDescriptorSignatureError> {
+    if descriptor.signature.algorithm != ServerSignatureAlgorithm::Ed25519 {
+        return Err(ServerDescriptorSignatureError::UnsupportedAlgorithm);
     }
 
     let key_pair = Ed25519KeyPair::from_pkcs8(private_key_pkcs8)
-        .map_err(|_| NodeDescriptorSignatureError::InvalidPrivateKey)?;
+        .map_err(|_| ServerDescriptorSignatureError::InvalidPrivateKey)?;
 
     let payload = canonical_descriptor_signing_payload(descriptor);
     let signature = key_pair.sign(&payload);
@@ -56,9 +56,9 @@ pub fn sign_descriptor_ed25519_pkcs8(
 
 pub fn ed25519_public_key_hex(
     private_key_pkcs8: &[u8],
-) -> Result<String, NodeDescriptorSignatureError> {
+) -> Result<String, ServerDescriptorSignatureError> {
     let key_pair = Ed25519KeyPair::from_pkcs8(private_key_pkcs8)
-        .map_err(|_| NodeDescriptorSignatureError::InvalidPrivateKey)?;
+        .map_err(|_| ServerDescriptorSignatureError::InvalidPrivateKey)?;
 
     Ok(hex::encode(key_pair.public_key().as_ref()))
 }
@@ -67,7 +67,7 @@ pub fn sign_peer_invite_ed25519_pkcs8(
     invite: &PeerInvite,
     private_key_pkcs8: &[u8],
 ) -> Result<String, PeerInviteSignatureError> {
-    if invite.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
+    if invite.signature.algorithm != ServerSignatureAlgorithm::Ed25519 {
         return Err(PeerInviteSignatureError::UnsupportedAlgorithm);
     }
 
@@ -81,32 +81,32 @@ pub fn sign_peer_invite_ed25519_pkcs8(
 }
 
 pub fn verify_descriptor_ed25519(
-    descriptor: &NodeDescriptor,
-) -> Result<(), NodeDescriptorSignatureError> {
-    if descriptor.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
-        return Err(NodeDescriptorSignatureError::UnsupportedAlgorithm);
+    descriptor: &ServerDescriptor,
+) -> Result<(), ServerDescriptorSignatureError> {
+    if descriptor.signature.algorithm != ServerSignatureAlgorithm::Ed25519 {
+        return Err(ServerDescriptorSignatureError::UnsupportedAlgorithm);
     }
 
-    let public_key = decode_fixed_len(&descriptor.node_public_key, 32)
-        .ok_or(NodeDescriptorSignatureError::InvalidPublicKeyEncoding)?;
+    let public_key = decode_fixed_len(&descriptor.server_public_key, 32)
+        .ok_or(ServerDescriptorSignatureError::InvalidPublicKeyEncoding)?;
     let signature = decode_fixed_len(&descriptor.signature.value, 64)
-        .ok_or(NodeDescriptorSignatureError::InvalidSignatureEncoding)?;
+        .ok_or(ServerDescriptorSignatureError::InvalidSignatureEncoding)?;
     let payload = canonical_descriptor_signing_payload(descriptor);
 
     let key = UnparsedPublicKey::new(&ED25519, public_key);
     key.verify(&payload, &signature)
-        .map_err(|_| NodeDescriptorSignatureError::SignatureVerificationFailed)
+        .map_err(|_| ServerDescriptorSignatureError::SignatureVerificationFailed)
 }
 
 pub fn verify_peer_invite_ed25519(
     invite: &PeerInvite,
-    issuer_descriptor: &NodeDescriptor,
+    issuer_descriptor: &ServerDescriptor,
 ) -> Result<(), PeerInviteSignatureError> {
-    if invite.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
+    if invite.signature.algorithm != ServerSignatureAlgorithm::Ed25519 {
         return Err(PeerInviteSignatureError::UnsupportedAlgorithm);
     }
 
-    let public_key = decode_fixed_len(&issuer_descriptor.node_public_key, 32)
+    let public_key = decode_fixed_len(&issuer_descriptor.server_public_key, 32)
         .ok_or(PeerInviteSignatureError::InvalidPublicKeyEncoding)?;
     let signature = decode_fixed_len(&invite.signature.value, 64)
         .ok_or(PeerInviteSignatureError::InvalidSignatureEncoding)?;
@@ -117,12 +117,16 @@ pub fn verify_peer_invite_ed25519(
         .map_err(|_| PeerInviteSignatureError::SignatureVerificationFailed)
 }
 
-pub fn canonical_descriptor_signing_payload(descriptor: &NodeDescriptor) -> Vec<u8> {
+pub fn canonical_descriptor_signing_payload(descriptor: &ServerDescriptor) -> Vec<u8> {
     let mut payload = Vec::new();
 
     push_str(&mut payload, "domain", DESCRIPTOR_SIGNING_DOMAIN);
-    push_str(&mut payload, "node_id", &descriptor.node_id);
-    push_str(&mut payload, "node_public_key", &descriptor.node_public_key);
+    push_str(&mut payload, "server_id", &descriptor.server_id);
+    push_str(
+        &mut payload,
+        "server_public_key",
+        &descriptor.server_public_key,
+    );
     push_str(&mut payload, "descriptor_id", &descriptor.descriptor_id);
     push_i64(
         &mut payload,
@@ -191,7 +195,7 @@ pub fn canonical_peer_invite_signing_payload(invite: &PeerInvite) -> Vec<u8> {
 
     push_str(&mut payload, "domain", PEER_INVITE_SIGNING_DOMAIN);
     push_str(&mut payload, "invite_id", &invite.invite_id);
-    push_str(&mut payload, "issuer_node_id", &invite.issuer_node_id);
+    push_str(&mut payload, "issuer_server_id", &invite.issuer_server_id);
     push_str(
         &mut payload,
         "issuer_descriptor_id",
@@ -199,8 +203,8 @@ pub fn canonical_peer_invite_signing_payload(invite: &PeerInvite) -> Vec<u8> {
     );
     push_optional_str(
         &mut payload,
-        "subject_node_id",
-        invite.subject_node_id.as_deref(),
+        "subject_server_id",
+        invite.subject_server_id.as_deref(),
     );
     push_i64(
         &mut payload,
@@ -279,7 +283,7 @@ fn push_string_list(payload: &mut Vec<u8>, name: &str, values: &[String]) {
     }
 }
 
-fn push_rate_limits(payload: &mut Vec<u8>, rate_limits: &[NodeRateLimit]) {
+fn push_rate_limits(payload: &mut Vec<u8>, rate_limits: &[ServerRateLimit]) {
     push_str(payload, "rate_limits", "list");
     push_u32(payload, rate_limits.len() as u32);
 
@@ -385,15 +389,15 @@ fn storage_policy_name(value: StoragePolicy) -> &'static str {
     }
 }
 
-fn signature_algorithm_name(value: NodeSignatureAlgorithm) -> &'static str {
+fn signature_algorithm_name(value: ServerSignatureAlgorithm) -> &'static str {
     match value {
-        NodeSignatureAlgorithm::Ed25519 => "ed25519",
+        ServerSignatureAlgorithm::Ed25519 => "ed25519",
     }
 }
 
 fn rate_limit_scope_name(value: RateLimitScope) -> &'static str {
     match value {
-        RateLimitScope::Node => "node",
+        RateLimitScope::Server => "server",
         RateLimitScope::Peer => "peer",
         RateLimitScope::User => "user",
         RateLimitScope::Route => "route",

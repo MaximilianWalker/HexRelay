@@ -4,8 +4,8 @@ use crate::state::AppState;
 use chrono::Utc;
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch_with_provenance,
-    transport::{NodeDispatch, TransportError},
+    send_via_server_dispatch_with_provenance,
+    transport::{ServerDispatch, TransportError},
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -95,9 +95,9 @@ struct LocalPresenceDispatchSender {
     runtime_handle: tokio::runtime::Handle,
 }
 
-impl NodeDispatch for LocalPresenceDispatchSender {
+impl ServerDispatch for LocalPresenceDispatchSender {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
-        let dispatch = PresenceNodeDispatch::from_payload(payload)?;
+        let dispatch = PresenceServerDispatch::from_payload(payload)?;
         let state = self.state.clone();
         let handle = self.runtime_handle.clone();
         let identity_id = dispatch.identity_id.clone();
@@ -116,7 +116,7 @@ impl NodeDispatch for LocalPresenceDispatchSender {
                         warn!(
                             identity_id = %log_identity_id,
                             online,
-                            "NodeClientTransport presence dispatch failed"
+                            "ServerClientTransport presence dispatch failed"
                         );
                     }
                     let _ = result_tx.send(result);
@@ -138,7 +138,7 @@ impl NodeDispatch for LocalPresenceDispatchSender {
             warn!(
                 identity_id = %identity_id,
                 online,
-                "NodeClientTransport presence dispatch failed"
+                "ServerClientTransport presence dispatch failed"
             );
         }
 
@@ -146,12 +146,12 @@ impl NodeDispatch for LocalPresenceDispatchSender {
     }
 }
 
-struct PresenceNodeDispatch {
+struct PresenceServerDispatch {
     identity_id: String,
     online: bool,
 }
 
-impl PresenceNodeDispatch {
+impl PresenceServerDispatch {
     fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
         let envelope: OwnedPresenceDispatchEnvelope =
             serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
@@ -350,7 +350,7 @@ async fn dispatch_presence_edge(
     let result = if runtime_handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
     {
         tokio::task::spawn_blocking(move || {
-            send_via_node_dispatch_with_provenance(
+            send_via_server_dispatch_with_provenance(
                 CommunicationMode::Presence,
                 communication_core::PolicyContext::default(),
                 dispatch,
@@ -360,7 +360,7 @@ async fn dispatch_presence_edge(
         .await
         .map_err(|error| format!("dispatch presence event join: {error}"))?
     } else {
-        send_via_node_dispatch_with_provenance(
+        send_via_server_dispatch_with_provenance(
             CommunicationMode::Presence,
             communication_core::PolicyContext::default(),
             dispatch,
@@ -370,7 +370,7 @@ async fn dispatch_presence_edge(
 
     let outcome = result.map_err(|error| {
         format!(
-            "dispatch presence event via NodeClientTransport: {}",
+            "dispatch presence event via ServerClientTransport: {}",
             error.code.as_str()
         )
     })?;
@@ -380,7 +380,7 @@ async fn dispatch_presence_edge(
         profile = outcome.provenance.profile.as_str(),
         reason_code = outcome.provenance.reason_code.as_str(),
         policy_assertions = ?outcome.provenance.policy_assertions,
-        "NodeClientTransport presence dispatch provenance emitted"
+        "ServerClientTransport presence dispatch provenance emitted"
     );
     Ok(())
 }
@@ -742,7 +742,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn presence_edge_dispatch_uses_node_adapter_without_redis_on_current_thread() {
+    async fn presence_edge_dispatch_uses_server_adapter_without_redis_on_current_thread() {
         let state = AppState::new(
             "http://127.0.0.1:1".to_string(),
             vec!["http://localhost:3002".to_string()],
@@ -954,7 +954,7 @@ mod tests {
         .expect("encode presence payload");
 
         let dispatch =
-            PresenceNodeDispatch::from_payload(&payload).expect("parse presence payload");
+            PresenceServerDispatch::from_payload(&payload).expect("parse presence payload");
         assert_eq!(dispatch.identity_id, "usr-main");
         assert!(dispatch.online);
     }
@@ -964,7 +964,7 @@ mod tests {
         let payload = br#"{"kind":"unknown","body":{"identity_id":"usr-main","online":true}}"#;
 
         assert!(matches!(
-            PresenceNodeDispatch::from_payload(payload),
+            PresenceServerDispatch::from_payload(payload),
             Err(TransportError::SendFailed)
         ));
     }

@@ -157,38 +157,38 @@ services:
     networks:
       - simulation
     ports:
-      - "127.0.0.1:18474:8474"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_TOXIPROXY_PORT:-18474}:8474"
 
-  alice-node:
+  alice-server:
     image: alpine:3.20
-    container_name: hexrelay-runtime-alice-node
+    container_name: hexrelay-runtime-alice-server
     command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
     networks:
       - alice-infra
       - simulation
     ports:
-      - "127.0.0.1:18080:8080"
-      - "127.0.0.1:18081:8081"
-      - "127.0.0.1:3002:3000"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_ALICE_API_PORT:-18080}:8080"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_ALICE_REALTIME_PORT:-18081}:8081"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002}:3000"
 
-  bob-node:
+  bob-server:
     image: alpine:3.20
-    container_name: hexrelay-runtime-bob-node
+    container_name: hexrelay-runtime-bob-server
     command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
     networks:
       - bob-infra
       - simulation
     ports:
-      - "127.0.0.1:18180:8080"
-      - "127.0.0.1:18181:8081"
-      - "127.0.0.1:3012:3000"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_BOB_API_PORT:-18180}:8080"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_BOB_REALTIME_PORT:-18181}:8081"
+      - "127.0.0.1:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012}:3000"
 
   alice-api:
     <<: *rust-service
     container_name: hexrelay-runtime-alice-api
-    network_mode: service:alice-node
+    network_mode: service:alice-server
     depends_on:
-      alice-node:
+      alice-server:
         condition: service_started
       alice-postgres:
         condition: service_healthy
@@ -198,8 +198,8 @@ services:
       <<: *api-environment
       API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_alice
       API_PRESENCE_REDIS_URL: redis://redis:6379/0
-      API_NODE_FINGERPRINT: hexrelay-runtime-alice-fingerprint
-      API_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+      API_SERVER_ID: hexrelay-runtime-alice-server
+      API_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002},http://127.0.0.1:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002}
     volumes:
       - ..:/workspace
       - alice-cargo-registry:/usr/local/cargo/registry
@@ -210,9 +210,9 @@ services:
   alice-realtime:
     <<: *rust-service
     container_name: hexrelay-runtime-alice-realtime
-    network_mode: service:alice-node
+    network_mode: service:alice-server
     depends_on:
-      alice-node:
+      alice-server:
         condition: service_started
       alice-api:
         condition: service_started
@@ -221,7 +221,7 @@ services:
     environment:
       <<: *realtime-environment
       REALTIME_PRESENCE_REDIS_URL: redis://redis:6379/0
-      REALTIME_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+      REALTIME_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002},http://127.0.0.1:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002}
     volumes:
       - ..:/workspace
       - alice-cargo-registry:/usr/local/cargo/registry
@@ -238,9 +238,9 @@ services:
     image: node:24-bookworm
     container_name: hexrelay-runtime-alice-web
     working_dir: /workspace
-    network_mode: service:alice-node
+    network_mode: service:alice-server
     depends_on:
-      alice-node:
+      alice-server:
         condition: service_started
       alice-api:
         condition: service_started
@@ -250,23 +250,23 @@ services:
       - ..:/workspace
       - alice-web-node-modules:/workspace/apps/web/node_modules
     environment:
-      HEXRELAY_RUNTIME_INSTANCE: alice-node
-      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:18080
-      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:18081/ws
+      HEXRELAY_RUNTIME_INSTANCE: alice-server
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:${HEXRELAY_RUNTIME_ALICE_API_PORT:-18080}
+      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:${HEXRELAY_RUNTIME_ALICE_REALTIME_PORT:-18081}/ws
     command:
       - bash
       - -lc
       - |
-        node scripts/write-runtime-tsconfig.mjs alice-node
+        node scripts/runtime/web-tsconfig.mjs alice-server
         npm --prefix apps/web ci
         npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
 
   bob-api:
     <<: *rust-service
     container_name: hexrelay-runtime-bob-api
-    network_mode: service:bob-node
+    network_mode: service:bob-server
     depends_on:
-      bob-node:
+      bob-server:
         condition: service_started
       bob-postgres:
         condition: service_healthy
@@ -276,8 +276,8 @@ services:
       <<: *api-environment
       API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_bob
       API_PRESENCE_REDIS_URL: redis://redis:6379/0
-      API_NODE_FINGERPRINT: hexrelay-runtime-bob-fingerprint
-      API_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+      API_SERVER_ID: hexrelay-runtime-bob-server
+      API_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012},http://127.0.0.1:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012}
     volumes:
       - ..:/workspace
       - bob-cargo-registry:/usr/local/cargo/registry
@@ -288,9 +288,9 @@ services:
   bob-realtime:
     <<: *rust-service
     container_name: hexrelay-runtime-bob-realtime
-    network_mode: service:bob-node
+    network_mode: service:bob-server
     depends_on:
-      bob-node:
+      bob-server:
         condition: service_started
       bob-api:
         condition: service_started
@@ -299,7 +299,7 @@ services:
     environment:
       <<: *realtime-environment
       REALTIME_PRESENCE_REDIS_URL: redis://redis:6379/0
-      REALTIME_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+      REALTIME_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012},http://127.0.0.1:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012}
     volumes:
       - ..:/workspace
       - bob-cargo-registry:/usr/local/cargo/registry
@@ -316,9 +316,9 @@ services:
     image: node:24-bookworm
     container_name: hexrelay-runtime-bob-web
     working_dir: /workspace
-    network_mode: service:bob-node
+    network_mode: service:bob-server
     depends_on:
-      bob-node:
+      bob-server:
         condition: service_started
       bob-api:
         condition: service_started
@@ -328,14 +328,14 @@ services:
       - ..:/workspace
       - bob-web-node-modules:/workspace/apps/web/node_modules
     environment:
-      HEXRELAY_RUNTIME_INSTANCE: bob-node
-      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:18180
-      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:18181/ws
+      HEXRELAY_RUNTIME_INSTANCE: bob-server
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:${HEXRELAY_RUNTIME_BOB_API_PORT:-18180}
+      NEXT_PUBLIC_REALTIME_WS_URL: ws://127.0.0.1:${HEXRELAY_RUNTIME_BOB_REALTIME_PORT:-18181}/ws
     command:
       - bash
       - -lc
       - |
-        node scripts/write-runtime-tsconfig.mjs bob-node
+        node scripts/runtime/web-tsconfig.mjs bob-server
         npm --prefix apps/web ci
         npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
 
@@ -352,8 +352,8 @@ services:
       API_BIND: 127.0.0.1:8080
       API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_alice
       API_PRESENCE_REDIS_URL: redis://redis:6379/0
-      API_NODE_FINGERPRINT: hexrelay-runtime-alice-seed-fingerprint
-      API_ALLOWED_ORIGINS: http://localhost:3002,http://127.0.0.1:3002
+      API_SERVER_ID: hexrelay-runtime-alice-seed-server
+      API_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002},http://127.0.0.1:${HEXRELAY_RUNTIME_ALICE_WEB_PORT:-3002}
     volumes:
       - ..:/workspace
       - alice-cargo-registry:/usr/local/cargo/registry
@@ -374,8 +374,8 @@ services:
       API_BIND: 127.0.0.1:8080
       API_DATABASE_URL: postgres://hexrelay:hexrelay_dev_password@postgres:5432/hexrelay_runtime_bob
       API_PRESENCE_REDIS_URL: redis://redis:6379/0
-      API_NODE_FINGERPRINT: hexrelay-runtime-bob-seed-fingerprint
-      API_ALLOWED_ORIGINS: http://localhost:3012,http://127.0.0.1:3012
+      API_SERVER_ID: hexrelay-runtime-bob-seed-server
+      API_ALLOWED_ORIGINS: http://localhost:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012},http://127.0.0.1:${HEXRELAY_RUNTIME_BOB_WEB_PORT:-3012}
     volumes:
       - ..:/workspace
       - bob-cargo-registry:/usr/local/cargo/registry

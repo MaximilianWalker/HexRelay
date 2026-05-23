@@ -23,7 +23,7 @@ This directory defines the local development infrastructure for HexRelay blocker
 - PH-05 runtime/network testing uses `infra/docker-compose.runtime-test.yml` for containerized Alice/Bob app instances.
 - The runtime test stack is intentionally separate so Docker network controls can target containers without forcing daily development into containers.
 - Runtime-test ports bind to `127.0.0.1` only and are not intended for shared-host or LAN exposure.
-- The stack uses per-node Postgres, Redis, MinIO, and infra networks so Alice/Bob partitions do not intentionally disconnect local dependencies and cannot bypass the simulation network through shared infra.
+- The stack uses per-server Postgres, Redis, MinIO, and infra networks so Alice/Bob partitions do not intentionally disconnect local dependencies and cannot bypass the simulation network through shared infra.
 - The runtime stack includes Toxiproxy for Docker-only peer-link latency and timeout profiles.
 - Realtime containers enable internal dev-fault hooks for app-level delay/drop/disconnect profiles.
 - Docker runtime seeding prints dev session cookies/headers; the web Settings testing-profile picker is not enabled in this stack.

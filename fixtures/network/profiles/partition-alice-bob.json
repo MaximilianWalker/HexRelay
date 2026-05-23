@@ -1,0 +1,13 @@
+{
+  "name": "partition-alice-bob",
+  "description": "Partition Alice and Bob runtime instances from each other without enabling relay fallback.",
+  "strategy": "docker",
+  "supportedPlatforms": ["windows", "linux", "macos"],
+  "actions": [
+    {
+      "type": "partition",
+      "source": "alice-server",
+      "target": "bob-server"
+    }
+  ]
+}

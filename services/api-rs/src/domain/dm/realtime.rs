@@ -1,7 +1,7 @@
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch_with_provenance,
-    transport::{NodeDispatch, TransportError},
+    send_via_server_dispatch_with_provenance,
+    transport::{ServerDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -61,7 +61,7 @@ struct DmEnvelopeDispatchSummary {
 }
 
 pub struct DispatchDmEnvelopeInput<'a> {
-    pub destination_node_id: Option<&'a str>,
+    pub destination_server_id: Option<&'a str>,
     pub message_id: &'a str,
     pub thread_id: &'a str,
     pub sender_identity_id: &'a str,
@@ -74,15 +74,15 @@ pub struct DispatchDmEnvelopeInput<'a> {
 }
 
 #[derive(Clone)]
-struct RealtimeNodeDispatchSender {
+struct RealtimeServerDispatchSender {
     http_client: reqwest::Client,
     realtime_base_url: String,
     internal_token: String,
 }
 
-impl NodeDispatch for RealtimeNodeDispatchSender {
+impl ServerDispatch for RealtimeServerDispatchSender {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
-        let dispatch = RealtimeNodeDispatch::from_payload(payload)?;
+        let dispatch = RealtimeServerDispatch::from_payload(payload)?;
         let http_client = self.http_client.clone();
         let url = format!(
             "{}{}",
@@ -121,7 +121,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                                 unverified_device_count = report.summary.unverified_device_ids.len(),
                                 saturated_device_count = report.summary.saturated_device_ids.len(),
                                 stale_connection_count = report.summary.stale_connection_count,
-                                "NodeClientTransport DM envelope dispatch accepted by realtime"
+                                "ServerClientTransport DM envelope dispatch accepted by realtime"
                             );
                         }
                         Err(error) => {
@@ -131,7 +131,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                                 %thread_id,
                                 %recipient_identity_id,
                                 error = %error,
-                                "NodeClientTransport DM envelope dispatch summary decode failed"
+                                "ServerClientTransport DM envelope dispatch summary decode failed"
                             );
                         }
                     }
@@ -143,7 +143,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                         %thread_id,
                         %recipient_identity_id,
                         status = %response.status(),
-                        "NodeClientTransport DM envelope dispatch failed"
+                        "ServerClientTransport DM envelope dispatch failed"
                     );
                 }
                 Err(error) => {
@@ -153,7 +153,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
                         %thread_id,
                         %recipient_identity_id,
                         error = %error,
-                        "NodeClientTransport DM envelope dispatch errored"
+                        "ServerClientTransport DM envelope dispatch errored"
                     );
                 }
             }
@@ -163,14 +163,14 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
     }
 }
 
-struct RealtimeNodeDispatch {
+struct RealtimeServerDispatch {
     body: Vec<u8>,
     message_id: String,
     thread_id: String,
     recipient_identity_id: String,
 }
 
-impl RealtimeNodeDispatch {
+impl RealtimeServerDispatch {
     fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
         let body: OwnedDmEnvelopeDispatchRequest =
             serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
@@ -208,10 +208,10 @@ pub async fn dispatch_dm_envelope(
     input: DispatchDmEnvelopeInput<'_>,
 ) -> Result<(), String> {
     let route = plan_dm_envelope_route(
-        &state.node_fingerprint,
+        &state.server_id,
         &state.static_peer_registry,
         DmEnvelopeRouteRequest {
-            destination_node_id: input.destination_node_id,
+            destination_server_id: input.destination_server_id,
             ..DmEnvelopeRouteRequest::local_realtime()
         },
     )
@@ -250,10 +250,10 @@ pub async fn dispatch_dm_envelope(
     let payload = serde_json::to_vec(&request)
         .map_err(|error| format!("encode DM envelope dispatch payload: {error}"))?;
 
-    let outcome = send_via_node_dispatch_with_provenance(
+    let outcome = send_via_server_dispatch_with_provenance(
         CommunicationMode::DmEnvelope,
         communication_core::PolicyContext::default(),
-        RealtimeNodeDispatchSender {
+        RealtimeServerDispatchSender {
             http_client: state.http_client.clone(),
             realtime_base_url: state.realtime_base_url.clone(),
             internal_token: state.channel_dispatch_internal_token.clone(),
@@ -262,7 +262,7 @@ pub async fn dispatch_dm_envelope(
     )
     .map_err(|error| {
         format!(
-            "dispatch DM envelope via NodeClientTransport: {}",
+            "dispatch DM envelope via ServerClientTransport: {}",
             error.code.as_str()
         )
     })?;
@@ -272,7 +272,7 @@ pub async fn dispatch_dm_envelope(
         profile = outcome.provenance.profile.as_str(),
         reason_code = outcome.provenance.reason_code.as_str(),
         policy_assertions = ?outcome.provenance.policy_assertions,
-        "NodeClientTransport DM envelope dispatch provenance emitted"
+        "ServerClientTransport DM envelope dispatch provenance emitted"
     );
     Ok(())
 }
@@ -282,20 +282,20 @@ mod tests {
     use super::*;
     use communication_core::{
         ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, DiscoveryPolicy, DmForwardingPolicy,
-        NetworkMode, NodeDescriptor, NodeSignature, NodeSignatureAlgorithm, PeeringPolicy,
-        RelayPolicy, StaticPeerRegistry, StoragePolicy,
+        NetworkMode, PeeringPolicy, RelayPolicy, ServerDescriptor, ServerSignature,
+        ServerSignatureAlgorithm, StaticPeerRegistry, StoragePolicy,
     };
     use ring::rand::SystemRandom;
     use ring::signature::Ed25519KeyPair;
 
-    fn signed_descriptor(node_id: &str, descriptor_id: &str) -> NodeDescriptor {
+    fn signed_descriptor(server_id: &str, descriptor_id: &str) -> ServerDescriptor {
         let pkcs8 =
             Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("generate ed25519 key");
         let public_key = ed25519_public_key_hex(pkcs8.as_ref()).expect("derive public key");
         let now = chrono::Utc::now().timestamp();
-        let mut descriptor = NodeDescriptor {
-            node_id: node_id.to_string(),
-            node_public_key: public_key,
+        let mut descriptor = ServerDescriptor {
+            server_id: server_id.to_string(),
+            server_public_key: public_key,
             descriptor_id: descriptor_id.to_string(),
             issued_at_epoch_seconds: now - 1,
             expires_at_epoch_seconds: now + 300,
@@ -305,13 +305,13 @@ mod tests {
             relay_policy: RelayPolicy::None,
             dm_forwarding_policy: DmForwardingPolicy::LocalRecipientsOnly,
             storage_policy: StoragePolicy::DurableEncryptedEnvelopes,
-            addresses: vec![format!("https://{node_id}.example")],
-            supported_protocols: vec!["hexrelay-node-http".to_string()],
+            addresses: vec![format!("https://{server_id}.example")],
+            supported_protocols: vec!["hexrelay-server-http".to_string()],
             rate_limits: Vec::new(),
             trust_labels: Vec::new(),
             revocation_pointer: None,
-            signature: NodeSignature {
-                algorithm: NodeSignatureAlgorithm::Ed25519,
+            signature: ServerSignature {
+                algorithm: ServerSignatureAlgorithm::Ed25519,
                 value: String::new(),
             },
         };
@@ -336,7 +336,7 @@ mod tests {
         })
         .expect("encode dispatch request");
 
-        let dispatch = RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch");
+        let dispatch = RealtimeServerDispatch::from_payload(&payload).expect("parse dispatch");
         assert_eq!(dispatch.path(), INTERNAL_DM_ENVELOPE_DISPATCH_PATH);
 
         let body_value: serde_json::Value =
@@ -354,14 +354,14 @@ mod tests {
     #[tokio::test]
     async fn dispatch_fails_closed_for_static_peer_destination_without_local_identity() {
         let registry =
-            StaticPeerRegistry::try_new(vec![signed_descriptor("node-peer", "descriptor-peer")])
+            StaticPeerRegistry::try_new(vec![signed_descriptor("server-peer", "descriptor-peer")])
                 .expect("registry should build");
         let state = AppState::default().with_static_peer_registry(registry);
 
         let error = dispatch_dm_envelope(
             &state,
             DispatchDmEnvelopeInput {
-                destination_node_id: Some("node-peer"),
+                destination_server_id: Some("server-peer"),
                 message_id: "msg-1",
                 thread_id: "thread-1",
                 sender_identity_id: "usr-1",
@@ -374,8 +374,8 @@ mod tests {
             },
         )
         .await
-        .expect_err("static peer dispatch should fail closed without local node identity");
+        .expect_err("static peer dispatch should fail closed without local server identity");
 
-        assert!(error.contains("local node identity"));
+        assert!(error.contains("local server identity"));
     }
 }

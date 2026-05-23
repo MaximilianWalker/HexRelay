@@ -12,18 +12,18 @@ impl PolicyEngine {
     ) -> Result<TransportProfile, PolicyError> {
         match mode {
             CommunicationMode::DmEnvelope => match policy.dm_transport_policy {
-                DmTransportPolicy::EncryptedEnvelopeNode => Ok(TransportProfile::NodeClient),
+                DmTransportPolicy::EncryptedEnvelopeServer => Ok(TransportProfile::ServerClient),
             },
             CommunicationMode::ServerChannel => {
                 if policy.enable_server_channel {
-                    Ok(TransportProfile::NodeClient)
+                    Ok(TransportProfile::ServerClient)
                 } else {
                     Err(PolicyError::ModeDisabled { mode })
                 }
             }
             CommunicationMode::Presence => {
                 if policy.enable_presence {
-                    Ok(TransportProfile::NodeClient)
+                    Ok(TransportProfile::ServerClient)
                 } else {
                     Err(PolicyError::ModeDisabled { mode })
                 }
@@ -35,8 +35,8 @@ impl PolicyEngine {
         profile: TransportProfile,
         intent: &ConnectIntent,
     ) -> Result<(), PolicyError> {
-        let TransportProfile::NodeClient = profile;
-        let ConnectTarget::NodeEndpoint { .. } = &intent.target;
+        let TransportProfile::ServerClient = profile;
+        let ConnectTarget::ServerEndpoint { .. } = &intent.target;
         Ok(())
     }
 
@@ -44,11 +44,11 @@ impl PolicyEngine {
         mode: CommunicationMode,
         profile: TransportProfile,
     ) -> SessionProvenance {
-        let TransportProfile::NodeClient = profile;
+        let TransportProfile::ServerClient = profile;
         let (reason_code, assertion) = match mode {
             CommunicationMode::DmEnvelope => (
-                CommunicationReasonCode::DmEnvelopeNodeRouteSelected,
-                "dm_envelope_node_policy_compliant",
+                CommunicationReasonCode::DmEnvelopeServerRouteSelected,
+                "dm_envelope_server_policy_compliant",
             ),
             CommunicationMode::ServerChannel => (
                 CommunicationReasonCode::ServerChannelRouteSelected,

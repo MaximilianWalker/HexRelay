@@ -1,8 +1,8 @@
 mod communication;
 mod e2ee;
 mod mesh;
-mod node;
 mod peer_invite;
+mod server;
 mod signature;
 
 pub use communication::{
@@ -24,18 +24,18 @@ pub use mesh::{
     PeerRouteSelectionError, RouteSelectionPolicy, SelectedPeerRoute, StaticPeerRegistry,
     StaticPeerRegistryError,
 };
-pub use node::{
-    DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
-    DmForwardingPolicy, NetworkMode, NodeDescriptor, NodeDescriptorValidationError, NodeRateLimit,
-    NodeSignature, NodeSignatureAlgorithm, PeeringPolicy, RateLimitScope, RelayPolicy,
-    StoragePolicy,
-};
 pub use peer_invite::{
     PeerInvite, PeerInviteEnvelope, PeerInviteValidationContext, PeerInviteValidationError,
+};
+pub use server::{
+    DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DiscoveryPolicy,
+    DmForwardingPolicy, NetworkMode, PeeringPolicy, RateLimitScope, RelayPolicy, ServerDescriptor,
+    ServerDescriptorValidationError, ServerRateLimit, ServerSignature, ServerSignatureAlgorithm,
+    StoragePolicy,
 };
 pub use signature::{
     canonical_descriptor_signing_payload, canonical_peer_invite_signing_payload,
     ed25519_public_key_hex, sign_descriptor_ed25519_pkcs8, sign_peer_invite_ed25519_pkcs8,
     verify_descriptor_ed25519, verify_peer_invite_ed25519, Ed25519DescriptorVerifier,
-    NodeDescriptorSignatureError, PeerInviteSignatureError,
+    PeerInviteSignatureError, ServerDescriptorSignatureError,
 };

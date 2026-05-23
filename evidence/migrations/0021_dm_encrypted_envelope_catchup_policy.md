@@ -27,7 +27,7 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs dm_policy`, `cargo test -p api-rs validates_fanout`, `cargo test -p api-rs dev_seed`, `npm --prefix apps/web test -- lib/api.test.ts`, `cargo test -p communication-core`, `bash scripts/validate-dm-transport-policy.sh`.
+- Command(s) executed: `cargo test -p api-rs dm_policy`, `cargo test -p api-rs validates_fanout`, `cargo test -p api-rs dev_seed`, `npm --prefix apps/web test -- lib/api.test.ts`, `cargo test -p communication-core`, `node scripts/validators/dm-transport-policy.mjs`.
 - Expected outcome: existing `dm_policies.offline_delivery_mode=best_effort_online` rows are rewritten to `encrypted_envelope_catchup`, and new rows are constrained to the current encrypted-envelope catch-up mode.
 - Actual outcome: pass.
 - Evidence path (logs/artifacts): local CLI validation in the current architecture-alignment pass.
@@ -42,7 +42,7 @@
 ## Rollback/Recovery Simulation
 
 - Rollback or restore command(s): restore database backup before migration if the old policy mode must be inspected.
-- Expected outcome: runtime using the current server-node encrypted-envelope delivery baseline should not run against a restored schema that only accepts `best_effort_online`.
+- Expected outcome: runtime using the current server encrypted-envelope delivery baseline should not run against a restored schema that only accepts `best_effort_online`.
 - Actual outcome: acknowledged.
 - Evidence path: `docs/product/01-mvp-plan.md`, `docs/product/02-prd.md`, `docs/contracts/runtime-rest.openapi.yaml`.
 

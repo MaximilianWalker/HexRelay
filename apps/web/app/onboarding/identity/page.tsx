@@ -21,7 +21,7 @@ import { setPersonaPrivateKey, setPersonaSession } from "@/lib/sessions";
 import { trackEvent } from "@/lib/telemetry";
 import styles from "../onboarding.module.css";
 
-const SAMPLE_FINGERPRINT = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
+const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
 
 function isLikelyKey(value: string): boolean {
   const trimmed = value.trim();
@@ -145,7 +145,7 @@ export default function IdentityOnboardingPage() {
           <ul className={styles.promiseList}>
             <li>Client-controlled key material and persona isolation.</li>
             <li>DM inbound policy defaults to friends-only.</li>
-            <li>No guild relay for direct-message payloads.</li>
+            <li>No server relay for direct-message payloads.</li>
           </ul>
         </aside>
 
@@ -199,8 +199,8 @@ export default function IdentityOnboardingPage() {
                 New ed25519 keypair will be generated locally on continue.
               </div>
               <div className={styles.fieldGroup}>
-                <label className={styles.label}>Public fingerprint preview</label>
-                <input className={styles.input} value={SAMPLE_FINGERPRINT} readOnly />
+                <label className={styles.label}>Public key preview</label>
+                <input className={styles.input} value={SAMPLE_PUBLIC_KEY} readOnly />
               </div>
             </>
           ) : (

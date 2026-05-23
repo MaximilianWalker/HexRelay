@@ -6,14 +6,14 @@
 - Owner: Platform maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-04-26
+- last_updated: 2026-05-20
 - Source of truth: `docs/operations/dev-prerequisites.md`
 
 ## Quick Context
 
 - Primary edit location for local development toolchain minimums and setup verification steps.
 - Keep this aligned with CI runtime assumptions in `.github/workflows/ci.yml`.
-- Latest meaningful change: 2026-04-26 aligned the local Node baseline with the checked-in `.nvmrc` and package engine constraints.
+- Latest meaningful change: 2026-05-20 clarified that host-process runtime lifecycle checks are handled by the shared Node runtime manager; curl remains useful for manual health probes.
 
 ## Purpose
 
@@ -26,14 +26,14 @@
 - Rust toolchain: latest stable channel (enforced by `rust-toolchain.toml` with `rustfmt` and `clippy`).
 - Docker Engine: 24.x or newer.
 - Docker Compose CLI plugin: 2.x (`docker compose`, not legacy `docker-compose`).
-- Bash: required for repository scripts in `scripts/*.sh`.
-- curl: required for local health checks used by `scripts/run.sh`.
+- POSIX shell: optional for copying shell examples; repo automation uses cross-platform Node commands.
+- curl: required for manual health probes in the runbooks and contributor guide.
 - Python: 3.10+ (required for local Semgrep parity command in contributor guide).
 - pip: bundled with Python installation and required to install Semgrep locally.
 
 ### Platform Notes
 
-- Windows: use the PowerShell-backed `npm run setup` / `npm run start` path for normal local development; use Git Bash or WSL only when running `scripts/*.sh` directly.
+- Windows: use `npm run setup` / `npm run start` for normal local development; use the Node commands only when you need direct native commands.
 - macOS/Linux: default system shell is sufficient.
 - The repository includes `.nvmrc` pinned to `24.15.0` for the default local toolchain baseline.
 
@@ -65,11 +65,11 @@ Expected: commands resolve without errors and versions satisfy the required tool
 5. Run `npm run start` and confirm service startup succeeds.
 6. Run `npm run test` before opening a PR.
 
-- Windows-specific direct path if you want to bypass auto-detection explicitly:
-  - `npm run setup:windows`
-  - `npm run start:windows`
-  - `npm run test:windows`
-  - the PowerShell runner automatically chooses conflict-free local ports and prints the actual API/realtime/web URLs when the stack is ready
+- The same root npm commands are canonical on Windows and Linux:
+  - `npm run setup`
+  - `npm run start`
+  - `npm run test`
+  - the Node runtime manager automatically chooses conflict-free local ports and prints the actual API/realtime/web URLs when the stack is ready
 
 - Reproducibility policy: dependency installation is lockfile-first (`npm ci` in setup scripts and CI).
 
@@ -81,7 +81,7 @@ Expected: commands resolve without errors and versions satisfy the required tool
 cat > services/api-rs/.env <<'EOF'
 API_BIND=127.0.0.1:8080
 API_ENVIRONMENT=development
-API_NODE_FINGERPRINT=hexrelay-local-fingerprint
+API_SERVER_ID=hexrelay-local-server
 API_DATABASE_URL=postgres://hexrelay:hexrelay_dev_password@127.0.0.1:5432/hexrelay
 API_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
 API_TRUST_PROXY_HEADERS=false

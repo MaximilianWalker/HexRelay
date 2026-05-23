@@ -1,0 +1,27 @@
+{
+  "name": "triple",
+  "infraMode": "shared",
+  "instances": [
+    {
+      "id": "alice-server",
+      "apiPort": 18080,
+      "realtimePort": 18081,
+      "webPort": 3002,
+      "seedPersona": "alice.primary"
+    },
+    {
+      "id": "bob-server",
+      "apiPort": 18180,
+      "realtimePort": 18181,
+      "webPort": 3012,
+      "seedPersona": "bob.primary"
+    },
+    {
+      "id": "edge-server",
+      "apiPort": 18280,
+      "realtimePort": 18281,
+      "webPort": 3022,
+      "seedPersona": "edge.primary"
+    }
+  ]
+}

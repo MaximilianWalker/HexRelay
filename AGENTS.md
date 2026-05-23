@@ -6,7 +6,7 @@ Only project-specific constraints are defined here.
 ## 1) Scope
 
 - Primary goal: build an open-source, Discord-like communication platform with strong user data ownership.
-- MVP focus: reliable friends, DMs, guild channels, and voice before federation complexity.
+- MVP focus: reliable friends, DMs, server channels, and voice before federation complexity.
 - Architecture baseline: Rust-first backend services with desktop local-first runtime packaging and reusable web UI layer.
 - Development baseline: monorepo scaffolds, local infra compose stack, and CI gates are active and should be maintained.
 - Windows and Linux are both mandatory first-class targets for development, testing, packaging, and release planning; never plan Windows-only delivery or leave Linux as a later afterthought.
@@ -17,7 +17,9 @@ Only project-specific constraints are defined here.
 
 - Keep architecture docs current in the canonical `docs/architecture/*` authorities when major runtime or boundary decisions change; update `docs/product/01-mvp-plan.md` as well when those decisions change product scope or strategy.
 - Keep requirements and dependency/risk state current in `docs/product/02-prd.md` and `docs/product/04-dependencies-risks.md` when behavior changes.
-- Prefer minimal diffs and avoid broad refactors during MVP setup.
+- During MVP setup, prefer clean canonical structure over minimal diffs. If a touched area contains obsolete names, old references, dead code, duplicated command paths, misplaced files, or incorrect structure, remove or refactor it in the same change.
+- Do not preserve wrappers, aliases, deprecated paths, compatibility layers, or old data shapes unless the user explicitly asks for compatibility or a real external integration requires it.
+- When cleanup breaks old local data, paths, fixtures, commands, or docs, update every in-repo caller and reference atomically instead of leaving transitional support.
 
 ## 3) Product Guardrails
 
@@ -25,8 +27,8 @@ Only project-specific constraints are defined here.
 - Preserve portability and export/import capabilities in all storage decisions.
 - Treat decentralization as phased delivery to avoid blocking UX quality.
 - For MVP-stage protocol and API work, prefer the cleanest single-shape design that can evolve later; avoid speculative versioning, dual-schema migrations, or compatibility layers unless an actual consumer or rollout constraint already makes them necessary.
-- DM plaintext and private keys must remain client/device-only; server nodes/message nodes in the server-node P2P network may carry and store only end-to-end encrypted DM envelopes plus minimal delivery metadata.
-- DM delivery must route through server nodes/message nodes; client devices must not establish recipient-device LAN/WAN DM transport or bootstrap paths, and server/node discovery work must not reintroduce node-bypassing DM paths.
+- DM plaintext and private keys must remain client/device-only; servers/message servers in the server-to-server network may carry and store only end-to-end encrypted DM envelopes plus minimal delivery metadata.
+- DM delivery must route through servers/message servers; client devices must not establish recipient-device LAN/WAN DM transport or bootstrap paths, and server discovery work must not reintroduce server-bypassing DM paths.
 - Do not introduce server-readable DM content, private-key upload, or unencrypted DM mailbox/relay behavior.
 - Do not implement UX changes until the user explicitly approves the proposed flow, copy, controls, and behavior.
 

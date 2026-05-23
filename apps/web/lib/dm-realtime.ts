@@ -37,7 +37,7 @@ export type DmEnvelopeDispatchedEvent = {
     accepted_at: string;
     dispatched_at: string;
     delivery_cursor: string;
-    transport_scope: "encrypted_envelope_node";
+    transport_scope: "encrypted_envelope_server";
   };
 };
 
@@ -224,7 +224,7 @@ export function isDmEnvelopeDispatchedEvent(value: unknown): value is DmEnvelope
     "accepted_at",
     "dispatched_at",
     "delivery_cursor",
-  ].every((key) => stringField(data, key) !== null) && data.transport_scope === "encrypted_envelope_node";
+  ].every((key) => stringField(data, key) !== null) && data.transport_scope === "encrypted_envelope_server";
 }
 
 export function isDmEnvelopeAckEvent(value: unknown): value is DmEnvelopeAckEvent {

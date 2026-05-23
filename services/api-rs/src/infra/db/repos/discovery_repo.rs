@@ -41,8 +41,7 @@ pub async fn list_global_discovery_candidates(
         ), shared_counts AS (
             SELECT other.identity_id, COUNT(*)::BIGINT AS shared_count
             FROM server_memberships self
-            INNER JOIN server_memberships other
-                ON other.server_id = self.server_id
+            CROSS JOIN server_memberships other
             WHERE self.identity_id = $1
               AND other.identity_id <> $1
             GROUP BY other.identity_id
@@ -91,8 +90,7 @@ pub async fn list_shared_server_discovery_candidates(
         WITH shared_counts AS (
             SELECT other.identity_id, COUNT(*)::BIGINT AS shared_count
             FROM server_memberships self
-            INNER JOIN server_memberships other
-                ON other.server_id = self.server_id
+            CROSS JOIN server_memberships other
             WHERE self.identity_id = $1
               AND other.identity_id <> $1
             GROUP BY other.identity_id
@@ -173,8 +171,7 @@ pub async fn shared_server_counts(
         "
         SELECT other.identity_id, COUNT(*)::BIGINT AS shared_count
         FROM server_memberships self
-        INNER JOIN server_memberships other
-            ON other.server_id = self.server_id
+        CROSS JOIN server_memberships other
         WHERE self.identity_id = $1
           AND other.identity_id <> $1
         GROUP BY other.identity_id

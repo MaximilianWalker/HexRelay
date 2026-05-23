@@ -1,7 +1,7 @@
 use communication_core::{
     domain::CommunicationMode,
-    send_via_node_dispatch_with_provenance,
-    transport::{NodeDispatch, TransportError},
+    send_via_server_dispatch_with_provenance,
+    transport::{ServerDispatch, TransportError},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -197,7 +197,7 @@ impl QueuedChannelDispatch {
                             no_connection_recipient_count = report.summary.no_connection_recipient_ids.len(),
                             saturated_recipient_count = report.summary.saturated_recipient_ids.len(),
                             stale_connection_count = report.summary.stale_connection_count,
-                            "NodeClientTransport server-channel dispatch accepted by realtime"
+                            "ServerClientTransport server-channel dispatch accepted by realtime"
                         );
                     }
                     Err(error) => {
@@ -207,7 +207,7 @@ impl QueuedChannelDispatch {
                             server_id = %self.server_id,
                             channel_id = %self.channel_id,
                             error = %error,
-                            "NodeClientTransport server-channel dispatch summary decode failed"
+                            "ServerClientTransport server-channel dispatch summary decode failed"
                         );
                     }
                 }
@@ -219,7 +219,7 @@ impl QueuedChannelDispatch {
                     server_id = %self.server_id,
                     channel_id = %self.channel_id,
                     status = %response.status(),
-                    "NodeClientTransport server-channel dispatch failed"
+                    "ServerClientTransport server-channel dispatch failed"
                 );
             }
             Err(error) => {
@@ -229,7 +229,7 @@ impl QueuedChannelDispatch {
                     server_id = %self.server_id,
                     channel_id = %self.channel_id,
                     error = %error,
-                    "NodeClientTransport server-channel dispatch errored"
+                    "ServerClientTransport server-channel dispatch errored"
                 );
             }
         }
@@ -243,16 +243,16 @@ async fn run_ordered_channel_dispatcher(mut receiver: mpsc::Receiver<QueuedChann
 }
 
 #[derive(Clone)]
-struct RealtimeNodeDispatchSender {
+struct RealtimeServerDispatchSender {
     queue: ServerChannelDispatchQueue,
     http_client: reqwest::Client,
     realtime_base_url: String,
     internal_token: String,
 }
 
-impl NodeDispatch for RealtimeNodeDispatchSender {
+impl ServerDispatch for RealtimeServerDispatchSender {
     fn send_payload(&self, payload: &[u8]) -> Result<(), TransportError> {
-        let dispatch = RealtimeNodeDispatch::from_payload(payload)?;
+        let dispatch = RealtimeServerDispatch::from_payload(payload)?;
         let http_client = self.http_client.clone();
         let url = format!(
             "{}{}",
@@ -276,7 +276,7 @@ impl NodeDispatch for RealtimeNodeDispatchSender {
     }
 }
 
-enum RealtimeNodeDispatch {
+enum RealtimeServerDispatch {
     Created(DispatchPayload),
     Updated(DispatchPayload),
     Deleted(DispatchPayload),
@@ -289,12 +289,12 @@ struct DispatchPayload {
     channel_id: String,
 }
 
-impl RealtimeNodeDispatch {
+impl RealtimeServerDispatch {
     fn from_payload(payload: &[u8]) -> Result<Self, TransportError> {
-        let envelope: OwnedRealtimeNodeDispatchEnvelope =
+        let envelope: OwnedRealtimeServerDispatchEnvelope =
             serde_json::from_slice(payload).map_err(|_| TransportError::SendFailed)?;
         match envelope {
-            OwnedRealtimeNodeDispatchEnvelope::Created(body) => {
+            OwnedRealtimeServerDispatchEnvelope::Created(body) => {
                 let message_id = body.message_id.clone();
                 let server_id = body.server_id.clone();
                 let channel_id = body.channel_id.clone();
@@ -302,7 +302,7 @@ impl RealtimeNodeDispatch {
                     &body, message_id, server_id, channel_id,
                 )?))
             }
-            OwnedRealtimeNodeDispatchEnvelope::Updated(body) => {
+            OwnedRealtimeServerDispatchEnvelope::Updated(body) => {
                 let message_id = body.message_id.clone();
                 let server_id = body.server_id.clone();
                 let channel_id = body.channel_id.clone();
@@ -310,7 +310,7 @@ impl RealtimeNodeDispatch {
                     &body, message_id, server_id, channel_id,
                 )?))
             }
-            OwnedRealtimeNodeDispatchEnvelope::Deleted(body) => {
+            OwnedRealtimeServerDispatchEnvelope::Deleted(body) => {
                 let message_id = body.message_id.clone();
                 let server_id = body.server_id.clone();
                 let channel_id = body.channel_id.clone();
@@ -383,7 +383,7 @@ impl DispatchPayload {
 
 #[derive(Serialize)]
 #[serde(tag = "kind", content = "body")]
-enum RealtimeNodeDispatchEnvelope<'a> {
+enum RealtimeServerDispatchEnvelope<'a> {
     #[serde(rename = "channel_message_created")]
     Created(ChannelMessageCreatedDispatchRequest<'a>),
     #[serde(rename = "channel_message_updated")]
@@ -394,7 +394,7 @@ enum RealtimeNodeDispatchEnvelope<'a> {
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", content = "body")]
-enum OwnedRealtimeNodeDispatchEnvelope {
+enum OwnedRealtimeServerDispatchEnvelope {
     #[serde(rename = "channel_message_created")]
     Created(OwnedChannelMessageCreatedDispatchRequest),
     #[serde(rename = "channel_message_updated")]
@@ -409,7 +409,7 @@ pub async fn dispatch_channel_message_created(
 ) -> Result<(), String> {
     dispatch_server_channel_payload(
         state,
-        &RealtimeNodeDispatchEnvelope::Created(ChannelMessageCreatedDispatchRequest {
+        &RealtimeServerDispatchEnvelope::Created(ChannelMessageCreatedDispatchRequest {
             message_id: input.message_id,
             server_id: input.server_id,
             channel_id: input.channel_id,
@@ -427,7 +427,7 @@ pub async fn dispatch_channel_message_updated(
 ) -> Result<(), String> {
     dispatch_server_channel_payload(
         state,
-        &RealtimeNodeDispatchEnvelope::Updated(ChannelMessageUpdatedDispatchRequest {
+        &RealtimeServerDispatchEnvelope::Updated(ChannelMessageUpdatedDispatchRequest {
             message_id: input.message_id,
             server_id: input.server_id,
             channel_id: input.channel_id,
@@ -445,7 +445,7 @@ pub async fn dispatch_channel_message_deleted(
 ) -> Result<(), String> {
     dispatch_server_channel_payload(
         state,
-        &RealtimeNodeDispatchEnvelope::Deleted(ChannelMessageDeletedDispatchRequest {
+        &RealtimeServerDispatchEnvelope::Deleted(ChannelMessageDeletedDispatchRequest {
             message_id: input.message_id,
             server_id: input.server_id,
             channel_id: input.channel_id,
@@ -459,15 +459,15 @@ pub async fn dispatch_channel_message_deleted(
 
 fn dispatch_server_channel_payload(
     state: &AppState,
-    envelope: &RealtimeNodeDispatchEnvelope<'_>,
+    envelope: &RealtimeServerDispatchEnvelope<'_>,
 ) -> Result<(), String> {
     let payload = serde_json::to_vec(envelope)
         .map_err(|error| format!("encode server channel dispatch payload: {error}"))?;
 
-    let outcome = send_via_node_dispatch_with_provenance(
+    let outcome = send_via_server_dispatch_with_provenance(
         CommunicationMode::ServerChannel,
         communication_core::PolicyContext::default(),
-        RealtimeNodeDispatchSender {
+        RealtimeServerDispatchSender {
             queue: state.server_channel_dispatch_queue.clone(),
             http_client: state.http_client.clone(),
             realtime_base_url: state.realtime_base_url.clone(),
@@ -477,7 +477,7 @@ fn dispatch_server_channel_payload(
     )
     .map_err(|error| {
         format!(
-            "dispatch server channel event via NodeClientTransport: {}",
+            "dispatch server channel event via ServerClientTransport: {}",
             error.code.as_str()
         )
     })?;
@@ -487,7 +487,7 @@ fn dispatch_server_channel_payload(
         profile = outcome.provenance.profile.as_str(),
         reason_code = outcome.provenance.reason_code.as_str(),
         policy_assertions = ?outcome.provenance.policy_assertions,
-        "NodeClientTransport server-channel dispatch provenance emitted"
+        "ServerClientTransport server-channel dispatch provenance emitted"
     );
     Ok(())
 }
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn dispatch_payload_maps_created_kind_to_internal_path() {
         let recipients = vec!["usr-1".to_string()];
-        let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Created(
+        let payload = serde_json::to_vec(&RealtimeServerDispatchEnvelope::Created(
             ChannelMessageCreatedDispatchRequest {
                 message_id: "msg-1",
                 server_id: "server-1",
@@ -515,7 +515,7 @@ mod tests {
         .expect("encode payload");
 
         let dispatch =
-            RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
+            RealtimeServerDispatch::from_payload(&payload).expect("parse dispatch payload");
         assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_CREATED_PATH);
         let body_value: serde_json::Value =
             serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
@@ -536,7 +536,7 @@ mod tests {
     #[test]
     fn dispatch_payload_maps_updated_kind_to_internal_path() {
         let recipients = vec!["usr-1".to_string(), "usr-2".to_string()];
-        let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Updated(
+        let payload = serde_json::to_vec(&RealtimeServerDispatchEnvelope::Updated(
             ChannelMessageUpdatedDispatchRequest {
                 message_id: "msg-2",
                 server_id: "server-1",
@@ -550,7 +550,7 @@ mod tests {
         .expect("encode payload");
 
         let dispatch =
-            RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
+            RealtimeServerDispatch::from_payload(&payload).expect("parse dispatch payload");
         assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_UPDATED_PATH);
         let body_value: serde_json::Value =
             serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
@@ -571,7 +571,7 @@ mod tests {
     #[test]
     fn dispatch_payload_maps_deleted_kind_to_internal_path() {
         let recipients = vec!["usr-2".to_string()];
-        let payload = serde_json::to_vec(&RealtimeNodeDispatchEnvelope::Deleted(
+        let payload = serde_json::to_vec(&RealtimeServerDispatchEnvelope::Deleted(
             ChannelMessageDeletedDispatchRequest {
                 message_id: "msg-3",
                 server_id: "server-1",
@@ -585,7 +585,7 @@ mod tests {
         .expect("encode payload");
 
         let dispatch =
-            RealtimeNodeDispatch::from_payload(&payload).expect("parse dispatch payload");
+            RealtimeServerDispatch::from_payload(&payload).expect("parse dispatch payload");
         assert_eq!(dispatch.path(), INTERNAL_CHANNEL_MESSAGE_DELETED_PATH);
         let body_value: serde_json::Value =
             serde_json::from_slice(dispatch.body()).expect("parse dispatch body as json");
@@ -608,7 +608,7 @@ mod tests {
         let payload = br#"{"kind":"unknown","body":{"message_id":"msg-1"}}"#;
 
         assert!(matches!(
-            RealtimeNodeDispatch::from_payload(payload),
+            RealtimeServerDispatch::from_payload(payload),
             Err(TransportError::SendFailed)
         ));
     }

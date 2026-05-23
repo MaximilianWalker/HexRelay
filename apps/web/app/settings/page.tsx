@@ -29,16 +29,19 @@ import { readActivePersonaId, readPersonas, switchPersona, upsertPersona } from 
 import { getPersonaSession, setPersonaSession } from "@/lib/sessions";
 import {
   readMicrophoneMuted,
+  readMessageLayout,
   readNavLayout,
   readSidebarCollapsed,
   readSoundMuted,
   readTabRestoreMode,
   setMicrophoneMuted,
+  setMessageLayout,
   setNavLayout,
   setSidebarCollapsed,
   setSoundMuted,
   setTabRestoreMode,
   subscribeWorkspacePreferences,
+  type MessageLayout,
   type NavLayout,
   type TabRestoreMode,
 } from "@/lib/workspace-preferences";
@@ -106,7 +109,7 @@ const SETTINGS_TABS: SettingsCategory[] = [
   {
     id: "appearance",
     label: "Appearance",
-    summary: "Navigation layout, tab restore behavior, and future display preferences.",
+    summary: "Navigation layout, tab restore behavior, and message display preferences.",
     icon: IconPalette,
   },
   {
@@ -177,9 +180,9 @@ const DEV_TESTING_SHORTCUTS: TestingShortcut[] = [
   {
     id: "alice-atlas-server",
     label: "Alice Atlas server",
-    description: "Shared server fixture with Alice's favorite and unread state.",
+    description: "Shared server fixture with Alice's pinned and unread state.",
     profileId: "alice.primary",
-    href: "/servers/fixture-server-atlas",
+    href: "/servers/hexrelay-local-server",
     scenarioId: "server-chat",
   },
   {
@@ -187,7 +190,7 @@ const DEV_TESTING_SHORTCUTS: TestingShortcut[] = [
     label: "Bob Atlas server",
     description: "Shared server fixture with Bob's member state.",
     profileId: "bob.primary",
-    href: "/servers/fixture-server-atlas",
+    href: "/servers/hexrelay-local-server",
     scenarioId: "server-chat",
   },
 ];
@@ -339,6 +342,11 @@ export default function SettingsPage() {
   const sidebarCollapsed = useSyncExternalStore(subscribeWorkspacePreferences, readSidebarCollapsed, () => false);
   const soundMuted = useSyncExternalStore(subscribeWorkspacePreferences, readSoundMuted, () => false);
   const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
+  const messageLayout = useSyncExternalStore<MessageLayout>(
+    subscribeWorkspacePreferences,
+    readMessageLayout,
+    () => "bubble-cards",
+  );
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -657,23 +665,13 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
           <SettingRow
-            description="Contact invite creation and redemption already live in the Contacts surface."
-            label="Contact invite links"
-            status="Review"
-          >
-            <select aria-label="Contact invite links" className={settingsStyles.select} disabled value="enabled">
-              <option value="enabled">Enabled</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </SettingRow>
-          <SettingRow
             description="Current product behavior requires explicit approval before contacts can message."
             label="Contact request approval"
             status="Review"
           >
             <select aria-label="Contact request approval" className={settingsStyles.select} disabled value="manual">
               <option value="manual">Manual approval</option>
-              <option value="auto">Auto-accept trusted invites</option>
+              <option value="auto">Auto-accept trusted requests</option>
             </select>
           </SettingRow>
           <SettingRow
@@ -700,7 +698,7 @@ export default function SettingsPage() {
             <ReadOnlyValue>Session storage</ReadOnlyValue>
           </SettingRow>
           <SettingRow
-            description="Private keys stay client/device-only and are not uploaded to server nodes."
+            description="Private keys stay client/device-only and are not uploaded to servers."
             label="Private key storage"
             status="Locked"
           >
@@ -756,7 +754,7 @@ export default function SettingsPage() {
             <ToggleControl checked={false} disabled label="Contact request notifications" />
           </SettingRow>
           <SettingRow
-            description="Server-channel notification policy is future work for guild/channel surfaces."
+            description="Server-channel notification policy is future work for server-channel surfaces."
             label="Server channel notifications"
             status="Review"
           >
@@ -864,13 +862,18 @@ export default function SettingsPage() {
             </select>
           </SettingRow>
           <SettingRow
-            description="Message density belongs with the final chat/channel surfaces."
-            label="Message density"
-            status="Review"
+            description="Choose whether channel messages render as separated bubble cards or a continuous feed."
+            label="Message layout"
+            status="Live"
           >
-            <select aria-label="Message density" className={settingsStyles.select} disabled value="comfortable">
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
+            <select
+              aria-label="Message layout"
+              className={settingsStyles.select}
+              onChange={(event) => setMessageLayout(event.target.value as MessageLayout)}
+              value={messageLayout}
+            >
+              <option value="bubble-cards">Bubble cards</option>
+              <option value="continuous-feed">Continuous feed</option>
             </select>
           </SettingRow>
           </SettingPanel>
@@ -999,7 +1002,7 @@ export default function SettingsPage() {
               </div>
             </SettingRow>
             <SettingRow
-              description="Known fixture scenarios available in scripts/fixtures/scenarios."
+              description="Known fixture scenarios available in fixtures/dev-seed/scenarios."
               label="Seed scenarios"
               status="Dev only"
             >

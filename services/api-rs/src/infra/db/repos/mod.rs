@@ -1,4 +1,5 @@
 pub mod auth_repo;
+pub mod contacts_repo;
 pub mod directory_repo;
 pub mod discovery_repo;
 pub mod dm_history_repo;

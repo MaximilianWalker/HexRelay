@@ -1,4 +1,3 @@
-use ring::digest::{digest, SHA256};
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 
 type Migration = (&'static str, &'static str);
@@ -29,8 +28,8 @@ const MIGRATIONS: &[Migration] = &[
         include_str!("../migrations/0006_invites.sql"),
     ),
     (
-        "0007_invites_hash_backfill",
-        include_str!("../migrations/0007_invites_hash_backfill.sql"),
+        "0007_invite_token_hash_constraint",
+        include_str!("../migrations/0007_invite_token_hash_constraint.sql"),
     ),
     (
         "0008_rate_limit_counters",
@@ -41,8 +40,8 @@ const MIGRATIONS: &[Migration] = &[
         include_str!("../migrations/0009_relational_constraints.sql"),
     ),
     (
-        "0010_contact_invite_fields",
-        include_str!("../migrations/0010_contact_invite_fields.sql"),
+        "0010_invite_ids",
+        include_str!("../migrations/0010_invite_ids.sql"),
     ),
     (
         "0011_dm_pairing_nonces",
@@ -104,47 +103,22 @@ const MIGRATIONS: &[Migration] = &[
         "0025_server_roles_and_channel_permissions",
         include_str!("../migrations/0025_server_roles_and_channel_permissions.sql"),
     ),
+    (
+        "0026_single_server_authority",
+        include_str!("../migrations/0026_single_server_authority.sql"),
+    ),
+    (
+        "0027_navigation_hub_actions",
+        include_str!("../migrations/0027_navigation_hub_actions.sql"),
+    ),
 ];
 
 pub async fn connect_and_prepare(database_url: &str) -> Result<PgPool, sqlx::Error> {
     let pool = PgPool::connect(database_url).await?;
 
     run_migrations(&pool).await?;
-    backfill_legacy_invite_tokens(&pool).await?;
 
     Ok(pool)
-}
-
-async fn backfill_legacy_invite_tokens(pool: &PgPool) -> Result<(), sqlx::Error> {
-    const RUNTIME_BACKFILL_MARKER: &str = "0007_invites_hash_backfill_runtime";
-
-    let legacy_tokens = sqlx::query_scalar::<_, String>(
-        "SELECT token FROM invites WHERE token !~ '^[0-9a-f]{64}$'",
-    )
-    .fetch_all(pool)
-    .await?;
-
-    let mut tx = pool.begin().await?;
-
-    for token in legacy_tokens {
-        let hashed = hex::encode(digest(&SHA256, token.as_bytes()).as_ref());
-        sqlx::query("UPDATE invites SET token = $1 WHERE token = $2")
-            .bind(hashed)
-            .bind(token)
-            .execute(&mut *tx)
-            .await?;
-    }
-
-    sqlx::query(
-        "INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
-    )
-    .bind(RUNTIME_BACKFILL_MARKER)
-    .bind("runtime-backfill")
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(())
 }
 
 async fn ensure_migration_table(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
@@ -201,11 +175,7 @@ async fn run_migrations_inner(tx: &mut Transaction<'_, Postgres>) -> Result<(), 
             continue;
         }
 
-        // Migration 0007 is intentionally backfilled by runtime code to avoid
-        // requiring DB extension install privileges on startup.
-        if *version != "0007_invites_hash_backfill" {
-            tx.execute(*sql).await?;
-        }
+        tx.execute(*sql).await?;
         sqlx::query("INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)")
             .bind(*version)
             .bind(checksum)
@@ -224,9 +194,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use ring::digest::{digest, SHA256};
-
-    use super::{backfill_legacy_invite_tokens, connect_and_prepare, run_migrations};
+    use super::{connect_and_prepare, run_migrations};
 
     static TEMP_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -241,38 +209,7 @@ mod tests {
             .unwrap_or(false)
     }
 
-    async fn prepare_test_pool() -> Option<PgPool> {
-        if skip_service_backed_tests() {
-            eprintln!(
-                "[api-rs db test] skipping DB-backed test because HEXRELAY_SKIP_SERVICE_BACKED_TESTS is enabled"
-            );
-            return None;
-        }
-
-        let url = match env::var("API_DATABASE_URL") {
-            Ok(value) if !value.trim().is_empty() => value,
-            _ => {
-                assert!(
-                    env::var("CI").is_err(),
-                    "API_DATABASE_URL must be set in CI"
-                );
-                return None;
-            }
-        };
-
-        match connect_and_prepare(&url).await {
-            Ok(pool) => Some(pool),
-            Err(error) => {
-                assert!(
-                    env::var("CI").is_err(),
-                    "failed to prepare DB in CI: {error}"
-                );
-                None
-            }
-        }
-    }
-
-    use sqlx::{Connection, Executor, PgConnection, PgPool};
+    use sqlx::{Connection, Executor, PgConnection};
 
     fn split_database_url(url: &str) -> Option<(&str, &str)> {
         url.rsplit_once('/')
@@ -396,71 +333,6 @@ mod tests {
         drop_temp_database(&admin_url, &db_name)
             .await
             .expect("drop temporary database");
-    }
-
-    #[tokio::test]
-    async fn invite_backfill_hashes_legacy_plaintext_tokens() {
-        let Some(pool) = prepare_test_pool().await else {
-            return;
-        };
-
-        let token_suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0);
-        let plaintext_token = format!("legacy-token-backfill-test-{token_suffix}");
-        sqlx::query("DELETE FROM schema_migrations WHERE version = $1")
-            .bind("0007_invites_hash_backfill_runtime")
-            .execute(&pool)
-            .await
-            .expect("clear runtime backfill marker");
-
-        let expected_hash = hex::encode(digest(&SHA256, plaintext_token.as_bytes()).as_ref());
-        sqlx::query("DELETE FROM invites WHERE token = $1 OR token = $2")
-            .bind(&plaintext_token)
-            .bind(&expected_hash)
-            .execute(&pool)
-            .await
-            .expect("clear legacy and hashed invite test rows");
-
-        let insert = sqlx::query(
-            "
-            INSERT INTO invites (token, mode, node_fingerprint, uses)
-            VALUES ($1, 'one_time', 'hexrelay-local-fingerprint', 0)
-            ON CONFLICT (token) DO NOTHING
-            ",
-        )
-        .bind(&plaintext_token)
-        .execute(&pool)
-        .await;
-
-        if insert.is_err() {
-            assert!(
-                env::var("CI").is_err(),
-                "failed to seed legacy invite token in CI"
-            );
-            return;
-        }
-
-        backfill_legacy_invite_tokens(&pool)
-            .await
-            .expect("run invite hash backfill");
-
-        let legacy_exists =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
-                .bind(plaintext_token)
-                .fetch_one(&pool)
-                .await
-                .expect("count plaintext invite token");
-        assert_eq!(legacy_exists, 0);
-
-        let hashed_exists =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invites WHERE token = $1")
-                .bind(expected_hash)
-                .fetch_one(&pool)
-                .await
-                .expect("count hashed invite token");
-        assert_eq!(hashed_exists, 1);
     }
 
     #[tokio::test]

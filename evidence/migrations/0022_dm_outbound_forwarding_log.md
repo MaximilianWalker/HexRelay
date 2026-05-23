@@ -12,8 +12,8 @@
 ## Quick Context
 
 - Purpose: record deterministic validation evidence for migration `0022_dm_outbound_forwarding_log.sql`.
-- Primary edit location: update when outbound server-node DM forwarding persistence changes.
-- Latest meaningful change: 2026-05-11 added the persisted outbound forwarding log for server-node DM envelope forwarding.
+- Primary edit location: update when outbound server DM forwarding persistence changes.
+- Latest meaningful change: 2026-05-11 added the persisted outbound forwarding log for server DM envelope forwarding.
 
 ## Migration Metadata
 
@@ -27,8 +27,8 @@
 
 ## Forward Validation
 
-- Command(s) executed: `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `bash scripts/validate-dm-transport-policy.sh`.
-- Expected outcome: outbound server-node DM forwarding attempts persist encrypted envelope metadata in `dm_outbound_forwarding_log` without introducing direct user-to-user transport state.
+- Command(s) executed: `cargo test -p api-rs dm_fanout`, `cargo test -p api-rs outbound_forward`, `cargo test -p api-rs`, `cargo clippy -p api-rs --all-targets -- -D warnings`, `node scripts/validators/dm-transport-policy.mjs`.
+- Expected outcome: outbound server DM forwarding attempts persist encrypted envelope metadata in `dm_outbound_forwarding_log` without introducing direct user-to-user transport state.
 - Actual outcome: pass locally; PR CI identified this evidence artifact was required and is satisfied by this file.
 - Evidence path (logs/artifacts): local CLI validation and `evidence/migrations/0022_dm_outbound_forwarding_log.md`.
 
@@ -42,18 +42,18 @@
 ## Rollback/Recovery Simulation
 
 - Rollback or restore command(s): restore a database backup taken before the migration, or drain outbound forwarding records before dropping the additive table during a controlled rollback.
-- Expected outcome: current runtime should not run server-node DM forwarding retry logic against a schema without `dm_outbound_forwarding_log`.
+- Expected outcome: current runtime should not run server DM forwarding retry logic against a schema without `dm_outbound_forwarding_log`.
 - Actual outcome: acknowledged; additive forwarding persistence table.
 - Evidence path: `docs/architecture/04-runtime-contract.md`, `docs/architecture/07-data-lifecycle.md`.
 
 ## Data Integrity Verification
 
-- Constraints/indexes verified: primary key `(sender_identity_id, destination_node_id, message_id)`, sender identity foreign key, forwarding state check, sender-created index, and destination-state index.
-- Row-count or key invariants checked: each sender, destination node, and encrypted message has one durable outbound forwarding record; server-node forwarding stores ciphertext and delivery metadata only.
+- Constraints/indexes verified: primary key `(sender_identity_id, destination_server_id, message_id)`, sender identity foreign key, forwarding state check, sender-created index, and destination-state index.
+- Row-count or key invariants checked: each sender, destination server, and encrypted message has one durable outbound forwarding record; server forwarding stores ciphertext and delivery metadata only.
 - Evidence path: `services/api-rs/migrations/0022_dm_outbound_forwarding_log.sql`.
 
 ## Sign-off
 
 - Reviewer: Codex agent (PR #108 CI correction pass)
 - Decision: pass
-- Notes: This migration supports server-node relay persistence only; it does not add user-to-user LAN/WAN DM transport or server-readable DM content.
+- Notes: This migration supports server relay persistence only; it does not add user-to-user LAN/WAN DM transport or server-readable DM content.

@@ -779,13 +779,16 @@ mod tests {
         ] {
             let event: serde_json::Value = serde_json::from_str(&payload).expect("decode event");
             assert_eq!(event["event_type"], "dm.envelope.dispatched");
-            assert_eq!(event["producer"], "dm-message-node");
+            assert_eq!(event["producer"], "dm-message-server");
             assert_eq!(event["data"]["message_id"], "msg-1");
             assert_eq!(event["data"]["thread_id"], "thread-1");
             assert_eq!(event["data"]["recipient_identity_id"], "usr-recipient");
             assert_eq!(event["data"]["target_device_id"], target_device_id);
             assert_eq!(event["data"]["delivery_cursor"], "3");
-            assert_eq!(event["data"]["transport_scope"], "encrypted_envelope_node");
+            assert_eq!(
+                event["data"]["transport_scope"],
+                "encrypted_envelope_server"
+            );
         }
     }
 

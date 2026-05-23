@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     DescriptorSignatureVerifier, DescriptorValidationContext, DiscoveryPath, DmForwardingPolicy,
-    NodeDescriptor, NodeDescriptorValidationError, PeeringPolicy, RelayPolicy, StoragePolicy,
+    PeeringPolicy, RelayPolicy, ServerDescriptor, ServerDescriptorValidationError, StoragePolicy,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticPeerRegistry {
-    descriptors: Vec<NodeDescriptor>,
+    descriptors: Vec<ServerDescriptor>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub struct CandidatePeerPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerCandidate {
-    pub descriptor: NodeDescriptor,
+    pub descriptor: ServerDescriptor,
     pub discovery_path: DiscoveryPath,
     pub relay_allowed: bool,
     pub delivery_allowed: bool,
@@ -34,8 +34,8 @@ pub struct RouteSelectionPolicy {
     pub relay_policy: CandidatePeerPolicy,
     pub max_hops: u8,
     pub allow_relay: bool,
-    pub unavailable_direct_node_ids: Vec<String>,
-    pub excluded_relay_node_ids: Vec<String>,
+    pub unavailable_direct_server_ids: Vec<String>,
+    pub excluded_relay_server_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,32 +56,32 @@ pub struct SelectedPeerRoute {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StaticPeerRegistryError {
-    DuplicateNodeId(String),
+    DuplicateServerId(String),
     DuplicateDescriptorId(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PeerCandidateValidationError {
     CandidateNotFound {
-        node_id: String,
+        server_id: String,
     },
-    DescriptorInvalid(NodeDescriptorValidationError),
-    DiscoveryNotAllowed(NodeDescriptorValidationError),
+    DescriptorInvalid(ServerDescriptorValidationError),
+    DiscoveryNotAllowed(ServerDescriptorValidationError),
     PeeringRefused {
         peering_policy: PeeringPolicy,
     },
     DmDeliveryRefused {
         dm_forwarding_policy: DmForwardingPolicy,
     },
-    RelayRefused(NodeDescriptorValidationError),
+    RelayRefused(ServerDescriptorValidationError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PeerRouteSelectionError {
     InvalidMaxHops,
     DestinationRefused(PeerCandidateValidationError),
-    DirectRouteUnavailable { destination_node_id: String },
-    RelayRouteUnavailable { destination_node_id: String },
+    DirectRouteUnavailable { destination_server_id: String },
+    RelayRouteUnavailable { destination_server_id: String },
 }
 
 impl CandidatePeerPolicy {
@@ -112,8 +112,8 @@ impl RouteSelectionPolicy {
             relay_policy: CandidatePeerPolicy::private_mesh_relay(),
             max_hops: 1,
             allow_relay: false,
-            unavailable_direct_node_ids: Vec::new(),
-            excluded_relay_node_ids: Vec::new(),
+            unavailable_direct_server_ids: Vec::new(),
+            excluded_relay_server_ids: Vec::new(),
         }
     }
 
@@ -125,26 +125,26 @@ impl RouteSelectionPolicy {
         }
     }
 
-    pub fn with_unavailable_direct_node(mut self, node_id: impl Into<String>) -> Self {
-        self.unavailable_direct_node_ids.push(node_id.into());
+    pub fn with_unavailable_direct_server(mut self, server_id: impl Into<String>) -> Self {
+        self.unavailable_direct_server_ids.push(server_id.into());
         self
     }
 
-    pub fn with_excluded_relay_node(mut self, node_id: impl Into<String>) -> Self {
-        self.excluded_relay_node_ids.push(node_id.into());
+    pub fn with_excluded_relay_server(mut self, server_id: impl Into<String>) -> Self {
+        self.excluded_relay_server_ids.push(server_id.into());
         self
     }
 }
 
 impl StaticPeerRegistry {
-    pub fn try_new(descriptors: Vec<NodeDescriptor>) -> Result<Self, StaticPeerRegistryError> {
-        let mut node_ids = BTreeSet::new();
+    pub fn try_new(descriptors: Vec<ServerDescriptor>) -> Result<Self, StaticPeerRegistryError> {
+        let mut server_ids = BTreeSet::new();
         let mut descriptor_ids = BTreeSet::new();
 
         for descriptor in &descriptors {
-            if !node_ids.insert(descriptor.node_id.clone()) {
-                return Err(StaticPeerRegistryError::DuplicateNodeId(
-                    descriptor.node_id.clone(),
+            if !server_ids.insert(descriptor.server_id.clone()) {
+                return Err(StaticPeerRegistryError::DuplicateServerId(
+                    descriptor.server_id.clone(),
                 ));
             }
 
@@ -158,28 +158,28 @@ impl StaticPeerRegistry {
         Ok(Self { descriptors })
     }
 
-    pub fn descriptors(&self) -> &[NodeDescriptor] {
+    pub fn descriptors(&self) -> &[ServerDescriptor] {
         &self.descriptors
     }
 
-    pub fn find(&self, node_id: &str) -> Option<&NodeDescriptor> {
+    pub fn find(&self, server_id: &str) -> Option<&ServerDescriptor> {
         self.descriptors
             .iter()
-            .find(|descriptor| descriptor.node_id == node_id)
+            .find(|descriptor| descriptor.server_id == server_id)
     }
 
     pub fn validate_candidate<V: DescriptorSignatureVerifier>(
         &self,
-        node_id: &str,
+        server_id: &str,
         context: &DescriptorValidationContext,
         verifier: &V,
         policy: &CandidatePeerPolicy,
     ) -> Result<PeerCandidate, PeerCandidateValidationError> {
-        let descriptor =
-            self.find(node_id)
-                .ok_or_else(|| PeerCandidateValidationError::CandidateNotFound {
-                    node_id: node_id.to_string(),
-                })?;
+        let descriptor = self.find(server_id).ok_or_else(|| {
+            PeerCandidateValidationError::CandidateNotFound {
+                server_id: server_id.to_string(),
+            }
+        })?;
 
         descriptor
             .validate_with_signature(context, verifier)
@@ -221,7 +221,7 @@ impl StaticPeerRegistry {
 
     pub fn select_route<V: DescriptorSignatureVerifier>(
         &self,
-        destination_node_id: &str,
+        destination_server_id: &str,
         context: &DescriptorValidationContext,
         verifier: &V,
         policy: &RouteSelectionPolicy,
@@ -232,32 +232,32 @@ impl StaticPeerRegistry {
 
         let destination = self
             .validate_candidate(
-                destination_node_id,
+                destination_server_id,
                 context,
                 verifier,
                 &policy.destination_policy,
             )
             .map_err(PeerRouteSelectionError::DestinationRefused)?;
 
-        if !contains_node_id(
-            &policy.unavailable_direct_node_ids,
-            &destination.descriptor.node_id,
+        if !contains_server_id(
+            &policy.unavailable_direct_server_ids,
+            &destination.descriptor.server_id,
         ) {
             return Ok(SelectedPeerRoute::direct(destination));
         }
 
         if !policy.allow_relay || policy.max_hops < 2 {
             return Err(PeerRouteSelectionError::DirectRouteUnavailable {
-                destination_node_id: destination.descriptor.node_id,
+                destination_server_id: destination.descriptor.server_id,
             });
         }
 
-        let destination_route_node_id = destination.descriptor.node_id.clone();
+        let destination_route_server_id = destination.descriptor.server_id.clone();
 
         self.select_relay_candidate(&destination, context, verifier, policy)
             .map(|relay| SelectedPeerRoute::one_hop_relay(destination, relay))
             .ok_or(PeerRouteSelectionError::RelayRouteUnavailable {
-                destination_node_id: destination_route_node_id,
+                destination_server_id: destination_route_server_id,
             })
     }
 
@@ -271,14 +271,14 @@ impl StaticPeerRegistry {
         let mut candidates = self
             .descriptors
             .iter()
-            .filter(|descriptor| descriptor.node_id != destination.descriptor.node_id)
+            .filter(|descriptor| descriptor.server_id != destination.descriptor.server_id)
             .filter(|descriptor| {
-                !contains_node_id(&policy.excluded_relay_node_ids, &descriptor.node_id)
+                !contains_server_id(&policy.excluded_relay_server_ids, &descriptor.server_id)
             })
             .filter(|descriptor| descriptor.allows_intermediate_relay())
             .filter_map(|descriptor| {
                 self.validate_candidate(
-                    &descriptor.node_id,
+                    &descriptor.server_id,
                     context,
                     verifier,
                     &policy.relay_policy,
@@ -323,15 +323,15 @@ impl SelectedPeerRoute {
     }
 }
 
-fn contains_node_id(values: &[String], node_id: &str) -> bool {
-    values.iter().any(|value| value == node_id)
+fn contains_server_id(values: &[String], server_id: &str) -> bool {
+    values.iter().any(|value| value == server_id)
 }
 
-fn relay_sort_key(descriptor: &NodeDescriptor) -> (u8, u8, &str, &str) {
+fn relay_sort_key(descriptor: &ServerDescriptor) -> (u8, u8, &str, &str) {
     (
         relay_policy_rank(descriptor.relay_policy),
         storage_policy_rank(descriptor.storage_policy),
-        descriptor.node_id.as_str(),
+        descriptor.server_id.as_str(),
         descriptor.descriptor_id.as_str(),
     )
 }

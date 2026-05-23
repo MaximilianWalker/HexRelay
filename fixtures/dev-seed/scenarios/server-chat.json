@@ -1,0 +1,178 @@
+{
+  "scenario_id": "server-chat",
+  "description": "Alice, Bob, and Carol shared server fixture with memberships, two text channels, mentions, replies, and seeded channel history.",
+  "identities": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "algorithm": "ed25519"
+    },
+    {
+      "profile_id": "bob.primary",
+      "identity_id": "usr-test-bob",
+      "public_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "algorithm": "ed25519"
+    },
+    {
+      "profile_id": "carol.pending",
+      "identity_id": "usr-test-carol",
+      "public_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "algorithm": "ed25519"
+    }
+  ],
+  "sessions": [
+    {
+      "profile_id": "alice.primary",
+      "identity_id": "usr-test-alice",
+      "session_id": "sess-test-alice-primary",
+      "expires_in_days": 30
+    },
+    {
+      "profile_id": "bob.primary",
+      "identity_id": "usr-test-bob",
+      "session_id": "sess-test-bob-primary",
+      "expires_in_days": 30
+    },
+    {
+      "profile_id": "carol.pending",
+      "identity_id": "usr-test-carol",
+      "session_id": "sess-test-carol-pending",
+      "expires_in_days": 30
+    }
+  ],
+  "friend_requests": [
+    {
+      "request_id": "fixture-fr-alice-bob",
+      "requester_identity_id": "usr-test-alice",
+      "target_identity_id": "usr-test-bob",
+      "status": "accepted"
+    }
+  ],
+  "dm_policies": [
+    {
+      "identity_id": "usr-test-alice",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "encrypted_envelope_catchup"
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "inbound_policy": "friends_only",
+      "offline_delivery_mode": "encrypted_envelope_catchup"
+    },
+    {
+      "identity_id": "usr-test-carol",
+      "inbound_policy": "same_server",
+      "offline_delivery_mode": "encrypted_envelope_catchup"
+    }
+  ],
+  "devices": [],
+  "servers": [
+    {
+      "name": "Atlas Test Server",
+      "created_at": "2026-05-04T11:00:00Z"
+    }
+  ],
+  "server_memberships": [
+    {
+      "identity_id": "usr-test-alice",
+      "pinned": true,
+      "muted": false,
+      "unread_count": 2,
+      "joined_at": "2026-05-04T11:01:00Z"
+    },
+    {
+      "identity_id": "usr-test-bob",
+      "pinned": false,
+      "muted": false,
+      "unread_count": 1,
+      "joined_at": "2026-05-04T11:02:00Z"
+    },
+    {
+      "identity_id": "usr-test-carol",
+      "pinned": false,
+      "muted": true,
+      "unread_count": 0,
+      "joined_at": "2026-05-04T11:03:00Z"
+    }
+  ],
+  "server_channels": [
+    {
+      "channel_id": "fixture-channel-atlas-general",
+      "name": "general",
+      "kind": "text",
+      "last_message_seq": 3,
+      "created_at": "2026-05-04T11:05:00Z"
+    },
+    {
+      "channel_id": "fixture-channel-atlas-ops-lab",
+      "name": "ops-lab",
+      "kind": "text",
+      "last_message_seq": 2,
+      "created_at": "2026-05-04T11:06:00Z"
+    }
+  ],
+  "server_channel_messages": [
+    {
+      "message_id": "fixture-server-message-general-001",
+      "channel_id": "fixture-channel-atlas-general",
+      "author_id": "usr-test-alice",
+      "channel_seq": 1,
+      "content": "Welcome to Atlas.",
+      "reply_to_message_id": null,
+      "mention_identity_ids": [],
+      "created_at": "2026-05-04T11:10:00Z",
+      "edited_at": null,
+      "deleted_at": null
+    },
+    {
+      "message_id": "fixture-server-message-general-002",
+      "channel_id": "fixture-channel-atlas-general",
+      "author_id": "usr-test-bob",
+      "channel_seq": 2,
+      "content": "Hi Carol, the shared server fixture is ready.",
+      "reply_to_message_id": null,
+      "mention_identity_ids": ["usr-test-carol"],
+      "created_at": "2026-05-04T11:11:00Z",
+      "edited_at": null,
+      "deleted_at": null
+    },
+    {
+      "message_id": "fixture-server-message-general-003",
+      "channel_id": "fixture-channel-atlas-general",
+      "author_id": "usr-test-carol",
+      "channel_seq": 3,
+      "content": "Reply confirmed, Bob.",
+      "reply_to_message_id": "fixture-server-message-general-002",
+      "mention_identity_ids": ["usr-test-bob"],
+      "created_at": "2026-05-04T11:12:00Z",
+      "edited_at": null,
+      "deleted_at": null
+    },
+    {
+      "message_id": "fixture-server-message-ops-001",
+      "channel_id": "fixture-channel-atlas-ops-lab",
+      "author_id": "usr-test-alice",
+      "channel_seq": 1,
+      "content": "Ops lab is online.",
+      "reply_to_message_id": null,
+      "mention_identity_ids": [],
+      "created_at": "2026-05-04T11:20:00Z",
+      "edited_at": null,
+      "deleted_at": null
+    },
+    {
+      "message_id": "fixture-server-message-ops-002",
+      "channel_id": "fixture-channel-atlas-ops-lab",
+      "author_id": "usr-test-bob",
+      "channel_seq": 2,
+      "content": "Tracking the ops setup with Alice.",
+      "reply_to_message_id": "fixture-server-message-ops-001",
+      "mention_identity_ids": ["usr-test-alice"],
+      "created_at": "2026-05-04T11:21:00Z",
+      "edited_at": null,
+      "deleted_at": null
+    }
+  ],
+  "dm_threads": []
+}

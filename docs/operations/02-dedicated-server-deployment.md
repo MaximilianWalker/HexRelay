@@ -11,9 +11,9 @@
 
 ## Quick Context
 
-- Purpose: provide the canonical operator guide for single-node dedicated deployments of `api-rs` and `realtime-rs`.
+- Purpose: provide the canonical operator guide for single-server dedicated deployments of `api-rs` and `realtime-rs`.
 - Primary edit location: update this file when dedicated-server bring-up, secrets, ingress, administration surface, smoke validation, or rollback assumptions change.
-- Latest meaningful change: 2026-05-11 clarified that dedicated server delivery is a separate headless service/package path and that administration is performed through the normal HexRelay app for authorized admins using the app-to-node capability contract.
+- Latest meaningful change: 2026-05-11 clarified that dedicated server delivery is a separate headless service/package path and that administration is performed through the normal HexRelay app for authorized admins using the app-to-server capability contract.
 
 ## Purpose
 
@@ -24,7 +24,7 @@
 ## Status and Scope
 
 - Current status is `needs-detail`.
-- This guide is execution-oriented for single-node dedicated deployment, but it is not yet fully complete.
+- This guide is execution-oriented for single-server dedicated deployment, but it is not yet fully complete.
 - Known blockers/uncertainties remain around:
   - exact minimum required dependency set for all supported features
   - multi-instance realtime websocket abuse-control equivalence
@@ -64,23 +64,23 @@
 - Windows dedicated server delivery may run as a Windows Service or console binary package.
 - Linux dedicated server delivery should support native binaries, a `.deb` package with a `systemd` unit, and container images.
 - Server deployments own different config, ports, persistence paths, logs, backups, ingress, firewall exposure, and security posture than a normal desktop install.
-- The normal HexRelay app may offer dedicated-server management for authorized node owners/admins, but it should connect to an operator-installed dedicated server endpoint rather than silently bundling a long-running public service into every client install.
+- The normal HexRelay app may offer dedicated-server management for authorized server owners/admins, but it should connect to an operator-installed dedicated server endpoint rather than silently bundling a long-running public service into every client install.
 
 ## Dedicated Server Administration Surface
 
 - Dedicated server mode remains headless. The dedicated server artifact does not include a separate full UI or standalone admin website by default.
-- The normal HexRelay app is the intended administration surface for local nodes, LAN nodes, private online nodes, and public dedicated nodes when the signed-in identity has node-owner/admin permissions.
-- The app connects to the configured node endpoint and uses authenticated operator/admin APIs exposed by `api-rs`; `realtime-rs` remains the live event plane and must not become an authorization shortcut.
-- Admin/operator access must be permission-gated by node-local roles/scopes and protected by the same ingress, TLS, origin, session, and CSRF expectations as other authenticated app traffic.
-- The initial app-to-node contract is `GET /node/connection` for endpoint/auth metadata and authenticated `GET /node/capabilities` for per-identity capabilities.
-- Until durable node-local role management exists, bootstrap owner/admin authority comes from `API_NODE_OWNER_IDENTITY_IDS` and `API_NODE_ADMIN_IDENTITY_IDS`.
-- Node discoverability, LAN proximity, invite-only status, or private online hosting must not grant administration access by itself.
+- The normal HexRelay app is the intended administration surface for local servers, LAN servers, private online servers, and public dedicated servers when the signed-in identity has server-owner/admin permissions.
+- The app connects to the configured server endpoint and uses authenticated operator/admin APIs exposed by `api-rs`; `realtime-rs` remains the live event plane and must not become an authorization shortcut.
+- Admin/operator access must be permission-gated by server-local roles/scopes and protected by the same ingress, TLS, origin, session, and CSRF expectations as other authenticated app traffic.
+- The initial app-to-server contract is `GET /server/connection` for endpoint/auth metadata and authenticated `GET /server/capabilities` for per-identity capabilities.
+- Until durable server-local role management exists, bootstrap owner/admin authority comes from `API_SERVER_OWNER_IDENTITY_IDS` and `API_SERVER_ADMIN_IDENTITY_IDS`.
+- Server discoverability, LAN proximity, invite-only status, or private online hosting must not grant administration access by itself.
 - A separate self-hosted admin web console is out of scope unless a later explicit architecture/product decision approves it.
 - This section defines the runtime/operations boundary only. Specific admin pages, copy, controls, and flows still require explicit UX approval before implementation.
 
 ## Dependency Minimums
 
-- Required for the reviewed single-node dedicated baseline:
+- Required for the reviewed single-server dedicated baseline:
   - Postgres for durable API state and embedded migration/bootstrap.
   - Redis for the currently reviewed realtime replay/presence convergence path.
   - one `api-rs` instance.
@@ -103,9 +103,8 @@
   - creates `schema_migrations` if needed,
   - applies any unapplied embedded migrations in order,
   - fails startup on migration checksum mismatch or migration apply failure,
-  - backfills legacy invite-token hashes after migrations,
   - returns only after the database is prepared for runtime traffic.
-- There is no separate reviewed operator migration command in this repository yet; the supported single-node procedure is to let `api-rs` own schema preparation and to treat startup failure as the migration failure signal.
+- There is no separate reviewed operator migration command in this repository yet; the supported single-server procedure is to let `api-rs` own schema preparation and to treat startup failure as the migration failure signal.
 
 ### Operator Procedure
 
@@ -183,7 +182,7 @@ npm --prefix apps/web run e2e:smoke
 - Confirm remote smoke passes with the dedicated deployment URLs and origin.
 - Confirm ingress/origin/TLS settings match the deployed browser-facing hosts.
 - Confirm the deployment evidence includes the migration state snapshot required by `docs/operations/01-mvp-runbook.md`.
-- If deployment is single-node, record that process-local realtime websocket abuse controls are accepted as-is for this rollout.
+- If deployment is single-server, record that process-local realtime websocket abuse controls are accepted as-is for this rollout.
 - If deployment uses more than one `realtime-rs` instance, do not sign off until sticky routing/session affinity and edge/global websocket limiting have both been validated and recorded in deployment evidence.
 
 ## Ingress and Trust Boundary Expectations

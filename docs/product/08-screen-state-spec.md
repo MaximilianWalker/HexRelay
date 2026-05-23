@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-15
+- last_updated: 2026-05-20
 - Source of truth: `docs/product/08-screen-state-spec.md`
 
 ## Quick Context
 
 - Purpose: define screen-level states so Web/API/Core teams implement the same behavior.
 - Primary edit location: update when a screen flow or failure mode changes.
-- Latest meaningful change: 2026-05-15 linked the approval-pending DM workspace delivery plan without authorizing UI implementation.
+- Latest meaningful change: 2026-05-20 locked friend-request add/respond states without authorizing unrelated runtime UI implementation.
 
 ## Core Screens
 
@@ -36,9 +36,9 @@
 | Screen | Required states |
 |---|---|
 | Identity Create/Import | loading, success, invalid_key, storage_failed |
-| Server Join | loading, fingerprint_mismatch, invite_invalid, invite_expired, invite_exhausted, success |
-| Contact Invite Share | idle, creating, created (link visible), error |
-| Contact Invite Redeem | idle, redeeming, success (friend request created), invite_invalid, invite_expired, invite_exhausted, self_invite |
+| Server Join | loading, server_mismatch, invite_invalid, invite_expired, invite_exhausted, success |
+| Friend Request Add | idle, searching, search_no_results, sending, request_sent, request_exists, blocked, error |
+| Friend Request Respond | idle, accepting, declining, accepted, declined, cancelling, cancelled, error |
 | Contacts Hub | loading, empty, search_no_results, friend_request_pending, friend_request_inbound, error |
 | DM Workspace | loading, empty, blocked, policy_denied, send_failed_retryable, reconnecting |
 | Servers Hub | loading, empty, search_no_results, permission_denied, error |
@@ -81,7 +81,7 @@ Behavior constraints:
 - Do not expose backend dispatch summaries as user-visible delivery or read state.
 - Do not imply recipient delivery from websocket fanout; server-channel history persistence is the durable truth.
 - Do not add unread/read receipt behavior in this scope.
-- Do not introduce DM transport concepts, endpoint cards, preflight checks, or node-bypassing language.
+- Do not introduce DM transport concepts, endpoint cards, preflight checks, or server-bypassing language.
 
 ## DM Workspace Delivery Proposal
 
@@ -102,12 +102,12 @@ This reference does not approve runtime UI implementation. DM workspace runtime 
 - Indicators must be accessible: do not rely on color alone, and expose clear labels such as `Sending`, `Sent`, `Delivered`, `Read`, and `Failed`.
 - `Delivered` must never imply `Read`. Delivery is device receipt of the encrypted envelope; read state requires a separate explicit `dm.message.read` receipt.
 - Participant-visible read receipts must respect the reader's privacy setting; when receipts are disabled, read-state sync may remain limited to the reader's own profile devices.
-- Delivery indicators must not introduce DM preflight, node-bypassing connection controls, troubleshooting wizard behavior, endpoint cards, or node-bypassing DM transport concepts.
+- Delivery indicators must not introduce DM preflight, server-bypassing connection controls, troubleshooting wizard behavior, endpoint cards, or server-bypassing DM transport concepts.
 
 | UI state | Visual direction | Backend truth |
 |---|---|---|
 | Sending | Dim animated pip or pulse | Local client send/envelope preparation is in progress |
-| Sent | One muted steel/grey HUD pip | API durably accepted the encrypted envelope into server-node DM history |
+| Sent | One muted steel/grey HUD pip | API durably accepted the encrypted envelope into server-to-server DM history |
 | Delivered | Two muted steel/grey linked HUD pips | At least one recipient profile device acked `dm.envelope.dispatched` |
 | Read | Two linked HUD pips with cyan/blue active treatment plus non-color affordance | Target-state `dm.message.read` receipt with participant-visible scope, not the delivery ack |
 | Queued | Amber subdued pip or clock-like HUD accent | Durable acceptance exists, but no recipient-device ack is known yet |
@@ -123,7 +123,7 @@ This reference does not approve runtime UI implementation. DM workspace runtime 
 ### Copy Baseline
 
 - Use plain labels for accessibility and tooltips: `Sending`, `Sent`, `Delivered`, `Read`, `Queued`, `Failed`.
-- Optional themed microcopy may be used in expanded details only if it remains understandable, for example `Node accepted`, `Device received`, or `Read by Alex`.
+- Optional themed microcopy may be used in expanded details only if it remains understandable, for example `Server accepted`, `Device received`, or `Read by Alex`.
 - Avoid overloaded gamer slang for core labels; the gaming feel should come from motion, color, spacing, sound, and icon treatment rather than unclear terminology.
 
 ## Related Documents

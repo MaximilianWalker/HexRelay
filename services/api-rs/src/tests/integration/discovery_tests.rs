@@ -216,7 +216,7 @@ async fn discovery_excludes_blocked_users_bidirectionally() {
 #[tokio::test]
 async fn discovery_rate_limits_queries() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -342,7 +342,7 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
     };
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         Vec::new(),
@@ -403,11 +403,10 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
 
 #[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
-    let actor = unique_identity("usr-discovery-shared-actor");
-    let shared_peer = unique_identity("usr-discovery-shared-peer");
-    let other_user = unique_identity("usr-discovery-shared-other");
-    let shared_server = unique_identity("srv-shared");
-    let other_server = unique_identity("srv-other");
+    let cohort_prefix = unique_identity("usr-discovery-shared");
+    let actor = format!("{cohort_prefix}-actor");
+    let shared_peer = format!("{cohort_prefix}-peer");
+    let other_user = unique_identity("usr-discovery-other");
 
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&actor, &shared_peer, &other_user]).await
@@ -425,22 +424,15 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
     .await
     .expect("insert persisted relationship");
 
-    seed_server_membership(&pool, &shared_server, "Shared", &actor, false, false, 0).await;
-    seed_server_membership(
-        &pool,
-        &shared_server,
-        "Shared",
-        &shared_peer,
-        false,
-        false,
-        0,
-    )
-    .await;
-    seed_server_membership(&pool, &other_server, "Other", &other_user, false, false, 0).await;
+    seed_server_membership(&pool, "Shared", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "Shared", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, "Other", &other_user, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/discovery/users?scope=shared_server")
+        .uri(format!(
+            "/discovery/users?scope=shared_server&query={cohort_prefix}"
+        ))
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build discovery request");
@@ -461,21 +453,23 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 
 #[tokio::test]
 async fn discovery_trims_scope_before_enum_validation() {
-    let actor = unique_identity("usr-discovery-trim-actor");
-    let shared_peer = unique_identity("usr-discovery-trim-peer");
-    let server_id = unique_identity("srv-trim");
+    let cohort_prefix = unique_identity("usr-discovery-trim");
+    let actor = format!("{cohort_prefix}-actor");
+    let shared_peer = format!("{cohort_prefix}-peer");
 
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
     else {
         return;
     };
 
-    seed_server_membership(&pool, &server_id, "Trimmed", &actor, false, false, 0).await;
-    seed_server_membership(&pool, &server_id, "Trimmed", &shared_peer, false, false, 0).await;
+    seed_server_membership(&pool, "Trimmed", &actor, false, false, 0).await;
+    seed_server_membership(&pool, "Trimmed", &shared_peer, false, false, 0).await;
 
     let request = Request::builder()
         .method("GET")
-        .uri("/discovery/users?scope=%20shared_server%20")
+        .uri(format!(
+            "/discovery/users?scope=%20shared_server%20&query={cohort_prefix}"
+        ))
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build trimmed-scope discovery request");
@@ -499,7 +493,7 @@ async fn discovery_trims_scope_before_enum_validation() {
 #[tokio::test]
 async fn discovery_excludes_configured_denylist() {
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         vec!["usr-denied".to_string()],
@@ -611,7 +605,7 @@ async fn discovery_global_db_includes_identity_keys_and_honors_limit_after_exclu
     };
 
     let state = AppState::new(
-        TEST_NODE_FINGERPRINT.to_string(),
+        TEST_SERVER_ID.to_string(),
         vec![TEST_ALLOWED_ORIGIN.to_string()],
         "primary".to_string(),
         vec![denied.clone()],

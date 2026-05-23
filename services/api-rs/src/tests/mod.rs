@@ -1,5 +1,5 @@
 const TEST_ALLOWED_ORIGIN: &str = "http://localhost:3002";
-const TEST_NODE_FINGERPRINT: &str = "hexrelay-local-fingerprint";
+const TEST_SERVER_ID: &str = "hexrelay-local-server";
 
 pub(super) use std::{
     collections::{BTreeMap, HashMap},
@@ -58,7 +58,6 @@ struct AuthVerifyResponse {
 
 #[derive(Deserialize)]
 struct InviteCreateResponse {
-    invite_id: String,
     token: String,
 }
 
@@ -75,9 +74,6 @@ struct ContactListResponse {
 #[derive(Deserialize)]
 struct FriendRequestRecord {
     request_id: String,
-    requester_identity_id: String,
-    target_identity_id: String,
-    status: String,
 }
 
 #[derive(Deserialize)]
@@ -386,25 +382,29 @@ async fn issue_db_session_cookie(
 
 async fn seed_server_membership(
     pool: &sqlx::PgPool,
-    server_id: &str,
     name: &str,
     identity_id: &str,
-    favorite: bool,
+    pinned: bool,
     muted: bool,
     unread_count: i32,
 ) {
     ensure_db_identity_key(pool, identity_id).await;
 
-    servers_repo::insert_server(pool, servers_repo::ServerInsertParams { server_id, name })
-        .await
-        .expect("insert server");
+    servers_repo::insert_server(
+        pool,
+        servers_repo::ServerInsertParams {
+            name,
+            description: "",
+        },
+    )
+    .await
+    .expect("insert server");
 
     servers_repo::insert_server_membership(
         pool,
         servers_repo::ServerMembershipInsertParams {
-            server_id,
             identity_id,
-            favorite,
+            pinned,
             muted,
             unread_count,
         },
@@ -473,7 +473,6 @@ async fn seed_dm_thread(
 
 async fn seed_server_channel(
     pool: &sqlx::PgPool,
-    server_id: &str,
     server_name: &str,
     channel_id: &str,
     channel_name: &str,
@@ -481,14 +480,13 @@ async fn seed_server_channel(
     messages: &[SeedServerChannelMessage<'_>],
 ) {
     for identity_id in member_identity_ids {
-        seed_server_membership(pool, server_id, server_name, identity_id, false, false, 0).await;
+        seed_server_membership(pool, server_name, identity_id, false, false, 0).await;
     }
 
     server_channels_repo::insert_server_channel(
         pool,
         server_channels_repo::ServerChannelInsertParams {
             channel_id,
-            server_id,
             name: channel_name,
             kind: "text",
         },

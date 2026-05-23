@@ -1,17 +1,11 @@
-import { spawnSync } from "node:child_process";
 import process from "node:process";
+import { exitFromError, runInherited } from "./lib/exec.mjs";
+import { defaultRuntimeEnvFiles, ensureAndLoadEnvFiles, ensureCargoBinOnPath } from "./lib/env.mjs";
 
-const isWindows = process.platform === "win32";
-const command = isWindows ? "powershell" : "bash";
-const args = isWindows
-  ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/reset-dev-db.ps1", ...process.argv.slice(2)]
-  : ["scripts/reset-dev-db.sh", ...process.argv.slice(2)];
-
-const result = spawnSync(command, args, { stdio: "inherit", shell: false });
-
-if (result.error) {
-  console.error(`[reset-dev-db] Failed to start ${command}: ${result.error.message}`);
-  process.exit(1);
+try {
+  ensureCargoBinOnPath();
+  ensureAndLoadEnvFiles(defaultRuntimeEnvFiles(), "reset-dev-db");
+  runInherited("cargo", ["run", "-p", "api-rs", "--bin", "reset_dev_db", "--", ...process.argv.slice(2)]);
+} catch (error) {
+  exitFromError(error);
 }
-
-process.exit(result.status ?? 1);

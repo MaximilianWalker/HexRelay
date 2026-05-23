@@ -1,28 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    DiscoveryPath, NodeDescriptor, NodeDescriptorValidationError, NodeSignature,
-    NodeSignatureAlgorithm, PeeringPolicy,
+    DiscoveryPath, PeeringPolicy, ServerDescriptor, ServerDescriptorValidationError,
+    ServerSignature, ServerSignatureAlgorithm,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerInviteEnvelope {
-    pub issuer_descriptor: NodeDescriptor,
+    pub issuer_descriptor: ServerDescriptor,
     pub invite: PeerInvite,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerInvite {
     pub invite_id: String,
-    pub issuer_node_id: String,
+    pub issuer_server_id: String,
     pub issuer_descriptor_id: String,
-    pub subject_node_id: Option<String>,
+    pub subject_server_id: Option<String>,
     pub issued_at_epoch_seconds: i64,
     pub expires_at_epoch_seconds: i64,
     pub discovery_path: DiscoveryPath,
     pub peering_policy: PeeringPolicy,
     pub max_uses: Option<u32>,
-    pub signature: NodeSignature,
+    pub signature: ServerSignature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +30,7 @@ pub struct PeerInviteValidationContext {
     pub now_epoch_seconds: i64,
     pub max_ttl_seconds: i64,
     pub revoked_invite_ids: Vec<String>,
-    pub expected_subject_node_id: Option<String>,
+    pub expected_subject_server_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,13 +45,13 @@ pub enum PeerInviteValidationError {
     InviteRevoked,
     SignatureRequired,
     InvalidMaxUses,
-    IssuerNodeMismatch,
+    IssuerServerMismatch,
     IssuerDescriptorMismatch,
-    SubjectNodeMismatch {
-        expected_subject_node_id: Option<String>,
-        invite_subject_node_id: String,
+    SubjectServerMismatch {
+        expected_subject_server_id: Option<String>,
+        invite_subject_server_id: String,
     },
-    DiscoveryExposureRefused(NodeDescriptorValidationError),
+    DiscoveryExposureRefused(ServerDescriptorValidationError),
     PeeringPolicyRefused {
         issuer_peering_policy: PeeringPolicy,
         invite_peering_policy: PeeringPolicy,
@@ -61,16 +61,16 @@ pub enum PeerInviteValidationError {
 impl PeerInvite {
     pub fn validate(
         &self,
-        issuer_descriptor: &NodeDescriptor,
+        issuer_descriptor: &ServerDescriptor,
         context: &PeerInviteValidationContext,
     ) -> Result<(), PeerInviteValidationError> {
         validate_required(&self.invite_id, "invite_id")?;
-        validate_required(&self.issuer_node_id, "issuer_node_id")?;
+        validate_required(&self.issuer_server_id, "issuer_server_id")?;
         validate_required(&self.issuer_descriptor_id, "issuer_descriptor_id")?;
         validate_required(&self.signature.value, "signature")?;
 
-        if let Some(subject_node_id) = &self.subject_node_id {
-            validate_required(subject_node_id, "subject_node_id")?;
+        if let Some(subject_server_id) = &self.subject_server_id {
+            validate_required(subject_server_id, "subject_server_id")?;
         }
 
         if self.issued_at_epoch_seconds >= self.expires_at_epoch_seconds {
@@ -97,7 +97,7 @@ impl PeerInvite {
             return Err(PeerInviteValidationError::InviteRevoked);
         }
 
-        if self.signature.algorithm != NodeSignatureAlgorithm::Ed25519 {
+        if self.signature.algorithm != ServerSignatureAlgorithm::Ed25519 {
             return Err(PeerInviteValidationError::SignatureRequired);
         }
 
@@ -105,19 +105,19 @@ impl PeerInvite {
             return Err(PeerInviteValidationError::InvalidMaxUses);
         }
 
-        if self.issuer_node_id != issuer_descriptor.node_id {
-            return Err(PeerInviteValidationError::IssuerNodeMismatch);
+        if self.issuer_server_id != issuer_descriptor.server_id {
+            return Err(PeerInviteValidationError::IssuerServerMismatch);
         }
 
         if self.issuer_descriptor_id != issuer_descriptor.descriptor_id {
             return Err(PeerInviteValidationError::IssuerDescriptorMismatch);
         }
 
-        if let Some(subject_node_id) = &self.subject_node_id {
-            if context.expected_subject_node_id.as_deref() != Some(subject_node_id.as_str()) {
-                return Err(PeerInviteValidationError::SubjectNodeMismatch {
-                    expected_subject_node_id: context.expected_subject_node_id.clone(),
-                    invite_subject_node_id: subject_node_id.clone(),
+        if let Some(subject_server_id) = &self.subject_server_id {
+            if context.expected_subject_server_id.as_deref() != Some(subject_server_id.as_str()) {
+                return Err(PeerInviteValidationError::SubjectServerMismatch {
+                    expected_subject_server_id: context.expected_subject_server_id.clone(),
+                    invite_subject_server_id: subject_server_id.clone(),
                 });
             }
         }
