@@ -403,9 +403,10 @@ async fn discovery_ignores_blank_query_and_clamps_large_limit() {
 
 #[tokio::test]
 async fn discovery_shared_server_scope_uses_persisted_memberships() {
-    let actor = unique_identity("usr-discovery-shared-actor");
-    let shared_peer = unique_identity("usr-discovery-shared-peer");
-    let other_user = unique_identity("usr-discovery-shared-other");
+    let cohort_prefix = unique_identity("usr-discovery-shared");
+    let actor = format!("{cohort_prefix}-actor");
+    let shared_peer = format!("{cohort_prefix}-peer");
+    let other_user = unique_identity("usr-discovery-other");
 
     let Some((app, tokens, pool)) =
         app_with_database_and_sessions(&[&actor, &shared_peer, &other_user]).await
@@ -429,7 +430,9 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/discovery/users?scope=shared_server")
+        .uri(format!(
+            "/discovery/users?scope=shared_server&query={cohort_prefix}"
+        ))
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build discovery request");
@@ -450,8 +453,9 @@ async fn discovery_shared_server_scope_uses_persisted_memberships() {
 
 #[tokio::test]
 async fn discovery_trims_scope_before_enum_validation() {
-    let actor = unique_identity("usr-discovery-trim-actor");
-    let shared_peer = unique_identity("usr-discovery-trim-peer");
+    let cohort_prefix = unique_identity("usr-discovery-trim");
+    let actor = format!("{cohort_prefix}-actor");
+    let shared_peer = format!("{cohort_prefix}-peer");
 
     let Some((app, tokens, pool)) = app_with_database_and_sessions(&[&actor, &shared_peer]).await
     else {
@@ -463,7 +467,9 @@ async fn discovery_trims_scope_before_enum_validation() {
 
     let request = Request::builder()
         .method("GET")
-        .uri("/discovery/users?scope=%20shared_server%20")
+        .uri(format!(
+            "/discovery/users?scope=%20shared_server%20&query={cohort_prefix}"
+        ))
         .header("cookie", format!("hexrelay_session={}", tokens[&actor]))
         .body(Body::empty())
         .expect("build trimmed-scope discovery request");

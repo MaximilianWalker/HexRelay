@@ -1,6 +1,32 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { rootDir } from "./paths.mjs";
+
+function npmCliCandidates() {
+  const nodeDir = path.dirname(process.execPath);
+  return [
+    process.env.npm_execpath,
+    path.join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js"),
+    path.resolve(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+  ].filter(Boolean);
+}
+
+function npmInvocation(args) {
+  const npmCli = npmCliCandidates().find((candidate) => fs.existsSync(candidate));
+  if (!npmCli) {
+    return {
+      command: process.platform === "win32" ? "npm.cmd" : "npm",
+      args,
+    };
+  }
+
+  return {
+    command: process.execPath,
+    args: [npmCli, ...args],
+  };
+}
 
 export function nativeCommand(command) {
   if (process.platform !== "win32") {
@@ -18,8 +44,20 @@ export function nativeCommand(command) {
   return command;
 }
 
+function nativeInvocation(command, args) {
+  if (command === "npm") {
+    return npmInvocation(args);
+  }
+
+  return {
+    command: nativeCommand(command),
+    args,
+  };
+}
+
 export function runInherited(command, args = [], options = {}) {
-  const result = spawnSync(nativeCommand(command), args, {
+  const invocation = nativeInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd ?? rootDir,
     env: options.env ?? process.env,
     stdio: "inherit",
@@ -43,7 +81,8 @@ export function runInherited(command, args = [], options = {}) {
 }
 
 export function runChecked(command, args = [], options = {}) {
-  const result = spawnSync(nativeCommand(command), args, {
+  const invocation = nativeInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd ?? rootDir,
     env: options.env ?? process.env,
     encoding: "utf8",
@@ -64,7 +103,8 @@ export function runChecked(command, args = [], options = {}) {
 }
 
 export function runCapture(command, args = [], options = {}) {
-  const result = spawnSync(nativeCommand(command), args, {
+  const invocation = nativeInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd ?? rootDir,
     env: options.env ?? process.env,
     encoding: "utf8",

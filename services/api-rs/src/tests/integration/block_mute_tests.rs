@@ -34,18 +34,22 @@ struct DmFanoutDispatchResp {
 
 #[tokio::test]
 async fn block_user_and_list_returns_blocked_entry() {
-    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    let blocker_id = unique_identity("usr-blocker");
+    let blocked_id = unique_identity("usr-blocked");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[blocker_id.as_str(), blocked_id.as_str()]).await
     else {
         return;
     };
 
-    // Block usr-b
     let req = Request::builder()
         .method("POST")
         .uri("/users/block")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
+        .header("authorization", format!("Bearer {}", tokens[&blocker_id]))
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{blocked_id}"}}"#
+        )))
         .expect("build block request");
     let resp = app.clone().oneshot(req).await.expect("block response");
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -54,7 +58,7 @@ async fn block_user_and_list_returns_blocked_entry() {
     let req = Request::builder()
         .method("GET")
         .uri("/users/blocked")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
+        .header("authorization", format!("Bearer {}", tokens[&blocker_id]))
         .body(Body::empty())
         .expect("build list blocked request");
     let resp = app
@@ -69,24 +73,28 @@ async fn block_user_and_list_returns_blocked_entry() {
         .expect("read body");
     let list: BlockListResponse = serde_json::from_slice(&body).expect("decode block list");
     assert_eq!(list.items.len(), 1);
-    assert_eq!(list.items[0].blocker_identity_id, "usr-a");
-    assert_eq!(list.items[0].blocked_identity_id, "usr-b");
+    assert_eq!(list.items[0].blocker_identity_id, blocker_id);
+    assert_eq!(list.items[0].blocked_identity_id, blocked_id);
 }
 
 #[tokio::test]
 async fn unblock_user_removes_from_list() {
-    let Some((app, tokens, _pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    let blocker_id = unique_identity("usr-unblocker");
+    let blocked_id = unique_identity("usr-unblocked");
+    let Some((app, tokens, _pool)) =
+        app_with_database_and_sessions(&[blocker_id.as_str(), blocked_id.as_str()]).await
     else {
         return;
     };
 
-    // Block then unblock
     let req = Request::builder()
         .method("POST")
         .uri("/users/block")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
+        .header("authorization", format!("Bearer {}", tokens[&blocker_id]))
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{blocked_id}"}}"#
+        )))
         .expect("build block request");
     let resp = app.clone().oneshot(req).await.expect("block response");
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -95,8 +103,10 @@ async fn unblock_user_removes_from_list() {
         .method("POST")
         .uri("/users/unblock")
         .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
-        .body(Body::from(r#"{"target_identity_id":"usr-b"}"#))
+        .header("authorization", format!("Bearer {}", tokens[&blocker_id]))
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{blocked_id}"}}"#
+        )))
         .expect("build unblock request");
     let resp = app.clone().oneshot(req).await.expect("unblock response");
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
@@ -105,7 +115,7 @@ async fn unblock_user_removes_from_list() {
     let req = Request::builder()
         .method("GET")
         .uri("/users/blocked")
-        .header("authorization", format!("Bearer {}", tokens["usr-a"]))
+        .header("authorization", format!("Bearer {}", tokens[&blocker_id]))
         .body(Body::empty())
         .expect("build list blocked request");
     let resp = app

@@ -440,6 +440,8 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     let poster_id = unique_identity("usr-channel-poster");
     let reader_role_id = format!("role-reader-{}", Uuid::new_v4().simple());
     let poster_role_id = format!("role-poster-{}", Uuid::new_v4().simple());
+    let reader_role_name = format!("reader-{}", Uuid::new_v4().simple());
+    let poster_role_name = format!("poster-{}", Uuid::new_v4().simple());
     let reader_message_id = format!("scm-reader-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
@@ -453,8 +455,8 @@ async fn channel_role_send_permission_gates_server_channel_message_mutations() {
     .await;
 
     for (role_id, name, rank) in [
-        (&reader_role_id, "reader", 1),
-        (&poster_role_id, "poster", 2),
+        (&reader_role_id, reader_role_name.as_str(), 1),
+        (&poster_role_id, poster_role_name.as_str(), 2),
     ] {
         server_channels_repo::insert_server_role(
             &pool,
@@ -1560,6 +1562,8 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
     let outsider_id = unique_identity("usr-fanout-outsider");
     let reader_role_id = format!("role-fanout-reader-{}", Uuid::new_v4().simple());
     let denied_role_id = format!("role-fanout-denied-{}", Uuid::new_v4().simple());
+    let reader_role_name = format!("reader-{}", Uuid::new_v4().simple());
+    let denied_role_name = format!("no-channel-read-{}", Uuid::new_v4().simple());
 
     seed_server_channel(
         &pool,
@@ -1574,7 +1578,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &reader_role_id,
-            name: "Reader",
+            name: &reader_role_name,
             rank: 10,
         },
     )
@@ -1584,7 +1588,7 @@ async fn api_server_channel_mutations_fan_out_over_realtime_websocket() {
         &pool,
         server_channels_repo::ServerRoleInsertParams {
             role_id: &denied_role_id,
-            name: "No Channel Read",
+            name: &denied_role_name,
             rank: 1,
         },
     )

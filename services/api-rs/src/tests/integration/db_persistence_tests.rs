@@ -500,13 +500,17 @@ async fn fanout_friends_only_uses_db_friendship_state() {
 
 #[tokio::test]
 async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
-    let Some((app, tokens, pool)) = app_with_database_and_sessions(&["usr-a", "usr-b"]).await
+    let requester_identity = unique_identity("usr-bootstrap-requester");
+    let target_identity = unique_identity("usr-bootstrap-target");
+    let Some((app, tokens, pool)) =
+        app_with_database_and_sessions(&[requester_identity.as_str(), target_identity.as_str()])
+            .await
     else {
         return;
     };
 
-    ensure_db_identity_key(&pool, "usr-a").await;
-    ensure_db_identity_key(&pool, "usr-b").await;
+    ensure_db_identity_key(&pool, &requester_identity).await;
+    ensure_db_identity_key(&pool, &target_identity).await;
 
     let create_req = Request::builder()
         .method("POST")
@@ -516,13 +520,13 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-a"]
+                tokens[&requester_identity]
             ),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(
-            r#"{"requester_identity_id":"usr-a","target_identity_id":"usr-b"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"requester_identity_id":"{requester_identity}","target_identity_id":"{target_identity}"}}"#
+        )))
         .expect("build create request");
     let create_resp = app.clone().oneshot(create_req).await.expect("create resp");
     assert_eq!(create_resp.status(), StatusCode::CREATED);
@@ -538,7 +542,7 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-b"]
+                tokens[&target_identity]
             ),
         )
         .header("x-csrf-token", "test-csrf")
@@ -555,11 +559,13 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
             "cookie",
             format!(
                 "hexrelay_session={}; hexrelay_csrf=test-csrf",
-                tokens["usr-b"]
+                tokens[&target_identity]
             ),
         )
         .header("x-csrf-token", "test-csrf")
-        .body(Body::from(r#"{"target_identity_id":"usr-a"}"#))
+        .body(Body::from(format!(
+            r#"{{"target_identity_id":"{requester_identity}"}}"#
+        )))
         .expect("build block request");
     let block_resp = app.clone().oneshot(block_req).await.expect("block resp");
     assert_eq!(block_resp.status(), StatusCode::CREATED);
@@ -570,7 +576,10 @@ async fn bootstrap_rejects_blocked_peer_after_acceptance_in_db() {
             "/friends/requests/{}/bootstrap",
             created.request_id
         ))
-        .header("cookie", format!("hexrelay_session={}", tokens["usr-a"]))
+        .header(
+            "cookie",
+            format!("hexrelay_session={}", tokens[&requester_identity]),
+        )
         .body(Body::empty())
         .expect("build bootstrap request");
     let bootstrap_resp = app.oneshot(bootstrap_req).await.expect("bootstrap resp");
