@@ -53,6 +53,7 @@ import {
   type WorkspaceTab,
 } from "@/lib/workspace-tabs";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -890,6 +891,12 @@ export function WorkspaceShell({
     </>
   );
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
+  const brand = (
+    <div className={styles.brand} aria-label="HexRelay">
+      <BrandLogo className={styles.brandMark} aria-hidden="true" />
+      <span className={styles.brandName}>HexRelay</span>
+    </div>
+  );
   const topbarWorkspaceTabStrip = (
     <>
       <div className={styles.workspaceRail} onWheel={handleWorkspaceTabWheel} role="group" aria-label="Workspace tabs">
@@ -934,7 +941,7 @@ export function WorkspaceShell({
         {isTopbar ? (
           <header className={styles.topbar}>
             <div className={styles.topbarPrimary}>
-              <p className={styles.brand}>HexRelay</p>
+              {brand}
               <nav aria-label="Primary" className={styles.topbarNav}>
                 {navLinks}
               </nav>
@@ -958,7 +965,7 @@ export function WorkspaceShell({
         ) : (
           <aside className={styles.sidebar}>
             <div className={styles.sidebarPrimary}>
-              <p className={styles.brand}>HexRelay</p>
+              {brand}
               <nav aria-label="Primary" className={styles.topNav}>
                 {navLinks}
               </nav>

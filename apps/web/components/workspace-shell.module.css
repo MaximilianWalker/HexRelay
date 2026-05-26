@@ -49,10 +49,29 @@
 }
 
 .brand {
-  font-size: 1.1rem;
-  font-weight: var(--weight-bold);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--space-10);
   color: var(--color-accent-strong);
   margin-bottom: 6px;
+}
+
+.brandMark {
+  width: var(--space-10);
+  height: var(--space-10);
+  flex: 0 0 var(--space-10);
+  color: var(--color-accent-strong);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-accent) 26%, transparent));
+}
+
+.brandName {
+  overflow: hidden;
+  font-size: 1.1rem;
+  font-weight: var(--weight-bold);
+  line-height: var(--space-10);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topNav {
@@ -466,7 +485,6 @@
   padding: var(--chrome-space);
 }
 
-.collapsed .brand,
 .collapsed .sectionTitle,
 .collapsed .profileDetails,
 .collapsed .workspaceTabLabel,
@@ -480,6 +498,14 @@
 .collapsed .workspaceTabLink {
   justify-content: center;
   padding: 0;
+}
+
+.collapsed .brand {
+  justify-content: center;
+}
+
+.collapsed .brandName {
+  display: none;
 }
 
 .collapsed .navLink {
