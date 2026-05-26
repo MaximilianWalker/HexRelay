@@ -3,6 +3,11 @@
   --chrome-space: var(--space-7);
   --collapsed-surface: calc(var(--brand-lockup-size-lg-mark) + (var(--chrome-space) * 2));
   --nav-icon-target: var(--size-control-md);
+  --sidebar-nav-icon-size: 17px;
+  --sidebar-nav-icon-offset: calc((var(--brand-lockup-size-lg-mark) - var(--sidebar-nav-icon-size)) / 2);
+  --sidebar-profile-offset: calc((var(--brand-lockup-size-lg-mark) - var(--size-control-md)) / 2);
+  --workspace-tab-image-size: var(--size-avatar-sm);
+  --workspace-tab-image-offset: calc((var(--brand-lockup-size-lg-mark) - var(--workspace-tab-image-size)) / 2);
   --topbar-nav-link-height: 54px;
   --workspace-tab-height: 52px;
   --workspace-tab-topbar-height: 58px;
@@ -47,7 +52,8 @@
 }
 
 .sidebarPrimary {
-  padding: 0;
+  box-sizing: border-box;
+  padding: var(--chrome-space);
 }
 
 .brandLockup {
@@ -177,10 +183,14 @@
 }
 
 .navIcon {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
+  width: var(--sidebar-nav-icon-size);
+  height: var(--sidebar-nav-icon-size);
+  flex: 0 0 var(--sidebar-nav-icon-size);
   stroke-width: 1.8;
+}
+
+.sidebar .navLink {
+  padding-inline: var(--sidebar-nav-icon-offset) var(--space-5);
 }
 
 .navLinkActive {
@@ -332,6 +342,7 @@
   color: var(--color-text-strong);
   box-sizing: border-box;
   padding: 8px;
+  padding-left: var(--workspace-tab-image-offset);
   box-shadow: none;
   transition:
     background 120ms ease,
@@ -401,9 +412,9 @@
 .workspaceTabImage {
   position: relative;
   display: inline-flex;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: var(--workspace-tab-image-size);
+  height: var(--workspace-tab-image-size);
+  flex: 0 0 var(--workspace-tab-image-size);
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -563,7 +574,6 @@
 .collapsed .sidebarControls {
   width: var(--collapsed-surface);
   box-sizing: border-box;
-  padding: var(--chrome-space);
 }
 
 .collapsed .sectionTitle,
@@ -644,7 +654,7 @@
 .collapsed .sidebarControls {
   align-items: center;
   align-self: center;
-  flex-direction: column;
+  flex-direction: column-reverse;
   min-width: 0;
 }
 
@@ -822,8 +832,12 @@
 }
 
 .sidebarControls .controlIcon {
-  width: 17px;
-  height: 17px;
+  width: var(--sidebar-nav-icon-size);
+  height: var(--sidebar-nav-icon-size);
+}
+
+.shell:not(.collapsed) .sidebarControls .profileSummary {
+  padding-left: var(--sidebar-profile-offset);
 }
 
 .topbarControls .profileActions {
