@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
 import styles from "./home.module.css";
@@ -9,8 +9,9 @@ import { WorkspaceShell } from "@/components/workspace-shell";
 import { revokeSession } from "@/lib/api";
 import {
   ensurePersona,
-  readActivePersonaId,
-  readPersonas,
+  EMPTY_PERSONA_SNAPSHOT,
+  parsePersonaSnapshot,
+  readPersonaSnapshot,
   removePersona,
   switchPersona,
   type PersonaRecord,
@@ -21,6 +22,7 @@ import {
   getPersonaSession,
 } from "@/lib/sessions";
 import { trackEvent } from "@/lib/telemetry";
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences";
 
 export default function HomePage() {
   const [, forceRefresh] = useState(0);
@@ -28,8 +30,14 @@ export default function HomePage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [busyPersonaId, setBusyPersonaId] = useState<string | null>(null);
 
-  const personas: PersonaRecord[] = readPersonas();
-  const activePersonaId = readActivePersonaId() ?? personas[0]?.id ?? null;
+  const personaSnapshot = useSyncExternalStore(
+    subscribeWorkspacePreferences,
+    readPersonaSnapshot,
+    () => EMPTY_PERSONA_SNAPSHOT,
+  );
+  const parsedPersonaSnapshot = parsePersonaSnapshot(personaSnapshot);
+  const personas: PersonaRecord[] = parsedPersonaSnapshot.personas;
+  const activePersonaId = parsedPersonaSnapshot.activePersonaId ?? personas[0]?.id ?? null;
 
   const activePersona = personas.find((persona) => persona.id === activePersonaId) ?? null;
 

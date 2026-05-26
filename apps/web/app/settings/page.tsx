@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   IconBell,
@@ -14,6 +14,8 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react";
 
+import { SettingPanel } from "@/components/settings/setting-panel";
+import { ReadOnlyValue, SettingRow, ToggleControl } from "@/components/settings/setting-row";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   activateTestingSession,
@@ -25,8 +27,20 @@ import {
   type TestingProfileSummary,
 } from "@/lib/api";
 import { env } from "@/lib/env";
-import { readActivePersonaId, readPersonas, switchPersona, upsertPersona } from "@/lib/personas";
+import {
+  EMPTY_PERSONA_SNAPSHOT,
+  parsePersonaSnapshot,
+  readPersonaSnapshot,
+  switchPersona,
+  upsertPersona,
+} from "@/lib/personas";
 import { getPersonaSession, setPersonaSession } from "@/lib/sessions";
+import {
+  readThemePreference,
+  setThemePreference,
+  subscribeThemePreference,
+  type ThemePreference,
+} from "@/lib/ui/theme";
 import {
   readMicrophoneMuted,
   readMessageLayout,
@@ -54,7 +68,6 @@ const DM_POLICY_EVENT = "hexrelay-dm-policy-changed";
 const SHOW_DEV_TESTING = process.env.NODE_ENV === "development";
 
 type DmPolicy = DmInboundPolicy;
-type SettingStatus = "Live" | "Review" | "Locked" | "Dev only";
 type SettingsTabId =
   | "profile"
   | "privacy"
@@ -246,96 +259,6 @@ function subscribeDmPolicy(onChange: () => void): () => void {
   };
 }
 
-function statusClass(status: SettingStatus): string {
-  if (status === "Live") {
-    return settingsStyles.statusLive;
-  }
-  if (status === "Dev only") {
-    return settingsStyles.statusDev;
-  }
-  if (status === "Locked") {
-    return settingsStyles.statusLocked;
-  }
-
-  return settingsStyles.statusReview;
-}
-
-function booleanLabel(value: boolean): string {
-  return value ? "On" : "Off";
-}
-
-function SettingPanel({
-  category,
-  children,
-}: {
-  category: SettingsCategory;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-label={category.label} className={settingsStyles.panel}>
-      <div className={settingsStyles.settingList}>{children}</div>
-    </section>
-  );
-}
-
-function SettingRow({
-  label,
-  description,
-  status,
-  children,
-}: {
-  label: string;
-  description: string;
-  status: SettingStatus;
-  children: ReactNode;
-}) {
-  return (
-    <div className={settingsStyles.settingRow}>
-      <div className={settingsStyles.settingCopy}>
-        <div className={settingsStyles.settingHeading}>
-          <p className={settingsStyles.settingLabel}>{label}</p>
-          <span className={`${settingsStyles.status} ${statusClass(status)}`}>{status}</span>
-        </div>
-        <p className={settingsStyles.settingDescription}>{description}</p>
-      </div>
-      <div className={settingsStyles.settingControl}>{children}</div>
-    </div>
-  );
-}
-
-function ToggleControl({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange?: (next: boolean) => void;
-}) {
-  return (
-    <button
-      aria-checked={checked}
-      aria-label={label}
-      className={`${settingsStyles.toggle} ${checked ? settingsStyles.toggleOn : ""}`}
-      disabled={disabled}
-      onClick={() => onChange?.(!checked)}
-      role="switch"
-      type="button"
-    >
-      <span className={settingsStyles.toggleTrack}>
-        <span className={settingsStyles.toggleThumb} />
-      </span>
-      <span>{booleanLabel(checked)}</span>
-    </button>
-  );
-}
-
-function ReadOnlyValue({ children }: { children: ReactNode }) {
-  return <span className={settingsStyles.readOnlyValue}>{children}</span>;
-}
-
 export default function SettingsPage() {
   const router = useRouter();
   const navLayout = useSyncExternalStore<NavLayout>(subscribeWorkspacePreferences, readNavLayout, () => "sidebar");
@@ -353,8 +276,18 @@ export default function SettingsPage() {
     () => "pinned",
   );
   const dmPolicy = useSyncExternalStore<DmPolicy>(subscribeDmPolicy, readDmPolicy, () => "friends_only");
-  const [personas, setPersonas] = useState(() => readPersonas());
-  const identityId = useMemo(() => readActivePersonaId() ?? personas[0]?.id ?? null, [personas]);
+  const themePreference = useSyncExternalStore<ThemePreference>(
+    subscribeThemePreference,
+    readThemePreference,
+    () => "system",
+  );
+  const personaSnapshot = useSyncExternalStore(
+    subscribeWorkspacePreferences,
+    readPersonaSnapshot,
+    () => EMPTY_PERSONA_SNAPSHOT,
+  );
+  const { activePersonaId, personas } = parsePersonaSnapshot(personaSnapshot);
+  const identityId = useMemo(() => activePersonaId ?? personas[0]?.id ?? null, [activePersonaId, personas]);
   const activePersona = useMemo(
     () => personas.find((persona) => persona.id === identityId) ?? personas[0] ?? null,
     [identityId, personas],
@@ -502,7 +435,7 @@ export default function SettingsPage() {
       return;
     }
 
-    setPersonas(switchPersona(personaId));
+    switchPersona(personaId);
   }
 
   function updateTabRestoreMode(next: TabRestoreMode): void {
@@ -539,7 +472,6 @@ export default function SettingsPage() {
         expiresAt: result.data.expires_at,
       });
       storeCsrfToken(result.data.csrf_token);
-      setPersonas(readPersonas());
       setTestingMessage(successMessage);
       return true;
     } finally {
@@ -814,6 +746,22 @@ export default function SettingsPage() {
         {activeSettingsTab === "appearance" ? (
           <SettingPanel category={activeSettingsCategory}>
           <SettingRow
+            description="Controls the app color theme across all shared UI surfaces."
+            label="Theme"
+            status="Live"
+          >
+            <select
+              aria-label="Theme"
+              className={settingsStyles.select}
+              onChange={(event) => setThemePreference(event.target.value as ThemePreference)}
+              value={themePreference}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </SettingRow>
+          <SettingRow
             description="Switches the main app navigation between sidebar and top bar layouts."
             label="Navigation layout"
             status="Live"
@@ -848,17 +796,6 @@ export default function SettingsPage() {
             >
               <option value="pinned">Pinned tabs only</option>
               <option value="all">Pinned and normal tabs</option>
-            </select>
-          </SettingRow>
-          <SettingRow
-            description="Theme support is not implemented yet."
-            label="Theme"
-            status="Review"
-          >
-            <select aria-label="Theme" className={settingsStyles.select} disabled value="system">
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
             </select>
           </SettingRow>
           <SettingRow

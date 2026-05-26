@@ -1,0 +1,99 @@
+.panel {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-panel);
+}
+
+.settingList {
+  display: grid;
+  align-content: start;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+}
+
+.settingRow {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(180px, 260px);
+  align-items: center;
+  gap: var(--gap-section);
+  padding: var(--pad-panel);
+}
+
+.settingRow + .settingRow {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.settingCopy {
+  min-width: 0;
+}
+
+.settingHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.settingLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-strong);
+  font-size: 0.9rem;
+  font-weight: var(--weight-bold);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settingDescription {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--line-normal);
+}
+
+.settingControl {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.status {
+  align-self: center;
+}
+
+.readOnlyValue {
+  display: inline-flex;
+  max-width: 260px;
+  align-items: center;
+  justify-content: flex-end;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+@media (max-width: 820px) {
+  .settingRow {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .settingControl {
+    justify-content: stretch;
+  }
+
+  .readOnlyValue {
+    max-width: none;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}

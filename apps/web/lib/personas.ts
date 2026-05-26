@@ -5,9 +5,15 @@ export type PersonaRecord = {
   lastSelectedAt: string;
 };
 
+export type PersonaSnapshot = {
+  activePersonaId: string | null;
+  personas: PersonaRecord[];
+};
+
 const PERSONAS_KEY = "hexrelay.personas";
 const ACTIVE_PERSONA_KEY = "hexrelay.active-persona";
 const UI_PREFS_EVENT = "hexrelay-ui-preferences-changed";
+export const EMPTY_PERSONA_SNAPSHOT = JSON.stringify({ activePersonaId: null, personas: [] });
 
 function notifyPersonaChange(): void {
   if (typeof window.dispatchEvent !== "function") {
@@ -43,6 +49,25 @@ export function readActivePersonaId(): string | null {
   }
 
   return window.localStorage.getItem(ACTIVE_PERSONA_KEY);
+}
+
+export function readPersonaSnapshot(): string {
+  return JSON.stringify({
+    activePersonaId: readActivePersonaId(),
+    personas: readPersonas(),
+  });
+}
+
+export function parsePersonaSnapshot(value: string): PersonaSnapshot {
+  try {
+    const parsed = JSON.parse(value) as Partial<PersonaSnapshot>;
+    return {
+      activePersonaId: typeof parsed.activePersonaId === "string" ? parsed.activePersonaId : null,
+      personas: Array.isArray(parsed.personas) ? parsed.personas : [],
+    };
+  } catch {
+    return { activePersonaId: null, personas: [] };
+  }
 }
 
 export function ensurePersona(name: string): PersonaRecord {

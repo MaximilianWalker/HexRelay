@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ensurePersona,
+  EMPTY_PERSONA_SNAPSHOT,
+  parsePersonaSnapshot,
   readActivePersonaId,
+  readPersonaSnapshot,
   readPersonas,
   removePersona,
   switchPersona,
@@ -75,6 +78,23 @@ describe("personas", () => {
     });
     expect(readActivePersonaId()).toBe("persona-a");
     expect(readPersonas()).toEqual([created]);
+  });
+
+  it("serializes and parses persona snapshots for hydration-safe consumers", () => {
+    const created = ensurePersona("Nora");
+
+    expect(parsePersonaSnapshot(readPersonaSnapshot())).toEqual({
+      activePersonaId: created.id,
+      personas: [created],
+    });
+    expect(parsePersonaSnapshot(EMPTY_PERSONA_SNAPSHOT)).toEqual({
+      activePersonaId: null,
+      personas: [],
+    });
+    expect(parsePersonaSnapshot("not-json")).toEqual({
+      activePersonaId: null,
+      personas: [],
+    });
   });
 
   it("reuses existing personas case-insensitively and refreshes lastSelectedAt", () => {

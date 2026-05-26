@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import "@/lib/env";
+import { ThemeController } from "@/components/theme-controller";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${jetBrainsMono.variable}`}>
+        <ThemeController />
         {children}
       </body>
     </html>

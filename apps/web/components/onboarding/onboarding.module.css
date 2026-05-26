@@ -1,0 +1,115 @@
+.shell {
+  min-height: 100vh;
+  padding: var(--space-14);
+  background: var(--color-bg-onboarding);
+  color: var(--color-text);
+}
+
+.content {
+  display: grid;
+  max-width: 1240px;
+  grid-template-columns: 1.1fr 1.4fr 1fr;
+  gap: var(--space-10);
+  margin: var(--space-0) auto;
+}
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-12);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-panel);
+}
+
+.brandEyebrow {
+  margin-bottom: var(--space-7);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.leftTitle {
+  margin-bottom: var(--space-6);
+  color: var(--color-text-heading);
+  font-size: var(--text-hero);
+  line-height: 1.1;
+}
+
+.leftBody {
+  margin-bottom: var(--space-10);
+  color: var(--color-text-muted);
+  line-height: var(--line-normal);
+}
+
+.promiseList {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.promiseList li {
+  border-left: 3px solid var(--color-accent-border);
+  padding-left: var(--space-5);
+  color: var(--color-text-strong);
+  font-size: 0.95rem;
+  list-style: none;
+}
+
+.steps {
+  display: flex;
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+}
+
+.step {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-4);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  text-align: center;
+}
+
+.activeStep {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.wizardTitle {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-heading);
+  font-size: 1.6rem;
+}
+
+.wizardSubtitle {
+  margin-bottom: var(--space-8);
+  color: var(--color-text-muted);
+}
+
+.asideList {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.asideItem {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 1080px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    padding: var(--space-8);
+  }
+}

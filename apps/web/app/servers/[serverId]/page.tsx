@@ -14,7 +14,6 @@ import {
   IconMessageCircle,
   IconMicrophone,
   IconRefresh,
-  IconSend,
   IconSettings,
   IconShieldCheck,
   IconStar,
@@ -22,6 +21,10 @@ import {
   IconVolume,
 } from "@tabler/icons-react";
 
+import { ChannelRail } from "@/components/chat/channel-rail";
+import { Composer } from "@/components/chat/composer";
+import { MessageRow } from "@/components/chat/message-row";
+import { MessageTimeline } from "@/components/chat/message-timeline";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   createServerChannelMessage,
@@ -370,71 +373,6 @@ function ChannelButton({
         </span>
       ) : null}
     </button>
-  );
-}
-
-function MessageBubble({
-  message,
-  replyTo,
-  ownMessage,
-  layout,
-  onReply,
-}: {
-  message: ServerChannelMessage;
-  replyTo?: ServerChannelMessage;
-  ownMessage: boolean;
-  layout: MessageLayout;
-  onReply: (message: ServerChannelMessage) => void;
-}) {
-  const deleted = Boolean(message.deleted_at);
-  const continuous = layout === "continuous-feed";
-
-  return (
-    <article
-      className={`${styles.serverMessage} ${ownMessage && !continuous ? styles.serverMessageOwn : ""} ${
-        continuous ? styles.serverMessageContinuous : ""
-      }`}
-    >
-      <div className={styles.messageAvatar}>{initials(authorLabel(message.author_id))}</div>
-      <div className={styles.messageBody}>
-        <div className={styles.messageHeader}>
-          <span className={styles.messageAuthor}>{authorLabel(message.author_id)}</span>
-          <span className={styles.messageTime}>{formatTimestamp(message.created_at)}</span>
-          {message.edited_at ? <span className={styles.messageFlag}>edited</span> : null}
-          {deleted ? <span className={styles.messageFlag}>deleted</span> : null}
-        </div>
-        {replyTo ? (
-          <p className={styles.messageReply}>
-            Replying to {authorLabel(replyTo.author_id)}: {replyTo.deleted_at ? "deleted message" : replyTo.content}
-          </p>
-        ) : message.reply_to_message_id ? (
-          <p className={styles.messageReply}>Replying to {shortIdentity(message.reply_to_message_id)}</p>
-        ) : null}
-        <p className={deleted ? styles.messageDeleted : styles.messageContent}>
-          {deleted ? "Message deleted" : message.content}
-        </p>
-        {message.mentions.length > 0 ? (
-          <div className={styles.messageMentions} aria-label="Mentions">
-            {message.mentions.map((mention) => (
-              <span className={styles.mentionToken} key={mention}>
-                @{authorHandle(mention)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      {!deleted ? (
-        <button
-          aria-label={`Reply to message from ${authorLabel(message.author_id)}`}
-          className={styles.messageAction}
-          onClick={() => onReply(message)}
-          title="Reply"
-          type="button"
-        >
-          <IconMessageCircle className={styles.icon} aria-hidden="true" />
-        </button>
-      ) : null}
-    </article>
   );
 }
 
@@ -1081,22 +1019,17 @@ export default function ServerWorkspacePage() {
           </section>
         ) : view === "chat" ? (
           <section className={styles.chatGrid} aria-label="Server chat">
-            <aside className={styles.chatChannelRail} aria-label="Channels">
-              <div className={styles.panelHeader}>
-                <h3>Channels</h3>
-              </div>
-              <div className={styles.channelStack}>
-                {visibleChannels.map((channel) => (
-                  <ChannelButton
-                    active={channel.id === activeChannel?.id}
-                    channel={channel}
-                    key={channel.id}
-                    notificationCount={channelNotificationCounts.get(channel.id) ?? 0}
-                    onSelect={selectChannel}
-                  />
-                ))}
-              </div>
-            </aside>
+            <ChannelRail aria-label="Channels" title="Channels">
+              {visibleChannels.map((channel) => (
+                <ChannelButton
+                  active={channel.id === activeChannel?.id}
+                  channel={channel}
+                  key={channel.id}
+                  notificationCount={channelNotificationCounts.get(channel.id) ?? 0}
+                  onSelect={selectChannel}
+                />
+              ))}
+            </ChannelRail>
 
             <article className={styles.chatPanel}>
               <header className={styles.chatHeader}>
@@ -1124,83 +1057,55 @@ export default function ServerWorkspacePage() {
               {messageState === "loading" ? <p className={styles.state}>Loading channel history...</p> : null}
               {messageState === "error" ? <p className={styles.state}>Could not load channel history.</p> : null}
 
-              <div
-                className={`${styles.messageTimeline} ${
-                  messageLayout === "continuous-feed" ? styles.messageTimelineContinuous : ""
-                }`}
+              <MessageTimeline
+                layout={messageLayout}
+                loadOlderLabel={
+                  nextCursor && hasSession ? (olderState === "loading" ? "Loading older..." : "Load older messages") : null
+                }
+                loadingOlder={olderState === "loading"}
+                onLoadOlder={() => void loadOlderMessages()}
               >
-                {nextCursor && hasSession ? (
-                  <button
-                    className={styles.loadOlderButton}
-                    disabled={olderState === "loading"}
-                    onClick={() => void loadOlderMessages()}
-                    type="button"
-                  >
-                    <IconMessageCircle className={styles.icon} aria-hidden="true" />
-                    {olderState === "loading" ? "Loading older..." : "Load older messages"}
-                  </button>
-                ) : null}
                 {visibleMessages.length > 0 ? (
                   visibleMessages.map((message) => (
-                    <MessageBubble
+                    <MessageRow
+                      authorHandle={authorHandle}
+                      authorLabel={authorLabel}
+                      formatTimestamp={formatTimestamp}
                       key={message.message_id}
                       layout={messageLayout}
                       message={message}
                       onReply={setReplyTo}
                       ownMessage={message.author_id === identityId}
                       replyTo={message.reply_to_message_id ? messageById.get(message.reply_to_message_id) : undefined}
+                      shortIdentity={shortIdentity}
                     />
                   ))
                 ) : (
                   <p className={styles.state}>No messages in this channel yet.</p>
                 )}
-              </div>
+              </MessageTimeline>
 
               {hasSession ? (
-                <section className={styles.composerPanel} aria-label="Message composer">
-                  {replyTo ? (
-                    <div className={styles.replyDraft}>
-                      <div>
-                        <p className={styles.serverSectionLabel}>Replying to {authorLabel(replyTo.author_id)}</p>
-                        <p className={styles.meta}>{replyTo.content}</p>
-                      </div>
-                      <button className={styles.backButton} onClick={() => setReplyTo(null)} type="button">
-                        Cancel reply
-                      </button>
-                    </div>
-                  ) : null}
-
-                  <textarea
-                    className={styles.composerInput}
-                    disabled={!activeChannel || sendBusy}
-                    onChange={(event) => setComposer(event.target.value)}
-                    placeholder={activeChannel ? `Message #${activeChannel.name}` : "Select a channel"}
-                    rows={3}
-                    value={composer}
-                  />
-                  <div className={styles.composerBar}>
-                    <div className={styles.composerHints}>
-                      {mentionIdentityIds.length > 0 ? (
-                        mentionIdentityIds.map((mention) => (
+                <Composer
+                  disabled={!activeChannel || sendBusy}
+                  hints={
+                    mentionIdentityIds.length > 0
+                      ? mentionIdentityIds.map((mention) => (
                           <span className={styles.mentionToken} key={mention}>
                             @{authorHandle(mention)}
                           </span>
                         ))
-                      ) : (
-                        <span className={styles.meta}>Use @alice, @bob, or @carol with the seeded fixture.</span>
-                      )}
-                    </div>
-                    <button
-                      className={`${styles.backButton} ${styles.sendButton}`}
-                      disabled={!activeChannel || sendBusy}
-                      onClick={() => void sendMessage()}
-                      type="button"
-                    >
-                      <IconSend className={styles.icon} aria-hidden="true" />
-                      {sendBusy ? "Sending..." : "Send"}
-                    </button>
-                  </div>
-                </section>
+                      : <span className={styles.meta}>Use @alice, @bob, or @carol with the seeded fixture.</span>
+                  }
+                  onCancelReply={replyTo ? () => setReplyTo(null) : undefined}
+                  onChange={setComposer}
+                  onSend={() => void sendMessage()}
+                  placeholder={activeChannel ? `Message #${activeChannel.name}` : "Select a channel"}
+                  replyLabel={replyTo ? `Replying to ${authorLabel(replyTo.author_id)}` : undefined}
+                  replyText={replyTo?.content}
+                  sendLabel={sendBusy ? "Sending..." : "Send"}
+                  value={composer}
+                />
               ) : (
                 <div className={styles.composerLocked}>
                   <IconInfoCircle className={styles.icon} aria-hidden="true" />
@@ -1211,21 +1116,16 @@ export default function ServerWorkspacePage() {
           </section>
         ) : view === "voice" ? (
           <section className={styles.chatGrid} aria-label="Server voice">
-            <aside className={styles.chatChannelRail} aria-label="Voice channels">
-              <div className={styles.panelHeader}>
-                <h3>Voice channels</h3>
-              </div>
-              <div className={styles.channelStack}>
-                {PREVIEW_VOICE_CHANNELS.map((channel) => (
-                  <VoiceChannelButton
-                    active={channel.id === activeVoiceChannel?.id}
-                    channel={channel}
-                    key={channel.id}
-                    onSelect={selectVoiceChannel}
-                  />
-                ))}
-              </div>
-            </aside>
+            <ChannelRail aria-label="Voice channels" title="Voice channels">
+              {PREVIEW_VOICE_CHANNELS.map((channel) => (
+                <VoiceChannelButton
+                  active={channel.id === activeVoiceChannel?.id}
+                  channel={channel}
+                  key={channel.id}
+                  onSelect={selectVoiceChannel}
+                />
+              ))}
+            </ChannelRail>
 
             <article className={`${styles.chatPanel} ${styles.voicePanel}`}>
               <header className={styles.chatHeader}>

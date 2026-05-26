@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import {
   IconAddressBook,
   IconChevronLeft,
@@ -14,7 +15,6 @@ import {
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconMessageCircle,
   IconMicrophone,
   IconMicrophoneOff,
   IconPinned,
@@ -43,7 +43,6 @@ import {
 } from "@/lib/workspace-preferences";
 import {
   closeWorkspaceTab,
-  moveWorkspaceTab,
   openWorkspaceTab,
   readWorkspaceTabsSnapshot,
   reorderWorkspaceTab,
@@ -54,6 +53,9 @@ import {
   type WorkspaceTab,
 } from "@/lib/workspace-tabs";
 
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { RealtimeClient } from "./realtime-client";
 import styles from "./workspace-shell.module.css";
 
@@ -89,10 +91,6 @@ type ProfileSummary = {
   name: string;
   status: string;
 };
-
-function getTabIcon(tab: WorkspaceTab): typeof IconServer2 {
-  return tab.kind === "dm" ? IconMessageCircle : IconServer2;
-}
 
 function normalizeUnread(value: number | undefined): number {
   if (!Number.isFinite(value) || !value || value <= 0) {
@@ -178,6 +176,7 @@ export function WorkspaceShell({
     EMPTY_CONTENT_TAB_SCROLL_STATE,
   );
   const [draggedWorkspaceTabId, setDraggedWorkspaceTabId] = useState<string | null>(null);
+  const [workspaceTabMenu, setWorkspaceTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
@@ -197,6 +196,7 @@ export function WorkspaceShell({
       unread: normalizeUnread(workspaceTab?.unread),
     };
   }, [pathname, workspaceTab?.imageLabel, workspaceTab?.label, workspaceTab?.unread]);
+  const workspaceTabMenuTab = workspaceTabMenu ? workspaceTabs.find((tab) => tab.id === workspaceTabMenu.tabId) : undefined;
 
   const centerContentTabNode = useCallback((node: HTMLElement): void => {
     const element = contentTabsRef.current;
@@ -405,6 +405,34 @@ export function WorkspaceShell({
     syncWorkspaceTabsForRestoreMode(tabRestoreMode);
   }, [tabRestoreMode]);
 
+  useEffect(() => {
+    if (!workspaceTabMenu) {
+      return;
+    }
+
+    function closeMenu(): void {
+      setWorkspaceTabMenu(null);
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    }
+
+    document.addEventListener("click", closeMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+
+    return () => {
+      document.removeEventListener("click", closeMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [workspaceTabMenu]);
+
   function toggleNavLayout(): void {
     const next = navLayout === "sidebar" ? "topbar" : "sidebar";
     setNavLayout(next);
@@ -437,6 +465,35 @@ export function WorkspaceShell({
     setDraggedWorkspaceTabId(null);
   }
 
+  function openWorkspaceTabMenu(event: MouseEvent<HTMLElement>, tab: WorkspaceTab): void {
+    event.preventDefault();
+    setWorkspaceTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+  }
+
+  function openWorkspaceTabMenuFromKeyboard(event: KeyboardEvent<HTMLElement>, tab: WorkspaceTab): void {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) {
+      return;
+    }
+
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setWorkspaceTabMenu({
+      tabId: tab.id,
+      x: Math.round(rect.left + Math.min(rect.width - 24, 48)),
+      y: Math.round(rect.top + rect.height - 4),
+    });
+  }
+
+  function handleWorkspaceMenuPin(tab: WorkspaceTab): void {
+    toggleWorkspaceTabPinned(tab.id);
+    setWorkspaceTabMenu(null);
+  }
+
+  function handleWorkspaceMenuClose(tab: WorkspaceTab): void {
+    handleCloseWorkspaceTab(tab);
+    setWorkspaceTabMenu(null);
+  }
+
   function scrollContentTabs(direction: -1 | 1): void {
     const element = contentTabsRef.current;
     if (!element) {
@@ -467,6 +524,7 @@ export function WorkspaceShell({
   const SoundIcon = soundMuted ? IconVolumeOff : IconVolume;
   const MicrophoneIcon = microphoneMuted ? IconMicrophoneOff : IconMicrophone;
   const profile = parseProfileSnapshot(profileSnapshot);
+  const hasContentTabs = tabs.length > 0;
 
   function isActivePath(href: string): boolean {
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -490,47 +548,47 @@ export function WorkspaceShell({
   });
 
   const layoutSwitch = (
-    <button
+    <Button
       aria-label={isTopbar ? "Switch to sidebar layout" : "Switch to top bar layout"}
       className={styles.iconButton}
       onClick={toggleNavLayout}
+      size="icon"
       title={isTopbar ? "Use sidebar" : "Use top bar"}
-      type="button"
     >
       <LayoutIcon className={styles.controlIcon} aria-hidden="true" />
-    </button>
+    </Button>
   );
 
   const profileControls = (
     <>
       <div className={styles.profileSummary} title={profile.name}>
-        <div className={styles.profileAvatar}>{getInitials(profile.name)}</div>
+        <Avatar className={styles.profileAvatar} kind="user" size="sm" text={getInitials(profile.name)} />
         <div className={styles.profileDetails}>
           <p className={styles.profileName}>{profile.name}</p>
           <p className={styles.profileStatus}>{profile.status}</p>
         </div>
       </div>
       <div className={styles.profileActions}>
-        <button
+        <Button
           aria-label={soundMuted ? "Unmute sound" : "Mute sound"}
-          aria-pressed={soundMuted}
           className={`${styles.iconButton} ${soundMuted ? styles.iconButtonActive : ""}`}
           onClick={() => setSoundMuted(!soundMuted)}
+          pressed={soundMuted}
+          size="icon"
           title={soundMuted ? "Unmute sound" : "Mute sound"}
-          type="button"
         >
           <SoundIcon className={styles.controlIcon} aria-hidden="true" />
-        </button>
-        <button
+        </Button>
+        <Button
           aria-label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-          aria-pressed={microphoneMuted}
           className={`${styles.iconButton} ${microphoneMuted ? styles.iconButtonActive : ""}`}
           onClick={() => setMicrophoneMuted(!microphoneMuted)}
+          pressed={microphoneMuted}
+          size="icon"
           title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-          type="button"
         >
           <MicrophoneIcon className={styles.controlIcon} aria-hidden="true" />
-        </button>
+        </Button>
         {layoutSwitch}
       </div>
     </>
@@ -544,7 +602,6 @@ export function WorkspaceShell({
     return (
       <div className={styles.workspaceTabs} role="list">
         {tabsToRender.map((tab) => {
-          const TabIcon = getTabIcon(tab);
           const active = routeTab?.id === tab.id;
           const unread = normalizeUnread(tab.unread);
           const imageLabel = tab.imageLabel ?? tab.label;
@@ -572,6 +629,7 @@ export function WorkspaceShell({
                 event.preventDefault();
                 handleWorkspaceTabDrop(tab);
               }}
+              onContextMenu={(event) => openWorkspaceTabMenu(event, tab)}
               role="listitem"
             >
               <Link
@@ -579,63 +637,34 @@ export function WorkspaceShell({
                 aria-label={`${tab.kind === "dm" ? "Conversation" : "Server"}: ${tab.label}`}
                 className={styles.workspaceTabLink}
                 href={tab.href}
+                onKeyDown={(event) => openWorkspaceTabMenuFromKeyboard(event, tab)}
               >
-                {isServer ? (
-                  <span className={styles.workspaceTabImage} aria-hidden="true">
-                    {getInitials(imageLabel)}
-                  </span>
-                ) : (
-                  <TabIcon className={styles.workspaceTabIcon} aria-hidden="true" />
-                )}
+                <Avatar
+                  className={`${styles.workspaceTabImage} ${
+                    isServer ? styles.workspaceTabImageServer : styles.workspaceTabImageContact
+                  }`}
+                  aria-hidden="true"
+                  kind={isServer ? "server" : "user"}
+                  text={getInitials(imageLabel)}
+                />
                 <span className={styles.workspaceTabLabel}>{tab.label}</span>
               </Link>
               <div className={styles.workspaceTabActions}>
                 {isServer && unread > 0 ? (
-                  <span className={styles.workspaceTabBadge} aria-label={`${unread} unread notifications`}>
+                  <Badge className={styles.workspaceTabBadge} aria-label={`${unread} unread notifications`} tone="accent">
                     {unread}
-                  </span>
+                  </Badge>
                 ) : null}
-                <button
-                  aria-label={`Move ${tab.label} left`}
-                  className={styles.workspaceTabAction}
-                  onClick={() => moveWorkspaceTab(tab.id, -1)}
-                  title="Move tab left"
-                  type="button"
-                >
-                  <IconChevronLeft className={styles.workspaceTabIcon} aria-hidden="true" />
-                </button>
-                <button
-                  aria-label={`Move ${tab.label} right`}
-                  className={styles.workspaceTabAction}
-                  onClick={() => moveWorkspaceTab(tab.id, 1)}
-                  title="Move tab right"
-                  type="button"
-                >
-                  <IconChevronRight className={styles.workspaceTabIcon} aria-hidden="true" />
-                </button>
-                <button
-                  aria-label={tab.pinned ? `Unpin ${tab.label}` : `Pin ${tab.label}`}
-                  className={styles.workspaceTabAction}
-                  onClick={() => toggleWorkspaceTabPinned(tab.id)}
-                  title={tab.pinned ? "Unpin tab" : "Pin tab"}
-                  type="button"
-                >
-                  {tab.pinned ? (
-                    <IconPinnedOff className={styles.workspaceTabIcon} aria-hidden="true" />
-                  ) : (
-                    <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
-                  )}
-                </button>
                 {!tab.pinned ? (
-                  <button
+                  <Button
                     aria-label={`Close ${tab.label}`}
                     className={styles.workspaceTabAction}
                     onClick={() => handleCloseWorkspaceTab(tab)}
+                    size="icon"
                     title="Close tab"
-                    type="button"
                   >
                     <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -660,6 +689,37 @@ export function WorkspaceShell({
           {renderWorkspaceTabs(regularWorkspaceTabs, "Open a server or conversation to create a tab.")}
         </div>
       ) : null}
+      {workspaceTabMenuTab ? (
+        <div
+          className={styles.workspaceContextMenu}
+          onClick={(event) => event.stopPropagation()}
+          role="menu"
+          style={{ left: workspaceTabMenu?.x, top: workspaceTabMenu?.y }}
+        >
+          <button
+            className={styles.workspaceContextMenuItem}
+            onClick={() => handleWorkspaceMenuPin(workspaceTabMenuTab)}
+            role="menuitem"
+            type="button"
+          >
+            {workspaceTabMenuTab.pinned ? (
+              <IconPinnedOff className={styles.workspaceTabIcon} aria-hidden="true" />
+            ) : (
+              <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
+            )}
+            {workspaceTabMenuTab.pinned ? "Unpin tab" : "Pin tab"}
+          </button>
+          <button
+            className={`${styles.workspaceContextMenuItem} ${styles.workspaceContextMenuDanger}`}
+            onClick={() => handleWorkspaceMenuClose(workspaceTabMenuTab)}
+            role="menuitem"
+            type="button"
+          >
+            <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
+            Close tab
+          </button>
+        </div>
+      ) : null}
     </>
   );
 
@@ -680,15 +740,15 @@ export function WorkspaceShell({
             </div>
             <div className={styles.topbarControls}>
               {profileControls}
-              <button
+              <Button
                 aria-label={collapsed ? "Expand top bar" : "Collapse top bar"}
                 className={styles.iconButton}
                 onClick={toggleSidebar}
+                size="icon"
                 title={collapsed ? "Expand top bar" : "Collapse top bar"}
-                type="button"
               >
                 <TopbarToggleIcon className={styles.controlIcon} aria-hidden="true" />
-              </button>
+              </Button>
             </div>
           </header>
         ) : (
@@ -705,15 +765,15 @@ export function WorkspaceShell({
             </div>
             <div className={styles.sidebarControls}>
               {profileControls}
-              <button
+              <Button
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 className={styles.iconButton}
                 onClick={toggleSidebar}
+                size="icon"
                 title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                type="button"
               >
                 <SidebarToggleIcon className={styles.controlIcon} aria-hidden="true" />
-              </button>
+              </Button>
             </div>
           </aside>
         )}
@@ -721,78 +781,82 @@ export function WorkspaceShell({
         <section
           aria-describedby="workspace-page-subtitle"
           aria-labelledby="workspace-page-title"
-          className={styles.content}
+          className={`${styles.content} ${hasContentTabs || tabActions ? "" : styles.contentNoTabBar}`}
         >
           <header className={styles.visuallyHidden}>
             <h1 id="workspace-page-title">{title}</h1>
             <p id="workspace-page-subtitle">{subtitle}</p>
           </header>
-          <div className={styles.tabBar}>
-            {contentTabScrollState.canScrollLeft ? (
-              <button
-                aria-label="Scroll tabs left"
-                className={styles.tabScrollButton}
-                data-tab-scroll-button="left"
-                onClick={() => scrollContentTabs(-1)}
-                type="button"
-              >
-                <IconChevronLeft className={styles.tabScrollIcon} aria-hidden="true" />
-              </button>
-            ) : null}
-            <div aria-label={`${title} sections`} className={styles.tabs} ref={setContentTabsNode}>
-              {tabs.map((tab) => {
-                const TabIcon = tab.icon;
-                const active = tab.id === activeTabId;
-                const handleTabSelect = tab.onSelect ?? (onTabChange ? () => onTabChange(tab.id) : undefined);
-                const tabClassName = `${styles.tab} ${handleTabSelect ? styles.tabButton : ""} ${
-                  active ? styles.tabActive : ""
-                }`;
-                const tabContent = (
-                  <>
-                    {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
-                    <span className={styles.tabLabel}>{tab.label}</span>
-                  </>
-                );
+          {hasContentTabs || tabActions ? (
+            <div className={`${styles.tabBar} ${hasContentTabs ? "" : styles.actionBarOnly}`}>
+              {hasContentTabs && contentTabScrollState.canScrollLeft ? (
+                <button
+                  aria-label="Scroll tabs left"
+                  className={styles.tabScrollButton}
+                  data-tab-scroll-button="left"
+                  onClick={() => scrollContentTabs(-1)}
+                  type="button"
+                >
+                  <IconChevronLeft className={styles.tabScrollIcon} aria-hidden="true" />
+                </button>
+              ) : null}
+              {hasContentTabs ? (
+                <div aria-label={`${title} sections`} className={styles.tabs} ref={setContentTabsNode}>
+                  {tabs.map((tab) => {
+                    const TabIcon = tab.icon;
+                    const active = tab.id === activeTabId;
+                    const handleTabSelect = tab.onSelect ?? (onTabChange ? () => onTabChange(tab.id) : undefined);
+                    const tabClassName = `${styles.tab} ${handleTabSelect ? styles.tabButton : ""} ${
+                      active ? styles.tabActive : ""
+                    }`;
+                    const tabContent = (
+                      <>
+                        {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
+                        <span className={styles.tabLabel}>{tab.label}</span>
+                      </>
+                    );
 
-                return handleTabSelect ? (
-                  <button
-                    aria-pressed={active}
-                    className={tabClassName}
-                    data-tab-id={tab.id}
-                    key={tab.id}
-                    onClick={handleTabSelect}
-                    ref={active ? activeContentTabRef : undefined}
-                    type="button"
-                  >
-                    {tabContent}
-                  </button>
-                ) : (
-                  <div
-                    className={tabClassName}
-                    data-tab-id={tab.id}
-                    key={tab.id}
-                    ref={active ? activeContentTabRef : undefined}
-                  >
-                    {tabContent}
-                  </div>
-                );
-              })}
+                    return handleTabSelect ? (
+                      <button
+                        aria-pressed={active}
+                        className={tabClassName}
+                        data-tab-id={tab.id}
+                        key={tab.id}
+                        onClick={handleTabSelect}
+                        ref={active ? activeContentTabRef : undefined}
+                        type="button"
+                      >
+                        {tabContent}
+                      </button>
+                    ) : (
+                      <div
+                        className={tabClassName}
+                        data-tab-id={tab.id}
+                        key={tab.id}
+                        ref={active ? activeContentTabRef : undefined}
+                      >
+                        {tabContent}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {hasContentTabs && contentTabScrollState.canScrollRight ? (
+                <button
+                  aria-label="Scroll tabs right"
+                  className={styles.tabScrollButton}
+                  data-tab-scroll-button="right"
+                  onClick={() => scrollContentTabs(1)}
+                  type="button"
+                >
+                  <IconChevronRight className={styles.tabScrollIcon} aria-hidden="true" />
+                </button>
+              ) : null}
+              {tabActions ? <div className={styles.tabActions}>{tabActions}</div> : null}
             </div>
-            {contentTabScrollState.canScrollRight ? (
-              <button
-                aria-label="Scroll tabs right"
-                className={styles.tabScrollButton}
-                data-tab-scroll-button="right"
-                onClick={() => scrollContentTabs(1)}
-                type="button"
-              >
-                <IconChevronRight className={styles.tabScrollIcon} aria-hidden="true" />
-              </button>
-            ) : null}
-            {tabActions ? <div className={styles.tabActions}>{tabActions}</div> : null}
-          </div>
+          ) : null}
 
-          <section className={styles.body}>{children}</section>
+          <section className={`${styles.body} ${hasContentTabs || tabActions ? "" : styles.bodyNoTabs}`}>{children}</section>
         </section>
       </div>
 

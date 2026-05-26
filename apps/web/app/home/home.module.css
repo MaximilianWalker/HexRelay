@@ -2,20 +2,20 @@
   min-height: 100vh;
   padding: 28px;
   background:
-    radial-gradient(circle at 9% 8%, #d8ecff 0%, transparent 40%),
-    radial-gradient(circle at 92% 0%, #ffe7be 0%, transparent 33%),
-    linear-gradient(170deg, #f3f8ff 0%, #eef6fb 55%, #f8f3ea 100%);
+    radial-gradient(circle at 9% 8%, var(--color-accent-muted) 0%, transparent 40%),
+    radial-gradient(circle at 92% 0%, var(--color-warning-muted) 0%, transparent 33%),
+    linear-gradient(170deg, var(--color-bg-app) 0%, var(--color-bg-app) 55%, var(--color-warning-muted) 100%);
 }
 
 .card {
   margin: 0 auto;
   width: min(860px, 100%);
-  border: 1px solid #bfd6ea;
+  border: 1px solid var(--color-border);
   border-radius: 20px;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 12px 28px rgba(16, 34, 53, 0.08);
-  color: #17314b;
+  background: var(--color-surface-glass);
+  box-shadow: var(--shadow-panel);
+  color: var(--color-text-strong);
 }
 
 .eyebrow {
@@ -23,7 +23,7 @@
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #3b6288;
+  color: var(--color-text-muted);
 }
 
 .title {
@@ -33,7 +33,7 @@
 
 .subtitle {
   margin-bottom: 20px;
-  color: #335473;
+  color: var(--color-text-strong);
 }
 
 .statusRow {
@@ -44,10 +44,10 @@
 }
 
 .badge {
-  border: 1px solid #c4d8eb;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 8px 12px;
-  background: #f4f9ff;
+  background: var(--color-surface-muted);
   font-size: 0.85rem;
 }
 
@@ -59,21 +59,21 @@
 
 .input {
   flex: 1;
-  border: 1px solid #bad0e6;
+  border: 1px solid var(--color-border-control);
   border-radius: 12px;
   padding: 11px 12px;
   font-size: 0.95rem;
   font-family: inherit;
-  color: #16324c;
-  background: #fff;
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 
 .button {
   border-radius: 12px;
   padding: 11px 14px;
-  border: 1px solid #174062;
-  background: #174062;
-  color: #fff;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   font-size: 0.92rem;
   cursor: pointer;
 }
@@ -88,42 +88,42 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  border: 1px solid #c6daed;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 12px;
-  background: #f8fbff;
+  background: var(--color-surface-subtle);
 }
 
 .itemName {
   font-size: 0.95rem;
-  color: #1d3b57;
+  color: var(--color-text-strong);
 }
 
 .itemMeta {
   font-size: 0.78rem;
-  color: #4d6c8a;
+  color: var(--color-text-muted);
 }
 
 .switchButton {
   border-radius: 10px;
-  border: 1px solid #b8cee3;
-  background: #ffffff;
-  color: #21415f;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
   padding: 8px 11px;
   cursor: pointer;
 }
 
 .switchActive {
-  border-color: #1c5d8d;
-  background: #1c5d8d;
-  color: #fff;
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-text-inverse);
 }
 
 .removeButton {
   border-radius: 10px;
-  border: 1px solid #e6b5b5;
-  background: #fff5f5;
-  color: #8a2b2b;
+  border: 1px solid var(--color-danger-strong);
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
   padding: 8px 11px;
   cursor: pointer;
 }
@@ -136,9 +136,9 @@
 .message {
   margin-top: 10px;
   margin-bottom: 14px;
-  border: 1px solid #c9def0;
-  background: #f4f9ff;
-  color: #274766;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-strong);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 0.88rem;
@@ -152,10 +152,10 @@
 }
 
 .linkGhost {
-  border: 1px solid #b6cce1;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 10px 12px;
-  background: #f8fbff;
+  background: var(--color-surface-subtle);
 }
 
 @media (max-width: 720px) {

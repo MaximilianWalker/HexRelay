@@ -6,14 +6,14 @@
 - Owner: Web and delivery maintainers
 - Status: implementation_in_progress
 - Scope: repository
-- last_updated: 2026-05-20
+- last_updated: 2026-05-26
 - Source of truth: `docs/planning/navigation-implementation-plan.md`
 
 ## Quick Context
 
 - Purpose: sequence the approved Iteration 2 navigation work for `T4.6.1` through `T4.6.4`.
 - Primary edit location: update this file when navigation implementation sequencing, task slicing, runtime/API scope, or evidence changes.
-- Latest meaningful change: 2026-05-20 locked the approved navigation plan: shared Servers/Contacts hub model, `Pinned` terminology, no MVP navigation collection model, explicit desktop navigation controls, API-backed hub actions, and mobile top-level tabs.
+- Latest meaningful change: 2026-05-26 added the shared `apps/web` UI framework path for navigation work: tokenized globals, UI primitives, hub feature components, chat components, settings rows, and onboarding shell extraction.
 
 ## Approved Baseline
 
@@ -23,7 +23,10 @@
 - Servers Hub shows joined servers. Contacts Hub shows users/contacts.
 - `Pinned` is the user-facing term for hub pin behavior.
 - Desktop keeps sidebar/topbar switching and explicit collapse controls.
-- Topbar tabs support pin/save and manual reorder through drag-and-drop plus button/menu controls.
+- Topbar tabs support pin/save through the tab context menu and manual reorder through drag-and-drop.
+- Collapsed sidebar surface width and collapsed topbar surface height must share the same visual size.
+- Collapsed mode hides labels/actions without changing the app edge spacing, panel padding, or gaps between chrome surfaces.
+- Collapsed desktop workspace tabs must render as image-only affordances: square server images and round user/contact images, with no empty card shell after labels/actions are hidden.
 - Mobile has only `Home`, `Servers`, `Contacts`, and `Settings` top-level tabs plus workspace drawers.
 - Mobile does not expose a sidebar/topbar layout switch.
 - Visible Create, Join, Leave, Pin, Mute, and Block + Remove controls must be functional when merged.
@@ -77,10 +80,13 @@
 
 ## UX Requirements
 
-- Shared card/list component model is used for Servers and Contacts.
+- Shared card/list component model is used for Servers and Contacts through `apps/web/components/hubs`.
+- Shared primitives in `apps/web/components/ui` own repeated buttons, badges, avatars, dialogs, fields, panels, notices, toolbars, and segmented controls.
+- Shared CSS tokens in `apps/web/app/styles` own spacing, sizing, radii, typography, semantic colors, focus, z-index, motion, base resets, and theme overrides.
+- New navigation UI CSS must consume semantic token variables instead of raw colors or one-off spacing/radius values.
 - First-time defaults are cards on desktop and list on mobile.
 - Card/list preference is per device and separate for Servers vs Contacts.
-- Each hub has a visible `Select` control plus long click/long press shortcut.
+- Hub selection starts from long press, with right-click select/deselect available on desktop item context menus.
 - Bulk actions include pin/unpin, mute/unmute, and the entity-specific destructive action.
 - Baseline copy uses `Pinned`.
 - Empty, error, and search-no-results copy uses shared templates with only the entity noun changing.

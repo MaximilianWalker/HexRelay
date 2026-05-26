@@ -19,6 +19,7 @@ import {
 import { ensurePersona } from "@/lib/personas";
 import { setPersonaPrivateKey, setPersonaSession } from "@/lib/sessions";
 import { trackEvent } from "@/lib/telemetry";
+import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import styles from "../onboarding.module.css";
 
 const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
@@ -133,130 +134,99 @@ export default function IdentityOnboardingPage() {
   }
 
   return (
-    <div className={styles.shell}>
-      <div className={styles.content}>
-        <aside className={styles.panel}>
-          <p className={styles.brandEyebrow}>HexRelay onboarding</p>
-          <h1 className={styles.leftTitle}>Set up your local identity</h1>
-          <p className={styles.leftBody}>
-            Your identity keys stay on your device. Server interactions only use
-            the public key and signed proofs.
-          </p>
-          <ul className={styles.promiseList}>
-            <li>Client-controlled key material and persona isolation.</li>
-            <li>DM inbound policy defaults to friends-only.</li>
-            <li>No server relay for direct-message payloads.</li>
-          </ul>
-        </aside>
-
-        <main className={styles.panel}>
-          <div className={styles.steps}>
-            <div className={`${styles.step} ${styles.activeStep}`}>1. Identity</div>
-            <div className={styles.step}>2. Recovery</div>
-            <div className={styles.step}>3. Access</div>
-          </div>
-          <h2 className={styles.wizardTitle}>Identity bootstrap</h2>
-          <p className={styles.wizardSubtitle}>
-            Choose how you want to start and set a persona label.
-          </p>
-
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="personaName">
-              Persona name
-            </label>
-            <input
-              id="personaName"
-              className={styles.input}
-              value={personaName}
-              onChange={(event) => setPersonaName(event.target.value)}
-              placeholder="e.g. Max - main"
-            />
-            <p className={styles.helper}>
-              Persona sessions and settings are kept isolated.
-            </p>
-          </div>
-
-          <div className={styles.tabRow}>
-            <button
-              className={`${styles.tab} ${mode === "create" ? styles.activeTab : ""}`}
-              type="button"
-              onClick={() => setMode("create")}
-            >
-              Create identity
-            </button>
-            <button
-              className={`${styles.tab} ${mode === "import" ? styles.activeTab : ""}`}
-              type="button"
-              onClick={() => setMode("import")}
-            >
-              Import identity
-            </button>
-          </div>
-
-          {mode === "create" ? (
-            <>
-              <div className={`${styles.status} ${styles.ok}`}>
-                New ed25519 keypair will be generated locally on continue.
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.label}>Public key preview</label>
-                <input className={styles.input} value={SAMPLE_PUBLIC_KEY} readOnly />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className={styles.fieldGroup}>
-                <label className={styles.label} htmlFor="importKey">
-                  Private key
-                </label>
-                <textarea
-                  id="importKey"
-                  className={styles.textarea}
-                  value={importKey}
-                  onChange={(event) => setImportKey(event.target.value)}
-                  placeholder="Paste hex/base64 private key"
-                />
-              </div>
-              {importKey.length > 0 && !isLikelyKey(importKey) ? (
-                <div className={`${styles.status} ${styles.error}`}>
-                  identity_key_invalid: unsupported key format.
-                </div>
-              ) : (
-                <div className={`${styles.status} ${styles.warn}`}>
-                  Imported keys are encrypted locally before persistence.
-                </div>
-              )}
-            </>
-          )}
-
-          {error ? <div className={`${styles.status} ${styles.error}`}>{error}</div> : null}
-
-          <div className={styles.ctaRow}>
-            <Link className={styles.buttonGhost} href="/">
-              Back
-            </Link>
-            <button
-              className={styles.button}
-              disabled={!canContinue || loading}
-              onClick={handleContinue}
-              type="button"
-            >
-              {loading ? "Creating identity..." : "Continue to recovery"}
-            </button>
-          </div>
-        </main>
-
-        <aside className={styles.panel}>
-          <h3 className={styles.wizardTitle}>Setup status</h3>
-          <div className={styles.asideList}>
-            <div className={styles.asideItem}>
-              Identity: {canContinue ? "ready" : "needs input"}
-            </div>
-            <div className={styles.asideItem}>Recovery: pending</div>
-            <div className={styles.asideItem}>Access path: pending</div>
-          </div>
-        </aside>
+    <OnboardingShell
+      activeStep="identity"
+      introBody="Your identity keys stay on your device. Server interactions only use the public key and signed proofs."
+      introTitle="Set up your local identity"
+      promises={[
+        "Client-controlled key material and persona isolation.",
+        "DM inbound policy defaults to friends-only.",
+        "No server relay for direct-message payloads.",
+      ]}
+      statusItems={[
+        `Identity: ${canContinue ? "ready" : "needs input"}`,
+        "Recovery: pending",
+        "Access path: pending",
+      ]}
+      wizardSubtitle="Choose how you want to start and set a persona label."
+      wizardTitle="Identity bootstrap"
+    >
+      <div className={styles.fieldGroup}>
+        <label className={styles.label} htmlFor="personaName">
+          Persona name
+        </label>
+        <input
+          id="personaName"
+          className={styles.input}
+          value={personaName}
+          onChange={(event) => setPersonaName(event.target.value)}
+          placeholder="e.g. Max - main"
+        />
+        <p className={styles.helper}>Persona sessions and settings are kept isolated.</p>
       </div>
-    </div>
+
+      <div className={styles.tabRow}>
+        <button
+          className={`${styles.tab} ${mode === "create" ? styles.activeTab : ""}`}
+          type="button"
+          onClick={() => setMode("create")}
+        >
+          Create identity
+        </button>
+        <button
+          className={`${styles.tab} ${mode === "import" ? styles.activeTab : ""}`}
+          type="button"
+          onClick={() => setMode("import")}
+        >
+          Import identity
+        </button>
+      </div>
+
+      {mode === "create" ? (
+        <>
+          <div className={`${styles.status} ${styles.ok}`}>New ed25519 keypair will be generated locally on continue.</div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Public key preview</label>
+            <input className={styles.input} value={SAMPLE_PUBLIC_KEY} readOnly />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="importKey">
+              Private key
+            </label>
+            <textarea
+              id="importKey"
+              className={styles.textarea}
+              value={importKey}
+              onChange={(event) => setImportKey(event.target.value)}
+              placeholder="Paste hex/base64 private key"
+            />
+          </div>
+          {importKey.length > 0 && !isLikelyKey(importKey) ? (
+            <div className={`${styles.status} ${styles.error}`}>identity_key_invalid: unsupported key format.</div>
+          ) : (
+            <div className={`${styles.status} ${styles.warn}`}>Imported keys are encrypted locally before persistence.</div>
+          )}
+        </>
+      )}
+
+      {error ? <div className={`${styles.status} ${styles.error}`}>{error}</div> : null}
+
+      <div className={styles.ctaRow}>
+        <Link className={styles.buttonGhost} href="/">
+          Back
+        </Link>
+        <button
+          className={styles.button}
+          disabled={!canContinue || loading}
+          onClick={handleContinue}
+          type="button"
+        >
+          {loading ? "Creating identity..." : "Continue to recovery"}
+        </button>
+      </div>
+    </OnboardingShell>
   );
 }

@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:styles": "node ./scripts/style-audit.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "e2e:smoke": "node ./scripts/e2e-smoke.mjs"
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
