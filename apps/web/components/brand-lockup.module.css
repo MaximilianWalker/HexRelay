@@ -12,7 +12,7 @@
 }
 
 .root[data-size="lg"] {
-  --brand-lockup-mark-size: 80px;
+  --brand-lockup-mark-size: 75px;
   --brand-lockup-text-size: 1.5rem;
   --brand-lockup-gap: var(--space-5);
 }
