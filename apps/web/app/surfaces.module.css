@@ -194,27 +194,134 @@
   margin-top: 12px;
 }
 
-.channelLayout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 10px;
-}
-
-.channelRail {
+.conversationPage {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 10px;
-  background: var(--color-surface-subtle);
-  display: grid;
-  gap: 8px;
-  align-content: start;
-}
-
-.channelMain {
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  overflow: hidden;
+}
+
+.conversationTopbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-panel);
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: var(--pad-panel);
+  background: var(--color-surface-raised);
+}
+
+.conversationBackLink {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--gap-icon);
+  min-height: var(--size-control-md);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-pill);
+  padding: var(--pad-control-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.conversationIdentity {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.conversationCopy {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.conversationTitleRow,
+.conversationBadges,
+.conversationActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.conversationTitle {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversationMeta,
+.conversationComposerHint,
+.conversationDetailText {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--line-normal);
+}
+
+.conversationActions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.conversationBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--gap-panel);
+  min-height: 0;
+  padding: var(--pad-panel);
+}
+
+.conversationEmptyState {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--gap-panel);
+  min-height: 280px;
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-panel);
+  background: var(--color-surface-subtle);
+}
+
+.conversationEmptyIcon {
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  flex: 0 0 var(--size-control-md);
+  color: var(--color-accent);
+  stroke-width: 1.7;
+}
+
+.conversationDetails {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-4);
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+}
+
+.conversationDetails summary {
+  display: inline-flex;
+  cursor: pointer;
+  font-weight: var(--weight-medium);
+}
+
+.conversationDetailText {
+  margin-top: var(--space-3);
+  overflow-wrap: anywhere;
 }
 
 .serverMeta {
@@ -1090,8 +1197,18 @@
 }
 
 @media (max-width: 920px) {
-  .channelLayout {
-    grid-template-columns: 1fr;
+  .conversationTopbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .conversationActions {
+    justify-content: flex-start;
+  }
+
+  .conversationEmptyState {
+    align-items: flex-start;
+    min-height: 220px;
   }
 
   .usersHeader {
