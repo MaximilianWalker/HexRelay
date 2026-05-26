@@ -811,8 +811,8 @@
 }
 
 .sidebarControls .iconButton {
-  width: 34px;
-  height: 34px;
+  width: var(--nav-icon-target);
+  height: var(--nav-icon-target);
   border-radius: 9px;
 }
 
