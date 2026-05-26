@@ -4,7 +4,7 @@ export function BrandLogo(props: SVGProps<SVGSVGElement>) {
   const gradientId = useId();
 
   return (
-    <svg viewBox="0 0 1024 1024" role="img" {...props}>
+    <svg viewBox="72 40 880 880" role="img" {...props}>
       <defs>
         <linearGradient id={gradientId} x1="178" x2="866" y1="130" y2="894" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--color-accent-strong)" />

@@ -47,40 +47,8 @@
   padding: 0;
 }
 
-.brand {
-  --brand-mark-size: calc(var(--space-20) + var(--space-12));
-
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  min-height: var(--brand-mark-size);
-  color: var(--color-accent-strong);
+.brandLockup {
   margin-bottom: var(--space-14);
-}
-
-.brandMark {
-  width: var(--brand-mark-size);
-  height: var(--brand-mark-size);
-  flex: 0 0 var(--brand-mark-size);
-  color: var(--color-accent-strong);
-  filter: drop-shadow(0 0 var(--space-5) color-mix(in srgb, var(--color-accent) 34%, transparent));
-}
-
-.brandText {
-  display: grid;
-  align-content: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.brandName {
-  overflow: hidden;
-  color: var(--color-text-heading);
-  font-size: var(--text-page);
-  font-weight: var(--weight-heavy);
-  line-height: var(--line-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .topNav {
@@ -101,7 +69,6 @@
   grid-template-columns: minmax(0, 1fr) max-content;
   grid-template-areas:
     "primary controls"
-    "divider divider"
     "workspaces workspaces";
   border-bottom: 1px solid var(--color-border);
   background:
@@ -109,18 +76,10 @@
       180deg,
       color-mix(in srgb, var(--color-surface-glass) 70%, transparent) 0%,
       color-mix(in srgb, var(--color-surface-raised) 42%, transparent) 100%
-  );
+    );
   column-gap: var(--chrome-space);
-  row-gap: var(--space-6);
+  row-gap: var(--space-8);
   padding: var(--app-edge);
-}
-
-.topbarMode .topbar::after {
-  content: "";
-  grid-area: divider;
-  height: 1px;
-  min-width: 0;
-  background: var(--color-border);
 }
 
 .topbarPrimary,
@@ -151,16 +110,8 @@
   padding: 0;
 }
 
-.topbarPrimary .brand {
-  --brand-mark-size: calc(var(--space-20) + var(--space-8));
-
-  gap: var(--space-4);
+.topbarPrimary .brandLockup {
   margin-bottom: 0;
-}
-
-.topbarPrimary .brandName {
-  font-size: 1.2rem;
-  line-height: 1;
 }
 
 .topbarNav {
@@ -180,19 +131,17 @@
 }
 
 .topbarMode .topbar .workspaceStack {
-  min-height: calc(58px + (var(--space-6) * 2));
+  min-height: calc(var(--workspace-tab-height) + (var(--space-8) * 2));
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-  border-radius: var(--radius-md);
+  border-color: color-mix(in srgb, var(--color-border) 74%, transparent);
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--color-surface-muted) 58%, transparent) 0%,
-      color-mix(in srgb, var(--color-surface-subtle) 34%, transparent) 100%
+      color-mix(in srgb, var(--color-surface-muted) 70%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-subtle) 42%, transparent) 100%
     );
-  backdrop-filter: none;
   box-shadow: none;
-  padding: var(--space-6);
+  padding: var(--space-8);
 }
 
 .topbarControls {
@@ -201,11 +150,6 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
-}
-
-.topbarMode .topbarControls {
-  min-height: 64px;
-  padding: var(--space-5);
 }
 
 .topbar .workspaceSection .sectionTitle {
@@ -243,58 +187,14 @@
 }
 
 .topbar .navLink {
-  position: relative;
   box-sizing: border-box;
   gap: var(--space-4);
-  height: 64px;
-  border-color: transparent;
-  border-radius: 0;
+  height: 54px;
   padding: 0 var(--space-6);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 720;
   line-height: 1;
   white-space: nowrap;
-}
-
-.topbar .navLink::after {
-  position: absolute;
-  right: var(--space-4);
-  bottom: 0;
-  left: var(--space-4);
-  height: 2px;
-  border-radius: 999px;
-  background: transparent;
-  content: "";
-}
-
-.topbar .navLink:hover,
-.topbar .navLink:focus-visible {
-  color: var(--color-text-heading);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-surface-muted) 48%, transparent) 0%,
-      transparent 78%
-    );
-}
-
-.topbar .navLinkActive {
-  border-color: transparent;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-accent-muted) 56%, transparent) 0%,
-      transparent 78%
-    );
-  box-shadow: none;
-  color: var(--color-accent-strong);
-}
-
-.topbar .navLinkActive::after {
-  background: var(--color-accent);
-  box-shadow: 0 0 var(--space-5) color-mix(in srgb, var(--color-accent) 42%, transparent);
 }
 
 .topbar .navIcon {
@@ -490,7 +390,7 @@
 }
 
 .topbar .workspaceTabLabel {
-  font-size: 0.96rem;
+  font-size: 0.94rem;
   font-weight: 780;
   line-height: 1.12;
 }
@@ -678,20 +578,9 @@
   padding: 0;
 }
 
-.collapsed .brand {
+.collapsed .brandLockup {
   justify-content: center;
-  min-height: var(--size-control-md);
   margin-bottom: var(--space-6);
-}
-
-.collapsed .brandMark {
-  width: var(--size-control-md);
-  height: var(--size-control-md);
-  flex-basis: var(--size-control-md);
-}
-
-.collapsed .brandText {
-  display: none;
 }
 
 .collapsed .navLink {
@@ -772,7 +661,7 @@
   grid-template-columns: 1fr;
 }
 
-.topbarMode.collapsed .brand {
+.topbarMode.collapsed .brandLockup {
   margin-bottom: 0;
 }
 
@@ -923,42 +812,13 @@
 }
 
 .topbarControls .iconButton {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: var(--nav-icon-target);
+  height: var(--nav-icon-target);
 }
 
 .sidebarControls .controlIcon {
   width: 17px;
   height: 17px;
-}
-
-.topbarControls .controlIcon {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.9;
-}
-
-.topbarControls .profileSummary {
-  gap: var(--space-4);
-}
-
-.topbarControls .profileAvatar {
-  width: 40px;
-  height: 40px;
-  flex-basis: 40px;
-  font-size: 0.82rem;
-}
-
-.topbarControls .profileName {
-  font-size: 0.94rem;
-  font-weight: 760;
-  line-height: 1.12;
-}
-
-.topbarControls .profileStatus {
-  font-size: 0.78rem;
-  line-height: 1.15;
 }
 
 .topbarControls .profileActions {
@@ -1220,7 +1080,6 @@
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-areas:
       "primary controls"
-      "divider divider"
       "workspaces workspaces";
     row-gap: var(--space-6);
     padding: 12px;

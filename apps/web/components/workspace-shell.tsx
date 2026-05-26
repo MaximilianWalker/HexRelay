@@ -53,7 +53,7 @@ import {
   type WorkspaceTab,
 } from "@/lib/workspace-tabs";
 
-import { BrandLogo } from "@/components/brand-logo";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -891,14 +891,7 @@ export function WorkspaceShell({
     </>
   );
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
-  const brand = (
-    <div className={styles.brand} aria-label="HexRelay">
-      <BrandLogo className={styles.brandMark} aria-hidden="true" />
-      <span className={styles.brandText}>
-        <span className={styles.brandName}>HexRelay</span>
-      </span>
-    </div>
-  );
+  const brand = <BrandLockup className={styles.brandLockup} collapsed={collapsed} size={isTopbar ? "md" : "lg"} />;
   const topbarWorkspaceTabStrip = (
     <>
       <div className={styles.workspaceRail} onWheel={handleWorkspaceTabWheel} role="group" aria-label="Workspace tabs">
