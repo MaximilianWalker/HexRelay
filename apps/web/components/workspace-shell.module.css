@@ -51,25 +51,38 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  height: var(--space-10);
+  gap: var(--space-5);
+  height: var(--size-control-md);
   color: var(--color-accent-strong);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-6);
+}
+
+.brandMarkFrame {
+  display: inline-flex;
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  flex: 0 0 var(--size-control-md);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-muted);
+  box-shadow: var(--shadow-panel);
 }
 
 .brandMark {
-  width: var(--space-10);
-  height: var(--space-10);
-  flex: 0 0 var(--space-10);
+  width: var(--space-16);
+  height: var(--space-16);
+  flex: 0 0 var(--space-16);
   color: var(--color-accent-strong);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-accent) 26%, transparent));
+  filter: drop-shadow(0 0 var(--space-4) color-mix(in srgb, var(--color-accent) 32%, transparent));
 }
 
 .brandName {
   overflow: hidden;
   font-size: 1.1rem;
   font-weight: var(--weight-bold);
-  line-height: var(--space-10);
+  line-height: var(--line-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

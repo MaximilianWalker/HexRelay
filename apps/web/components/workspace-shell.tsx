@@ -893,7 +893,9 @@ export function WorkspaceShell({
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
   const brand = (
     <div className={styles.brand} aria-label="HexRelay">
-      <BrandLogo className={styles.brandMark} aria-hidden="true" />
+      <span className={styles.brandMarkFrame} aria-hidden="true">
+        <BrandLogo className={styles.brandMark} />
+      </span>
       <span className={styles.brandName}>HexRelay</span>
     </div>
   );
