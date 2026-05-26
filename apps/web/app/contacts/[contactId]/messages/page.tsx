@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
-  IconArrowLeft,
   IconCircleCheck,
   IconInfoCircle,
   IconMessageCircle,
@@ -258,11 +256,6 @@ export default function ContactMessagesPage() {
     >
       <article className={styles.conversationPage}>
         <header className={styles.conversationTopbar}>
-          <Link className={styles.conversationBackLink} href="/contacts">
-            <IconArrowLeft className={styles.icon} aria-hidden="true" />
-            Back to contacts
-          </Link>
-
           <div className={styles.conversationIdentity}>
             <Avatar kind="user" label={title} size="md" text={contactInitials(title)} />
             <div className={styles.conversationCopy}>

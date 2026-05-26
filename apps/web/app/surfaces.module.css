@@ -213,22 +213,6 @@
   background: var(--color-surface-raised);
 }
 
-.conversationBackLink {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--gap-icon);
-  min-height: var(--size-control-md);
-  border: 1px solid var(--color-border-control);
-  border-radius: var(--radius-pill);
-  padding: var(--pad-control-sm);
-  background: var(--color-surface-muted);
-  color: var(--color-text-strong);
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  text-decoration: none;
-}
-
 .conversationIdentity {
   display: grid;
   flex: 1 1 auto;
