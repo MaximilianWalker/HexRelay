@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, WheelEvent } from "react";
 import {
   IconAddressBook,
   IconChevronLeft,
@@ -649,6 +649,27 @@ export function WorkspaceShell({
     scheduleWorkspaceTabOverflowUpdate();
   }
 
+  function handleWorkspaceTabWheel(event: WheelEvent<HTMLElement>): void {
+    const element = workspaceTabsRef.current;
+    if (!element) {
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    if (maxScrollLeft <= 1) {
+      return;
+    }
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (delta === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + delta));
+    scheduleWorkspaceTabOverflowUpdate();
+  }
+
   const nav = useMemo(
     () => [
       { href: "/home", label: "Home", icon: IconHome },
@@ -871,16 +892,15 @@ export function WorkspaceShell({
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
   const topbarWorkspaceTabStrip = (
     <>
-      <div className={styles.workspaceRail} role="group" aria-label="Workspace tabs">
+      <div className={styles.workspaceRail} onWheel={handleWorkspaceTabWheel} role="group" aria-label="Workspace tabs">
         {topbarWorkspaceTabs.length === 0 ? (
           <p className={styles.emptyTabs}>Open a server or conversation to create a tab.</p>
         ) : (
           <>
-            {workspaceTabScrollState.hasOverflow ? (
+            {workspaceTabScrollState.canScrollLeft ? (
               <button
                 aria-label="Scroll workspace tabs left"
                 className={styles.workspaceScrollButton}
-                disabled={!workspaceTabScrollState.canScrollLeft}
                 onClick={() => scrollWorkspaceTabs(-1)}
                 type="button"
               >
@@ -890,11 +910,10 @@ export function WorkspaceShell({
             <div className={styles.workspaceTabs} ref={setWorkspaceTabsNode} role="list">
               {topbarWorkspaceTabs.map((tab) => renderWorkspaceTab(tab))}
             </div>
-            {workspaceTabScrollState.hasOverflow ? (
+            {workspaceTabScrollState.canScrollRight ? (
               <button
                 aria-label="Scroll workspace tabs right"
                 className={styles.workspaceScrollButton}
-                disabled={!workspaceTabScrollState.canScrollRight}
                 onClick={() => scrollWorkspaceTabs(1)}
                 type="button"
               >

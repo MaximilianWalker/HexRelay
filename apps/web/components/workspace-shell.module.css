@@ -2,6 +2,7 @@
   --chrome-space: var(--space-7);
   --collapsed-surface: var(--size-shell-collapsed);
   --nav-icon-target: var(--size-control-md);
+  --workspace-tab-height: 52px;
   --collapsed-rail: calc(var(--collapsed-surface) + (var(--chrome-space) * 2));
 
   min-height: 100vh;
@@ -61,7 +62,7 @@
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(0, auto) minmax(860px, 1fr) max-content;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
   grid-template-areas: "primary workspaces controls";
   align-items: stretch;
   min-width: 0;
@@ -72,7 +73,7 @@
 .topbar .workspaceStack,
 .topbarControls {
   box-sizing: border-box;
-  height: var(--collapsed-surface);
+  min-height: calc(var(--workspace-tab-height) + (var(--chrome-space) * 2));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface-glass);
@@ -129,6 +130,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: var(--workspace-tab-height);
+  box-sizing: border-box;
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-md);
   padding: 10px;
@@ -152,9 +155,7 @@
 }
 
 .topbar .navLink {
-  height: var(--nav-icon-target);
   box-sizing: border-box;
-  padding: 0 10px;
   white-space: nowrap;
 }
 
@@ -179,19 +180,23 @@
 }
 
 .sidebar .workspaceStack {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: var(--chrome-space);
-  flex: 0 1 auto;
   min-height: 0;
 }
 
 .sidebar .workspaceSection {
   flex: 0 1 auto;
   align-content: start;
-  max-height: 34vh;
+  min-height: 0;
   overflow: auto;
   padding: var(--chrome-space);
+}
+
+.sidebar .workspaceSection:not(.workspaceSectionPinned) {
+  flex: 1 1 auto;
 }
 
 .workspaceRail {
@@ -266,12 +271,13 @@
 
 .workspaceTab {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  height: 52px;
-  min-height: 52px;
-  max-height: 52px;
+  height: var(--workspace-tab-height);
+  min-height: var(--workspace-tab-height);
+  max-height: var(--workspace-tab-height);
   border: 1px solid var(--color-border-control);
   border-radius: 12px;
   background: var(--color-surface-subtle);
@@ -283,19 +289,6 @@
     background 120ms ease,
     border-color 120ms ease,
     box-shadow 120ms ease;
-}
-
-.topbar .workspaceTab {
-  flex: 0 0 280px;
-  height: var(--nav-icon-target);
-  min-height: var(--nav-icon-target);
-  max-height: var(--nav-icon-target);
-  border-radius: 12px 12px 7px 7px;
-  padding: 4px 6px;
-}
-
-.topbar .workspaceTabPinned {
-  flex-basis: 260px;
 }
 
 .workspaceTabActive {
@@ -414,25 +407,6 @@
   opacity: 1;
 }
 
-.topbar .workspaceTabImage,
-.topbar .workspaceTabBadge,
-.topbar .workspaceTabAction {
-  width: 28px;
-  height: 28px;
-  flex-basis: 28px;
-}
-
-.topbar .workspaceTabImage {
-  font-size: 0.62rem;
-}
-
-.topbar .workspaceTabLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  -webkit-line-clamp: 1;
-}
-
 .workspaceContextMenu {
   position: fixed;
   z-index: 90;
@@ -511,6 +485,7 @@
 .collapsed .navLink {
   width: var(--nav-icon-target);
   height: var(--nav-icon-target);
+  min-height: var(--nav-icon-target);
   box-sizing: border-box;
   justify-content: center;
   padding: 0;
@@ -944,19 +919,6 @@
   display: none;
 }
 
-@media (max-width: 1820px) {
-  .topbar {
-    grid-template-columns: minmax(0, 1fr) max-content;
-    grid-template-areas:
-      "primary controls"
-      "workspaces workspaces";
-  }
-
-  .topbar .workspaceStack {
-    width: 100%;
-  }
-}
-
 @media (max-width: 940px) {
   .frame {
     grid-template-columns: 1fr;
@@ -968,20 +930,8 @@
   }
 
   .topbar {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "primary"
-      "workspaces"
-      "controls";
-  }
-
-  .topbarPrimary,
-  .topbarControls {
-    width: 100%;
-  }
-
-  .topbarPrimary {
-    justify-content: space-between;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas: "primary workspaces controls";
   }
 
   .topbarNav {

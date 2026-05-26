@@ -89,10 +89,9 @@ export function ToggleSwitch({
       type="button"
       {...props}
     >
-      <span className={styles.toggleTrack}>
+      <span aria-hidden="true" className={styles.toggleTrack}>
         <span className={styles.toggleThumb} />
       </span>
-      <span>{checked ? "On" : "Off"}</span>
     </button>
   );
 }
