@@ -895,8 +895,7 @@ export function WorkspaceShell({
     <div className={styles.brand} aria-label="HexRelay">
       <BrandLogo className={styles.brandMark} aria-hidden="true" />
       <span className={styles.brandText}>
-        <span className={styles.brandName}>HEX RELAY</span>
-        <span className={styles.brandTagline}>Connect. Communicate. Relay.</span>
+        <span className={styles.brandName}>HexRelay</span>
       </span>
     </div>
   );

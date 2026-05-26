@@ -20,9 +20,9 @@
 .topbarMode .frame {
   grid-template-columns: 1fr;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--chrome-space);
+  gap: 0;
   height: 100vh;
-  padding: var(--app-edge);
+  padding: 0;
 }
 
 .sidebar {
@@ -34,7 +34,6 @@
   gap: var(--chrome-space);
 }
 
-.sidebarPrimary,
 .sidebar .workspaceSection,
 .sidebarControls {
   border: 1px solid var(--color-border);
@@ -45,24 +44,26 @@
 }
 
 .sidebarPrimary {
-  padding: var(--chrome-space);
+  padding: 0;
 }
 
 .brand {
+  --brand-mark-size: calc(var(--space-20) + var(--space-12));
+
   display: flex;
   align-items: center;
-  gap: var(--space-7);
-  min-height: calc(var(--space-20) + var(--space-8));
+  gap: var(--space-8);
+  min-height: var(--brand-mark-size);
   color: var(--color-accent-strong);
   margin-bottom: var(--space-14);
 }
 
 .brandMark {
-  width: calc(var(--space-20) + var(--space-8));
-  height: calc(var(--space-20) + var(--space-8));
-  flex: 0 0 calc(var(--space-20) + var(--space-8));
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  flex: 0 0 var(--brand-mark-size);
   color: var(--color-accent-strong);
-  filter: drop-shadow(0 0 var(--space-5) color-mix(in srgb, var(--color-brand-blue) 36%, transparent));
+  filter: drop-shadow(0 0 var(--space-5) color-mix(in srgb, var(--color-accent) 34%, transparent));
 }
 
 .brandText {
@@ -75,22 +76,10 @@
 .brandName {
   overflow: hidden;
   color: var(--color-text-heading);
-  font-size: 1.2rem;
+  font-size: var(--text-page);
   font-weight: var(--weight-heavy);
   line-height: var(--line-tight);
   text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.brandTagline {
-  overflow: hidden;
-  color: var(--color-brand-cyan);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  line-height: var(--line-tight);
-  text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -106,6 +95,17 @@
   align-items: stretch;
   min-width: 0;
   gap: var(--chrome-space);
+}
+
+.topbarMode .topbar {
+  border-bottom: 1px solid var(--color-border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-glass) 70%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-raised) 42%, transparent) 100%
+    );
+  padding: var(--app-edge);
 }
 
 .topbarPrimary,
@@ -127,27 +127,23 @@
   align-items: center;
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  gap: 12px;
+  gap: var(--space-6);
   min-width: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 .topbarPrimary .brand {
-  margin-bottom: 0;
-  min-height: var(--size-avatar-lg);
-}
+  --brand-mark-size: calc(var(--space-20) + var(--space-10));
 
-.topbarPrimary .brandMark {
-  width: var(--size-avatar-lg);
-  height: var(--size-avatar-lg);
-  flex-basis: var(--size-avatar-lg);
+  margin-bottom: 0;
 }
 
 .topbarPrimary .brandName {
   font-size: var(--text-title);
-}
-
-.topbarPrimary .brandTagline {
-  font-size: var(--text-xs);
 }
 
 .topbarNav {
@@ -680,6 +676,14 @@
 .topbarMode .content {
   min-height: 0;
   border-left: 0;
+  border-top: 1px solid var(--color-border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-border) 24%, transparent) 0,
+      transparent 18px
+    ),
+    color-mix(in srgb, var(--color-surface-raised) 32%, transparent);
   padding: 0;
 }
 
@@ -1028,12 +1032,16 @@
 
   .topbarMode .frame {
     grid-template-columns: 1fr;
-    padding: 12px;
+    padding: 0;
   }
 
   .topbar {
     grid-template-columns: max-content minmax(0, 1fr) max-content;
     grid-template-areas: "primary workspaces controls";
+  }
+
+  .topbarMode .topbar {
+    padding: 12px;
   }
 
   .topbarNav {

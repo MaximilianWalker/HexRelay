@@ -7,9 +7,9 @@ export function BrandLogo(props: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 1024 1024" role="img" {...props}>
       <defs>
         <linearGradient id={gradientId} x1="178" x2="866" y1="130" y2="894" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="var(--color-brand-violet)" />
-          <stop offset="0.48" stopColor="var(--color-brand-blue)" />
-          <stop offset="1" stopColor="var(--color-brand-cyan)" />
+          <stop offset="0" stopColor="var(--color-accent-strong)" />
+          <stop offset="0.52" stopColor="var(--color-accent)" />
+          <stop offset="1" stopColor="var(--color-accent-border)" />
         </linearGradient>
       </defs>
       <path
