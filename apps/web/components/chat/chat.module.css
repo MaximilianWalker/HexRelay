@@ -53,6 +53,11 @@
   background: var(--color-surface-raised);
 }
 
+.messageTimelineCompact {
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
 .loadOlderButton {
   align-self: center;
 }
@@ -62,15 +67,52 @@
   grid-template-columns: var(--size-avatar-md) minmax(0, 1fr) var(--size-control-md);
   align-items: flex-start;
   gap: var(--space-5);
+  width: 100%;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-5);
   background: var(--color-surface);
 }
 
+.messageAligned {
+  width: fit-content;
+  min-width: min(100%, 320px);
+  max-width: min(100%, 760px);
+}
+
+.messageIncoming {
+  align-self: flex-start;
+}
+
 .messageOwn {
   border-color: var(--color-accent-border);
   background: var(--color-accent-muted);
+}
+
+.messageAligned.messageOwn {
+  grid-template-columns: var(--size-control-md) minmax(0, 1fr) var(--size-avatar-md);
+  align-self: flex-end;
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-muted);
+}
+
+.messageAligned.messageOwn > :first-child {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.messageAligned.messageOwn .messageBody {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.messageAligned.messageOwn > button {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.messageAligned.messageOwn .messageHeader {
+  justify-content: flex-end;
 }
 
 .messageContinuous {
@@ -80,9 +122,33 @@
   background: transparent;
 }
 
+.messageOwn.messageContinuous {
+  background: var(--color-accent-muted);
+}
+
 .messageContinuous:hover,
 .messageContinuous:focus-within {
   background: var(--color-surface-muted);
+}
+
+.messageOwn.messageContinuous:hover,
+.messageOwn.messageContinuous:focus-within {
+  background: var(--color-accent-muted);
+}
+
+.messageRowCompact {
+  gap: var(--space-4);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+
+.messageRowCompact.messageAligned {
+  min-width: min(100%, 280px);
+  max-width: min(100%, 660px);
+}
+
+.messageRowCompact.messageContinuous {
+  padding: var(--space-3) var(--space-5);
 }
 
 .messageBody {
@@ -128,6 +194,12 @@
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.messageRowCompact .messageContent,
+.messageRowCompact .messageDeleted {
+  font-size: var(--text-body);
+  line-height: var(--line-normal);
 }
 
 .messageDeleted {
@@ -236,6 +308,29 @@
 
 @media (max-width: 560px) {
   .messageRow {
-    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-columns: var(--size-avatar-sm) minmax(0, 1fr);
+  }
+
+  .messageRow > button {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .messageAligned.messageOwn {
+    grid-template-columns: minmax(0, 1fr) var(--size-avatar-sm);
+  }
+
+  .messageAligned.messageOwn > :first-child {
+    grid-column: 2;
+  }
+
+  .messageAligned.messageOwn .messageBody,
+  .messageAligned.messageOwn > button {
+    grid-column: 1;
+  }
+
+  .messageAligned.messageOwn > button {
+    grid-row: 2;
+    justify-self: start;
   }
 }

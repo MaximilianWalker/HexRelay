@@ -98,6 +98,78 @@ describe("workspace preferences", () => {
     expect(readMessageLayout()).toBe("continuous-feed");
   });
 
+  it("persists message bubble size and falls back for unknown stored values", async () => {
+    installWindow();
+    const { readMessageBubbleSize, setMessageBubbleSize, subscribeWorkspacePreferences } = await import(
+      "./workspace-preferences"
+    );
+    let changes = 0;
+    const unsubscribe = subscribeWorkspacePreferences(() => {
+      changes += 1;
+    });
+
+    expect(readMessageBubbleSize()).toBe("comfortable");
+
+    setMessageBubbleSize("compact");
+
+    expect(readMessageBubbleSize()).toBe("compact");
+    expect(changes).toBe(1);
+
+    unsubscribe();
+
+    vi.resetModules();
+    const storage = new MemoryStorage();
+    storage.setItem("hexrelay.ui.message-bubble-size", "tiny");
+    installWindow(storage);
+    const { readMessageBubbleSize: readInvalidMessageBubbleSize } = await import("./workspace-preferences");
+
+    expect(readInvalidMessageBubbleSize()).toBe("comfortable");
+  });
+
+  it("persists message alignment and falls back for unknown stored values", async () => {
+    installWindow();
+    const { readMessageAlignment, setMessageAlignment, subscribeWorkspacePreferences } = await import(
+      "./workspace-preferences"
+    );
+    let changes = 0;
+    const unsubscribe = subscribeWorkspacePreferences(() => {
+      changes += 1;
+    });
+
+    expect(readMessageAlignment()).toBe("conversation-sides");
+
+    setMessageAlignment("single-column");
+
+    expect(readMessageAlignment()).toBe("single-column");
+    expect(changes).toBe(1);
+
+    unsubscribe();
+
+    vi.resetModules();
+    const storage = new MemoryStorage();
+    storage.setItem("hexrelay.ui.message-alignment", "legacy-left");
+    installWindow(storage);
+    const { readMessageAlignment: readInvalidMessageAlignment } = await import("./workspace-preferences");
+
+    expect(readInvalidMessageAlignment()).toBe("conversation-sides");
+  });
+
+  it("keeps message visualization preferences usable when storage throws", async () => {
+    installWindow(new ThrowingStorage());
+    const {
+      readMessageAlignment,
+      readMessageBubbleSize,
+      setMessageAlignment,
+      setMessageBubbleSize,
+    } = await import("./workspace-preferences");
+
+    setMessageBubbleSize("compact");
+    setMessageAlignment("single-column");
+
+    expect(readMessageBubbleSize()).toBe("compact");
+    expect(readMessageAlignment()).toBe("single-column");
+  });
+
   it("stores server and contact hub layouts independently", async () => {
     installWindow();
     const { readHubLayout, setHubLayout } = await import("./workspace-preferences");

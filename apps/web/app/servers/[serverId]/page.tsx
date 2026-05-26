@@ -38,8 +38,12 @@ import {
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 import {
+  readMessageAlignment,
+  readMessageBubbleSize,
   readMessageLayout,
   subscribeWorkspacePreferences,
+  type MessageAlignment,
+  type MessageBubbleSize,
   type MessageLayout,
 } from "@/lib/workspace-preferences";
 
@@ -489,6 +493,16 @@ export default function ServerWorkspacePage() {
     subscribeWorkspacePreferences,
     readMessageLayout,
     () => "bubble-cards",
+  );
+  const messageBubbleSize = useSyncExternalStore<MessageBubbleSize>(
+    subscribeWorkspacePreferences,
+    readMessageBubbleSize,
+    () => "comfortable",
+  );
+  const messageAlignment = useSyncExternalStore<MessageAlignment>(
+    subscribeWorkspacePreferences,
+    readMessageAlignment,
+    () => "conversation-sides",
   );
   const [server, setServer] = useState<ServerSummary | null>(null);
   const [channels, setChannels] = useState<ServerChannelSummary[]>([]);
@@ -1058,6 +1072,7 @@ export default function ServerWorkspacePage() {
               {messageState === "error" ? <p className={styles.state}>Could not load channel history.</p> : null}
 
               <MessageTimeline
+                bubbleSize={messageBubbleSize}
                 layout={messageLayout}
                 loadOlderLabel={
                   nextCursor && hasSession ? (olderState === "loading" ? "Loading older..." : "Load older messages") : null
@@ -1068,8 +1083,10 @@ export default function ServerWorkspacePage() {
                 {visibleMessages.length > 0 ? (
                   visibleMessages.map((message) => (
                     <MessageRow
+                      alignment={messageAlignment}
                       authorHandle={authorHandle}
                       authorLabel={authorLabel}
+                      bubbleSize={messageBubbleSize}
                       formatTimestamp={formatTimestamp}
                       key={message.message_id}
                       layout={messageLayout}

@@ -42,6 +42,8 @@ import {
   type ThemePreference,
 } from "@/lib/ui/theme";
 import {
+  readMessageAlignment,
+  readMessageBubbleSize,
   readMicrophoneMuted,
   readMessageLayout,
   readNavLayout,
@@ -49,12 +51,16 @@ import {
   readSoundMuted,
   readTabRestoreMode,
   setMicrophoneMuted,
+  setMessageAlignment,
+  setMessageBubbleSize,
   setMessageLayout,
   setNavLayout,
   setSidebarCollapsed,
   setSoundMuted,
   setTabRestoreMode,
   subscribeWorkspacePreferences,
+  type MessageAlignment,
+  type MessageBubbleSize,
   type MessageLayout,
   type NavLayout,
   type TabRestoreMode,
@@ -269,6 +275,16 @@ export default function SettingsPage() {
     subscribeWorkspacePreferences,
     readMessageLayout,
     () => "bubble-cards",
+  );
+  const messageBubbleSize = useSyncExternalStore<MessageBubbleSize>(
+    subscribeWorkspacePreferences,
+    readMessageBubbleSize,
+    () => "comfortable",
+  );
+  const messageAlignment = useSyncExternalStore<MessageAlignment>(
+    subscribeWorkspacePreferences,
+    readMessageAlignment,
+    () => "conversation-sides",
   );
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
@@ -811,6 +827,36 @@ export default function SettingsPage() {
             >
               <option value="bubble-cards">Bubble cards</option>
               <option value="continuous-feed">Continuous feed</option>
+            </select>
+          </SettingRow>
+          <SettingRow
+            description="Controls message padding and spacing for people who want a tighter chat view."
+            label="Message bubble size"
+            status="Live"
+          >
+            <select
+              aria-label="Message bubble size"
+              className={settingsStyles.select}
+              onChange={(event) => setMessageBubbleSize(event.target.value as MessageBubbleSize)}
+              value={messageBubbleSize}
+            >
+              <option value="comfortable">Comfortable</option>
+              <option value="compact">Compact</option>
+            </select>
+          </SettingRow>
+          <SettingRow
+            description="Controls whether your messages sit on the right while everyone else stays on the left."
+            label="Message alignment"
+            status="Live"
+          >
+            <select
+              aria-label="Message alignment"
+              className={settingsStyles.select}
+              onChange={(event) => setMessageAlignment(event.target.value as MessageAlignment)}
+              value={messageAlignment}
+            >
+              <option value="conversation-sides">Mine right, others left</option>
+              <option value="single-column">Single column</option>
             </select>
           </SettingRow>
           </SettingPanel>

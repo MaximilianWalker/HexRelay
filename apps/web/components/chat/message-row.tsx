@@ -4,14 +4,16 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import type { ServerChannelMessage } from "@/lib/api";
-import type { MessageLayout } from "@/lib/workspace-preferences";
+import type { MessageAlignment, MessageBubbleSize, MessageLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./chat.module.css";
 
 export function MessageRow({
+  alignment,
   authorHandle,
   authorLabel,
+  bubbleSize,
   formatTimestamp,
   message,
   onReply,
@@ -20,8 +22,10 @@ export function MessageRow({
   shortIdentity,
   layout,
 }: {
+  alignment: MessageAlignment;
   authorHandle: (identityId: string) => string;
   authorLabel: (identityId: string) => string;
+  bubbleSize: MessageBubbleSize;
   formatTimestamp: (value: string) => string;
   layout: MessageLayout;
   message: ServerChannelMessage;
@@ -32,10 +36,18 @@ export function MessageRow({
 }) {
   const deleted = Boolean(message.deleted_at);
   const continuous = layout === "continuous-feed";
+  const alignBySender = alignment === "conversation-sides";
 
   return (
     <article
-      className={cx(styles.messageRow, ownMessage && !continuous && styles.messageOwn, continuous && styles.messageContinuous)}
+      className={cx(
+        styles.messageRow,
+        ownMessage && styles.messageOwn,
+        !ownMessage && alignBySender && styles.messageIncoming,
+        alignBySender && styles.messageAligned,
+        bubbleSize === "compact" && styles.messageRowCompact,
+        continuous && styles.messageContinuous,
+      )}
     >
       <Avatar kind="user" size="sm" text={initials(authorLabel(message.author_id))} />
       <div className={styles.messageBody}>
