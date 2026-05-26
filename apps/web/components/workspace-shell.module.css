@@ -98,14 +98,29 @@
 }
 
 .topbarMode .topbar {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-areas:
+    "primary controls"
+    "divider divider"
+    "workspaces workspaces";
   border-bottom: 1px solid var(--color-border);
   background:
     linear-gradient(
       180deg,
       color-mix(in srgb, var(--color-surface-glass) 70%, transparent) 0%,
       color-mix(in srgb, var(--color-surface-raised) 42%, transparent) 100%
-    );
+  );
+  column-gap: var(--chrome-space);
+  row-gap: var(--space-6);
   padding: var(--app-edge);
+}
+
+.topbarMode .topbar::after {
+  content: "";
+  grid-area: divider;
+  height: 1px;
+  min-width: 0;
+  background: var(--color-border);
 }
 
 .topbarPrimary,
@@ -127,7 +142,7 @@
   align-items: center;
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  gap: var(--space-6);
+  gap: var(--space-5);
   min-width: 0;
   border: 0;
   background: transparent;
@@ -137,19 +152,21 @@
 }
 
 .topbarPrimary .brand {
-  --brand-mark-size: calc(var(--space-20) + var(--space-10));
+  --brand-mark-size: calc(var(--space-20) + var(--space-8));
 
+  gap: var(--space-4);
   margin-bottom: 0;
 }
 
 .topbarPrimary .brandName {
-  font-size: var(--text-title);
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .topbarNav {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
   overflow: hidden;
 }
@@ -162,12 +179,33 @@
   min-width: 0;
 }
 
+.topbarMode .topbar .workspaceStack {
+  min-height: calc(58px + (var(--space-6) * 2));
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-muted) 58%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-subtle) 34%, transparent) 100%
+    );
+  backdrop-filter: none;
+  box-shadow: none;
+  padding: var(--space-6);
+}
+
 .topbarControls {
   grid-area: controls;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
+}
+
+.topbarMode .topbarControls {
+  min-height: 64px;
+  padding: var(--space-5);
 }
 
 .topbar .workspaceSection .sectionTitle {
@@ -205,8 +243,65 @@
 }
 
 .topbar .navLink {
+  position: relative;
   box-sizing: border-box;
+  gap: var(--space-4);
+  height: 64px;
+  border-color: transparent;
+  border-radius: 0;
+  padding: 0 var(--space-6);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  font-weight: 720;
+  line-height: 1;
   white-space: nowrap;
+}
+
+.topbar .navLink::after {
+  position: absolute;
+  right: var(--space-4);
+  bottom: 0;
+  left: var(--space-4);
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+}
+
+.topbar .navLink:hover,
+.topbar .navLink:focus-visible {
+  color: var(--color-text-heading);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-muted) 48%, transparent) 0%,
+      transparent 78%
+    );
+}
+
+.topbar .navLinkActive {
+  border-color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-accent-muted) 56%, transparent) 0%,
+      transparent 78%
+    );
+  box-shadow: none;
+  color: var(--color-accent-strong);
+}
+
+.topbar .navLinkActive::after {
+  background: var(--color-accent);
+  box-shadow: 0 0 var(--space-5) color-mix(in srgb, var(--color-accent) 42%, transparent);
+}
+
+.topbar .navIcon {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+  stroke-width: 1.95;
 }
 
 .sectionTitle {
@@ -305,7 +400,7 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 3px;
+  gap: var(--space-4);
   overflow-x: auto;
   overflow-y: hidden;
   border-radius: 0;
@@ -341,6 +436,14 @@
     box-shadow 120ms ease;
 }
 
+.topbar .workspaceTab {
+  height: 58px;
+  min-height: 58px;
+  max-height: 58px;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
 .workspaceTabActive {
   border-color: var(--color-accent);
   background: var(--color-surface-selected);
@@ -368,6 +471,10 @@
   text-decoration: none;
 }
 
+.topbar .workspaceTabLink {
+  gap: var(--space-5);
+}
+
 .workspaceTabLabel {
   display: -webkit-box;
   overflow: hidden;
@@ -380,6 +487,12 @@
   -webkit-line-clamp: 2;
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+.topbar .workspaceTabLabel {
+  font-size: 0.96rem;
+  font-weight: 780;
+  line-height: 1.12;
 }
 
 .workspaceTabImage {
@@ -397,6 +510,18 @@
   color: var(--color-text-strong);
   font-size: 0.72rem;
   font-weight: 850;
+}
+
+.topbar .workspaceTabImage {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.topbar .workspaceTabImageServer {
+  border-radius: 10px;
 }
 
 .workspaceTabImageServer {
@@ -422,11 +547,26 @@
   line-height: 1;
 }
 
+.topbar .workspaceTabBadge {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
 .workspaceTabIcon {
   width: 15px;
   height: 15px;
   flex: 0 0 15px;
   stroke-width: 1.8;
+}
+
+.topbar .workspaceTabIcon {
+  width: 17px;
+  height: 17px;
+  flex-basis: 17px;
+  stroke-width: 1.95;
 }
 
 .workspaceTabAction {
@@ -441,6 +581,13 @@
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
   cursor: pointer;
+}
+
+.topbar .workspaceTabAction {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 10px;
 }
 
 .workspaceTabActions {
@@ -776,13 +923,42 @@
 }
 
 .topbarControls .iconButton {
-  width: var(--nav-icon-target);
-  height: var(--nav-icon-target);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
 }
 
 .sidebarControls .controlIcon {
   width: 17px;
   height: 17px;
+}
+
+.topbarControls .controlIcon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.9;
+}
+
+.topbarControls .profileSummary {
+  gap: var(--space-4);
+}
+
+.topbarControls .profileAvatar {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  font-size: 0.82rem;
+}
+
+.topbarControls .profileName {
+  font-size: 0.94rem;
+  font-weight: 760;
+  line-height: 1.12;
+}
+
+.topbarControls .profileStatus {
+  font-size: 0.78rem;
+  line-height: 1.15;
 }
 
 .topbarControls .profileActions {
@@ -1041,6 +1217,12 @@
   }
 
   .topbarMode .topbar {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "primary controls"
+      "divider divider"
+      "workspaces workspaces";
+    row-gap: var(--space-6);
     padding: 12px;
   }
 
