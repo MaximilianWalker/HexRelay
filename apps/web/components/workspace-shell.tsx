@@ -893,10 +893,11 @@ export function WorkspaceShell({
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
   const brand = (
     <div className={styles.brand} aria-label="HexRelay">
-      <span className={styles.brandMarkFrame} aria-hidden="true">
-        <BrandLogo className={styles.brandMark} />
+      <BrandLogo className={styles.brandMark} aria-hidden="true" />
+      <span className={styles.brandText}>
+        <span className={styles.brandName}>HEX RELAY</span>
+        <span className={styles.brandTagline}>Connect. Communicate. Relay.</span>
       </span>
-      <span className={styles.brandName}>HexRelay</span>
     </div>
   );
   const topbarWorkspaceTabStrip = (
