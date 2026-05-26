@@ -891,7 +891,7 @@ export function WorkspaceShell({
     </>
   );
   const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
-  const brand = <BrandLockup className={styles.brandLockup} collapsed={collapsed} size={isTopbar ? "md" : "lg"} />;
+  const brand = <BrandLockup className={styles.brandLockup} collapsed={collapsed} size="lg" />;
   const topbarWorkspaceTabStrip = (
     <>
       <div className={styles.workspaceRail} onWheel={handleWorkspaceTabWheel} role="group" aria-label="Workspace tabs">
