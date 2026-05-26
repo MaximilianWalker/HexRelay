@@ -1,6 +1,6 @@
 .root {
-  --brand-lockup-mark-size: 54px;
-  --brand-lockup-text-size: 1.16rem;
+  --brand-lockup-mark-size: var(--brand-lockup-size-md-mark, 54px);
+  --brand-lockup-text-size: var(--brand-lockup-size-md-text, 1.16rem);
   --brand-lockup-gap: var(--space-5);
 
   display: inline-flex;
@@ -12,15 +12,12 @@
 }
 
 .root[data-size="lg"] {
-  --brand-lockup-mark-size: 70px;
-  --brand-lockup-text-size: 1.5rem;
+  --brand-lockup-mark-size: var(--brand-lockup-size-lg-mark, 70px);
+  --brand-lockup-text-size: var(--brand-lockup-size-lg-text, 1.5rem);
   --brand-lockup-gap: var(--space-5);
 }
 
 .root[data-collapsed="true"] {
-  --brand-lockup-mark-size: var(--size-control-md);
-  --brand-lockup-gap: 0;
-
   justify-content: center;
   min-width: var(--brand-lockup-mark-size);
 }

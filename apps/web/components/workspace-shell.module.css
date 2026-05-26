@@ -1,8 +1,11 @@
 .shell {
+  --brand-lockup-size-lg-mark: 70px;
   --chrome-space: var(--space-7);
-  --collapsed-surface: var(--size-shell-collapsed);
+  --collapsed-surface: calc(var(--brand-lockup-size-lg-mark) + (var(--chrome-space) * 2));
   --nav-icon-target: var(--size-control-md);
+  --topbar-nav-link-height: 54px;
   --workspace-tab-height: 52px;
+  --workspace-tab-topbar-height: 58px;
   --collapsed-rail: calc(var(--collapsed-surface) + (var(--chrome-space) * 2));
 
   min-height: 100vh;
@@ -189,7 +192,7 @@
 .topbar .navLink {
   box-sizing: border-box;
   gap: var(--space-4);
-  height: 54px;
+  height: var(--topbar-nav-link-height);
   padding: 0 var(--space-6);
   font-size: 0.98rem;
   font-weight: 720;
@@ -337,9 +340,9 @@
 }
 
 .topbar .workspaceTab {
-  height: 58px;
-  min-height: 58px;
-  max-height: 58px;
+  height: var(--workspace-tab-topbar-height);
+  min-height: var(--workspace-tab-topbar-height);
+  max-height: var(--workspace-tab-topbar-height);
   gap: var(--space-4);
   padding: var(--space-4);
 }
@@ -580,13 +583,12 @@
 
 .collapsed .brandLockup {
   justify-content: center;
-  margin-bottom: var(--space-6);
 }
 
 .collapsed .navLink {
-  width: var(--nav-icon-target);
-  height: var(--nav-icon-target);
-  min-height: var(--nav-icon-target);
+  width: var(--workspace-tab-height);
+  height: var(--workspace-tab-height);
+  min-height: var(--workspace-tab-height);
   box-sizing: border-box;
   justify-content: center;
   padding: 0;
@@ -599,10 +601,10 @@
 
 .collapsed .workspaceTab {
   justify-content: center;
-  width: var(--nav-icon-target);
-  height: var(--nav-icon-target);
-  min-height: var(--nav-icon-target);
-  max-height: var(--nav-icon-target);
+  width: var(--workspace-tab-height);
+  height: var(--workspace-tab-height);
+  min-height: var(--workspace-tab-height);
+  max-height: var(--workspace-tab-height);
   border-color: transparent;
   background: transparent;
   padding: 0;
@@ -614,13 +616,6 @@
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-}
-
-.collapsed .workspaceTabImage {
-  width: var(--nav-icon-target);
-  height: var(--nav-icon-target);
-  flex-basis: var(--nav-icon-target);
-  font-size: 0.68rem;
 }
 
 .collapsed .workspaceTabActive .workspaceTabImage {
@@ -666,12 +661,22 @@
 }
 
 .topbarMode.collapsed .topbar .workspaceTab {
-  flex-basis: var(--nav-icon-target);
+  width: var(--workspace-tab-topbar-height);
+  height: var(--workspace-tab-topbar-height);
+  min-height: var(--workspace-tab-topbar-height);
+  max-height: var(--workspace-tab-topbar-height);
+  flex-basis: var(--workspace-tab-topbar-height);
 }
 
 .topbarMode.collapsed .topbar .workspaceTabLink {
   justify-content: center;
   padding-inline: 0;
+}
+
+.topbarMode.collapsed .topbar .navLink {
+  width: var(--topbar-nav-link-height);
+  height: var(--topbar-nav-link-height);
+  min-height: var(--topbar-nav-link-height);
 }
 
 .content {
