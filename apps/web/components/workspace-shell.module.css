@@ -1,6 +1,11 @@
 .shell {
   --brand-lockup-size-lg-mark: 70px;
   --chrome-space: var(--space-7);
+  --chrome-edge-inline: calc(var(--chrome-space) * 2);
+  --sidebar-edge-block-start: var(--space-4);
+  --topbar-edge-block-start: var(--space-8);
+  --topbar-edge-inline: var(--chrome-edge-inline);
+  --topbar-workspace-row-padding: var(--space-4);
   --collapsed-surface: calc(var(--brand-lockup-size-lg-mark) + (var(--chrome-space) * 2));
   --nav-icon-target: var(--size-control-md);
   --sidebar-nav-icon-size: 17px;
@@ -36,13 +41,12 @@
 .sidebar {
   min-height: 100vh;
   box-sizing: border-box;
-  padding: var(--app-edge) var(--chrome-space);
+  padding: var(--sidebar-edge-block-start) var(--chrome-space) var(--app-edge);
   display: flex;
   flex-direction: column;
   gap: var(--chrome-space);
 }
 
-.sidebar .workspaceSection,
 .sidebarControls {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
@@ -75,6 +79,8 @@
 }
 
 .topbarMode .topbar {
+  --workspace-row-divider-offset: 0px;
+
   grid-template-columns: minmax(0, 1fr) max-content;
   grid-template-areas:
     "primary controls"
@@ -88,11 +94,10 @@
     );
   column-gap: var(--chrome-space);
   row-gap: var(--space-8);
-  padding: var(--app-edge);
+  padding: var(--topbar-edge-block-start) var(--topbar-edge-inline) var(--app-edge);
 }
 
 .topbarPrimary,
-.topbar .workspaceStack,
 .topbarControls {
   box-sizing: border-box;
   min-height: calc(var(--workspace-tab-height) + (var(--chrome-space) * 2));
@@ -140,17 +145,26 @@
 }
 
 .topbarMode .topbar .workspaceStack {
-  min-height: calc(var(--workspace-tab-height) + (var(--space-8) * 2));
+  position: relative;
+  min-height: calc(var(--workspace-tab-topbar-height) + var(--topbar-workspace-row-padding));
   align-items: center;
-  border-color: color-mix(in srgb, var(--color-border) 74%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-surface-muted) 70%, transparent) 0%,
-      color-mix(in srgb, var(--color-surface-subtle) 42%, transparent) 100%
-    );
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
   box-shadow: none;
-  padding: var(--space-8);
+  padding: var(--topbar-workspace-row-padding) 0 0;
+}
+
+.topbarMode .topbar .workspaceStack::before {
+  position: absolute;
+  top: var(--workspace-row-divider-offset);
+  right: calc(-1 * var(--topbar-edge-inline));
+  left: calc(-1 * var(--topbar-edge-inline));
+  height: 1px;
+  background: color-mix(in srgb, var(--color-border) 72%, transparent);
+  content: "";
+  pointer-events: none;
 }
 
 .topbarControls {
@@ -250,6 +264,11 @@
   align-content: start;
   min-height: 0;
   overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
   padding: var(--chrome-space);
 }
 
@@ -564,7 +583,7 @@
 
 .collapsed .sidebar {
   width: var(--collapsed-rail);
-  padding: var(--app-edge) var(--chrome-space);
+  padding: var(--sidebar-edge-block-start) var(--chrome-space) var(--app-edge);
   align-items: center;
   overflow: hidden;
 }
@@ -641,14 +660,19 @@
 }
 
 .sidebarControls {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
   align-self: stretch;
   margin-top: auto;
-  min-width: max-content;
+  min-width: 0;
   padding: var(--chrome-space);
   box-shadow: var(--shadow-panel);
+}
+
+.shell:not(.collapsed) .sidebarControls {
+  margin-inline: var(--chrome-space);
 }
 
 .collapsed .sidebarControls {
@@ -837,7 +861,9 @@
 }
 
 .shell:not(.collapsed) .sidebarControls .profileSummary {
-  padding-left: var(--sidebar-profile-offset);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: calc(var(--sidebar-profile-offset) - var(--chrome-space));
 }
 
 .topbarControls .profileActions {
@@ -1096,12 +1122,16 @@
   }
 
   .topbarMode .topbar {
+    --topbar-edge-block-start: var(--space-6);
+    --topbar-edge-inline: var(--space-6);
+    --workspace-row-divider-offset: 0px;
+
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-areas:
       "primary controls"
       "workspaces workspaces";
     row-gap: var(--space-6);
-    padding: 12px;
+    padding: var(--topbar-edge-block-start) var(--topbar-edge-inline) var(--space-6);
   }
 
   .topbarNav {
