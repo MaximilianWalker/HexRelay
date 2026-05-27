@@ -27,6 +27,7 @@ import {
 } from "@tabler/icons-react";
 
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
+import { isPrimaryNavRoute } from "@/lib/navigation-routes";
 import {
   readMicrophoneMuted,
   readNavLayout,
@@ -690,12 +691,8 @@ export function WorkspaceShell({
   const profile = parseProfileSnapshot(profileSnapshot);
   const hasContentTabs = tabs.length > 0;
 
-  function isActivePath(href: string): boolean {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
   const navLinks = nav.map((item) => {
-    const active = isActivePath(item.href);
+    const active = isPrimaryNavRoute(pathname, item.href);
     const NavIcon = item.icon;
     return (
       <Link
@@ -1068,7 +1065,7 @@ export function WorkspaceShell({
 
       <nav aria-label="Primary" className={styles.mobileTabs}>
         {nav.map((item) => {
-          const active = isActivePath(item.href);
+          const active = isPrimaryNavRoute(pathname, item.href);
           return (
             <Link
               aria-current={active ? "page" : undefined}

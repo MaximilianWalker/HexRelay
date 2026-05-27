@@ -5,6 +5,7 @@ import {
   HOME_ROUTE,
   SETTINGS_ROUTE,
   dmWorkspaceRoute,
+  isPrimaryNavRoute,
   isTopLevelMobileRoute,
   serverWorkspaceRoute,
 } from "./navigation-routes";
@@ -21,5 +22,12 @@ describe("navigation routes", () => {
   it("identifies the mobile top-level routes only", () => {
     expect(isTopLevelMobileRoute("/servers")).toBe(true);
     expect(isTopLevelMobileRoute("/contacts/usr-nora/messages")).toBe(false);
+  });
+
+  it("marks primary navigation active only on exact hub routes", () => {
+    expect(isPrimaryNavRoute("/servers", "/servers")).toBe(true);
+    expect(isPrimaryNavRoute("/servers/core-team", "/servers")).toBe(false);
+    expect(isPrimaryNavRoute("/contacts", "/contacts")).toBe(true);
+    expect(isPrimaryNavRoute("/contacts/usr-nora/messages", "/contacts")).toBe(false);
   });
 });

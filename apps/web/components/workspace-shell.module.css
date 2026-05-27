@@ -10,9 +10,9 @@
   --topbar-edge-inline: var(--chrome-edge-inline);
   --topbar-row-gap: var(--space-8);
   --topbar-workspace-row-padding: var(--space-4);
+  --topbar-primary-control-height: calc(var(--workspace-tab-height) + (var(--chrome-space) * 2));
   --topbar-primary-row-height: calc(
-    var(--topbar-edge-block-start) + var(--workspace-tab-height) + (var(--chrome-space) * 2) +
-      var(--topbar-row-gap)
+    var(--topbar-edge-block-start) + var(--topbar-primary-control-height) + var(--topbar-row-gap)
   );
   --collapsed-surface: calc(var(--brand-lockup-size-lg-mark) + (var(--chrome-space) * 2));
   --nav-icon-target: var(--size-control-md);
@@ -21,7 +21,9 @@
   --sidebar-profile-offset: calc((var(--brand-lockup-size-lg-mark) - var(--size-control-md)) / 2);
   --workspace-tab-image-size: var(--size-avatar-sm);
   --workspace-tab-image-offset: calc((var(--brand-lockup-size-lg-mark) - var(--workspace-tab-image-size)) / 2);
-  --topbar-nav-link-height: 54px;
+  --content-tab-height: 62px;
+  --topbar-logo-nav-gap: var(--space-16);
+  --topbar-nav-link-height: var(--topbar-primary-row-height);
   --workspace-tab-height: 52px;
   --workspace-tab-topbar-height: 58px;
   --collapsed-rail: calc(var(--collapsed-surface) + (var(--chrome-space) * 2));
@@ -167,7 +169,7 @@
 .topbarPrimary,
 .topbarControls {
   box-sizing: border-box;
-  min-height: calc(var(--workspace-tab-height) + (var(--chrome-space) * 2));
+  min-height: var(--topbar-primary-control-height);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface-glass);
@@ -182,7 +184,7 @@
   align-items: center;
   flex: 0 0 auto;
   flex-wrap: nowrap;
-  gap: var(--space-5);
+  gap: var(--topbar-logo-nav-gap);
   min-width: 0;
   border: 0;
   background: transparent;
@@ -204,10 +206,12 @@
 
 .topbarNav {
   display: flex;
+  align-self: stretch;
+  align-items: stretch;
   flex-wrap: nowrap;
-  gap: var(--space-4);
+  gap: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .topbar .workspaceStack {
@@ -353,24 +357,6 @@
   content: "";
   opacity: 0.58;
   pointer-events: none;
-}
-
-.topbar .navLink {
-  box-sizing: border-box;
-  gap: var(--space-4);
-  height: var(--topbar-nav-link-height);
-  padding: 0 var(--space-6);
-  font-size: 0.98rem;
-  font-weight: 720;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.topbar .navIcon {
-  width: 20px;
-  height: 20px;
-  flex-basis: 20px;
-  stroke-width: 1.95;
 }
 
 .sectionTitle {
@@ -1061,7 +1047,7 @@
   flex-wrap: nowrap;
   gap: 0;
   min-width: 0;
-  min-height: 62px;
+  min-height: var(--content-tab-height);
   border-bottom: 1px solid var(--color-border-subtle);
   background:
     linear-gradient(
@@ -1122,7 +1108,8 @@
   margin-left: auto;
 }
 
-.tab {
+.tab,
+.topbar .navLink {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1135,10 +1122,10 @@
   background: transparent;
   box-shadow: none;
   color: var(--color-text-muted);
-  cursor: default;
   font-family: inherit;
   justify-content: center;
   padding: 0 22px;
+  text-decoration: none;
   white-space: nowrap;
   font-size: 0.82rem;
   font-weight: var(--weight-heavy);
@@ -1150,11 +1137,23 @@
     color var(--motion-fast);
 }
 
+.tab {
+  cursor: default;
+}
+
+.topbar .navLink {
+  cursor: pointer;
+  height: var(--topbar-nav-link-height);
+  margin-block: calc(-1 * var(--topbar-edge-block-start)) calc(-1 * var(--topbar-row-gap));
+  min-height: var(--topbar-nav-link-height);
+}
+
 .tabButton {
   cursor: pointer;
 }
 
-.tabButton:hover {
+.tabButton:hover,
+.topbar .navLink:hover {
   background:
     linear-gradient(
       180deg,
@@ -1165,12 +1164,14 @@
   color: var(--color-text-heading);
 }
 
-.tabButton:focus-visible {
+.tabButton:focus-visible,
+.topbar .navLink:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
-.tabActive {
+.tabActive,
+.topbar .navLinkActive {
   z-index: 2;
   background:
     linear-gradient(
@@ -1182,7 +1183,8 @@
   color: var(--color-accent-strong);
 }
 
-.tabActive::before {
+.tabActive::before,
+.topbar .navLinkActive::before {
   position: absolute;
   right: 0;
   left: 0;
@@ -1195,7 +1197,8 @@
   pointer-events: none;
 }
 
-.tabActive::after {
+.tabActive::after,
+.topbar .navLinkActive::after {
   position: absolute;
   inset: auto 0 0;
   height: 34%;
@@ -1204,7 +1207,8 @@
   pointer-events: none;
 }
 
-.tabIcon {
+.tabIcon,
+.topbar .navIcon {
   position: relative;
   z-index: 3;
   width: 15px;
@@ -1213,7 +1217,8 @@
   stroke-width: 1.9;
 }
 
-.tabLabel {
+.tabLabel,
+.topbar .navLabel {
   position: relative;
   z-index: 3;
 }
@@ -1345,6 +1350,10 @@
   }
 
   .topbar .navLink {
+    min-width: var(--nav-icon-target);
+    height: var(--nav-icon-target);
+    margin-block: 0;
+    min-height: var(--nav-icon-target);
     width: var(--nav-icon-target);
     justify-content: center;
     padding: 0;

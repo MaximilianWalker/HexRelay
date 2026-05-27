@@ -15,6 +15,10 @@ export function dmWorkspaceRoute(contactId: string): string {
   return `${CONTACTS_ROUTE}/${encodeSegment(contactId)}/messages`;
 }
 
+export function isPrimaryNavRoute(pathname: string, href: string): boolean {
+  return pathname === href;
+}
+
 export function isTopLevelMobileRoute(pathname: string): boolean {
   return [HOME_ROUTE, SERVERS_ROUTE, CONTACTS_ROUTE, SETTINGS_ROUTE].includes(pathname);
 }
