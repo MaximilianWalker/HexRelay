@@ -296,7 +296,7 @@
   padding-inline: calc(var(--sidebar-nav-icon-offset) - var(--space-2)) var(--space-8);
 }
 
-.shell:not(.collapsed) .sidebar .navIcon {
+.sidebar .navIcon {
   width: var(--sidebar-nav-icon-expanded-size);
   height: var(--sidebar-nav-icon-expanded-size);
   flex-basis: var(--sidebar-nav-icon-expanded-size);
@@ -743,18 +743,18 @@
 }
 
 .collapsed .navLink {
-  width: var(--workspace-tab-height);
-  height: var(--workspace-tab-height);
-  min-height: var(--workspace-tab-height);
+  width: var(--sidebar-nav-link-height);
+  height: var(--sidebar-nav-link-height);
+  min-height: var(--sidebar-nav-link-height);
   box-sizing: border-box;
   justify-content: center;
   padding: 0;
 }
 
 .collapsed .sidebar .topNav {
-  gap: var(--space-3);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3);
+  gap: var(--sidebar-nav-panel-pad);
+  border-radius: var(--radius-xl);
+  padding: var(--sidebar-nav-panel-pad);
 }
 
 .collapsed .sidebar .topNav::after,
@@ -764,15 +764,22 @@
 }
 
 .collapsed .sidebar .navLink {
-  border-color: transparent;
-  background: transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .collapsed .sidebar .navLinkActive {
-  border-color: color-mix(in srgb, var(--color-accent) 62%, transparent);
-  background: color-mix(in srgb, var(--color-surface-selected) 70%, transparent);
-  box-shadow: var(--shadow-focus);
+  border-color: color-mix(in srgb, var(--color-accent) 74%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 30%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-selected) 58%, transparent) 46%,
+      color-mix(in srgb, var(--color-surface-raised) 22%, transparent) 100%
+    );
+  box-shadow:
+    inset 3px 0 0 var(--color-accent-strong),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 14%, transparent),
+    0 12px 26px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 .collapsed .topNav,
