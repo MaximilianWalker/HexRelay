@@ -3,6 +3,9 @@
   --chrome-space: var(--space-7);
   --chrome-edge-inline: calc(var(--chrome-space) * 2);
   --sidebar-edge-block-start: var(--space-4);
+  --sidebar-nav-icon-expanded-size: calc(var(--sidebar-nav-icon-size) + var(--space-3));
+  --sidebar-nav-link-height: calc(var(--workspace-tab-height) + var(--space-4));
+  --sidebar-nav-panel-pad: var(--space-2);
   --topbar-edge-block-start: var(--space-8);
   --topbar-edge-inline: var(--chrome-edge-inline);
   --topbar-row-gap: var(--space-8);
@@ -72,6 +75,48 @@
 .topNav {
   display: grid;
   gap: 8px;
+}
+
+.sidebar .topNav {
+  position: relative;
+  overflow: hidden;
+  gap: var(--sidebar-nav-panel-pad);
+  border: 1px solid color-mix(in srgb, var(--color-border) 74%, transparent);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-surface-glass) 60%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-raised) 32%, transparent) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 8%, transparent),
+    var(--shadow-panel);
+  padding: var(--sidebar-nav-panel-pad);
+}
+
+.sidebar .topNav::after {
+  position: absolute;
+  top: var(--space-8);
+  right: calc(-1 * var(--space-10));
+  width: calc(var(--space-20) * 3);
+  height: calc(var(--space-20) * 2);
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 48%,
+      color-mix(in srgb, var(--color-accent) 20%, transparent) 49% 51%,
+      transparent 52% 100%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 58%,
+      color-mix(in srgb, var(--color-accent) 16%, transparent) 59% 60%,
+      transparent 61% 100%
+    );
+  content: "";
+  opacity: 0.65;
+  pointer-events: none;
 }
 
 .topbar {
@@ -233,13 +278,81 @@
 }
 
 .sidebar .navLink {
-  padding-inline: var(--sidebar-nav-icon-offset) var(--space-5);
+  position: relative;
+  z-index: 1;
+  gap: var(--space-8);
+  height: var(--sidebar-nav-link-height);
+  border-color: transparent;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-heading);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  overflow: hidden;
+  padding-inline: calc(var(--sidebar-nav-icon-offset) - var(--space-2)) var(--space-8);
+}
+
+.shell:not(.collapsed) .sidebar .navIcon {
+  width: var(--sidebar-nav-icon-expanded-size);
+  height: var(--sidebar-nav-icon-expanded-size);
+  flex-basis: var(--sidebar-nav-icon-expanded-size);
+  color: color-mix(in srgb, var(--color-accent-strong) 78%, var(--color-text-heading));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-accent-strong) 24%, transparent));
+  stroke-width: 1.9;
 }
 
 .navLinkActive {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-inverse);
+}
+
+.sidebar .navLink:hover,
+.sidebar .navLink:focus-visible {
+  border-color: color-mix(in srgb, var(--color-accent-border) 48%, transparent);
+  background: color-mix(in srgb, var(--color-surface-selected) 44%, transparent);
+  color: var(--color-text-heading);
+}
+
+.sidebar .navLinkActive {
+  border-color: color-mix(in srgb, var(--color-accent) 74%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 30%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-selected) 58%, transparent) 46%,
+      color-mix(in srgb, var(--color-surface-raised) 22%, transparent) 100%
+    );
+  box-shadow:
+    inset 3px 0 0 var(--color-accent-strong),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 14%, transparent),
+    0 12px 26px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-text-heading);
+}
+
+.sidebar .navLinkActive::before {
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
+  width: var(--space-4);
+  height: var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-strong) 72%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--color-accent-strong) 72%, transparent);
+  content: "";
+  opacity: 0.76;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.sidebar .navLinkActive::after {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--space-8) + var(--space-3));
+  width: calc(var(--space-16) + var(--space-10));
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent-strong) 64%, transparent));
+  content: "";
+  opacity: 0.58;
+  pointer-events: none;
 }
 
 .topbar .navLink {
@@ -650,6 +763,30 @@
   box-sizing: border-box;
   justify-content: center;
   padding: 0;
+}
+
+.collapsed .sidebar .topNav {
+  gap: var(--space-3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+}
+
+.collapsed .sidebar .topNav::after,
+.collapsed .sidebar .navLinkActive::before,
+.collapsed .sidebar .navLinkActive::after {
+  display: none;
+}
+
+.collapsed .sidebar .navLink {
+  border-color: transparent;
+  background: transparent;
+  border-radius: var(--radius-md);
+}
+
+.collapsed .sidebar .navLinkActive {
+  border-color: color-mix(in srgb, var(--color-accent) 62%, transparent);
+  background: color-mix(in srgb, var(--color-surface-selected) 70%, transparent);
+  box-shadow: var(--shadow-focus);
 }
 
 .collapsed .topNav,
