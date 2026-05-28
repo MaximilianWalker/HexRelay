@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { CheckboxField } from "@/components/ui/field";
-import { Dialog, DialogActions } from "@/components/ui/dialog";
+import { CheckboxField } from "@/components/ui/checkbox-field";
+import { Dialog } from "@/components/ui/dialog";
+import { DialogActions } from "@/components/ui/dialog-actions";
 
 import styles from "./hubs.module.css";
 

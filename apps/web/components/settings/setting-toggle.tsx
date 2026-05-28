@@ -1,4 +1,4 @@
-import { ToggleSwitch } from "@/components/ui/field";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
 
 type SettingToggleProps = {
   checked: boolean;

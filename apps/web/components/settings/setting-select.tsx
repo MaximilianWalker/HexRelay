@@ -1,6 +1,6 @@
 import type { ReactNode, SelectHTMLAttributes } from "react";
 
-import { SelectField } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./settings-ui.module.css";

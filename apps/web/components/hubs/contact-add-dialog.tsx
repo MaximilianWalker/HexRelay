@@ -1,9 +1,11 @@
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import { Field, TextInput } from "@/components/ui/field";
-import { Dialog, DialogActions } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { DialogActions } from "@/components/ui/dialog-actions";
+import { Field } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
+import { TextInput } from "@/components/ui/text-input";
 
 import { ContactDiscoveryResults, type ContactDiscoveryUser } from "./contact-discovery-results";
 import styles from "./hubs.module.css";

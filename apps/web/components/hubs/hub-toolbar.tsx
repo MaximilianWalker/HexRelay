@@ -12,7 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { TextInput } from "@/components/ui/field";
+import { TextInput } from "@/components/ui/text-input";
 import { Toolbar } from "@/components/ui/toolbar";
 import type { HubLayout } from "@/lib/hub-state";
 

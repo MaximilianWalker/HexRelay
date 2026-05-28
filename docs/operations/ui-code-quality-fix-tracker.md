@@ -121,7 +121,7 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 6. Split UI Primitive Files
 
-- Status: pending
+- Status: completed
 - Files:
   - `apps/web/components/ui/field.tsx`
   - `apps/web/components/ui/dialog.tsx`
@@ -130,7 +130,7 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 - Target structure:
   - one exported primitive per file where practical.
   - split CSS by primitive if `ui.module.css` remains hard to audit.
-- Notes: avoid breaking imports by updating all in-repo callers atomically.
+- Notes: field, input, textarea, select, checkbox, toggle, dialog, and dialog actions now have one exported primitive per file; callers were updated atomically while the shared token-backed CSS remains in `ui.module.css`.
 
 ### 7. Clean Home And Onboarding Local UI
 
