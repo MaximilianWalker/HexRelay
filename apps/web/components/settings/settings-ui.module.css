@@ -60,6 +60,14 @@
   min-width: 0;
 }
 
+.settingSelect {
+  width: 100%;
+  max-width: 260px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-16) var(--space-4) var(--space-5);
+  font-size: var(--text-md);
+}
+
 .status {
   align-self: center;
 }
@@ -89,6 +97,10 @@
 
   .settingControl {
     justify-content: stretch;
+  }
+
+  .settingSelect {
+    max-width: none;
   }
 
   .readOnlyValue {

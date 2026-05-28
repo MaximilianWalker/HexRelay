@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { ToggleSwitch } from "@/components/ui/field";
-
 import { SettingStatusBadge, type SettingStatus } from "./setting-status";
 import styles from "./settings-ui.module.css";
 
@@ -28,22 +26,4 @@ export function SettingRow({
       <div className={styles.settingControl}>{children}</div>
     </div>
   );
-}
-
-export function ToggleControl({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange?: (next: boolean) => void;
-}) {
-  return <ToggleSwitch checked={checked} disabled={disabled} label={label} onChange={onChange} />;
-}
-
-export function ReadOnlyValue({ children }: { children: ReactNode }) {
-  return <span className={styles.readOnlyValue}>{children}</span>;
 }

@@ -107,7 +107,7 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 5. Refactor Settings Controls
 
-- Status: pending
+- Status: completed
 - Files:
   - `apps/web/app/settings/page.tsx`
   - `apps/web/components/settings/*`
@@ -117,7 +117,7 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
   - `SettingSelect`
   - `SettingButton`
   - split `ToggleControl` and `ReadOnlyValue` out of `setting-row.tsx` if they remain reusable.
-- Notes: keep existing live preference behavior intact.
+- Notes: settings selects, buttons, toggles, and read-only values now use dedicated settings wrappers backed by shared UI primitives; live preference behavior is preserved.
 
 ### 6. Split UI Primitive Files
 
