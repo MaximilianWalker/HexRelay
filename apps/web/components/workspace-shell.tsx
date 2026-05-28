@@ -9,20 +9,10 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconHome,
-  IconLayoutNavbar,
-  IconLayoutNavbarCollapse,
-  IconLayoutNavbarExpand,
-  IconLayoutSidebar,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconMicrophone,
-  IconMicrophoneOff,
   IconPinned,
   IconPinnedOff,
   IconServer2,
   IconSettings,
-  IconVolume,
-  IconVolumeOff,
   IconX,
 } from "@tabler/icons-react";
 
@@ -58,6 +48,7 @@ import { BrandLockup } from "@/components/brand-lockup";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WorkspaceProfileControls } from "@/components/workspace-profile-controls";
 import { RealtimeClient } from "./realtime-client";
 import styles from "./workspace-shell.module.css";
 
@@ -87,9 +78,10 @@ const EMPTY_TAB_SCROLL_STATE: TabScrollState = {
 };
 
 const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
-const DEFAULT_PROFILE = JSON.stringify({ name: "your profile", status: "No active profile" });
+const DEFAULT_PROFILE = JSON.stringify({ active: false, name: "your profile", status: "No active profile" });
 
 type ProfileSummary = {
+  active: boolean;
   name: string;
   status: string;
 };
@@ -124,7 +116,7 @@ function readProfileSnapshot(): string {
       return DEFAULT_PROFILE;
     }
 
-    return JSON.stringify({ name: persona.name, status: "Ready" });
+    return JSON.stringify({ active: true, name: persona.name, status: "Ready" });
   } catch {
     return DEFAULT_PROFILE;
   }
@@ -134,11 +126,12 @@ function parseProfileSnapshot(value: string): ProfileSummary {
   try {
     const parsed = JSON.parse(value) as Partial<ProfileSummary>;
     return {
+      active: parsed.active === true,
       name: parsed.name || "your profile",
       status: parsed.status || "No active profile",
     };
   } catch {
-    return { name: "your profile", status: "No active profile" };
+    return { active: false, name: "your profile", status: "No active profile" };
   }
 }
 
@@ -565,15 +558,6 @@ export function WorkspaceShell({
     };
   }, [workspaceTabMenu]);
 
-  function toggleNavLayout(): void {
-    const next = navLayout === "sidebar" ? "topbar" : "sidebar";
-    setNavLayout(next);
-  }
-
-  function toggleSidebar(): void {
-    setSidebarCollapsed(!collapsed);
-  }
-
   function handleCloseWorkspaceTab(tab: WorkspaceTab): void {
     const closingActiveTab = routeTab?.id === tab.id;
     const tabsBeforeClose = readWorkspaceTabsSnapshot();
@@ -683,11 +667,6 @@ export function WorkspaceShell({
   );
 
   const isTopbar = navLayout === "topbar";
-  const LayoutIcon = isTopbar ? IconLayoutSidebar : IconLayoutNavbar;
-  const SidebarToggleIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse;
-  const TopbarToggleIcon = collapsed ? IconLayoutNavbarExpand : IconLayoutNavbarCollapse;
-  const SoundIcon = soundMuted ? IconVolumeOff : IconVolume;
-  const MicrophoneIcon = microphoneMuted ? IconMicrophoneOff : IconMicrophone;
   const profile = parseProfileSnapshot(profileSnapshot);
   const hasContentTabs = tabs.length > 0;
 
@@ -708,51 +687,25 @@ export function WorkspaceShell({
     );
   });
 
-  const layoutSwitch = (
-    <Button
-      aria-label={isTopbar ? "Switch to sidebar layout" : "Switch to top bar layout"}
-      className={styles.iconButton}
-      onClick={toggleNavLayout}
-      size="icon"
-      title={isTopbar ? "Use sidebar" : "Use top bar"}
-    >
-      <LayoutIcon className={styles.controlIcon} aria-hidden="true" />
-    </Button>
-  );
-
   const profileControls = (
-    <>
-      <div className={styles.profileSummary} title={profile.name}>
-        <Avatar className={styles.profileAvatar} kind="user" size="sm" text={getInitials(profile.name)} />
-        <div className={styles.profileDetails}>
-          <p className={styles.profileName}>{profile.name}</p>
-          <p className={styles.profileStatus}>{profile.status}</p>
-        </div>
-      </div>
-      <div className={styles.profileActions}>
-        <Button
-          aria-label={soundMuted ? "Unmute sound" : "Mute sound"}
-          className={`${styles.iconButton} ${soundMuted ? styles.iconButtonActive : ""}`}
-          onClick={() => setSoundMuted(!soundMuted)}
-          pressed={soundMuted}
-          size="icon"
-          title={soundMuted ? "Unmute sound" : "Mute sound"}
-        >
-          <SoundIcon className={styles.controlIcon} aria-hidden="true" />
-        </Button>
-        <Button
-          aria-label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-          className={`${styles.iconButton} ${microphoneMuted ? styles.iconButtonActive : ""}`}
-          onClick={() => setMicrophoneMuted(!microphoneMuted)}
-          pressed={microphoneMuted}
-          size="icon"
-          title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-        >
-          <MicrophoneIcon className={styles.controlIcon} aria-hidden="true" />
-        </Button>
-        {layoutSwitch}
-      </div>
-    </>
+    <WorkspaceProfileControls
+      collapsed={collapsed}
+      microphoneMuted={microphoneMuted}
+      navLayout={navLayout}
+      onOpenAudioDevices={() => router.push("/settings#voice-video")}
+      onSetCollapsed={setSidebarCollapsed}
+      onSetMicrophoneMuted={setMicrophoneMuted}
+      onSetNavLayout={setNavLayout}
+      onSetSoundMuted={setSoundMuted}
+      placement={isTopbar ? "topbar" : "sidebar"}
+      profile={{
+        active: profile.active,
+        initials: getInitials(profile.name),
+        name: profile.name,
+        status: profile.status,
+      }}
+      soundMuted={soundMuted}
+    />
   );
 
   function renderWorkspaceTab(tab: WorkspaceTab): React.ReactNode {
@@ -943,15 +896,6 @@ export function WorkspaceShell({
             </div>
             <div className={styles.topbarControls}>
               {profileControls}
-              <Button
-                aria-label={collapsed ? "Expand top bar" : "Collapse top bar"}
-                className={styles.iconButton}
-                onClick={toggleSidebar}
-                size="icon"
-                title={collapsed ? "Expand top bar" : "Collapse top bar"}
-              >
-                <TopbarToggleIcon className={styles.controlIcon} aria-hidden="true" />
-              </Button>
             </div>
           </header>
         ) : (
@@ -968,15 +912,6 @@ export function WorkspaceShell({
             </div>
             <div className={styles.sidebarControls}>
               {profileControls}
-              <Button
-                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                className={styles.iconButton}
-                onClick={toggleSidebar}
-                size="icon"
-                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                <SidebarToggleIcon className={styles.controlIcon} aria-hidden="true" />
-              </Button>
             </div>
           </aside>
         )}

@@ -32,14 +32,31 @@ Only project-specific constraints are defined here.
 - Do not introduce server-readable DM content, private-key upload, or unencrypted DM mailbox/relay behavior.
 - Do not implement UX changes until the user explicitly approves the proposed flow, copy, controls, and behavior.
 
-## 4) Readiness Feedback Loop (Required)
+## 4) Frontend UI Code Rules
+
+- Keep route files and shell components focused on data loading, layout orchestration, and composition; move reusable UI, interaction logic, and visual variants into named components.
+- Prefer one exported component per `.tsx` file. Do not stack multiple substantial components in one file; split them into separate files with colocated CSS modules. Small private helpers are allowed only when they are trivial and not reusable.
+- Prefer simple, direct names. Use names such as `ProfileActions`, `NavLink`, `SettingRow`, or `MessageBubble`; avoid broad, branded, clever, or implementation-heavy names unless the domain requires them.
+- Components should own one clear responsibility. If a component manages profile state, action buttons, menus, and layout at once, split it before adding more behavior.
+- Use existing internal UI primitives first (`Button`, `IconButton`, `Badge`, `Avatar`, `Panel`, `Field`, `Notice`, `Dialog`, `Toolbar`, and related app primitives). Do not create route-local copies of buttons, tabs, cards, switches, fields, menus, or badges.
+- Use Tabler icons through shared button/link/icon patterns. Icon-only controls must have `aria-label` and `title`; visible labels should be added only when the layout calls for text.
+- CSS Modules should be component-scoped and small enough to audit. If a CSS module grows because unrelated surfaces share it, split by component or feature instead of adding more classes.
+- Avoid CSS specificity fights, duplicated classes, and state encoded through long selector chains. Prefer explicit component props mapped to a small set of classes or data attributes.
+- Component CSS must use semantic tokens from `apps/web/app/styles/*`. Do not add raw hex/rgb colors, one-off shadows, one-off radii, or arbitrary spacing unless the token set is missing a real reusable value.
+- Keep styling restrained and native to the app. Reference images guide layout and interaction ideas; do not copy captions, decorative panels, gradients, or visual noise unless those elements are intentionally adopted into the design system.
+- Collapse and responsive states should hide optional text or reflow layout without changing core target sizes, margins, or icon alignment unexpectedly.
+- Repeated UI behavior must live in a shared component before the third copy. This includes tab scrolling, popovers, setting rows, action docks, search fields, empty states, and selection controls.
+- Prefer deterministic UI state. Avoid effect-driven state mirroring when a value can be derived from props, preferences, route state, or stores.
+- For meaningful frontend changes, validate in the browser with screenshots for the affected states and run the relevant gates: `npm --prefix apps/web run lint`, `npm --prefix apps/web run lint:styles`, tests, and build when shared code is touched.
+
+## 5) Readiness Feedback Loop (Required)
 
 - When a readiness finding is fixed, record it in `docs/operations/readiness-corrections-log.md` in the same change.
 - For repeated findings, add or tighten a durable rule in `AGENTS.md` or the canonical owning document in the same change.
 - Before opening a new readiness audit cycle, check `docs/operations/readiness-corrections-log.md` and treat open findings as first-pass candidates.
 - Do not re-open previously closed findings unless new code/docs changes invalidate the prior fix; if invalidated, record the regression explicitly in the log.
 
-## 5) Standard Readiness Execution Flow (Repeatable)
+## 6) Standard Readiness Execution Flow (Repeatable)
 
 - When asked to check readiness before continuing development, run two parallel subagent audits:
   - docs audit (`documentation-governor`)
@@ -52,7 +69,7 @@ Only project-specific constraints are defined here.
 - If an issue is real but not safe for a minimal pass (architectural/high-risk), do not force a partial fix; log it as `watch` in the readiness corrections log with explicit deferral reason.
 - For docs-only readiness passes, skip unnecessary code test reruns; for code-touching passes, run formatter/tests/clippy for touched services before commit.
 
-## 6) Protected Branch Delivery Flow (Repeatable)
+## 7) Protected Branch Delivery Flow (Repeatable)
 
 - Default sequence for delivering changes:
   1. commit on current branch,
