@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
@@ -20,8 +20,4 @@ export function ChannelRail({
       <div className={styles.channelStack}>{children}</div>
     </aside>
   );
-}
-
-export function ChannelStack({ children }: { children: ReactNode }) {
-  return <div className={styles.channelStack}>{children}</div>;
 }
