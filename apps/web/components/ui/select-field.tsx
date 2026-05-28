@@ -5,9 +5,17 @@ import { cx } from "@/lib/ui/cx";
 import styles from "./ui.module.css";
 
 export function SelectField({
+  "aria-invalid": ariaInvalid,
   className,
   invalid,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }) {
-  return <select className={cx(styles.fieldControl, invalid && styles.fieldControlInvalid, className)} {...props} />;
+  return (
+    <select
+      aria-invalid={ariaInvalid ?? (invalid ? true : undefined)}
+      className={cx(styles.fieldControl, invalid && styles.fieldControlInvalid, className)}
+      data-invalid={invalid ? "true" : undefined}
+      {...props}
+    />
+  );
 }

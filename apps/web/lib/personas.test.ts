@@ -28,6 +28,20 @@ class MemoryStorage {
   }
 }
 
+class ThrowingStorage {
+  getItem(): string | null {
+    throw new Error("blocked");
+  }
+
+  removeItem(): void {
+    throw new Error("blocked");
+  }
+
+  setItem(): void {
+    throw new Error("blocked");
+  }
+}
+
 describe("personas", () => {
   beforeEach(() => {
     const uuidValues = ["persona-a", "persona-b"];
@@ -65,6 +79,51 @@ describe("personas", () => {
     windowRef.localStorage.setItem("hexrelay.personas", "not-json");
 
     expect(readPersonas()).toEqual([]);
+  });
+
+  it("filters corrupted persona snapshot records", () => {
+    expect(
+      parsePersonaSnapshot(
+        JSON.stringify({
+          activePersonaId: "persona-a",
+          personas: [
+            "broken",
+            {
+              id: " persona-a ",
+              name: " Nora ",
+              createdAt: "2026-04-10T00:00:01Z",
+              lastSelectedAt: "2026-04-10T00:00:02Z",
+            },
+            {
+              id: "persona-b",
+              name: 42,
+              createdAt: "2026-04-10T00:00:01Z",
+              lastSelectedAt: "2026-04-10T00:00:02Z",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      activePersonaId: "persona-a",
+      personas: [
+        {
+          id: "persona-a",
+          name: "Nora",
+          createdAt: "2026-04-10T00:00:01Z",
+          lastSelectedAt: "2026-04-10T00:00:02Z",
+        },
+      ],
+    });
+  });
+
+  it("returns an empty snapshot when storage access throws", () => {
+    (globalThis as { window?: unknown }).window = {
+      dispatchEvent: vi.fn(() => true),
+      localStorage: new ThrowingStorage(),
+      sessionStorage: new MemoryStorage(),
+    };
+
+    expect(readPersonaSnapshot()).toBe(EMPTY_PERSONA_SNAPSHOT);
   });
 
   it("creates a new persona, trims the name, and marks it active", () => {

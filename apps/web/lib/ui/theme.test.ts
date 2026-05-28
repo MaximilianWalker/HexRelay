@@ -32,9 +32,26 @@ describe("theme helpers", () => {
     expect(
       sanitizeCustomThemeTokens({
         "--color-bg-app": "red; color: blue",
+        "--color-danger": "url(https://example.invalid/pixel)",
+        "--color-warning": "@import url(https://example.invalid/theme.css)",
         "--color-text": "var(--color-accent)",
       }),
     ).toEqual({ "--color-text": "var(--color-accent)" });
+  });
+
+  it("allows constrained color syntaxes for custom token values", () => {
+    expect(
+      sanitizeCustomThemeTokens({
+        "--color-accent": "rgb(35 104 154 / 92%)",
+        "--color-accent-muted": "color-mix(in srgb, var(--color-accent) 34%, transparent)",
+        "--color-focus": "var(--color-accent-strong)",
+        "--color-surface": "calc(1px + 2px)",
+      }),
+    ).toEqual({
+      "--color-accent": "rgb(35 104 154 / 92%)",
+      "--color-accent-muted": "color-mix(in srgb, var(--color-accent) 34%, transparent)",
+      "--color-focus": "var(--color-accent-strong)",
+    });
   });
 
   it("applies explicit and system theme preferences", () => {

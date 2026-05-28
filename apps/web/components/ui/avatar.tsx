@@ -22,6 +22,7 @@ export function Avatar({
 }) {
   return (
     <div
+      aria-hidden={label ? undefined : true}
       aria-label={label}
       className={cx(
         styles.avatar,

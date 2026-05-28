@@ -26,7 +26,7 @@ export function Notice({
   return (
     <div className={cx(styles.notice, toneClass[tone], className)} {...props}>
       {icon}
-      <span>{children}</span>
+      {children}
     </div>
   );
 }

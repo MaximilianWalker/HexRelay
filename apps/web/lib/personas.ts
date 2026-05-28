@@ -35,12 +35,56 @@ function safeParse<T>(value: string | null, fallback: T): T {
   }
 }
 
+function sanitizePersonaRecord(value: unknown): PersonaRecord | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<Record<keyof PersonaRecord, unknown>>;
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.name !== "string" ||
+    typeof candidate.createdAt !== "string" ||
+    typeof candidate.lastSelectedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const id = candidate.id.trim();
+  const name = candidate.name.trim();
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    createdAt: candidate.createdAt,
+    lastSelectedAt: candidate.lastSelectedAt,
+  };
+}
+
+function sanitizePersonaRecords(value: unknown): PersonaRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    const record = sanitizePersonaRecord(item);
+    return record ? [record] : [];
+  });
+}
+
 export function readPersonas(): PersonaRecord[] {
   if (typeof window === "undefined") {
     return [];
   }
 
-  return safeParse<PersonaRecord[]>(window.localStorage.getItem(PERSONAS_KEY), []);
+  try {
+    return sanitizePersonaRecords(safeParse<unknown>(window.localStorage.getItem(PERSONAS_KEY), []));
+  } catch {
+    return [];
+  }
 }
 
 export function readActivePersonaId(): string | null {
@@ -48,14 +92,22 @@ export function readActivePersonaId(): string | null {
     return null;
   }
 
-  return window.localStorage.getItem(ACTIVE_PERSONA_KEY);
+  try {
+    return window.localStorage.getItem(ACTIVE_PERSONA_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function readPersonaSnapshot(): string {
-  return JSON.stringify({
-    activePersonaId: readActivePersonaId(),
-    personas: readPersonas(),
-  });
+  try {
+    return JSON.stringify({
+      activePersonaId: readActivePersonaId(),
+      personas: readPersonas(),
+    });
+  } catch {
+    return EMPTY_PERSONA_SNAPSHOT;
+  }
 }
 
 export function parsePersonaSnapshot(value: string): PersonaSnapshot {
@@ -63,7 +115,7 @@ export function parsePersonaSnapshot(value: string): PersonaSnapshot {
     const parsed = JSON.parse(value) as Partial<PersonaSnapshot>;
     return {
       activePersonaId: typeof parsed.activePersonaId === "string" ? parsed.activePersonaId : null,
-      personas: Array.isArray(parsed.personas) ? parsed.personas : [],
+      personas: sanitizePersonaRecords(parsed.personas),
     };
   } catch {
     return { activePersonaId: null, personas: [] };

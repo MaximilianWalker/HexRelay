@@ -2,8 +2,37 @@ import { secureGetItem, secureRemoveItem, secureSetItem } from "@/lib/secure-sto
 
 const SESSION_PREFIX = "hexrelay.session.runtime";
 const LEGACY_SESSION_PREFIX = "hexrelay.session";
+const SESSION_EVENT = "hexrelay-session-changed";
 const PRIVATE_KEY_PREFIX = "hexrelay.identity.private";
 const MASTER_KEY_STORAGE = "hexrelay.identity.master-key";
+
+function notifySessionChange(): void {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(SESSION_EVENT));
+}
+
+export function subscribePersonaSession(onChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  function handleStorage(event: StorageEvent): void {
+    if (event.key?.startsWith(SESSION_PREFIX) || event.key?.startsWith(LEGACY_SESSION_PREFIX)) {
+      onChange();
+    }
+  }
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(SESSION_EVENT, onChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(SESSION_EVENT, onChange);
+  };
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -117,6 +146,7 @@ export function setPersonaSession(
       updatedAt: new Date().toISOString(),
     }),
   );
+  notifySessionChange();
 }
 
 export function getPersonaSession(
@@ -198,6 +228,7 @@ export function clearPersonaSession(personaId: string): void {
 
   window.sessionStorage.removeItem(`${SESSION_PREFIX}.${personaId}`);
   window.localStorage.removeItem(`${LEGACY_SESSION_PREFIX}.${personaId}`);
+  notifySessionChange();
 }
 
 export function clearPersonaPrivateKey(personaId: string): void {

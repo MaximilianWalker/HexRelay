@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/ui/cx";
+import { initials } from "@/lib/ui/initials";
 import type { WorkspaceTab } from "@/lib/workspace-tabs";
 
 import styles from "./workspace-tab-item.module.css";
@@ -21,18 +22,6 @@ type WorkspaceTabItemProps = {
   onKeyboardContextMenu: (event: KeyboardEvent<HTMLElement>, tab: WorkspaceTab) => void;
   tab: WorkspaceTab;
 };
-
-function initials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 function unreadCount(value: number | undefined): number {
   if (!Number.isFinite(value) || !value || value <= 0) {

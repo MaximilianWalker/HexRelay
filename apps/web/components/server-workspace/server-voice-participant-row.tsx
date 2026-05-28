@@ -1,6 +1,7 @@
 import { IconMicrophone } from "@tabler/icons-react";
 
 import styles from "@/app/surfaces.module.css";
+import { initials } from "@/lib/ui/initials";
 
 type ServerVoiceParticipantRowProps = {
   authorHandle: (identityId: string) => string;
@@ -8,18 +9,6 @@ type ServerVoiceParticipantRowProps = {
   identityId: string;
   speaking: boolean;
 };
-
-function initials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 export function ServerVoiceParticipantRow({
   authorHandle,

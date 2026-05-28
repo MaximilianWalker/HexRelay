@@ -5,9 +5,17 @@ import { cx } from "@/lib/ui/cx";
 import styles from "./ui.module.css";
 
 export function TextInput({
+  "aria-invalid": ariaInvalid,
   className,
   invalid,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
-  return <input className={cx(styles.fieldControl, invalid && styles.fieldControlInvalid, className)} {...props} />;
+  return (
+    <input
+      aria-invalid={ariaInvalid ?? (invalid ? true : undefined)}
+      className={cx(styles.fieldControl, invalid && styles.fieldControlInvalid, className)}
+      data-invalid={invalid ? "true" : undefined}
+      {...props}
+    />
+  );
 }

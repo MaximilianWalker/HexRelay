@@ -3,6 +3,7 @@ import { IconBell, IconBellOff, IconClock, IconStar } from "@tabler/icons-react"
 import type { ServerMember } from "./server-workspace-types";
 
 import styles from "@/app/surfaces.module.css";
+import { initials } from "@/lib/ui/initials";
 
 type ServerMemberCardProps = {
   authorHandle: (identityId: string) => string;
@@ -11,18 +12,6 @@ type ServerMemberCardProps = {
   formatTimestamp: (value: string) => string;
   member: ServerMember;
 };
-
-function initials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 export function ServerMemberCard({
   authorHandle,

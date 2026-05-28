@@ -38,7 +38,7 @@ import {
   switchPersona,
   upsertPersona,
 } from "@/lib/personas";
-import { getPersonaSession, setPersonaSession } from "@/lib/sessions";
+import { getPersonaSession, setPersonaSession, subscribePersonaSession } from "@/lib/sessions";
 import {
   readThemePreference,
   setThemePreference,
@@ -312,7 +312,11 @@ export default function SettingsPage() {
     () => personas.find((persona) => persona.id === identityId) ?? personas[0] ?? null,
     [identityId, personas],
   );
-  const hasSession = useMemo(() => (identityId ? getPersonaSession(identityId) !== null : false), [identityId]);
+  const hasSession = useSyncExternalStore(
+    subscribePersonaSession,
+    () => (identityId ? getPersonaSession(identityId) !== null : false),
+    () => false,
+  );
   const [policyBusy, setPolicyBusy] = useState(false);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
   const [testingProfiles, setTestingProfiles] = useState<TestingProfileSummary[]>([]);

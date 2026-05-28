@@ -6,6 +6,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import type { ServerChannelMessage } from "@/lib/api";
 import type { MessageAlignment, MessageBubbleSize, MessageLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
+import { initials } from "@/lib/ui/initials";
 
 import styles from "./chat.module.css";
 
@@ -84,16 +85,4 @@ export function MessageRow({
       ) : null}
     </article>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }

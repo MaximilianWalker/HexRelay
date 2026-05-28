@@ -44,6 +44,19 @@ export type CustomThemeVariable = (typeof CUSTOM_THEME_VARIABLES)[number];
 export type CustomThemeTokens = Partial<Record<CustomThemeVariable, string>>;
 
 const CUSTOM_THEME_VARIABLE_SET = new Set<string>(CUSTOM_THEME_VARIABLES);
+const SIMPLE_COLOR_PATTERN =
+  /^(?:#[0-9a-f]{3,8}|rgba?\([0-9a-z\s,./%+-]+\)|hsla?\([0-9a-z\s,./%+-]+\)|var\(--color-[a-z0-9-]+\)|transparent)$/i;
+const COLOR_MIX_PATTERN =
+  /^color-mix\(\s*in\s+(?:srgb|srgb-linear|display-p3|a98-rgb|prophoto-rgb|rec2020|lab|oklab|xyz|xyz-d50|xyz-d65|hsl|hwb|lch|oklch)\s*,\s*(?:#[0-9a-f]{3,8}|rgba?\([0-9a-z\s,./%+-]+\)|hsla?\([0-9a-z\s,./%+-]+\)|var\(--color-[a-z0-9-]+\)|transparent)(?:\s+[0-9.]+%)?\s*,\s*(?:#[0-9a-f]{3,8}|rgba?\([0-9a-z\s,./%+-]+\)|hsla?\([0-9a-z\s,./%+-]+\)|var\(--color-[a-z0-9-]+\)|transparent)(?:\s+[0-9.]+%)?\s*\)$/i;
+const UNSAFE_COLOR_VALUE_PATTERN = /[;{}]|url\s*\(|@|expression\s*\(|javascript:/i;
+
+function isSafeCustomThemeColor(value: string): boolean {
+  if (UNSAFE_COLOR_VALUE_PATTERN.test(value)) {
+    return false;
+  }
+
+  return SIMPLE_COLOR_PATTERN.test(value) || COLOR_MIX_PATTERN.test(value);
+}
 
 export function parseThemePreference(value: string | null | undefined): ThemePreference {
   return value === "light" || value === "dark" || value === "system" ? value : "system";
@@ -105,7 +118,7 @@ export function sanitizeCustomThemeTokens(tokens: Record<string, string>): Custo
     }
 
     const trimmed = value.trim();
-    if (!trimmed || /[;{}]/.test(trimmed)) {
+    if (!trimmed || !isSafeCustomThemeColor(trimmed)) {
       continue;
     }
 

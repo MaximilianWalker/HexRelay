@@ -6,6 +6,7 @@ import { IconCheck, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cx } from "@/lib/ui/cx";
+import { initials } from "@/lib/ui/initials";
 
 import type { HubItem as HubItemType } from "./hub-surface";
 import styles from "./hubs.module.css";
@@ -88,16 +89,4 @@ export function HubItem<T extends HubItemType>({
       ) : null}
     </article>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }
