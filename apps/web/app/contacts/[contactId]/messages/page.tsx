@@ -1,19 +1,24 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
-  IconArrowLeft,
   IconCircleCheck,
   IconInfoCircle,
   IconMessageCircle,
-  IconSend,
-  IconUser,
+  IconPinned,
+  IconPinnedOff,
+  IconVolume,
+  IconVolumeOff,
 } from "@tabler/icons-react";
 
+import { Composer } from "@/components/chat/composer";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { WorkspaceShell } from "@/components/workspace-shell";
-import { fetchContacts } from "@/lib/api";
+import { fetchContacts, updateContactPreferences } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 
@@ -34,6 +39,19 @@ type ContactLoad = {
   contactId: string;
   contact: Contact | null;
   error: string | null;
+};
+
+type ContactPreferenceAction = "pin" | "mute";
+
+type ContactApiItem = {
+  id: string;
+  name: string;
+  status: string;
+  unread: number;
+  pinned: boolean;
+  muted: boolean;
+  inbound_request?: boolean;
+  pending_request?: boolean;
 };
 
 function safeContactId(value: string): string | null {
@@ -62,6 +80,30 @@ function contactInitials(name: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function statusLabel(status: string): string {
+  if (status === "online") {
+    return "Online";
+  }
+  if (status === "away") {
+    return "Away";
+  }
+
+  return "Offline";
+}
+
+function mapContact(item: ContactApiItem): Contact {
+  return {
+    id: item.id,
+    name: item.name,
+    status: item.status,
+    unread: item.unread,
+    pinned: item.pinned,
+    muted: item.muted,
+    inboundRequest: item.inbound_request ?? false,
+    pendingRequest: item.pending_request ?? false,
+  };
 }
 
 function subscribeBrowserReady(): () => void {
@@ -93,6 +135,7 @@ export default function ContactMessagesPage() {
   const [contactLoad, setContactLoad] = useState<ContactLoad | null>(null);
   const [message, setMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [busyPreferenceAction, setBusyPreferenceAction] = useState<ContactPreferenceAction | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -122,18 +165,7 @@ export default function ContactMessagesPage() {
       const matched = result.data.items.find((item) => item.id === contactId);
       setContactLoad({
         contactId,
-        contact: matched
-          ? {
-              id: matched.id,
-              name: matched.name,
-              status: matched.status,
-              unread: matched.unread,
-              pinned: matched.pinned,
-              muted: matched.muted,
-              inboundRequest: matched.inbound_request,
-              pendingRequest: matched.pending_request,
-            }
-          : null,
+        contact: matched ? mapContact(matched) : null,
         error: null,
       });
     };
@@ -152,6 +184,22 @@ export default function ContactMessagesPage() {
   const title = contact?.name ?? shortIdentity(contactId ?? "Unknown contact");
   const chatContact = contact && !contact.inboundRequest && !contact.pendingRequest ? contact : null;
   const canMessage = chatContact !== null;
+  const contactBadges = contact ? (
+    <>
+      <Badge
+        icon={<IconCircleCheck className={styles.icon} aria-hidden="true" />}
+        tone={contact.status === "online" ? "success" : "muted"}
+      >
+        {statusLabel(contact.status)}
+      </Badge>
+      {contact.pinned ? <Badge tone="accent">Pinned</Badge> : null}
+      {contact.muted ? <Badge tone="muted">Muted</Badge> : null}
+      {contact.pendingRequest ? <Badge tone="warning">Request pending</Badge> : null}
+      {contact.inboundRequest ? <Badge tone="warning">Needs approval</Badge> : null}
+    </>
+  ) : (
+    <Badge tone="warning">Unknown contact</Badge>
+  );
 
   function handleSend(): void {
     if (!canMessage) {
@@ -166,106 +214,148 @@ export default function ContactMessagesPage() {
     );
   }
 
+  async function updateContactPreference(
+    update: { pinned?: boolean; muted?: boolean },
+    action: ContactPreferenceAction,
+  ): Promise<void> {
+    if (!contact) {
+      return;
+    }
+
+    setBusyPreferenceAction(action);
+    setStatusMessage(null);
+
+    const result = await updateContactPreferences({ contactId: contact.id, ...update });
+    if (!result.ok) {
+      setStatusMessage(result.message);
+      setBusyPreferenceAction(null);
+      return;
+    }
+
+    const updatedContact = mapContact(result.data);
+    setContactLoad({ contactId: updatedContact.id, contact: updatedContact, error: null });
+    setStatusMessage(
+      update.pinned !== undefined
+        ? updatedContact.pinned
+          ? "Contact pinned."
+          : "Contact unpinned."
+        : updatedContact.muted
+          ? "Conversation muted."
+          : "Conversation unmuted.",
+    );
+    setBusyPreferenceAction(null);
+  }
+
   return (
     <WorkspaceShell
       activeTabId="contacts"
       subtitle={`Private conversation with ${title}`}
-      tabs={[
-        { id: "contacts", label: "All contacts", icon: IconUser },
-        { id: "messages", label: "Private chat", icon: IconMessageCircle },
-      ]}
+      tabs={[]}
       title="Private Chat"
+      workspaceTab={{ imageLabel: title, label: title, unread: contact?.unread }}
     >
-      <section className={styles.channelLayout}>
-        <aside className={styles.channelRail}>
-          <Link className={styles.pill} href="/contacts">
-            <IconArrowLeft className={styles.icon} aria-hidden="true" />
-            Back to contacts
-          </Link>
-          <div className={styles.cardHeader}>
-            <div className={styles.avatar}>{contactInitials(title)}</div>
-            <div>
-              <p className={styles.title}>{title}</p>
-              <p className={styles.meta}>{shortIdentity(contactId ?? "Unknown contact")}</p>
+      <article className={styles.conversationPage}>
+        <header className={styles.conversationTopbar}>
+          <div className={styles.conversationIdentity}>
+            <Avatar kind="user" label={title} size="md" text={contactInitials(title)} />
+            <div className={styles.conversationCopy}>
+              <div className={styles.conversationTitleRow}>
+                <h2 className={styles.conversationTitle}>{title}</h2>
+                <div className={styles.conversationBadges}>{contactBadges}</div>
+              </div>
+              <p className={styles.conversationMeta}>{shortIdentity(contactId ?? "Unknown contact")}</p>
             </div>
           </div>
-          <div className={styles.row}>
-            {contact ? (
-              <span className={contact.status === "online" ? styles.badge : styles.badgeMuted}>
-                <IconCircleCheck className={styles.icon} aria-hidden="true" />
-                {contact.status}
-              </span>
-            ) : null}
-            {contact?.pinned ? <span className={styles.badgeMuted}>Pinned</span> : null}
-            {contact?.muted ? <span className={styles.badgeMuted}>Muted</span> : null}
-            {contact?.pendingRequest ? <span className={styles.badgeMuted}>Request pending</span> : null}
-            {contact?.inboundRequest ? <span className={styles.badge}>Needs approval</span> : null}
-          </div>
-          <p className={styles.meta}>
-            This server-routed private-message surface will send E2EE envelopes through the server delivery path.
-          </p>
-        </aside>
 
-        <article className={styles.channelMain}>
-          {loading ? <p className={styles.state}>Loading conversation...</p> : null}
-          {!hasSession ? <p className={styles.state}>Create or select a profile before messaging contacts.</p> : null}
-          {!contactId ? <p className={styles.state}>This contact link is invalid.</p> : null}
-          {loadError ? <p className={styles.state}>{loadError}</p> : null}
+          <div className={styles.conversationActions}>
+            {contact ? (
+              <>
+                <Button
+                  disabled={busyPreferenceAction !== null}
+                  icon={
+                    contact.pinned ? (
+                      <IconPinnedOff className={styles.icon} aria-hidden="true" />
+                    ) : (
+                      <IconPinned className={styles.icon} aria-hidden="true" />
+                    )
+                  }
+                  onClick={() => void updateContactPreference({ pinned: !contact.pinned }, "pin")}
+                  size="sm"
+                >
+                  {contact.pinned ? "Unpin" : "Pin"}
+                </Button>
+                <Button
+                  disabled={busyPreferenceAction !== null}
+                  icon={
+                    contact.muted ? (
+                      <IconVolume className={styles.icon} aria-hidden="true" />
+                    ) : (
+                      <IconVolumeOff className={styles.icon} aria-hidden="true" />
+                    )
+                  }
+                  onClick={() => void updateContactPreference({ muted: !contact.muted }, "mute")}
+                  size="sm"
+                >
+                  {contact.muted ? "Unmute" : "Mute"}
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </header>
+
+        <section className={styles.conversationBody}>
+          {loading ? <Notice>Loading conversation...</Notice> : null}
+          {!hasSession ? <Notice tone="warning">Create or select a profile before messaging contacts.</Notice> : null}
+          {!contactId ? <Notice tone="danger">This contact link is invalid.</Notice> : null}
+          {loadError ? <Notice tone="danger">{loadError}</Notice> : null}
           {!loading && hasSession && contactId && !loadError && !contact ? (
-            <p className={styles.state}>This contact was not found in your current contacts list.</p>
+            <Notice tone="warning">This contact was not found in your current contacts list.</Notice>
           ) : null}
           {contact && !canMessage ? (
-            <p className={styles.state}>Finish the contact request before starting an encrypted conversation.</p>
+            <Notice tone="warning">Finish the contact request before starting an encrypted conversation.</Notice>
           ) : null}
 
           {chatContact ? (
             <>
-              <div className={styles.state}>
-                <p className={styles.title}>Conversation starts here</p>
-                <p className={styles.meta}>
-                  The next backend slice will load E2EE DM thread history and send encrypted envelopes from this composer.
-                </p>
-              </div>
-
-              <div className={styles.card} style={{ marginTop: 12 }}>
-                <p className={styles.title}>
-                  <IconMessageCircle className={styles.icon} aria-hidden="true" /> Message composer
-                </p>
-                <textarea
-                  className={styles.search}
-                  id="dm-message-composer"
-                  name="message"
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder={`Message ${title}`}
-                  rows={4}
-                  value={message}
-                />
-                <div className={styles.row}>
-                  <button className={styles.pill} disabled={!canMessage} onClick={handleSend} type="button">
-                    <IconSend className={styles.icon} aria-hidden="true" />
-                    Send
-                  </button>
+              <div className={styles.conversationEmptyState}>
+                <IconMessageCircle className={styles.conversationEmptyIcon} aria-hidden="true" />
+                <div>
+                  <p className={styles.title}>Conversation starts here</p>
+                  <p className={styles.meta}>
+                    The next backend slice will load E2EE DM thread history and send encrypted envelopes from this
+                    composer.
+                  </p>
                 </div>
               </div>
+
+              <Composer
+                disabled={!canMessage}
+                hints={
+                  <span className={styles.conversationComposerHint}>
+                    Server-routed E2EE envelopes will use the delivery path for this contact.
+                  </span>
+                }
+                onChange={setMessage}
+                onSend={handleSend}
+                placeholder={`Message ${title}`}
+                sendLabel="Send"
+                value={message}
+              />
             </>
           ) : null}
 
           {statusMessage ? (
-            <p className={styles.state}>
-              <IconInfoCircle className={styles.icon} aria-hidden="true" /> {statusMessage}
-            </p>
+            <Notice icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}>{statusMessage}</Notice>
           ) : null}
 
-          <details className={styles.compactDetails}>
-            <summary>
-              <IconUser className={styles.icon} aria-hidden="true" /> Contact details
-            </summary>
-            <p className={styles.meta} style={{ wordBreak: "break-all" }}>
+          <details className={styles.conversationDetails}>
+            <summary>Contact details</summary>
+            <p className={styles.conversationDetailText}>
               Contact ID: {contactId ?? "Invalid contact link"}
             </p>
           </details>
-        </article>
-      </section>
+        </section>
+      </article>
     </WorkspaceShell>
   );
 }

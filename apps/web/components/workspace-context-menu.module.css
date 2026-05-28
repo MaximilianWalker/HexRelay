@@ -1,0 +1,42 @@
+.menu {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  min-width: calc(var(--space-20) * 4 + var(--space-8));
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.item {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-body);
+  padding: var(--space-5) var(--space-6);
+  text-align: left;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--color-surface-selected);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.icon {
+  width: calc(var(--space-8) - var(--space-1));
+  height: calc(var(--space-8) - var(--space-1));
+  flex: 0 0 calc(var(--space-8) - var(--space-1));
+  stroke-width: 1.8;
+}

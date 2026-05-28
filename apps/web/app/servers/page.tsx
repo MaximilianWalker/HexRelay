@@ -2,20 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import {
-  IconLayoutGrid,
-  IconList,
-  IconMessageCircle,
-  IconPinned,
-  IconPinnedOff,
-  IconPlus,
-  IconServer2,
-  IconTrash,
-  IconVolume,
-  IconVolumeOff,
-} from "@tabler/icons-react";
+import { IconPlus, IconServer2 } from "@tabler/icons-react";
 
-import { HubSurface } from "@/components/hub-surface";
+import { HubBulkActions } from "@/components/hubs/hub-bulk-actions";
+import { HubItemActions } from "@/components/hubs/hub-item-actions";
+import { HubSurface } from "@/components/hubs/hub-surface";
+import { HubToolbar } from "@/components/hubs/hub-toolbar";
+import { ServerCreateDialog } from "@/components/hubs/server-create-dialog";
+import { ServerJoinDialog } from "@/components/hubs/server-join-dialog";
+import { ServerLeaveDialog } from "@/components/hubs/server-leave-dialog";
+import { Button } from "@/components/ui/button";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   createServer,
@@ -27,7 +23,7 @@ import {
 } from "@/lib/api";
 import type { HubLayout } from "@/lib/hub-state";
 import { serverWorkspaceRoute } from "@/lib/navigation-routes";
-import { readActivePersonaId, readPersonas } from "@/lib/personas";
+import { EMPTY_PERSONA_SNAPSHOT, parsePersonaSnapshot, readPersonaSnapshot } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
 import { readHubLayout, setHubLayout, subscribeWorkspacePreferences } from "@/lib/workspace-preferences";
 import { closeWorkspaceTabsForServer } from "@/lib/workspace-tabs";
@@ -66,15 +62,13 @@ export default function ServersPage() {
     () => readHubLayout("servers"),
     () => "cards",
   );
-
-  const identityId = useMemo(() => {
-    const active = readActivePersonaId();
-    if (active) {
-      return active;
-    }
-
-    return readPersonas()[0]?.id ?? "usr-nora-k";
-  }, []);
+  const personaSnapshot = useSyncExternalStore(
+    subscribeWorkspacePreferences,
+    readPersonaSnapshot,
+    () => EMPTY_PERSONA_SNAPSHOT,
+  );
+  const { activePersonaId, personas } = parsePersonaSnapshot(personaSnapshot);
+  const identityId = activePersonaId ?? personas[0]?.id ?? "usr-nora-k";
 
   const hasSession = useMemo(() => Boolean(getPersonaSession(identityId)), [identityId]);
 
@@ -97,7 +91,6 @@ export default function ServersPage() {
         setHasError(true);
         setServers([]);
         setLoading(false);
-        setActionMessage("Could not load servers. Try again in a moment.");
         return;
       }
 
@@ -108,7 +101,6 @@ export default function ServersPage() {
       setHasError(true);
       setServers([]);
       setLoading(false);
-      setActionMessage("Could not reach servers. Check your connection and try again.");
     }
   }, [hasSession, mutedOnly, pinnedOnly, search, unreadOnly]);
 
@@ -134,8 +126,12 @@ export default function ServersPage() {
     update();
   }
 
+  function closePanel(): void {
+    setActivePanel(null);
+    setActionMessage(null);
+  }
+
   function toggleSelected(itemId: string): void {
-    setSelecting(true);
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(itemId)) {
@@ -143,8 +139,14 @@ export default function ServersPage() {
       } else {
         next.add(itemId);
       }
+      setSelecting(next.size > 0);
       return next;
     });
+  }
+
+  function clearSelection(): void {
+    setSelectedIds(new Set());
+    setSelecting(false);
   }
 
   function selectedServers(): ServerSummary[] {
@@ -285,185 +287,61 @@ export default function ServersPage() {
     <WorkspaceShell
       activeTabId="servers"
       subtitle="Global servers hub with shared card and list controls"
-      tabs={[
-        { id: "servers", label: "Servers Hub", icon: IconServer2 },
-        { id: "pinned", label: "Pinned", icon: IconPinned },
-        { id: "unread", label: "Unread", icon: IconMessageCircle },
-      ]}
-      tabActions={
-        <div className={styles.row}>
-          <button className={styles.pill} disabled={!hasSession || busy} onClick={() => setActivePanel("create")} type="button">
-            <IconPlus className={styles.icon} aria-hidden="true" />
-            Create
-          </button>
-          <button className={styles.pill} disabled={!hasSession || busy} onClick={() => setActivePanel("join")} type="button">
-            <IconServer2 className={styles.icon} aria-hidden="true" />
-            Join
-          </button>
-        </div>
-      }
+      tabs={[]}
       title="Servers"
     >
       <section>
-        {activePanel === "create" ? (
-          <section className={styles.state} aria-label="Create server">
-            <p className={styles.title}>Create server</p>
-            <input
-              className={styles.search}
-              onChange={(event) => setCreateName(event.target.value)}
-              placeholder="Server name"
-              value={createName}
-            />
-            <input
-              className={styles.search}
-              onChange={(event) => setCreateDescription(event.target.value)}
-              placeholder="Description"
-              value={createDescription}
-            />
-            <label className={styles.meta}>
-              <input
-                checked={manualBootstrap}
-                onChange={(event) => setManualBootstrap(event.target.checked)}
-                type="checkbox"
-              />{" "}
-              Supply bootstrap credential manually
-            </label>
-            {manualBootstrap ? (
-              <input
-                className={styles.search}
-                onChange={(event) => setBootstrapCredential(event.target.value)}
-                placeholder="Bootstrap credential"
-                value={bootstrapCredential}
-              />
-            ) : null}
-            <div className={styles.row}>
-              <button className={styles.pill} disabled={busy} onClick={() => void handleCreateServer()} type="button">
-                Create server
-              </button>
-              <button className={styles.pill} onClick={() => setActivePanel(null)} type="button">
-                Close
-              </button>
-            </div>
-          </section>
-        ) : null}
+        {actionMessage && activePanel === null ? <p className={styles.state}>{actionMessage}</p> : null}
 
-        {activePanel === "join" ? (
-          <section className={styles.state} aria-label="Join server">
-            <p className={styles.title}>Join server</p>
-            <input
-              className={styles.search}
-              onChange={(event) => setInviteLink(event.target.value)}
-              placeholder="Invite link"
-              value={inviteLink}
-            />
-            <label className={styles.meta}>
-              <input
-                checked={showJoinAdvanced}
-                onChange={(event) => setShowJoinAdvanced(event.target.checked)}
-                type="checkbox"
-              />{" "}
-              Show advanced fields
-            </label>
-            {showJoinAdvanced ? (
-              <>
-                <input className={styles.search} onChange={(event) => setJoinEndpoint(event.target.value)} placeholder="Endpoint" value={joinEndpoint} />
-                <input className={styles.search} onChange={(event) => setJoinServerId(event.target.value)} placeholder="Server id" value={joinServerId} />
-                <input className={styles.search} onChange={(event) => setJoinToken(event.target.value)} placeholder="Invite token" value={joinToken} />
-              </>
-            ) : null}
-            <div className={styles.row}>
-              <button className={styles.pill} disabled={busy} onClick={() => void handleJoinServer()} type="button">
-                Join server
-              </button>
-              <button className={styles.pill} onClick={() => setActivePanel(null)} type="button">
-                Close
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        {actionMessage ? <p className={styles.state}>{actionMessage}</p> : null}
-
-        <div className={styles.row}>
-          <button
-            aria-pressed={pinnedOnly}
-            className={`${styles.pill} ${pinnedOnly ? styles.pillActive : ""}`}
-            onClick={() => setFilterState(() => setPinnedOnly((value) => !value))}
-            type="button"
-          >
-            <IconPinned className={styles.icon} aria-hidden="true" />
-            Pinned
-          </button>
-          <button
-            aria-pressed={unreadOnly}
-            className={`${styles.pill} ${unreadOnly ? styles.pillActive : ""}`}
-            onClick={() => setFilterState(() => setUnreadOnly((value) => !value))}
-            type="button"
-          >
-            <IconMessageCircle className={styles.icon} aria-hidden="true" />
-            Unread
-          </button>
-          <button
-            aria-pressed={mutedOnly}
-            className={`${styles.pill} ${mutedOnly ? styles.pillActive : ""}`}
-            onClick={() => setFilterState(() => setMutedOnly((value) => !value))}
-            type="button"
-          >
-            <IconVolumeOff className={styles.icon} aria-hidden="true" />
-            Muted
-          </button>
-          <button className={styles.pill} onClick={() => setHubLayout("servers", layout === "cards" ? "list" : "cards")} type="button">
-            {layout === "cards" ? <IconList className={styles.icon} aria-hidden="true" /> : <IconLayoutGrid className={styles.icon} aria-hidden="true" />}
-            {layout === "cards" ? "List" : "Cards"}
-          </button>
-          <button
-            aria-pressed={selecting}
-            className={`${styles.pill} ${selecting ? styles.pillActive : ""}`}
-            onClick={() => {
-              setSelecting((value) => !value);
-              setSelectedIds(new Set());
-            }}
-            type="button"
-          >
-            Select{selectedCount > 0 ? ` (${selectedCount})` : ""}
-          </button>
-        </div>
-
-        {selecting ? (
-          <div className={styles.row}>
-            <button className={styles.pill} disabled={busy || selectedCount === 0} onClick={() => void updateSelectedServers("pin")} type="button">
-              <IconPinned className={styles.icon} aria-hidden="true" />
-              Pin
-            </button>
-            <button className={styles.pill} disabled={busy || selectedCount === 0} onClick={() => void updateSelectedServers("unpin")} type="button">
-              <IconPinnedOff className={styles.icon} aria-hidden="true" />
-              Unpin
-            </button>
-            <button className={styles.pill} disabled={busy || selectedCount === 0} onClick={() => void updateSelectedServers("mute")} type="button">
-              <IconVolumeOff className={styles.icon} aria-hidden="true" />
-              Mute
-            </button>
-            <button className={styles.pill} disabled={busy || selectedCount === 0} onClick={() => void updateSelectedServers("unmute")} type="button">
-              <IconVolume className={styles.icon} aria-hidden="true" />
-              Unmute
-            </button>
-            <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy || selectedCount === 0} onClick={() => setLeaveTargets(selectedServers())} type="button">
-              <IconTrash className={styles.icon} aria-hidden="true" />
-              Leave
-            </button>
-          </div>
-        ) : null}
-
-        <input
-          className={styles.search}
-          onChange={(event) =>
+        <HubToolbar
+          actions={
+            <>
+              <Button
+                disabled={!hasSession || busy}
+                icon={<IconPlus className={styles.icon} aria-hidden="true" />}
+                onClick={() => setActivePanel("create")}
+              >
+                Create
+              </Button>
+              <Button
+                disabled={!hasSession || busy}
+                icon={<IconServer2 className={styles.icon} aria-hidden="true" />}
+                onClick={() => setActivePanel("join")}
+              >
+                Join
+              </Button>
+            </>
+          }
+          layout={layout}
+          mutedOnly={mutedOnly}
+          onLayoutChange={(nextLayout) => setHubLayout("servers", nextLayout)}
+          onMutedChange={() => setFilterState(() => setMutedOnly((value) => !value))}
+          onPinnedChange={() => setFilterState(() => setPinnedOnly((value) => !value))}
+          onSearchChange={(value) =>
             setFilterState(() => {
-              setSearch(event.target.value);
+              setSearch(value);
             })
           }
-          placeholder="Search servers"
-          value={search}
+          onUnreadChange={() => setFilterState(() => setUnreadOnly((value) => !value))}
+          pinnedOnly={pinnedOnly}
+          search={search}
+          searchLabel="Search servers"
+          unreadOnly={unreadOnly}
         />
+
+        {selecting ? (
+          <HubBulkActions
+            busy={busy}
+            destructiveLabel="Leave"
+            onDestructive={() => setLeaveTargets(selectedServers())}
+            onDone={clearSelection}
+            onMute={() => void updateSelectedServers("mute")}
+            onPin={() => void updateSelectedServers("pin")}
+            onUnmute={() => void updateSelectedServers("unmute")}
+            onUnpin={() => void updateSelectedServers("unpin")}
+            selectedCount={selectedCount}
+          />
+        ) : null}
 
         {pageState === "loading" ? <p className={styles.state}>Loading servers...</p> : null}
         {pageState === "error" ? (
@@ -482,45 +360,66 @@ export default function ServersPage() {
             onOpen={(server) => router.push(serverWorkspaceRoute(server.id))}
             onToggleSelected={toggleSelected}
             renderActions={(server) => (
-              <>
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneServer(server, { pinned: !server.pinned })} type="button">
-                  {server.pinned ? <IconPinnedOff className={styles.icon} aria-hidden="true" /> : <IconPinned className={styles.icon} aria-hidden="true" />}
-                  {server.pinned ? "Unpin" : "Pin"}
-                </button>
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneServer(server, { muted: !server.muted })} type="button">
-                  {server.muted ? <IconVolume className={styles.icon} aria-hidden="true" /> : <IconVolumeOff className={styles.icon} aria-hidden="true" />}
-                  {server.muted ? "Unmute" : "Mute"}
-                </button>
-                <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => setLeaveTargets([server])} type="button">
-                  <IconTrash className={styles.icon} aria-hidden="true" />
-                  Leave
-                </button>
-              </>
+              <HubItemActions
+                busy={busy}
+                destructiveLabel="Leave"
+                muted={server.muted}
+                onDestructive={() => setLeaveTargets([server])}
+                onToggleMuted={() => void updateOneServer(server, { muted: !server.muted })}
+                onTogglePinned={() => void updateOneServer(server, { pinned: !server.pinned })}
+                pinned={server.pinned}
+              />
             )}
             selectedIds={selectedIds}
             selecting={selecting}
           />
         ) : null}
 
+        {activePanel === "create" ? (
+          <ServerCreateDialog
+            actionMessage={actionMessage}
+            bootstrapCredential={bootstrapCredential}
+            busy={busy}
+            description={createDescription}
+            manualBootstrap={manualBootstrap}
+            name={createName}
+            onBootstrapCredentialChange={setBootstrapCredential}
+            onClose={closePanel}
+            onDescriptionChange={setCreateDescription}
+            onManualBootstrapChange={setManualBootstrap}
+            onNameChange={setCreateName}
+            onSubmit={() => void handleCreateServer()}
+          />
+        ) : null}
+
+        {activePanel === "join" ? (
+          <ServerJoinDialog
+            actionMessage={actionMessage}
+            busy={busy}
+            endpoint={joinEndpoint}
+            inviteLink={inviteLink}
+            inviteToken={joinToken}
+            onClose={closePanel}
+            onEndpointChange={setJoinEndpoint}
+            onInviteLinkChange={setInviteLink}
+            onInviteTokenChange={setJoinToken}
+            onServerIdChange={setJoinServerId}
+            onShowAdvancedChange={setShowJoinAdvanced}
+            onSubmit={() => void handleJoinServer()}
+            serverId={joinServerId}
+            showAdvanced={showJoinAdvanced}
+          />
+        ) : null}
+
         {leaveTargets.length > 0 ? (
-          <div className={styles.dialogBackdrop} role="presentation">
-            <section aria-label="Leave server confirmation" className={styles.dialog}>
-              <p className={styles.title}>Leave {leaveTargets.length === 1 ? leaveTargets[0]?.name : `${leaveTargets.length} servers`}?</p>
-              <p className={styles.meta}>Leaving removes the server from this hub and closes related workspace tabs.</p>
-              <label className={styles.meta}>
-                <input checked={deleteLocalData} onChange={(event) => setDeleteLocalData(event.target.checked)} type="checkbox" />{" "}
-                Delete local data for this server
-              </label>
-              <div className={styles.row}>
-                <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => void confirmLeave()} type="button">
-                  Leave server
-                </button>
-                <button className={styles.pill} disabled={busy} onClick={() => setLeaveTargets([])} type="button">
-                  Cancel
-                </button>
-              </div>
-            </section>
-          </div>
+          <ServerLeaveDialog
+            busy={busy}
+            deleteLocalData={deleteLocalData}
+            onClose={() => setLeaveTargets([])}
+            onConfirm={() => void confirmLeave()}
+            onDeleteLocalDataChange={setDeleteLocalData}
+            targetLabel={leaveTargets.length === 1 ? (leaveTargets[0]?.name ?? "server") : `${leaveTargets.length} servers`}
+          />
         ) : null}
       </section>
     </WorkspaceShell>

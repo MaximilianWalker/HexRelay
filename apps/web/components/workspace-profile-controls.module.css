@@ -1,0 +1,15 @@
+.root {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.root[data-profile-placement="topbar"] {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.root[data-profile-placement="sidebar"][data-profile-collapsed="true"] {
+  width: var(--brand-lockup-size-lg-mark);
+}

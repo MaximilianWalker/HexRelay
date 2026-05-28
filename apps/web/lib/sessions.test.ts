@@ -7,6 +7,7 @@ import {
   getPersonaSession,
   setPersonaPrivateKey,
   setPersonaSession,
+  subscribePersonaSession,
 } from "./sessions";
 
 class MemoryStorage {
@@ -34,7 +35,10 @@ type SecureStoreProvider = {
 function buildWindow(provider?: SecureStoreProvider) {
   return {
     __HEXRELAY_SECURE_STORE__: provider,
+    addEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
     localStorage: new MemoryStorage(),
+    removeEventListener: vi.fn(),
     sessionStorage: new MemoryStorage(),
   };
 }
@@ -86,6 +90,36 @@ describe("sessions", () => {
     clearPersonaSession("persona-1");
     expect(windowRef.sessionStorage.getItem("hexrelay.session.runtime.persona-1")).toBeNull();
     expect(windowRef.localStorage.getItem("hexrelay.session.persona-1")).toBeNull();
+    expect(windowRef.dispatchEvent).toHaveBeenCalledTimes(2);
+    expect(windowRef.dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      "hexrelay-session-changed",
+      "hexrelay-session-changed",
+    ]);
+  });
+
+  it("subscribes to local and cross-window persona session changes", () => {
+    (globalThis as { window?: unknown }).window = buildWindow();
+    const windowRef = globalThis.window as ReturnType<typeof buildWindow>;
+    const onChange = vi.fn();
+
+    const unsubscribe = subscribePersonaSession(onChange);
+
+    expect(windowRef.addEventListener).toHaveBeenCalledWith("storage", expect.any(Function));
+    expect(windowRef.addEventListener).toHaveBeenCalledWith("hexrelay-session-changed", onChange);
+
+    const storageHandler = windowRef.addEventListener.mock.calls.find(
+      ([eventName]) => eventName === "storage",
+    )?.[1] as (event: StorageEvent) => void;
+
+    storageHandler({ key: "hexrelay.session.runtime.persona-1" } as StorageEvent);
+    storageHandler({ key: "hexrelay.unrelated" } as StorageEvent);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+
+    expect(windowRef.removeEventListener).toHaveBeenCalledWith("storage", storageHandler);
+    expect(windowRef.removeEventListener).toHaveBeenCalledWith("hexrelay-session-changed", onChange);
   });
 
   it("keeps seeded runtime sessions isolated per persona", () => {

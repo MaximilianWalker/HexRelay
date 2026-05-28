@@ -281,9 +281,10 @@ export function subscribeWorkspaceTabs(onChange: () => void): () => void {
 }
 
 export function openWorkspaceTab(tab: WorkspaceTab): void {
-  const existing = readWorkspaceTabsSnapshot().find((item) => item.id === tab.id);
+  const tabs = readWorkspaceTabsSnapshot();
+  const existing = tabs.find((item) => item.id === tab.id);
   const nextTab = existing ? { ...existing, ...tab, pinned: existing.pinned, updatedAt: existing.updatedAt } : tab;
-  const next = [...readWorkspaceTabsSnapshot().filter((item) => item.id !== tab.id), nextTab];
+  const next = existing ? tabs.map((item) => (item.id === tab.id ? nextTab : item)) : [...tabs, nextTab];
   persistTabs(next);
   notifyTabsChange();
 }

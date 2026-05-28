@@ -1,0 +1,64 @@
+.button {
+  width: 100%;
+  min-width: var(--size-control-md);
+  height: var(--size-control-md);
+  border-radius: var(--radius-md);
+}
+
+.button:hover,
+.button:focus-visible {
+  border-color: color-mix(in srgb, currentColor 42%, var(--color-border-control));
+}
+
+.icon {
+  width: var(--sidebar-nav-icon-expanded-size);
+  height: var(--sidebar-nav-icon-expanded-size);
+  filter: drop-shadow(0 0 var(--space-4) color-mix(in srgb, currentColor 20%, transparent));
+  stroke-width: 1.9;
+}
+
+.toneMic,
+.toneMic:hover,
+.toneMic:focus-visible {
+  color: var(--color-success);
+}
+
+.toneSound,
+.toneSound:hover,
+.toneSound:focus-visible {
+  color: color-mix(in srgb, var(--color-accent-strong) 72%, var(--color-danger));
+}
+
+.toneStream,
+.toneStream:hover,
+.toneStream:focus-visible {
+  color: var(--color-accent-strong);
+}
+
+.toneLeave,
+.toneLeave:hover,
+.toneLeave:focus-visible,
+.muted,
+.muted:hover,
+.muted:focus-visible {
+  color: var(--color-danger);
+}
+
+.toneMore {
+  color: var(--color-text-muted);
+}
+
+.toneMore:hover,
+.toneMore:focus-visible {
+  color: var(--color-text-strong);
+}
+
+.button.active {
+  border-color: var(--color-accent-border);
+  background: var(--color-surface-selected);
+}
+
+.button.muted {
+  border-color: var(--color-danger-strong);
+  background: var(--color-danger-muted);
+}

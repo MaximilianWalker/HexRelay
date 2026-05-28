@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ensurePersona,
+  EMPTY_PERSONA_SNAPSHOT,
+  parsePersonaSnapshot,
   readActivePersonaId,
+  readPersonaSnapshot,
   readPersonas,
   removePersona,
   switchPersona,
@@ -22,6 +25,20 @@ class MemoryStorage {
 
   setItem(key: string, value: string): void {
     this.values.set(key, value);
+  }
+}
+
+class ThrowingStorage {
+  getItem(): string | null {
+    throw new Error("blocked");
+  }
+
+  removeItem(): void {
+    throw new Error("blocked");
+  }
+
+  setItem(): void {
+    throw new Error("blocked");
   }
 }
 
@@ -64,6 +81,51 @@ describe("personas", () => {
     expect(readPersonas()).toEqual([]);
   });
 
+  it("filters corrupted persona snapshot records", () => {
+    expect(
+      parsePersonaSnapshot(
+        JSON.stringify({
+          activePersonaId: "persona-a",
+          personas: [
+            "broken",
+            {
+              id: " persona-a ",
+              name: " Nora ",
+              createdAt: "2026-04-10T00:00:01Z",
+              lastSelectedAt: "2026-04-10T00:00:02Z",
+            },
+            {
+              id: "persona-b",
+              name: 42,
+              createdAt: "2026-04-10T00:00:01Z",
+              lastSelectedAt: "2026-04-10T00:00:02Z",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      activePersonaId: "persona-a",
+      personas: [
+        {
+          id: "persona-a",
+          name: "Nora",
+          createdAt: "2026-04-10T00:00:01Z",
+          lastSelectedAt: "2026-04-10T00:00:02Z",
+        },
+      ],
+    });
+  });
+
+  it("returns an empty snapshot when storage access throws", () => {
+    (globalThis as { window?: unknown }).window = {
+      dispatchEvent: vi.fn(() => true),
+      localStorage: new ThrowingStorage(),
+      sessionStorage: new MemoryStorage(),
+    };
+
+    expect(readPersonaSnapshot()).toBe(EMPTY_PERSONA_SNAPSHOT);
+  });
+
   it("creates a new persona, trims the name, and marks it active", () => {
     const created = ensurePersona("  Nora  ");
 
@@ -75,6 +137,23 @@ describe("personas", () => {
     });
     expect(readActivePersonaId()).toBe("persona-a");
     expect(readPersonas()).toEqual([created]);
+  });
+
+  it("serializes and parses persona snapshots for hydration-safe consumers", () => {
+    const created = ensurePersona("Nora");
+
+    expect(parsePersonaSnapshot(readPersonaSnapshot())).toEqual({
+      activePersonaId: created.id,
+      personas: [created],
+    });
+    expect(parsePersonaSnapshot(EMPTY_PERSONA_SNAPSHOT)).toEqual({
+      activePersonaId: null,
+      personas: [],
+    });
+    expect(parsePersonaSnapshot("not-json")).toEqual({
+      activePersonaId: null,
+      personas: [],
+    });
   });
 
   it("reuses existing personas case-insensitively and refreshes lastSelectedAt", () => {

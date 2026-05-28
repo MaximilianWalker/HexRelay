@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
-import styles from "./home.module.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import { Panel } from "@/components/ui/panel";
+import { TextInput } from "@/components/ui/text-input";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { revokeSession } from "@/lib/api";
 import {
   ensurePersona,
-  readActivePersonaId,
-  readPersonas,
+  EMPTY_PERSONA_SNAPSHOT,
+  parsePersonaSnapshot,
+  readPersonaSnapshot,
   removePersona,
   switchPersona,
   type PersonaRecord,
@@ -21,6 +26,9 @@ import {
   getPersonaSession,
 } from "@/lib/sessions";
 import { trackEvent } from "@/lib/telemetry";
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences";
+
+import styles from "./home.module.css";
 
 export default function HomePage() {
   const [, forceRefresh] = useState(0);
@@ -28,8 +36,14 @@ export default function HomePage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [busyPersonaId, setBusyPersonaId] = useState<string | null>(null);
 
-  const personas: PersonaRecord[] = readPersonas();
-  const activePersonaId = readActivePersonaId() ?? personas[0]?.id ?? null;
+  const personaSnapshot = useSyncExternalStore(
+    subscribeWorkspacePreferences,
+    readPersonaSnapshot,
+    () => EMPTY_PERSONA_SNAPSHOT,
+  );
+  const parsedPersonaSnapshot = parsePersonaSnapshot(personaSnapshot);
+  const personas: PersonaRecord[] = parsedPersonaSnapshot.personas;
+  const activePersonaId = parsedPersonaSnapshot.activePersonaId ?? personas[0]?.id ?? null;
 
   const activePersona = personas.find((persona) => persona.id === activePersonaId) ?? null;
 
@@ -120,44 +134,43 @@ export default function HomePage() {
         </p>
 
         <div className={styles.statusRow}>
-          <div className={styles.badge}>
-            Active persona: {activePersona?.name ?? "none selected"}
-          </div>
-          <div className={styles.badge}>Persona count: {personas.length}</div>
-          <div className={styles.badge}>
+          <Badge tone={activePersona ? "success" : "muted"}>Active persona: {activePersona?.name ?? "none selected"}</Badge>
+          <Badge tone="neutral">Persona count: {personas.length}</Badge>
+          <Badge tone={activePersonaId && getPersonaSession(activePersonaId) ? "success" : "muted"}>
             Session: {activePersonaId ? (getPersonaSession(activePersonaId) ? "active" : "none") : "none"}
-          </div>
+          </Badge>
         </div>
 
-        {actionMessage ? <div className={styles.message}>{actionMessage}</div> : null}
+        {actionMessage ? <Notice className={styles.message}>{actionMessage}</Notice> : null}
 
         <div className={styles.createRow}>
-          <input
-            className={styles.input}
-            value={newPersonaName}
+          <TextInput
+            aria-label="New persona name"
+            className={styles.createInput}
             onChange={(event) => setNewPersonaName(event.target.value)}
             placeholder="Create persona (e.g. Max - work)"
+            value={newPersonaName}
           />
-          <button className={styles.button} type="button" onClick={handleCreatePersona}>
+          <Button onClick={handleCreatePersona} variant="primary">
             Create persona
-          </button>
+          </Button>
         </div>
 
         <div className={styles.list}>
           {personas.length === 0 ? (
-            <div className={styles.item}>
+            <Panel className={styles.item} padding="sm">
               <div>
                 <p className={styles.itemName}>No personas yet</p>
                 <p className={styles.itemMeta}>
                   Create one above or restart onboarding.
                 </p>
               </div>
-            </div>
+            </Panel>
           ) : (
             personas.map((persona) => {
               const isActive = activePersonaId === persona.id;
               return (
-                <div className={styles.item} key={persona.id}>
+                <Panel className={styles.item} key={persona.id} padding="sm">
                   <div>
                     <p className={styles.itemName}>{persona.name}</p>
                     <p className={styles.itemMeta}>
@@ -165,24 +178,25 @@ export default function HomePage() {
                     </p>
                   </div>
                   <div className={styles.itemActions}>
-                    <button
-                      className={`${styles.switchButton} ${isActive ? styles.switchActive : ""}`}
-                      type="button"
-                      onClick={() => handleSwitchPersona(persona.id)}
+                    <Button
                       disabled={busyPersonaId === persona.id}
+                      onClick={() => handleSwitchPersona(persona.id)}
+                      pressed={isActive}
+                      size="sm"
+                      variant={isActive ? "primary" : "secondary"}
                     >
                       {isActive ? "Active" : "Switch"}
-                    </button>
-                    <button
-                      className={styles.removeButton}
-                      type="button"
-                      onClick={() => handleRemovePersona(persona)}
+                    </Button>
+                    <Button
                       disabled={busyPersonaId === persona.id}
+                      onClick={() => handleRemovePersona(persona)}
+                      size="sm"
+                      variant="danger"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Panel>
               );
             })
           )}

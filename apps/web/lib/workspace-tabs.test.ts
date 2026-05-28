@@ -223,6 +223,10 @@ describe("workspace tabs", () => {
     openWorkspaceTab(makeTab("server:b"));
     openWorkspaceTab(makeTab("dm:c"));
 
+    openWorkspaceTab({ ...makeTab("server:a"), label: "Server A" });
+    expect(readWorkspaceTabsSnapshot().map((tab) => tab.id)).toEqual(["server:a", "server:b", "dm:c"]);
+    expect(readWorkspaceTabsSnapshot()[0]?.label).toBe("Server A");
+
     moveWorkspaceTab("server:b", -1);
     expect(readWorkspaceTabsSnapshot().map((tab) => tab.id)).toEqual(["server:b", "server:a", "dm:c"]);
 

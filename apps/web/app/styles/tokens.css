@@ -1,0 +1,84 @@
+:root {
+  --font-sans: var(--font-space-grotesk, "Segoe UI"), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono, "Cascadia Code"), monospace;
+
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-14: 28px;
+  --space-16: 32px;
+  --space-20: 40px;
+
+  --gap-icon: var(--space-3);
+  --gap-control: var(--space-4);
+  --gap-list: var(--space-4);
+  --gap-panel: var(--space-6);
+  --gap-section: var(--space-8);
+
+  --pad-control-sm: var(--space-3) var(--space-5);
+  --pad-control-md: var(--space-4) var(--space-6);
+  --pad-field: var(--space-5) var(--space-6);
+  --pad-card: var(--space-6);
+  --pad-panel: var(--space-7);
+  --pad-dialog: 18px;
+  --app-edge: 22px;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-panel: 16px;
+  --radius-dialog: 14px;
+  --radius-pill: 999px;
+
+  --text-xs: 0.72rem;
+  --text-sm: 0.78rem;
+  --text-md: 0.82rem;
+  --text-body: 0.86rem;
+  --text-title: 1rem;
+  --text-page: 1.18rem;
+  --text-hero: 2rem;
+
+  --line-tight: 1.2;
+  --line-normal: 1.4;
+  --weight-medium: 650;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+
+  --size-icon-sm: 16px;
+  --size-icon-md: 18px;
+  --size-control-sm: 30px;
+  --size-control-md: 36px;
+  --size-avatar-sm: 34px;
+  --size-avatar-md: 38px;
+  --size-avatar-lg: 52px;
+  --size-shell-collapsed: 66px;
+
+  --shadow-panel: 0 12px 28px rgb(33 84 124 / 10%);
+  --shadow-menu: 0 16px 38px rgb(24 63 94 / 20%);
+  --shadow-dialog: 0 24px 70px rgb(15 45 68 / 28%);
+  --shadow-focus: 0 0 0 3px rgb(35 104 154 / 20%);
+
+  --focus-ring: 2px solid var(--color-focus);
+  --focus-offset: 2px;
+
+  --z-menu: 80;
+  --z-dialog: 1000;
+  --motion-fast: 120ms ease;
+  --motion-normal: 180ms ease;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --app-edge: 12px;
+  }
+}

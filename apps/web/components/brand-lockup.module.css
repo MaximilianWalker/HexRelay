@@ -1,0 +1,52 @@
+.root {
+  --brand-lockup-mark-size: var(--brand-lockup-size-md-mark, 54px);
+  --brand-lockup-text-size: var(--brand-lockup-size-md-text, 1.16rem);
+  --brand-lockup-gap: var(--space-5);
+
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--brand-lockup-mark-size);
+  gap: var(--brand-lockup-gap);
+  color: var(--color-accent-strong);
+}
+
+.root[data-size="lg"] {
+  --brand-lockup-mark-size: var(--brand-lockup-size-lg-mark, 70px);
+  --brand-lockup-text-size: var(--brand-lockup-size-lg-text, 1.5rem);
+  --brand-lockup-gap: var(--space-5);
+}
+
+.root[data-collapsed="true"] {
+  justify-content: center;
+  min-width: var(--brand-lockup-mark-size);
+}
+
+.mark {
+  display: block;
+  width: var(--brand-lockup-mark-size);
+  height: var(--brand-lockup-mark-size);
+  flex: 0 0 var(--brand-lockup-mark-size);
+  color: var(--color-accent-strong);
+  filter: drop-shadow(0 0 var(--space-5) color-mix(in srgb, var(--color-accent) 34%, transparent));
+}
+
+.text {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: var(--brand-lockup-text-size);
+  font-weight: var(--weight-heavy);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.root[data-collapsed="true"] .text {
+  display: none;
+}

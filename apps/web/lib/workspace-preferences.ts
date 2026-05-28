@@ -1,6 +1,8 @@
 export type NavLayout = "sidebar" | "topbar";
 export type TabRestoreMode = "pinned" | "all";
 export type MessageLayout = "bubble-cards" | "continuous-feed";
+export type MessageBubbleSize = "comfortable" | "compact";
+export type MessageAlignment = "conversation-sides" | "single-column";
 export type HubKind = "servers" | "contacts";
 export type HubLayout = "cards" | "list";
 
@@ -8,6 +10,8 @@ const SIDEBAR_MODE_KEY = "hexrelay.ui.sidebar-mode";
 const NAV_LAYOUT_KEY = "hexrelay.ui.nav-layout";
 const TAB_RESTORE_MODE_KEY = "hexrelay.ui.tab-restore-mode";
 const MESSAGE_LAYOUT_KEY = "hexrelay.ui.message-layout";
+const MESSAGE_BUBBLE_SIZE_KEY = "hexrelay.ui.message-bubble-size";
+const MESSAGE_ALIGNMENT_KEY = "hexrelay.ui.message-alignment";
 const SERVERS_HUB_LAYOUT_KEY = "hexrelay.ui.servers-hub-layout";
 const CONTACTS_HUB_LAYOUT_KEY = "hexrelay.ui.contacts-hub-layout";
 const SOUND_MUTED_KEY = "hexrelay.ui.sound-muted";
@@ -20,6 +24,8 @@ let fallbackNavLayout: NavLayout = "sidebar";
 let fallbackSidebarCollapsed = false;
 let fallbackTabRestoreMode: TabRestoreMode = "pinned";
 let fallbackMessageLayout: MessageLayout = "bubble-cards";
+let fallbackMessageBubbleSize: MessageBubbleSize = "comfortable";
+let fallbackMessageAlignment: MessageAlignment = "conversation-sides";
 const fallbackHubLayouts = new Map<HubKind, HubLayout>();
 let fallbackSoundMuted = false;
 let fallbackMicrophoneMuted = false;
@@ -68,6 +74,8 @@ export function subscribeWorkspacePreferences(onChange: () => void): () => void 
         NAV_LAYOUT_KEY,
         TAB_RESTORE_MODE_KEY,
         MESSAGE_LAYOUT_KEY,
+        MESSAGE_BUBBLE_SIZE_KEY,
+        MESSAGE_ALIGNMENT_KEY,
         SERVERS_HUB_LAYOUT_KEY,
         CONTACTS_HUB_LAYOUT_KEY,
         SOUND_MUTED_KEY,
@@ -154,6 +162,36 @@ export function readMessageLayout(): MessageLayout {
 export function setMessageLayout(value: MessageLayout): void {
   fallbackMessageLayout = value;
   writeStorageItem(MESSAGE_LAYOUT_KEY, value);
+  notifyWorkspacePreferenceChange();
+}
+
+export function readMessageBubbleSize(): MessageBubbleSize {
+  const value = readStorageItem(MESSAGE_BUBBLE_SIZE_KEY);
+  if (value === undefined) {
+    return fallbackMessageBubbleSize;
+  }
+
+  return value === "compact" ? "compact" : "comfortable";
+}
+
+export function setMessageBubbleSize(value: MessageBubbleSize): void {
+  fallbackMessageBubbleSize = value;
+  writeStorageItem(MESSAGE_BUBBLE_SIZE_KEY, value);
+  notifyWorkspacePreferenceChange();
+}
+
+export function readMessageAlignment(): MessageAlignment {
+  const value = readStorageItem(MESSAGE_ALIGNMENT_KEY);
+  if (value === undefined) {
+    return fallbackMessageAlignment;
+  }
+
+  return value === "single-column" ? "single-column" : "conversation-sides";
+}
+
+export function setMessageAlignment(value: MessageAlignment): void {
+  fallbackMessageAlignment = value;
+  writeStorageItem(MESSAGE_ALIGNMENT_KEY, value);
   notifyWorkspacePreferenceChange();
 }
 

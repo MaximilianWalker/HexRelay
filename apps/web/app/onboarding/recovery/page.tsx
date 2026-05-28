@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
+import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { Field } from "@/components/ui/field";
+import { Notice } from "@/components/ui/notice";
+import { TextInput } from "@/components/ui/text-input";
 import styles from "../onboarding.module.css";
 
 export default function RecoveryOnboardingPage() {
@@ -34,111 +38,60 @@ export default function RecoveryOnboardingPage() {
   );
 
   return (
-    <div className={styles.shell}>
-      <div className={styles.content}>
-        <aside className={styles.panel}>
-          <p className={styles.brandEyebrow}>HexRelay onboarding</p>
-          <h1 className={styles.leftTitle}>Confirm recovery phrase</h1>
-          <p className={styles.leftBody}>
-            Recovery confirmation is mandatory. Onboarding cannot finish without
-            this step.
-          </p>
-          <ul className={styles.promiseList}>
-            <li>Phrase is displayed once for backup.</li>
-            <li>Never send this phrase through chat channels.</li>
-            <li>Losing phrase means no key recovery.</li>
-          </ul>
-        </aside>
+    <OnboardingShell
+      activeStep="recovery"
+      introBody="Recovery confirmation is mandatory. Onboarding cannot finish without this step."
+      introTitle="Confirm recovery phrase"
+      promises={[
+        "Phrase is displayed once for backup.",
+        "Never send this phrase through chat channels.",
+        "Losing phrase means no key recovery.",
+      ]}
+      statusItems={["Identity: ready", `Recovery: ${confirmed ? "confirmed" : "pending"}`, "Access path: pending"]}
+      wizardSubtitle="Write this phrase down offline, then prove backup with selected words."
+      wizardTitle="Recovery checkpoint"
+    >
+      <Notice className={styles.notice} suppressHydrationWarning tone="warning">
+        {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
+      </Notice>
 
-        <main className={styles.panel}>
-          <div className={styles.steps}>
-            <div className={styles.step}>1. Identity</div>
-            <div className={`${styles.step} ${styles.activeStep}`}>2. Recovery</div>
-            <div className={styles.step}>3. Access</div>
-          </div>
-          <h2 className={styles.wizardTitle}>Recovery checkpoint</h2>
-          <p className={styles.wizardSubtitle}>
-            Write this phrase down offline, then prove backup with selected words.
-          </p>
+      <Field label="Enter word 3">
+        <TextInput value={word3} onChange={(event) => setWord3(event.target.value)} />
+      </Field>
+      <Field label="Enter word 7">
+        <TextInput value={word7} onChange={(event) => setWord7(event.target.value)} />
+      </Field>
+      <Field label="Enter word 11">
+        <TextInput value={word11} onChange={(event) => setWord11(event.target.value)} />
+      </Field>
 
-          <div className={`${styles.status} ${styles.warn}`} suppressHydrationWarning>
-            {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
-          </div>
+      {confirmed ? (
+        <Notice className={styles.notice} tone="success">
+          Recovery backup status: confirmed.
+        </Notice>
+      ) : (
+        <Notice className={styles.notice} tone="danger">
+          recovery_unconfirmed: words do not match required positions.
+        </Notice>
+      )}
 
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="word3">
-              Enter word 3
-            </label>
-            <input
-              id="word3"
-              className={styles.input}
-              value={word3}
-              onChange={(event) => setWord3(event.target.value)}
-            />
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="word7">
-              Enter word 7
-            </label>
-            <input
-              id="word7"
-              className={styles.input}
-              value={word7}
-              onChange={(event) => setWord7(event.target.value)}
-            />
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="word11">
-              Enter word 11
-            </label>
-            <input
-              id="word11"
-              className={styles.input}
-              value={word11}
-              onChange={(event) => setWord11(event.target.value)}
-            />
-          </div>
-
-          {confirmed ? (
-            <div className={`${styles.status} ${styles.ok}`}>
-              Recovery backup status: confirmed.
-            </div>
-          ) : (
-            <div className={`${styles.status} ${styles.error}`}>
-              recovery_unconfirmed: words do not match required positions.
-            </div>
-          )}
-
-          <div className={styles.ctaRow}>
-            <Link className={styles.buttonGhost} href="/onboarding/identity">
-              Back to identity
-            </Link>
-            <Link
-              aria-disabled={!confirmed}
-              className={styles.button}
-              href={confirmed ? "/onboarding/access" : "#"}
-              onClick={(event) => {
-                if (!confirmed) {
-                  event.preventDefault();
-                }
-              }}
-            >
-              Continue to access
-            </Link>
-          </div>
-        </main>
-
-        <aside className={styles.panel}>
-          <h3 className={styles.wizardTitle}>Setup status</h3>
-          <div className={styles.asideList}>
-            <div className={styles.asideItem}>Identity: ready</div>
-            <div className={styles.asideItem}>
-              Recovery: {confirmed ? "confirmed" : "pending"}
-            </div>
-            <div className={styles.asideItem}>Access path: pending</div>
-          </div>
-        </aside>
+      <div className={styles.ctaRow}>
+        <Link className={styles.buttonGhost} href="/onboarding/identity">
+          Back to identity
+        </Link>
+        <Link
+          aria-disabled={!confirmed}
+          className={styles.button}
+          href={confirmed ? "/onboarding/access" : "#"}
+          onClick={(event) => {
+            if (!confirmed) {
+              event.preventDefault();
+            }
+          }}
+        >
+          Continue to access
+        </Link>
       </div>
-    </div>
+    </OnboardingShell>
   );
 }
