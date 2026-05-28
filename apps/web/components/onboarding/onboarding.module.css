@@ -90,6 +90,11 @@
   color: var(--color-text-muted);
 }
 
+.wizardBody {
+  display: grid;
+  gap: var(--gap-panel);
+}
+
 .asideList {
   display: grid;
   gap: var(--space-5);

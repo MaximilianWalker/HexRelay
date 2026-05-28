@@ -42,7 +42,7 @@ export function OnboardingShell({
           <OnboardingSteps activeStep={activeStep} finalLabel={finalStepLabel} />
           <h2 className={styles.wizardTitle}>{wizardTitle}</h2>
           <p className={styles.wizardSubtitle}>{wizardSubtitle}</p>
-          {children}
+          <div className={styles.wizardBody}>{children}</div>
         </main>
 
         <aside className={styles.panel}>

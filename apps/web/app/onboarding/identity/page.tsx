@@ -9,6 +9,12 @@ import {
   registerIdentityKey,
   verifyAuthChallenge,
 } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Notice } from "@/components/ui/notice";
+import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
+import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
 import {
   bytesToHex,
   derivePublicKey,
@@ -23,6 +29,10 @@ import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import styles from "../onboarding.module.css";
 
 const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
+const IDENTITY_MODE_OPTIONS: SegmentedControlOption<"create" | "import">[] = [
+  { id: "create", label: "Create identity" },
+  { id: "import", label: "Import identity" },
+];
 
 function isLikelyKey(value: string): boolean {
   const trimmed = value.trim();
@@ -151,81 +161,59 @@ export default function IdentityOnboardingPage() {
       wizardSubtitle="Choose how you want to start and set a persona label."
       wizardTitle="Identity bootstrap"
     >
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="personaName">
-          Persona name
-        </label>
-        <input
-          id="personaName"
-          className={styles.input}
+      <Field helper="Persona sessions and settings are kept isolated." label="Persona name">
+        <TextInput
           value={personaName}
           onChange={(event) => setPersonaName(event.target.value)}
           placeholder="e.g. Max - main"
         />
-        <p className={styles.helper}>Persona sessions and settings are kept isolated.</p>
-      </div>
+      </Field>
 
-      <div className={styles.tabRow}>
-        <button
-          className={`${styles.tab} ${mode === "create" ? styles.activeTab : ""}`}
-          type="button"
-          onClick={() => setMode("create")}
-        >
-          Create identity
-        </button>
-        <button
-          className={`${styles.tab} ${mode === "import" ? styles.activeTab : ""}`}
-          type="button"
-          onClick={() => setMode("import")}
-        >
-          Import identity
-        </button>
-      </div>
+      <SegmentedControl label="Identity setup mode" onChange={setMode} options={IDENTITY_MODE_OPTIONS} value={mode} />
 
       {mode === "create" ? (
         <>
-          <div className={`${styles.status} ${styles.ok}`}>New ed25519 keypair will be generated locally on continue.</div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Public key preview</label>
-            <input className={styles.input} value={SAMPLE_PUBLIC_KEY} readOnly />
-          </div>
+          <Notice className={styles.notice} tone="success">
+            New ed25519 keypair will be generated locally on continue.
+          </Notice>
+          <Field label="Public key preview">
+            <TextInput value={SAMPLE_PUBLIC_KEY} readOnly />
+          </Field>
         </>
       ) : (
         <>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="importKey">
-              Private key
-            </label>
-            <textarea
-              id="importKey"
-              className={styles.textarea}
+          <Field label="Private key">
+            <TextArea
               value={importKey}
               onChange={(event) => setImportKey(event.target.value)}
               placeholder="Paste hex/base64 private key"
             />
-          </div>
+          </Field>
           {importKey.length > 0 && !isLikelyKey(importKey) ? (
-            <div className={`${styles.status} ${styles.error}`}>identity_key_invalid: unsupported key format.</div>
+            <Notice className={styles.notice} tone="danger">
+              identity_key_invalid: unsupported key format.
+            </Notice>
           ) : (
-            <div className={`${styles.status} ${styles.warn}`}>Imported keys are encrypted locally before persistence.</div>
+            <Notice className={styles.notice} tone="warning">
+              Imported keys are encrypted locally before persistence.
+            </Notice>
           )}
         </>
       )}
 
-      {error ? <div className={`${styles.status} ${styles.error}`}>{error}</div> : null}
+      {error ? (
+        <Notice className={styles.notice} tone="danger">
+          {error}
+        </Notice>
+      ) : null}
 
       <div className={styles.ctaRow}>
         <Link className={styles.buttonGhost} href="/">
           Back
         </Link>
-        <button
-          className={styles.button}
-          disabled={!canContinue || loading}
-          onClick={handleContinue}
-          type="button"
-        >
+        <Button disabled={!canContinue || loading} onClick={handleContinue} variant="primary">
           {loading ? "Creating identity..." : "Continue to recovery"}
-        </button>
+        </Button>
       </div>
     </OnboardingShell>
   );

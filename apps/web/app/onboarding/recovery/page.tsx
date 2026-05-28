@@ -6,6 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
 import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { Field } from "@/components/ui/field";
+import { Notice } from "@/components/ui/notice";
+import { TextInput } from "@/components/ui/text-input";
 import styles from "../onboarding.module.css";
 
 export default function RecoveryOnboardingPage() {
@@ -48,33 +51,28 @@ export default function RecoveryOnboardingPage() {
       wizardSubtitle="Write this phrase down offline, then prove backup with selected words."
       wizardTitle="Recovery checkpoint"
     >
-      <div className={`${styles.status} ${styles.warn}`} suppressHydrationWarning>
+      <Notice className={styles.notice} suppressHydrationWarning tone="warning">
         {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
-      </div>
+      </Notice>
 
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="word3">
-          Enter word 3
-        </label>
-        <input id="word3" className={styles.input} value={word3} onChange={(event) => setWord3(event.target.value)} />
-      </div>
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="word7">
-          Enter word 7
-        </label>
-        <input id="word7" className={styles.input} value={word7} onChange={(event) => setWord7(event.target.value)} />
-      </div>
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="word11">
-          Enter word 11
-        </label>
-        <input id="word11" className={styles.input} value={word11} onChange={(event) => setWord11(event.target.value)} />
-      </div>
+      <Field label="Enter word 3">
+        <TextInput value={word3} onChange={(event) => setWord3(event.target.value)} />
+      </Field>
+      <Field label="Enter word 7">
+        <TextInput value={word7} onChange={(event) => setWord7(event.target.value)} />
+      </Field>
+      <Field label="Enter word 11">
+        <TextInput value={word11} onChange={(event) => setWord11(event.target.value)} />
+      </Field>
 
       {confirmed ? (
-        <div className={`${styles.status} ${styles.ok}`}>Recovery backup status: confirmed.</div>
+        <Notice className={styles.notice} tone="success">
+          Recovery backup status: confirmed.
+        </Notice>
       ) : (
-        <div className={`${styles.status} ${styles.error}`}>recovery_unconfirmed: words do not match required positions.</div>
+        <Notice className={styles.notice} tone="danger">
+          recovery_unconfirmed: words do not match required positions.
+        </Notice>
       )}
 
       <div className={styles.ctaRow}>

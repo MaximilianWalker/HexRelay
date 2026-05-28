@@ -3,6 +3,8 @@
 import Link from "next/link";
 
 import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { Notice } from "@/components/ui/notice";
+import { Panel } from "@/components/ui/panel";
 import styles from "../onboarding.module.css";
 
 export default function AccessOnboardingPage() {
@@ -21,17 +23,19 @@ export default function AccessOnboardingPage() {
       wizardSubtitle="Continue to the app. Use Servers and Contacts hubs for join and request workflows."
       wizardTitle="Onboarding complete"
     >
-      <div className={`${styles.status} ${styles.ok}`}>Identity and recovery checkpoints passed.</div>
+      <Notice className={styles.notice} tone="success">
+        Identity and recovery checkpoints passed.
+      </Notice>
 
       <div className={styles.choiceGrid}>
-        <div className={styles.choice}>
+        <Panel className={styles.choice} padding="sm">
           <p className={styles.choiceTitle}>Join server in-app</p>
           <p className={styles.choiceText}>Use the Servers hub after onboarding.</p>
-        </div>
-        <div className={styles.choice}>
+        </Panel>
+        <Panel className={styles.choice} padding="sm">
           <p className={styles.choiceTitle}>Manage contacts in-app</p>
           <p className={styles.choiceText}>Use the Contacts hub for friend requests.</p>
-        </div>
+        </Panel>
       </div>
 
       <div className={styles.ctaRow}>
