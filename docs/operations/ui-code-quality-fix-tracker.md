@@ -85,16 +85,25 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 4. Finish Hubs Cleanup
 
-- Status: pending
+- Status: completed
 - Files:
   - `apps/web/app/servers/page.tsx`
   - `apps/web/app/contacts/page.tsx`
   - `apps/web/app/surfaces.module.css`
+  - `apps/web/components/hubs/contact-add-dialog.tsx`
+  - `apps/web/components/hubs/contact-block-dialog.tsx`
+  - `apps/web/components/hubs/contact-discovery-results.tsx`
+  - `apps/web/components/hubs/contact-request-section.tsx`
+  - `apps/web/components/hubs/hub-item-actions.tsx`
+  - `apps/web/components/hubs/server-create-dialog.tsx`
+  - `apps/web/components/hubs/server-join-dialog.tsx`
+  - `apps/web/components/hubs/server-leave-dialog.tsx`
+  - `apps/web/components/hubs/hubs.module.css`
 - Problem: route-local pills, buttons, cards, inputs, dialogs, and bulk-action controls still bypass shared primitives and keep `surfaces.module.css` oversized.
 - Target components:
   - move remaining route-owned controls into `components/hubs`
   - use shared `Button`, `IconButton`, `Field`, `Panel`, `Dialog`, `Badge`, and hub primitives.
-- Notes: `surfaces.module.css` should shrink substantially or be deleted when replaced.
+- Notes: route-owned hub dialogs, request cards, discovery cards, and item actions now live in `components/hubs`; `surfaces.module.css` keeps only residual route state/conversation styles.
 
 ### 5. Refactor Settings Controls
 

@@ -4,6 +4,12 @@
   margin-bottom: var(--gap-section);
 }
 
+.dialogForm,
+.dialogStack {
+  display: grid;
+  gap: var(--gap-panel);
+}
+
 .searchWrap {
   position: relative;
   min-width: min(100%, 260px);
@@ -169,6 +175,78 @@
 .contextMenuItem:hover,
 .contextMenuItem:focus-visible {
   background: var(--color-accent-muted);
+}
+
+.requestSection {
+  display: grid;
+  gap: var(--gap-panel);
+  margin-bottom: var(--gap-section);
+}
+
+.requestTitle {
+  color: var(--color-text-strong);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+}
+
+.requestGrid,
+.discoveryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-20) * 6)), 1fr));
+  gap: var(--gap-list);
+  min-width: 0;
+}
+
+.requestCard,
+.discoveryCard {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.requestHeader,
+.discoveryHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.requestPeer,
+.discoveryCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.requestPeer p,
+.discoveryCopy p {
+  overflow: hidden;
+  color: var(--color-text-strong);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requestPeer span,
+.discoveryCopy span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requestBadges,
+.requestActions,
+.discoveryBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-control);
+  min-width: 0;
 }
 
 .icon {

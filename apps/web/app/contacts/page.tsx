@@ -1,27 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  IconClock,
-  IconInfoCircle,
-  IconMessageCircle,
-  IconPinned,
-  IconPinnedOff,
-  IconSearch,
-  IconTrash,
-  IconUserPlus,
-  IconVolume,
-  IconVolumeOff,
-  IconX,
-} from "@tabler/icons-react";
+import { IconUserPlus } from "@tabler/icons-react";
 
+import { ContactAddDialog } from "@/components/hubs/contact-add-dialog";
+import { ContactBlockDialog } from "@/components/hubs/contact-block-dialog";
+import type { ContactDiscoveryUser } from "@/components/hubs/contact-discovery-results";
+import { ContactRequestSection } from "@/components/hubs/contact-request-section";
 import { HubBulkActions } from "@/components/hubs/hub-bulk-actions";
+import { HubItemActions } from "@/components/hubs/hub-item-actions";
 import { HubSurface } from "@/components/hubs/hub-surface";
 import { HubToolbar } from "@/components/hubs/hub-toolbar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   acceptFriendRequest,
@@ -67,15 +59,7 @@ type FriendRequest = {
   created_at?: string;
 };
 
-type DiscoveryUser = {
-  identity_id: string;
-  display_name: string;
-  relationship_state: string;
-  shared_server_count: number;
-  can_send_friend_request: boolean;
-  has_pending_inbound_request: boolean;
-  has_pending_outbound_request: boolean;
-};
+type DiscoveryUser = ContactDiscoveryUser;
 
 function shortIdentity(identityId: string): string {
   if (identityId.length <= 18) {
@@ -91,18 +75,6 @@ function identityLabel(identityId: string, activeIdentityId: string, personas: P
   }
 
   return personas.find((persona) => persona.id === identityId)?.name ?? shortIdentity(identityId);
-}
-
-function contactInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }
 
 function statusLabel(status: Contact["status"]): string {
@@ -485,9 +457,11 @@ export default function ContactsPage() {
         {actionMessage && activePanel === null ? <p className={styles.state}>{actionMessage}</p> : null}
 
         {inboundPending.length > 0 ? (
-          <RequestSection
+          <ContactRequestSection
             busyRequestId={busyRequestId}
+            formatDateTime={formatDateTime}
             identityId={identityId}
+            identityLabel={identityLabel}
             kind="inbound"
             onTransition={handleRequestTransition}
             personas={personas}
@@ -496,9 +470,11 @@ export default function ContactsPage() {
         ) : null}
 
         {outboundPending.length > 0 ? (
-          <RequestSection
+          <ContactRequestSection
             busyRequestId={busyRequestId}
+            formatDateTime={formatDateTime}
             identityId={identityId}
+            identityLabel={identityLabel}
             kind="outbound"
             onTransition={handleRequestTransition}
             personas={personas}
@@ -558,10 +534,9 @@ export default function ContactsPage() {
           <section className={styles.state} aria-label="No contacts">
             <p className={styles.title}>No contacts yet</p>
             <p className={styles.meta}>Search for someone to send a friend request.</p>
-            <button className={styles.pill} onClick={() => openPanel("add")} type="button">
-              <IconUserPlus className={styles.icon} aria-hidden="true" />
+            <Button icon={<IconUserPlus className={styles.icon} aria-hidden="true" />} onClick={() => openPanel("add")}>
               Add your first contact
-            </button>
+            </Button>
           </section>
         ) : null}
 
@@ -578,37 +553,27 @@ export default function ContactsPage() {
             onToggleSelected={toggleSelected}
             renderBadges={(contact) => (
               <>
-                <span className={contact.status === "online" ? styles.badge : styles.badgeMuted}>{statusLabel(contact.status)}</span>
-                {contact.pendingRequest ? <span className={styles.badgeMuted}>Request pending</span> : null}
-                {contact.inboundRequest ? <span className={styles.badge}>Needs approval</span> : null}
+                <Badge tone={contact.status === "online" ? "success" : "muted"}>{statusLabel(contact.status)}</Badge>
+                {contact.pendingRequest ? <Badge tone="muted">Request pending</Badge> : null}
+                {contact.inboundRequest ? <Badge tone="accent">Needs approval</Badge> : null}
               </>
             )}
             renderActions={(contact) => (
-              <>
-                {contact.pendingRequest || contact.inboundRequest ? (
-                  <button className={styles.pill} disabled type="button">
-                    <IconClock className={styles.icon} aria-hidden="true" />
-                    Request pending
-                  </button>
-                ) : (
-                  <Link className={styles.pill} href={dmWorkspaceRoute(contact.id)}>
-                    <IconMessageCircle className={styles.icon} aria-hidden="true" />
-                    Message
-                  </Link>
-                )}
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneContact(contact, { pinned: !contact.pinned })} type="button">
-                  {contact.pinned ? <IconPinnedOff className={styles.icon} aria-hidden="true" /> : <IconPinned className={styles.icon} aria-hidden="true" />}
-                  {contact.pinned ? "Unpin" : "Pin"}
-                </button>
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneContact(contact, { muted: !contact.muted })} type="button">
-                  {contact.muted ? <IconVolume className={styles.icon} aria-hidden="true" /> : <IconVolumeOff className={styles.icon} aria-hidden="true" />}
-                  {contact.muted ? "Unmute" : "Mute"}
-                </button>
-                <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => setBlockTargets([contact])} type="button">
-                  <IconTrash className={styles.icon} aria-hidden="true" />
-                  Block + Remove
-                </button>
-              </>
+              <HubItemActions
+                busy={busy}
+                destructiveLabel="Block + Remove"
+                messageAction={{
+                  disabled: contact.pendingRequest || contact.inboundRequest,
+                  label: "Message",
+                  onClick: () => router.push(dmWorkspaceRoute(contact.id)),
+                }}
+                muted={contact.muted}
+                onDestructive={() => setBlockTargets([contact])}
+                onToggleMuted={() => void updateOneContact(contact, { muted: !contact.muted })}
+                onTogglePinned={() => void updateOneContact(contact, { pinned: !contact.pinned })}
+                pendingLabel={contact.pendingRequest || contact.inboundRequest ? "Request pending" : undefined}
+                pinned={contact.pinned}
+              />
             )}
             selectedIds={selectedIds}
             selecting={selecting}
@@ -616,160 +581,29 @@ export default function ContactsPage() {
         ) : null}
 
         {activePanel === "add" ? (
-          <Dialog
-            description="Search by display name or identity id, then send a friend request from the result list."
+          <ContactAddDialog
+            actionMessage={actionMessage}
+            discoveryBusy={discoveryBusy}
             onClose={closePanel}
-            title="Add contact"
-          >
-            <div className={styles.dialogStack}>
-              <label className={styles.dialogField}>
-                Name or identity id
-                <div className={styles.inputWrap}>
-                  <IconSearch className={styles.inputIcon} aria-hidden="true" />
-                  <input
-                    aria-label="User search or identity id"
-                    autoComplete="off"
-                    className={styles.search}
-                    data-autofocus
-                    onChange={(event) => setAddQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void handleSearchUsers();
-                      }
-                    }}
-                    placeholder="alice.primary or usr_..."
-                    value={addQuery}
-                  />
-                </div>
-              </label>
-              {actionMessage ? <p className={styles.dialogMessage}>{actionMessage}</p> : null}
-              <DialogActions>
-                <button className={styles.pill} disabled={discoveryBusy} onClick={() => void handleSearchUsers()} type="button">
-                  <IconSearch className={styles.icon} aria-hidden="true" />
-                  {discoveryBusy ? "Searching..." : "Search"}
-                </button>
-                <button className={`${styles.pill} ${styles.primaryPill}`} disabled={sendBusyIdentityId === addQuery.trim()} onClick={() => void handleSendFriendRequest(addQuery)} type="button">
-                  <IconUserPlus className={styles.icon} aria-hidden="true" />
-                  Send request
-                </button>
-              </DialogActions>
-
-              {discoveryUsers.length > 0 ? (
-                <div className={styles.hubGrid}>
-                  {discoveryUsers.map((user) => (
-                    <article className={styles.card} key={user.identity_id}>
-                      <div className={styles.cardHeader}>
-                        <div className={styles.avatar}>{contactInitials(user.display_name)}</div>
-                        <div>
-                          <p className={styles.title}>{user.display_name}</p>
-                          <p className={styles.meta}>{shortIdentity(user.identity_id)}</p>
-                        </div>
-                      </div>
-                      <div className={styles.row}>
-                        {user.shared_server_count > 0 ? <span className={styles.badgeMuted}>{user.shared_server_count} shared servers</span> : null}
-                        {user.has_pending_outbound_request ? <span className={styles.badgeMuted}>Request pending</span> : null}
-                        {user.has_pending_inbound_request ? <span className={styles.badge}>Needs approval</span> : null}
-                      </div>
-                      <button
-                        className={styles.pill}
-                        disabled={!user.can_send_friend_request || sendBusyIdentityId === user.identity_id}
-                        onClick={() => void handleSendFriendRequest(user.identity_id)}
-                        type="button"
-                      >
-                        <IconUserPlus className={styles.icon} aria-hidden="true" />
-                        {user.can_send_friend_request ? "Send request" : "Unavailable"}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </Dialog>
+            onQueryChange={setAddQuery}
+            onSearchUsers={() => void handleSearchUsers()}
+            onSendFriendRequest={(targetIdentityId) => void handleSendFriendRequest(targetIdentityId)}
+            query={addQuery}
+            sendBusyIdentityId={sendBusyIdentityId}
+            shortIdentity={shortIdentity}
+            users={discoveryUsers}
+          />
         ) : null}
 
         {blockTargets.length > 0 ? (
-          <Dialog
-            description="This blocks the user, removes the contact relationship, and keeps existing DM history."
+          <ContactBlockDialog
+            busy={busy}
             onClose={() => setBlockTargets([])}
-            title={`Block + Remove ${blockTargets.length === 1 ? blockTargets[0]?.name : `${blockTargets.length} contacts`}?`}
-          >
-            <DialogActions>
-              <button className={styles.pill} disabled={busy} onClick={() => setBlockTargets([])} type="button">
-                Cancel
-              </button>
-              <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => void confirmBlockRemove()} type="button">
-                Block + Remove
-              </button>
-            </DialogActions>
-          </Dialog>
+            onConfirm={() => void confirmBlockRemove()}
+            targetLabel={blockTargets.length === 1 ? (blockTargets[0]?.name ?? "contact") : `${blockTargets.length} contacts`}
+          />
         ) : null}
       </section>
     </WorkspaceShell>
-  );
-}
-
-function RequestSection({
-  kind,
-  requests,
-  identityId,
-  personas,
-  busyRequestId,
-  onTransition,
-}: {
-  kind: "inbound" | "outbound";
-  requests: FriendRequest[];
-  identityId: string;
-  personas: PersonaRecord[];
-  busyRequestId: string | null;
-  onTransition: (requestId: string, action: "accept" | "decline" | "cancel") => Promise<void>;
-}) {
-  return (
-    <section className={styles.state} aria-label={kind === "inbound" ? "Friend requests" : "Sent requests"}>
-      <p className={styles.title}>{kind === "inbound" ? "Friend requests" : "Sent requests"}</p>
-      <div className={styles.hubGrid} style={{ marginTop: 10 }}>
-        {requests.map((request) => {
-          const peerId = kind === "inbound" ? request.requester_identity_id : request.target_identity_id;
-          const peerName = identityLabel(peerId, identityId, personas);
-
-          return (
-            <article className={styles.card} key={request.request_id}>
-              <div className={styles.cardHeader}>
-                <div className={styles.avatar}>{contactInitials(peerName)}</div>
-                <div>
-                  <p className={styles.title}>{peerName}</p>
-                  <p className={styles.meta}>{kind === "inbound" ? "Wants to add you" : "Waiting for them to accept"}</p>
-                </div>
-              </div>
-              <div className={styles.row}>
-                <span className={kind === "inbound" ? styles.badge : styles.badgeMuted}>
-                  {kind === "inbound" ? "Needs your approval" : "Pending"}
-                </span>
-                {request.created_at ? <span className={styles.badgeMuted}>Sent {formatDateTime(request.created_at)}</span> : null}
-              </div>
-              <div className={styles.row}>
-                {kind === "inbound" ? (
-                  <>
-                    <button className={styles.pill} disabled={busyRequestId === request.request_id} onClick={() => void onTransition(request.request_id, "accept")} type="button">
-                      <IconInfoCircle className={styles.icon} aria-hidden="true" />
-                      Accept
-                    </button>
-                    <button className={styles.pill} disabled={busyRequestId === request.request_id} onClick={() => void onTransition(request.request_id, "decline")} type="button">
-                      <IconX className={styles.icon} aria-hidden="true" />
-                      Decline
-                    </button>
-                  </>
-                ) : (
-                  <button className={styles.pill} disabled={busyRequestId === request.request_id} onClick={() => void onTransition(request.request_id, "cancel")} type="button">
-                    <IconX className={styles.icon} aria-hidden="true" />
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }

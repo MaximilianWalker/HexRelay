@@ -2,21 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import {
-  IconPinnedOff,
-  IconPinned,
-  IconPlus,
-  IconServer2,
-  IconTrash,
-  IconVolume,
-  IconVolumeOff,
-} from "@tabler/icons-react";
+import { IconPlus, IconServer2 } from "@tabler/icons-react";
 
 import { HubBulkActions } from "@/components/hubs/hub-bulk-actions";
+import { HubItemActions } from "@/components/hubs/hub-item-actions";
 import { HubSurface } from "@/components/hubs/hub-surface";
 import { HubToolbar } from "@/components/hubs/hub-toolbar";
+import { ServerCreateDialog } from "@/components/hubs/server-create-dialog";
+import { ServerJoinDialog } from "@/components/hubs/server-join-dialog";
+import { ServerLeaveDialog } from "@/components/hubs/server-leave-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   createServer,
@@ -365,20 +360,15 @@ export default function ServersPage() {
             onOpen={(server) => router.push(serverWorkspaceRoute(server.id))}
             onToggleSelected={toggleSelected}
             renderActions={(server) => (
-              <>
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneServer(server, { pinned: !server.pinned })} type="button">
-                  {server.pinned ? <IconPinnedOff className={styles.icon} aria-hidden="true" /> : <IconPinned className={styles.icon} aria-hidden="true" />}
-                  {server.pinned ? "Unpin" : "Pin"}
-                </button>
-                <button className={styles.pill} disabled={busy} onClick={() => void updateOneServer(server, { muted: !server.muted })} type="button">
-                  {server.muted ? <IconVolume className={styles.icon} aria-hidden="true" /> : <IconVolumeOff className={styles.icon} aria-hidden="true" />}
-                  {server.muted ? "Unmute" : "Mute"}
-                </button>
-                <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => setLeaveTargets([server])} type="button">
-                  <IconTrash className={styles.icon} aria-hidden="true" />
-                  Leave
-                </button>
-              </>
+              <HubItemActions
+                busy={busy}
+                destructiveLabel="Leave"
+                muted={server.muted}
+                onDestructive={() => setLeaveTargets([server])}
+                onToggleMuted={() => void updateOneServer(server, { muted: !server.muted })}
+                onTogglePinned={() => void updateOneServer(server, { pinned: !server.pinned })}
+                pinned={server.pinned}
+              />
             )}
             selectedIds={selectedIds}
             selecting={selecting}
@@ -386,154 +376,50 @@ export default function ServersPage() {
         ) : null}
 
         {activePanel === "create" ? (
-          <Dialog
-            description="Create a local test server and choose whether to provide the bootstrap credential yourself."
+          <ServerCreateDialog
+            actionMessage={actionMessage}
+            bootstrapCredential={bootstrapCredential}
+            busy={busy}
+            description={createDescription}
+            manualBootstrap={manualBootstrap}
+            name={createName}
+            onBootstrapCredentialChange={setBootstrapCredential}
             onClose={closePanel}
-            title="Create server"
-          >
-            <form
-              className={styles.dialogForm}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleCreateServer();
-              }}
-            >
-              <label className={styles.dialogField}>
-                Server name
-                <input
-                  autoComplete="off"
-                  className={styles.search}
-                  data-autofocus
-                  onChange={(event) => setCreateName(event.target.value)}
-                  placeholder="Atlas Team"
-                  value={createName}
-                />
-              </label>
-              <label className={styles.dialogField}>
-                Description
-                <input
-                  autoComplete="off"
-                  className={styles.search}
-                  onChange={(event) => setCreateDescription(event.target.value)}
-                  placeholder="Shared workspace for a team or community"
-                  value={createDescription}
-                />
-              </label>
-              <label className={styles.checkboxRow}>
-                <input
-                  checked={manualBootstrap}
-                  onChange={(event) => setManualBootstrap(event.target.checked)}
-                  type="checkbox"
-                />
-                Supply bootstrap credential manually
-              </label>
-              {manualBootstrap ? (
-                <label className={styles.dialogField}>
-                  Bootstrap credential
-                  <input
-                    autoComplete="off"
-                    className={styles.search}
-                    onChange={(event) => setBootstrapCredential(event.target.value)}
-                    placeholder="Credential"
-                    value={bootstrapCredential}
-                  />
-                </label>
-              ) : null}
-              {actionMessage ? <p className={styles.dialogMessage}>{actionMessage}</p> : null}
-              <DialogActions>
-                <button className={styles.pill} disabled={busy} onClick={closePanel} type="button">
-                  Cancel
-                </button>
-                <button className={`${styles.pill} ${styles.primaryPill}`} disabled={busy} type="submit">
-                  Create server
-                </button>
-              </DialogActions>
-            </form>
-          </Dialog>
+            onDescriptionChange={setCreateDescription}
+            onManualBootstrapChange={setManualBootstrap}
+            onNameChange={setCreateName}
+            onSubmit={() => void handleCreateServer()}
+          />
         ) : null}
 
         {activePanel === "join" ? (
-          <Dialog
-            description="Paste an invite link, or use advanced fields when you have a server endpoint and invite token."
+          <ServerJoinDialog
+            actionMessage={actionMessage}
+            busy={busy}
+            endpoint={joinEndpoint}
+            inviteLink={inviteLink}
+            inviteToken={joinToken}
             onClose={closePanel}
-            title="Join server"
-          >
-            <form
-              className={styles.dialogForm}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleJoinServer();
-              }}
-            >
-              <label className={styles.dialogField}>
-                Invite link
-                <input
-                  autoComplete="off"
-                  className={styles.search}
-                  data-autofocus
-                  onChange={(event) => setInviteLink(event.target.value)}
-                  placeholder="hexrelay://invite/..."
-                  value={inviteLink}
-                />
-              </label>
-              <label className={styles.checkboxRow}>
-                <input
-                  checked={showJoinAdvanced}
-                  onChange={(event) => setShowJoinAdvanced(event.target.checked)}
-                  type="checkbox"
-                />
-                Show advanced fields
-              </label>
-              {showJoinAdvanced ? (
-                <>
-                  <label className={styles.dialogField}>
-                    Endpoint
-                    <input className={styles.search} onChange={(event) => setJoinEndpoint(event.target.value)} placeholder="https://server.example" value={joinEndpoint} />
-                  </label>
-                  <label className={styles.dialogField}>
-                    Server id
-                    <input className={styles.search} onChange={(event) => setJoinServerId(event.target.value)} placeholder="srv_..." value={joinServerId} />
-                  </label>
-                  <label className={styles.dialogField}>
-                    Invite token
-                    <input className={styles.search} onChange={(event) => setJoinToken(event.target.value)} placeholder="Invite token" value={joinToken} />
-                  </label>
-                </>
-              ) : null}
-              {actionMessage ? <p className={styles.dialogMessage}>{actionMessage}</p> : null}
-              <DialogActions>
-                <button className={styles.pill} disabled={busy} onClick={closePanel} type="button">
-                  Cancel
-                </button>
-                <button className={`${styles.pill} ${styles.primaryPill}`} disabled={busy} type="submit">
-                  Join server
-                </button>
-              </DialogActions>
-            </form>
-          </Dialog>
+            onEndpointChange={setJoinEndpoint}
+            onInviteLinkChange={setInviteLink}
+            onInviteTokenChange={setJoinToken}
+            onServerIdChange={setJoinServerId}
+            onShowAdvancedChange={setShowJoinAdvanced}
+            onSubmit={() => void handleJoinServer()}
+            serverId={joinServerId}
+            showAdvanced={showJoinAdvanced}
+          />
         ) : null}
 
         {leaveTargets.length > 0 ? (
-          <Dialog
-            description="Leaving removes the server from this hub and closes related workspace tabs."
+          <ServerLeaveDialog
+            busy={busy}
+            deleteLocalData={deleteLocalData}
             onClose={() => setLeaveTargets([])}
-            title={`Leave ${leaveTargets.length === 1 ? leaveTargets[0]?.name : `${leaveTargets.length} servers`}?`}
-          >
-            <div className={styles.dialogStack}>
-              <label className={styles.checkboxRow}>
-                <input checked={deleteLocalData} onChange={(event) => setDeleteLocalData(event.target.checked)} type="checkbox" />{" "}
-                Delete local data for this server
-              </label>
-              <DialogActions>
-                <button className={styles.pill} disabled={busy} onClick={() => setLeaveTargets([])} type="button">
-                  Cancel
-                </button>
-                <button className={`${styles.pill} ${styles.dangerButton}`} disabled={busy} onClick={() => void confirmLeave()} type="button">
-                  Leave server
-                </button>
-              </DialogActions>
-            </div>
-          </Dialog>
+            onConfirm={() => void confirmLeave()}
+            onDeleteLocalDataChange={setDeleteLocalData}
+            targetLabel={leaveTargets.length === 1 ? (leaveTargets[0]?.name ?? "server") : `${leaveTargets.length} servers`}
+          />
         ) : null}
       </section>
     </WorkspaceShell>
