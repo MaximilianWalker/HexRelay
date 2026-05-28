@@ -1,0 +1,109 @@
+.section {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 1 auto;
+  gap: var(--space-4);
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: var(--chrome-space);
+}
+
+.section:not(.pinnedSection) {
+  flex: 1 1 auto;
+}
+
+.section[data-collapsed="true"] {
+  width: var(--collapsed-surface);
+  box-sizing: border-box;
+}
+
+.rail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.rail > .list {
+  grid-column: 2;
+}
+
+.list {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.list[data-workspace-tab-placement="topbar"] {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-4);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  scroll-behavior: auto;
+  scrollbar-width: none;
+}
+
+.list[data-workspace-tab-placement="topbar"]::-webkit-scrollbar {
+  display: none;
+}
+
+.list[data-workspace-tab-collapsed="true"] {
+  justify-items: center;
+}
+
+.scrollButton {
+  display: inline-flex;
+  width: calc(var(--space-14) + var(--space-1));
+  height: var(--nav-icon-target);
+  flex: 0 0 calc(var(--space-14) + var(--space-1));
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-strong);
+  cursor: pointer;
+}
+
+.scrollButton:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.scrollButton:not(:disabled):hover,
+.scrollButton:not(:disabled):focus-visible {
+  background: var(--color-surface);
+  color: var(--color-text-heading);
+}
+
+.scrollIcon {
+  width: var(--space-8);
+  height: var(--space-8);
+  stroke-width: 1.9;
+}
+
+.empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-body);
+  padding: var(--space-4);
+}
+
+.list[data-workspace-tab-collapsed="true"] .empty {
+  display: none;
+}

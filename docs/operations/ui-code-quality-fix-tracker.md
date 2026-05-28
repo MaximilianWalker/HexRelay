@@ -12,10 +12,19 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 1. Split Workspace Profile Controls
 
-- Status: pending
+- Status: completed
 - Files:
   - `apps/web/components/workspace-profile-controls.tsx`
   - `apps/web/components/workspace-profile-controls.module.css`
+  - `apps/web/components/workspace-profile-actions.tsx`
+  - `apps/web/components/workspace-profile-actions.module.css`
+  - `apps/web/components/workspace-profile-action-button.tsx`
+  - `apps/web/components/workspace-profile-action-button.module.css`
+  - `apps/web/components/workspace-profile-card.tsx`
+  - `apps/web/components/workspace-profile-card.module.css`
+  - `apps/web/components/workspace-profile-menu.tsx`
+  - `apps/web/components/workspace-profile-menu.module.css`
+  - `apps/web/components/workspace-profile-types.ts`
 - Problem: `WorkspaceProfileControls`, `ActionButton`, `ProfileCard`, and `ProfileMenu` are substantial components in one file.
 - Target structure:
   - `workspace-profile-controls.tsx`
@@ -27,10 +36,20 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 2. Split Workspace Shell Tabs And Menus
 
-- Status: pending
+- Status: completed
 - Files:
   - `apps/web/components/workspace-shell.tsx`
   - `apps/web/components/workspace-shell.module.css`
+  - `apps/web/components/content-tab-bar.tsx`
+  - `apps/web/components/content-tab-bar.module.css`
+  - `apps/web/components/workspace-tabs.tsx`
+  - `apps/web/components/workspace-tabs.module.css`
+  - `apps/web/components/workspace-tab-list.tsx`
+  - `apps/web/components/workspace-tab-item.tsx`
+  - `apps/web/components/workspace-tab-item.module.css`
+  - `apps/web/components/workspace-tab-types.ts`
+  - `apps/web/components/workspace-context-menu.tsx`
+  - `apps/web/components/workspace-context-menu.module.css`
 - Problem: `WorkspaceShell` still owns workspace tab rendering, workspace context menu, scroll controls, and content tabs.
 - Target components:
   - `WorkspaceTabs`
@@ -41,8 +60,20 @@ Temporary tracker for frontend cleanup items found during the UI rules audit. De
 
 ### 3. Extract Server Workspace UI
 
-- Status: pending
-- File: `apps/web/app/servers/[serverId]/page.tsx`
+- Status: completed
+- Files:
+  - `apps/web/app/servers/[serverId]/page.tsx`
+  - `apps/web/components/server-workspace/server-chat-view.tsx`
+  - `apps/web/components/server-workspace/server-channel-button.tsx`
+  - `apps/web/components/server-workspace/server-icon.tsx`
+  - `apps/web/components/server-workspace/server-member-card.tsx`
+  - `apps/web/components/server-workspace/server-overview.tsx`
+  - `apps/web/components/server-workspace/server-settings-view.tsx`
+  - `apps/web/components/server-workspace/server-users-view.tsx`
+  - `apps/web/components/server-workspace/server-voice-channel-button.tsx`
+  - `apps/web/components/server-workspace/server-voice-participant-row.tsx`
+  - `apps/web/components/server-workspace/server-voice-view.tsx`
+  - `apps/web/components/server-workspace/server-workspace-types.ts`
 - Problem: route file owns `ServerIcon`, `ChannelButton`, `MemberCard`, `VoiceChannelButton`, `VoiceParticipantRow`, chat panels, member panels, and voice panels.
 - Target components:
   - `ServerChannelRail`

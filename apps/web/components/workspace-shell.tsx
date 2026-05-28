@@ -3,18 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { KeyboardEvent, MouseEvent, WheelEvent } from "react";
-import {
-  IconAddressBook,
-  IconChevronLeft,
-  IconChevronRight,
-  IconHome,
-  IconPinned,
-  IconPinnedOff,
-  IconServer2,
-  IconSettings,
-  IconX,
-} from "@tabler/icons-react";
+import type { DragEvent, KeyboardEvent, MouseEvent, WheelEvent } from "react";
+import { IconAddressBook, IconHome, IconServer2, IconSettings } from "@tabler/icons-react";
 
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { isPrimaryNavRoute } from "@/lib/navigation-routes";
@@ -45,19 +35,14 @@ import {
 } from "@/lib/workspace-tabs";
 
 import { BrandLockup } from "@/components/brand-lockup";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ContentTabBar, type ContentTabItem } from "@/components/content-tab-bar";
+import { WorkspaceContextMenu } from "@/components/workspace-context-menu";
 import { WorkspaceProfileControls } from "@/components/workspace-profile-controls";
+import { WorkspaceTabs } from "@/components/workspace-tabs";
 import { RealtimeClient } from "./realtime-client";
 import styles from "./workspace-shell.module.css";
 
-type TabItem = {
-  id: string;
-  label: string;
-  icon?: typeof IconServer2;
-  onSelect?: () => void;
-};
+type TabItem = ContentTabItem;
 
 type WorkspaceTabMeta = {
   label?: string;
@@ -223,31 +208,6 @@ export function WorkspaceShell({
     }
   }, [activeTabId, centerContentTabNode]);
 
-  const updateActiveContentTabMask = useCallback(() => {
-    const element = contentTabsRef.current;
-    const tabBar = element?.parentElement;
-    if (!element || !tabBar) {
-      return;
-    }
-
-    const activeTab = Array.from(element.querySelectorAll<HTMLElement>("[data-tab-id]")).find(
-      (node) => node.dataset.tabId === activeTabId,
-    );
-    if (!activeTab) {
-      tabBar.style.setProperty("--active-tab-mask-width", "0px");
-      return;
-    }
-
-    const tabBarRect = tabBar.getBoundingClientRect();
-    const activeRect = activeTab.getBoundingClientRect();
-    const left = Math.max(0, activeRect.left - tabBarRect.left);
-    const right = Math.min(tabBarRect.width, activeRect.right - tabBarRect.left);
-    const width = Math.max(0, right - left - 2);
-
-    tabBar.style.setProperty("--active-tab-mask-left", `${left}px`);
-    tabBar.style.setProperty("--active-tab-mask-width", `${width}px`);
-  }, [activeTabId]);
-
   const updateContentTabOverflow = useCallback(() => {
     const element = contentTabsRef.current;
     if (!element) {
@@ -389,10 +349,9 @@ export function WorkspaceShell({
         return;
       }
 
-      updateActiveContentTabMask();
       scheduleContentTabOverflowUpdate();
     });
-  }, [scheduleContentTabOverflowUpdate, updateActiveContentTabMask]);
+  }, [scheduleContentTabOverflowUpdate]);
 
   useEffect(() => {
     const element = contentTabsRef.current;
@@ -402,29 +361,13 @@ export function WorkspaceShell({
 
     const frame = window.requestAnimationFrame(() => {
       centerActiveContentTab();
-      updateActiveContentTabMask();
       scheduleContentTabOverflowUpdate();
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [activeTabId, centerActiveContentTab, scheduleContentTabOverflowUpdate, tabs.length, updateActiveContentTabMask]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(updateActiveContentTabMask);
-    const timeout = window.setTimeout(updateActiveContentTabMask, 0);
-    const settledTimeout = window.setTimeout(updateActiveContentTabMask, 120);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeout);
-      window.clearTimeout(settledTimeout);
-    };
-  }, [
-    contentTabScrollState.canScrollLeft,
-    contentTabScrollState.canScrollRight,
-    updateActiveContentTabMask,
-  ]);
+  }, [activeTabId, centerActiveContentTab, scheduleContentTabOverflowUpdate, tabs.length]);
 
   useEffect(() => {
     const element = contentTabsRef.current;
@@ -433,11 +376,9 @@ export function WorkspaceShell({
     }
 
     const handleResize = (): void => {
-      updateActiveContentTabMask();
       scheduleContentTabOverflowUpdate();
     };
     const handleScroll = (): void => {
-      updateActiveContentTabMask();
       updateContentTabOverflow();
     };
     const frame = window.requestAnimationFrame(handleResize);
@@ -453,7 +394,7 @@ export function WorkspaceShell({
       window.removeEventListener("resize", handleResize);
       observer?.disconnect();
     };
-  }, [scheduleContentTabOverflowUpdate, tabs.length, updateActiveContentTabMask, updateContentTabOverflow]);
+  }, [scheduleContentTabOverflowUpdate, tabs.length, updateContentTabOverflow]);
 
   useEffect(() => {
     const element = workspaceTabsRef.current;
@@ -581,6 +522,12 @@ export function WorkspaceShell({
     setDraggedWorkspaceTabId(null);
   }
 
+  function handleWorkspaceTabDragStart(tab: WorkspaceTab, event: DragEvent<HTMLElement>): void {
+    setDraggedWorkspaceTabId(tab.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", tab.id);
+  }
+
   function openWorkspaceTabMenu(event: MouseEvent<HTMLElement>, tab: WorkspaceTab): void {
     event.preventDefault();
     setWorkspaceTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
@@ -619,7 +566,6 @@ export function WorkspaceShell({
     const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
     const distance = Math.max(160, Math.floor(element.clientWidth * 0.72));
     element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + direction * distance));
-    updateActiveContentTabMask();
     scheduleContentTabOverflowUpdate();
   }
 
@@ -708,173 +654,58 @@ export function WorkspaceShell({
     />
   );
 
-  function renderWorkspaceTab(tab: WorkspaceTab): React.ReactNode {
-    const active = routeTab?.id === tab.id;
-    const unread = normalizeUnread(tab.unread);
-    const imageLabel = tab.imageLabel ?? tab.label;
-    const isServer = tab.kind === "server";
-
-    return (
-      <div
-        className={`${styles.workspaceTab} ${active ? styles.workspaceTabActive : ""} ${
-          tab.pinned ? styles.workspaceTabPinned : ""
-        }`}
-        draggable
-        key={tab.id}
-        onDragEnd={() => setDraggedWorkspaceTabId(null)}
-        onDragOver={(event) => {
-          if (draggedWorkspaceTabId) {
-            event.preventDefault();
-          }
-        }}
-        onDragStart={(event) => {
-          setDraggedWorkspaceTabId(tab.id);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", tab.id);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          handleWorkspaceTabDrop(tab);
-        }}
-        onContextMenu={(event) => openWorkspaceTabMenu(event, tab)}
-        role="listitem"
-        data-workspace-tab-id={tab.id}
-      >
-        <Link
-          aria-current={active ? "page" : undefined}
-          aria-label={`${tab.kind === "dm" ? "Conversation" : "Server"}: ${tab.label}`}
-          className={styles.workspaceTabLink}
-          href={tab.href}
-          onKeyDown={(event) => openWorkspaceTabMenuFromKeyboard(event, tab)}
-        >
-          <Avatar
-            className={`${styles.workspaceTabImage} ${
-              isServer ? styles.workspaceTabImageServer : styles.workspaceTabImageContact
-            }`}
-            aria-hidden="true"
-            kind={isServer ? "server" : "user"}
-            text={getInitials(imageLabel)}
-          />
-          <span className={styles.workspaceTabLabel}>{tab.label}</span>
-        </Link>
-        <div className={styles.workspaceTabActions}>
-          {isServer && unread > 0 ? (
-            <Badge className={styles.workspaceTabBadge} aria-label={`${unread} unread notifications`} tone="accent">
-              {unread}
-            </Badge>
-          ) : null}
-          {!tab.pinned ? (
-            <Button
-              aria-label={`Close ${tab.label}`}
-              className={styles.workspaceTabAction}
-              onClick={() => handleCloseWorkspaceTab(tab)}
-              size="icon"
-              title="Close tab"
-            >
-              <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  function renderWorkspaceTabs(tabsToRender: WorkspaceTab[], emptyMessage?: string): React.ReactNode {
-    if (tabsToRender.length === 0) {
-      return emptyMessage ? <p className={styles.emptyTabs}>{emptyMessage}</p> : null;
-    }
-
-    return (
-      <div className={styles.workspaceTabs} role="list">
-        {tabsToRender.map((tab) => renderWorkspaceTab(tab))}
-      </div>
-    );
-  }
-
   const pinnedWorkspaceTabs = workspaceTabs.filter((tab) => tab.pinned);
   const regularWorkspaceTabs = workspaceTabs.filter((tab) => !tab.pinned);
-  const showRegularWorkspaceTabs = regularWorkspaceTabs.length > 0 || !collapsed;
   const workspaceTabContextMenu = workspaceTabMenuTab ? (
-    <div
-      className={styles.workspaceContextMenu}
-      onClick={(event) => event.stopPropagation()}
-      role="menu"
-      style={{ left: workspaceTabMenu?.x, top: workspaceTabMenu?.y }}
-    >
-      <button
-        className={styles.workspaceContextMenuItem}
-        onClick={() => handleWorkspaceMenuPin(workspaceTabMenuTab)}
-        role="menuitem"
-        type="button"
-      >
-        {workspaceTabMenuTab.pinned ? (
-          <IconPinnedOff className={styles.workspaceTabIcon} aria-hidden="true" />
-        ) : (
-          <IconPinned className={styles.workspaceTabIcon} aria-hidden="true" />
-        )}
-        {workspaceTabMenuTab.pinned ? "Unpin tab" : "Pin tab"}
-      </button>
-      <button
-        className={`${styles.workspaceContextMenuItem} ${styles.workspaceContextMenuDanger}`}
-        onClick={() => handleWorkspaceMenuClose(workspaceTabMenuTab)}
-        role="menuitem"
-        type="button"
-      >
-        <IconX className={styles.workspaceTabIcon} aria-hidden="true" />
-        Close tab
-      </button>
-    </div>
+    <WorkspaceContextMenu
+      onCloseTab={handleWorkspaceMenuClose}
+      onTogglePinned={handleWorkspaceMenuPin}
+      position={{ x: workspaceTabMenu?.x ?? 0, y: workspaceTabMenu?.y ?? 0 }}
+      tab={workspaceTabMenuTab}
+    />
   ) : null;
   const sidebarWorkspaceTabSections = (
     <>
-      {pinnedWorkspaceTabs.length > 0 ? (
-        <div className={`${styles.workspaceSection} ${styles.workspaceSectionPinned}`} role="group" aria-label="Pinned tabs">
-          {renderWorkspaceTabs(pinnedWorkspaceTabs)}
-        </div>
-      ) : null}
-      {showRegularWorkspaceTabs ? (
-        <div className={styles.workspaceSection} role="group" aria-label="Workspace tabs">
-          {renderWorkspaceTabs(regularWorkspaceTabs, "Open a server or conversation to create a tab.")}
-        </div>
-      ) : null}
+      <WorkspaceTabs
+        activeTabId={routeTab?.id}
+        collapsed={collapsed}
+        draggedTabId={draggedWorkspaceTabId}
+        emptyMessage="Open a server or conversation to create a tab."
+        onCloseTab={handleCloseWorkspaceTab}
+        onContextMenu={openWorkspaceTabMenu}
+        onDragEnd={() => setDraggedWorkspaceTabId(null)}
+        onDragStart={handleWorkspaceTabDragStart}
+        onDrop={handleWorkspaceTabDrop}
+        onKeyboardContextMenu={openWorkspaceTabMenuFromKeyboard}
+        pinnedTabs={pinnedWorkspaceTabs}
+        regularTabs={regularWorkspaceTabs}
+        variant="sidebar"
+      />
       {workspaceTabContextMenu}
     </>
   );
-  const topbarWorkspaceTabs = [...pinnedWorkspaceTabs, ...regularWorkspaceTabs];
   const brand = <BrandLockup className={styles.brandLockup} collapsed={collapsed} size="lg" />;
   const topbarWorkspaceTabStrip = (
     <>
-      <div className={styles.workspaceRail} onWheel={handleWorkspaceTabWheel} role="group" aria-label="Workspace tabs">
-        {topbarWorkspaceTabs.length === 0 ? (
-          <p className={styles.emptyTabs}>Open a server or conversation to create a tab.</p>
-        ) : (
-          <>
-            {workspaceTabScrollState.canScrollLeft ? (
-              <button
-                aria-label="Scroll workspace tabs left"
-                className={styles.workspaceScrollButton}
-                onClick={() => scrollWorkspaceTabs(-1)}
-                type="button"
-              >
-                <IconChevronLeft className={styles.workspaceScrollIcon} aria-hidden="true" />
-              </button>
-            ) : null}
-            <div className={styles.workspaceTabs} ref={setWorkspaceTabsNode} role="list">
-              {topbarWorkspaceTabs.map((tab) => renderWorkspaceTab(tab))}
-            </div>
-            {workspaceTabScrollState.canScrollRight ? (
-              <button
-                aria-label="Scroll workspace tabs right"
-                className={styles.workspaceScrollButton}
-                onClick={() => scrollWorkspaceTabs(1)}
-                type="button"
-              >
-                <IconChevronRight className={styles.workspaceScrollIcon} aria-hidden="true" />
-              </button>
-            ) : null}
-          </>
-        )}
-      </div>
+      <WorkspaceTabs
+        activeTabId={routeTab?.id}
+        collapsed={collapsed}
+        draggedTabId={draggedWorkspaceTabId}
+        emptyMessage="Open a server or conversation to create a tab."
+        onCloseTab={handleCloseWorkspaceTab}
+        onContextMenu={openWorkspaceTabMenu}
+        onDragEnd={() => setDraggedWorkspaceTabId(null)}
+        onDragStart={handleWorkspaceTabDragStart}
+        onDrop={handleWorkspaceTabDrop}
+        onKeyboardContextMenu={openWorkspaceTabMenuFromKeyboard}
+        onScrollTabs={scrollWorkspaceTabs}
+        onWheel={handleWorkspaceTabWheel}
+        pinnedTabs={pinnedWorkspaceTabs}
+        regularTabs={regularWorkspaceTabs}
+        scrollState={workspaceTabScrollState}
+        tabListRef={setWorkspaceTabsNode}
+        variant="topbar"
+      />
       {workspaceTabContextMenu}
     </>
   );
@@ -925,74 +756,19 @@ export function WorkspaceShell({
             <h1 id="workspace-page-title">{title}</h1>
             <p id="workspace-page-subtitle">{subtitle}</p>
           </header>
-          {hasContentTabs || tabActions ? (
-            <div className={`${styles.tabBar} ${hasContentTabs ? "" : styles.actionBarOnly}`}>
-              {hasContentTabs && contentTabScrollState.canScrollLeft ? (
-                <button
-                  aria-label="Scroll tabs left"
-                  className={styles.tabScrollButton}
-                  data-tab-scroll-button="left"
-                  onClick={() => scrollContentTabs(-1)}
-                  type="button"
-                >
-                  <IconChevronLeft className={styles.tabScrollIcon} aria-hidden="true" />
-                </button>
-              ) : null}
-              {hasContentTabs ? (
-                <div aria-label={`${title} sections`} className={styles.tabs} ref={setContentTabsNode}>
-                  {tabs.map((tab) => {
-                    const TabIcon = tab.icon;
-                    const active = tab.id === activeTabId;
-                    const handleTabSelect = tab.onSelect ?? (onTabChange ? () => onTabChange(tab.id) : undefined);
-                    const tabClassName = `${styles.tab} ${handleTabSelect ? styles.tabButton : ""} ${
-                      active ? styles.tabActive : ""
-                    }`;
-                    const tabContent = (
-                      <>
-                        {TabIcon ? <TabIcon className={styles.tabIcon} aria-hidden="true" /> : null}
-                        <span className={styles.tabLabel}>{tab.label}</span>
-                      </>
-                    );
-
-                    return handleTabSelect ? (
-                      <button
-                        aria-pressed={active}
-                        className={tabClassName}
-                        data-tab-id={tab.id}
-                        key={tab.id}
-                        onClick={handleTabSelect}
-                        ref={active ? activeContentTabRef : undefined}
-                        type="button"
-                      >
-                        {tabContent}
-                      </button>
-                    ) : (
-                      <div
-                        className={tabClassName}
-                        data-tab-id={tab.id}
-                        key={tab.id}
-                        ref={active ? activeContentTabRef : undefined}
-                      >
-                        {tabContent}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {hasContentTabs && contentTabScrollState.canScrollRight ? (
-                <button
-                  aria-label="Scroll tabs right"
-                  className={styles.tabScrollButton}
-                  data-tab-scroll-button="right"
-                  onClick={() => scrollContentTabs(1)}
-                  type="button"
-                >
-                  <IconChevronRight className={styles.tabScrollIcon} aria-hidden="true" />
-                </button>
-              ) : null}
-              {tabActions ? <div className={styles.tabActions}>{tabActions}</div> : null}
-            </div>
-          ) : null}
+          <ContentTabBar
+            activeTabId={activeTabId}
+            activeTabRef={activeContentTabRef}
+            canScrollLeft={contentTabScrollState.canScrollLeft}
+            canScrollRight={contentTabScrollState.canScrollRight}
+            label={`${title} sections`}
+            onScrollLeft={() => scrollContentTabs(-1)}
+            onScrollRight={() => scrollContentTabs(1)}
+            onTabChange={onTabChange}
+            tabActions={tabActions}
+            tabListRef={setContentTabsNode}
+            tabs={tabs}
+          />
 
           <section className={`${styles.body} ${hasContentTabs || tabActions ? "" : styles.bodyNoTabs}`}>{children}</section>
         </section>
