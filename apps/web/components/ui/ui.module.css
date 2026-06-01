@@ -5,6 +5,15 @@
   stroke-width: 1.8;
 }
 
+.button,
+.segmentedButton {
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  line-height: var(--line-tight);
+  white-space: nowrap;
+}
+
 .button {
   display: inline-flex;
   min-height: var(--size-control-md);
@@ -17,12 +26,7 @@
   background: var(--color-surface-muted);
   color: var(--color-text-strong);
   cursor: pointer;
-  font-family: inherit;
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  line-height: var(--line-tight);
   text-decoration: none;
-  white-space: nowrap;
   transition:
     background var(--motion-fast),
     border-color var(--motion-fast),
@@ -93,8 +97,15 @@
 }
 
 .buttonPressed {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-text-inverse);
+}
+
+.buttonPressed:hover,
+.buttonPressed:focus-visible {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
   color: var(--color-text-inverse);
 }
 
@@ -437,8 +448,6 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  font-family: inherit;
-  font-size: var(--text-md);
 }
 
 .segmentedButton:last-child {
