@@ -113,3 +113,16 @@
 .statusDotActive {
   background: var(--color-success);
 }
+
+@media (max-width: 560px) {
+  :global([data-profile-placement="topbar"]) .profile {
+    justify-content: center;
+    min-width: 0;
+    width: calc(var(--profile-avatar-size) + var(--space-4));
+    padding: var(--space-2);
+  }
+
+  :global([data-profile-placement="topbar"]) .details {
+    display: none;
+  }
+}

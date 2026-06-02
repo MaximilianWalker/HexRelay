@@ -19,6 +19,7 @@ type WorkspaceProfileControlsProps = {
   placement: WorkspaceProfilePlacement;
   profile: WorkspaceProfile;
   soundMuted: boolean;
+  voiceActionsAvailable?: boolean;
 };
 
 export function WorkspaceProfileControls({
@@ -33,6 +34,7 @@ export function WorkspaceProfileControls({
   placement,
   profile,
   soundMuted,
+  voiceActionsAvailable = false,
 }: WorkspaceProfileControlsProps) {
   return (
     <div className={styles.root} data-profile-collapsed={collapsed} data-profile-placement={placement}>
@@ -48,6 +50,7 @@ export function WorkspaceProfileControls({
         onSetSoundMuted={onSetSoundMuted}
         placement={placement}
         soundMuted={soundMuted}
+        voiceActionsAvailable={voiceActionsAvailable}
       />
     </div>
   );

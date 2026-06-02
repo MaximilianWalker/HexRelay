@@ -1,5 +1,6 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
@@ -16,9 +17,9 @@ type WorkspaceProfileMenuProps = {
   placement: WorkspaceProfilePlacement;
 };
 
-const navLayoutOptions: Array<{ label: string; value: NavLayout }> = [
-  { label: "Sidebar", value: "sidebar" },
-  { label: "Topbar", value: "topbar" },
+const navLayoutOptions: Array<{ id: NavLayout; label: string }> = [
+  { id: "sidebar", label: "Sidebar" },
+  { id: "topbar", label: "Topbar" },
 ];
 
 export function WorkspaceProfileMenu({
@@ -50,21 +51,16 @@ export function WorkspaceProfileMenu({
         </span>
       </button>
 
-      <div className={styles.layoutItem} role="group" aria-label="Navigation layout">
+      <div className={styles.layoutItem}>
         <IconArrowsExchange className={styles.menuIcon} aria-hidden="true" />
         <span>Navigation</span>
         <div className={styles.layoutChoices}>
-          {navLayoutOptions.map((option) => (
-            <button
-              aria-pressed={navLayout === option.value}
-              className={cx(styles.layoutChoice, navLayout === option.value && styles.layoutChoiceActive)}
-              key={option.value}
-              onClick={() => selectNavLayout(option.value)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
+          <SegmentedControl
+            label="Navigation layout"
+            onChange={selectNavLayout}
+            options={navLayoutOptions}
+            value={navLayout}
+          />
         </div>
       </div>
 
