@@ -11,6 +11,7 @@ type WorkspaceProfileActionButtonProps = {
   active?: boolean;
   className?: string;
   controls?: string;
+  disabled?: boolean;
   expanded?: boolean;
   hasPopup?: "dialog" | "menu";
   icon: ComponentType<{ "aria-hidden"?: boolean; className?: string }>;
@@ -32,6 +33,7 @@ export function WorkspaceProfileActionButton({
   active,
   className,
   controls,
+  disabled,
   expanded,
   hasPopup,
   icon: Icon,
@@ -47,6 +49,7 @@ export function WorkspaceProfileActionButton({
       aria-haspopup={hasPopup}
       aria-label={label}
       className={cx(styles.button, toneClass[tone], active && styles.active, muted && styles.muted, className)}
+      disabled={disabled}
       onClick={onClick}
       pressed={active}
       size="icon"

@@ -10,11 +10,24 @@
   border-color: color-mix(in srgb, currentColor 42%, var(--color-border-control));
 }
 
+.button:disabled,
+.button:disabled:hover,
+.button:disabled:focus-visible {
+  border-color: var(--color-border-control);
+  background: var(--color-surface-muted);
+  color: var(--color-text-subtle);
+  box-shadow: none;
+}
+
 .icon {
   width: var(--sidebar-nav-icon-expanded-size);
   height: var(--sidebar-nav-icon-expanded-size);
   filter: drop-shadow(0 0 var(--space-4) color-mix(in srgb, currentColor 20%, transparent));
   stroke-width: 1.9;
+}
+
+.button:disabled .icon {
+  filter: none;
 }
 
 .toneMic,

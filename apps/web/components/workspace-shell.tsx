@@ -615,6 +615,7 @@ export function WorkspaceShell({
   const isTopbar = navLayout === "topbar";
   const profile = parseProfileSnapshot(profileSnapshot);
   const hasContentTabs = tabs.length > 0;
+  const voiceActionsAvailable = routeTab?.kind === "server" && activeTabId === "voice";
 
   const navLinks = nav.map((item) => {
     const active = isPrimaryNavRoute(pathname, item.href);
@@ -651,6 +652,7 @@ export function WorkspaceShell({
         status: profile.status,
       }}
       soundMuted={soundMuted}
+      voiceActionsAvailable={voiceActionsAvailable}
     />
   );
 
