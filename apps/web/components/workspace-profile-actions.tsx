@@ -29,6 +29,7 @@ type WorkspaceProfileActionsProps = {
   onSetSoundMuted: (muted: boolean) => void;
   placement: WorkspaceProfilePlacement;
   soundMuted: boolean;
+  voiceActionsAvailable?: boolean;
 };
 
 export function WorkspaceProfileActions({
@@ -42,6 +43,7 @@ export function WorkspaceProfileActions({
   onSetSoundMuted,
   placement,
   soundMuted,
+  voiceActionsAvailable = false,
 }: WorkspaceProfileActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -105,8 +107,20 @@ export function WorkspaceProfileActions({
         onClick={() => onSetSoundMuted(!soundMuted)}
         tone="sound"
       />
-      <WorkspaceProfileActionButton className={styles.action} icon={IconScreenShare} label="Start stream" tone="stream" />
-      <WorkspaceProfileActionButton className={styles.action} icon={IconPhoneOff} label="Leave voice" tone="leave" />
+      <WorkspaceProfileActionButton
+        className={styles.action}
+        disabled={!voiceActionsAvailable}
+        icon={IconScreenShare}
+        label="Start stream"
+        tone="stream"
+      />
+      <WorkspaceProfileActionButton
+        className={styles.action}
+        disabled={!voiceActionsAvailable}
+        icon={IconPhoneOff}
+        label="Leave voice"
+        tone="leave"
+      />
       <WorkspaceProfileActionButton
         active={menuOpen}
         className={styles.action}
