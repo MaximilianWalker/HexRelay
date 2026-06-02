@@ -9,7 +9,7 @@ const settingsCss = readFileSync(join(__dirname, "../app/settings/settings.modul
 
 describe("workspace profile menu layout styles", () => {
   it("keeps every menu row on the same fixed block size", () => {
-    const sharedRowRule = menuCss.match(/\.menuItem,\n\.layoutItem \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const sharedRowRule = menuCss.match(/\.menuItem\s*,\s*\.layoutItem\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
     expect(sharedRowRule).toContain("height: var(--space-20);");
     expect(sharedRowRule).not.toContain("min-height");
