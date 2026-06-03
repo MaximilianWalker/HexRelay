@@ -8,10 +8,10 @@ import { ContactAddDialog } from "@/components/hubs/contact-add-dialog";
 import { ContactBlockDialog } from "@/components/hubs/contact-block-dialog";
 import type { ContactDiscoveryUser } from "@/components/hubs/contact-discovery-results";
 import { ContactRequestSection } from "@/components/hubs/contact-request-section";
-import { HubBulkActions } from "@/components/hubs/hub-bulk-actions";
-import { HubItemActions } from "@/components/hubs/hub-item-actions";
-import { HubSurface } from "@/components/hubs/hub-surface";
-import { HubToolbar } from "@/components/hubs/hub-toolbar";
+import { BulkActions } from "@/components/hubs/bulk-actions";
+import { ItemActions } from "@/components/hubs/item-actions";
+import { Surface } from "@/components/hubs/surface";
+import { Toolbar } from "@/components/hubs/toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WorkspaceShell } from "@/components/workspace-shell";
@@ -482,7 +482,7 @@ export default function ContactsPage() {
           />
         ) : null}
 
-        <HubToolbar
+        <Toolbar
           actions={
             <Button
               disabled={!hasSession}
@@ -510,7 +510,7 @@ export default function ContactsPage() {
         />
 
         {selecting ? (
-          <HubBulkActions
+          <BulkActions
             busy={busy}
             destructiveLabel="Block + Remove"
             onDestructive={() => setBlockTargets(selectedContacts())}
@@ -541,7 +541,7 @@ export default function ContactsPage() {
         ) : null}
 
         {visibleContacts.length > 0 ? (
-          <HubSurface
+          <Surface
             items={visibleContacts}
             layout={layout}
             noun="contact"
@@ -559,7 +559,7 @@ export default function ContactsPage() {
               </>
             )}
             renderActions={(contact) => (
-              <HubItemActions
+              <ItemActions
                 busy={busy}
                 destructiveLabel="Block + Remove"
                 messageAction={{

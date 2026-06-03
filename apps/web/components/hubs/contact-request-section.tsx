@@ -7,7 +7,7 @@ import { Panel } from "@/components/ui/panel";
 import type { PersonaRecord } from "@/lib/personas";
 import { initials } from "@/lib/ui/initials";
 
-import styles from "./hubs.module.css";
+import styles from "./styles.module.css";
 
 export type ContactRequest = {
   created_at?: string;

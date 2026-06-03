@@ -8,7 +8,7 @@ import { Notice } from "@/components/ui/notice";
 import { TextInput } from "@/components/ui/text-input";
 
 import { ContactDiscoveryResults, type ContactDiscoveryUser } from "./contact-discovery-results";
-import styles from "./hubs.module.css";
+import styles from "./styles.module.css";
 
 type ContactAddDialogProps = {
   actionMessage: string | null;

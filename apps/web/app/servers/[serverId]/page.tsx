@@ -4,17 +4,17 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { IconInfoCircle, IconMessageCircle, IconSettings, IconUsers, IconVolume } from "@tabler/icons-react";
 
-import { ServerChatView } from "@/components/server-workspace/server-chat-view";
-import { ServerOverview } from "@/components/server-workspace/server-overview";
-import { ServerSettingsView } from "@/components/server-workspace/server-settings-view";
-import { ServerUsersView } from "@/components/server-workspace/server-users-view";
-import { ServerVoiceView } from "@/components/server-workspace/server-voice-view";
+import { ChatView } from "@/components/server-workspace/chat-view";
+import { Overview } from "@/components/server-workspace/overview";
+import { SettingsView } from "@/components/server-workspace/settings-view";
+import { UsersView } from "@/components/server-workspace/users-view";
+import { VoiceView } from "@/components/server-workspace/voice-view";
 import type {
-  ServerMember,
-  ServerRoleGroup,
-  ServerVoiceChannel,
-  ServerWorkspaceLoadState,
-} from "@/components/server-workspace/server-workspace-types";
+  LoadState,
+  Member,
+  RoleGroup,
+  VoiceChannel,
+} from "@/components/server-workspace/types";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   createServerChannelMessage,
@@ -153,7 +153,7 @@ const PREVIEW_ROLE_DESCRIPTIONS: Record<string, string> = {
   Members: "Participate in chat, voice, and fixture validation.",
 };
 
-const PREVIEW_MEMBERS: ServerMember[] = [
+const PREVIEW_MEMBERS: Member[] = [
   {
     identityId: "usr-test-alice",
     role: "Admins",
@@ -189,7 +189,7 @@ const PREVIEW_MEMBERS: ServerMember[] = [
   },
 ];
 
-const PREVIEW_VOICE_CHANNELS: ServerVoiceChannel[] = [
+const PREVIEW_VOICE_CHANNELS: VoiceChannel[] = [
   {
     id: "fixture-voice-atlas-lobby",
     name: "Lobby",
@@ -356,9 +356,9 @@ export default function ServerWorkspacePage() {
     PREVIEW_VOICE_CHANNELS[0]?.id ?? null,
   );
   const [view, setView] = useState<ServerView>("overview");
-  const [workspaceState, setWorkspaceState] = useState<ServerWorkspaceLoadState>("idle");
-  const [messageState, setMessageState] = useState<ServerWorkspaceLoadState>("idle");
-  const [olderState, setOlderState] = useState<ServerWorkspaceLoadState>("idle");
+  const [workspaceState, setWorkspaceState] = useState<LoadState>("idle");
+  const [messageState, setMessageState] = useState<LoadState>("idle");
+  const [olderState, setOlderState] = useState<LoadState>("idle");
   const [composer, setComposer] = useState("");
   const [replyTo, setReplyTo] = useState<ServerChannelMessage | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -524,7 +524,7 @@ export default function ServerWorkspacePage() {
   }, [allVisibleMessages]);
   const mentionIdentityIds = useMemo(() => extractMentionIdentityIds(composer), [composer]);
   const canManageServer = !hasSession || identityId === "usr-test-alice";
-  const roleGroups = useMemo<ServerRoleGroup[]>(
+  const roleGroups = useMemo<RoleGroup[]>(
     () =>
       PREVIEW_ROLE_SUMMARY.map((role) => ({
         ...role,
@@ -756,7 +756,7 @@ export default function ServerWorkspacePage() {
         ) : null}
 
         {view === "overview" ? (
-          <ServerOverview
+          <Overview
             hasSession={hasSession}
             menuOpen={serverMenuOpen}
             onMenuAction={handleServerMenuAction}
@@ -766,7 +766,7 @@ export default function ServerWorkspacePage() {
             tags={PREVIEW_SERVER_TAGS}
           />
         ) : view === "users" ? (
-          <ServerUsersView
+          <UsersView
             authorHandle={authorHandle}
             authorLabel={authorLabel}
             formatTimestamp={formatTimestamp}
@@ -775,7 +775,7 @@ export default function ServerWorkspacePage() {
             roleGroups={roleGroups}
           />
         ) : view === "chat" ? (
-          <ServerChatView
+          <ChatView
             data={chatData}
             formatters={authorFormatters}
             onCancelReply={() => setReplyTo(null)}
@@ -789,7 +789,7 @@ export default function ServerWorkspacePage() {
             state={chatState}
           />
         ) : view === "voice" ? (
-          <ServerVoiceView
+          <VoiceView
             activeChannel={activeVoiceChannel}
             authorHandle={authorHandle}
             authorLabel={authorLabel}
@@ -797,7 +797,7 @@ export default function ServerWorkspacePage() {
             onSelectChannel={selectVoiceChannel}
           />
         ) : (
-          <ServerSettingsView
+          <SettingsView
             canManageServer={canManageServer}
             channels={visibleChannels}
             hasSession={hasSession}

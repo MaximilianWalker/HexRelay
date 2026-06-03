@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { initials } from "@/lib/ui/initials";
 
-import styles from "./hubs.module.css";
+import styles from "./styles.module.css";
 
 export type ContactDiscoveryUser = {
   can_send_friend_request: boolean;

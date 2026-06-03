@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 
 import { IconButton } from "./icon-button";
-import styles from "./ui.module.css";
+import styles from "./styles.module.css";
 
 export function Dialog({
   children,

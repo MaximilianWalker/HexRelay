@@ -1,14 +1,6 @@
-import type { ReactNode } from "react";
+import { ToggleGroup, type ToggleGroupOption } from "./toggle-group";
 
-import { cx } from "@/lib/ui/cx";
-
-import styles from "./ui.module.css";
-
-export type SegmentedControlOption<T extends string> = {
-  icon?: ReactNode;
-  id: T;
-  label: string;
-};
+export type SegmentedControlOption<T extends string> = ToggleGroupOption<T>;
 
 export function SegmentedControl<T extends string>({
   label,
@@ -21,20 +13,5 @@ export function SegmentedControl<T extends string>({
   options: SegmentedControlOption<T>[];
   value: T;
 }) {
-  return (
-    <div aria-label={label} className={styles.segmentedControl} role="group">
-      {options.map((option) => (
-        <button
-          aria-pressed={option.id === value}
-          className={cx(styles.segmentedButton, option.id === value && styles.segmentedButtonActive)}
-          key={option.id}
-          onClick={() => onChange(option.id)}
-          type="button"
-        >
-          {option.icon}
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <ToggleGroup label={label} onChange={onChange} options={options} value={value} />;
 }

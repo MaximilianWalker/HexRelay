@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./ui.module.css";
+import styles from "./styles.module.css";
 
 type AvatarKind = "user" | "server";
 type AvatarSize = "sm" | "md" | "lg";

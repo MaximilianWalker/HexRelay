@@ -3,7 +3,7 @@ import { CheckboxField } from "@/components/ui/checkbox-field";
 import { Dialog } from "@/components/ui/dialog";
 import { DialogActions } from "@/components/ui/dialog-actions";
 
-import styles from "./hubs.module.css";
+import styles from "./styles.module.css";
 
 type ServerLeaveDialogProps = {
   busy: boolean;

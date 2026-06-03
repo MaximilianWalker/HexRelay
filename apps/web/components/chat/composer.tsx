@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/text-area";
 
-import styles from "./chat.module.css";
+import styles from "./styles.module.css";
 
 export function Composer({
   disabled,

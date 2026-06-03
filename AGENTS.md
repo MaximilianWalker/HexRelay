@@ -36,9 +36,11 @@ Only project-specific constraints are defined here.
 
 - Keep route files and shell components focused on data loading, layout orchestration, and composition; move reusable UI, interaction logic, and visual variants into named components.
 - Prefer one exported component per `.tsx` file. Do not stack multiple substantial components in one file; split them into separate files with colocated CSS modules. Small private helpers are allowed only when they are trivial and not reusable.
-- Prefer simple, direct names. Use names such as `ProfileActions`, `NavLink`, `SettingRow`, or `MessageBubble`; avoid broad, branded, clever, or implementation-heavy names unless the domain requires them.
+- Prefer simple, direct names. Use names such as `ProfileActions`, `NavLink`, `Row`, or `MessageBubble`; avoid broad, branded, clever, or implementation-heavy names unless the domain requires them.
+- Do not repeat path context in local component, file, function, or type names. If a component lives in `components/hubs`, use names such as `Toolbar`, `Surface`, or `ItemActions` instead of `HubToolbar`, `HubSurface`, or `HubItemActions`; let imports and folders provide the missing context.
 - Components should own one clear responsibility. If a component manages profile state, action buttons, menus, and layout at once, split it before adding more behavior.
 - Use existing internal UI primitives first (`Button`, `IconButton`, `Badge`, `Avatar`, `Panel`, `Field`, `Notice`, `Dialog`, `Toolbar`, and related app primitives). Do not create route-local copies of buttons, tabs, cards, switches, fields, menus, or badges.
+- Shared control behavior should come from internal UI APIs such as `Button`, `ButtonLink`, `ToggleButton`, `ToggleGroup`, `Menu`, `MenuItem`, and list/action recipes rather than local CSS classes or direct `aria-pressed` buttons.
 - Use Tabler icons through shared button/link/icon patterns. Icon-only controls must have `aria-label` and `title`; visible labels should be added only when the layout calls for text.
 - CSS Modules should be component-scoped and small enough to audit. If a CSS module grows because unrelated surfaces share it, split by component or feature instead of adding more classes.
 - Avoid CSS specificity fights, duplicated classes, and state encoded through long selector chains. Prefer explicit component props mapped to a small set of classes or data attributes.

@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ButtonLink } from "@/components/ui/button";
 import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
-import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { Shell } from "@/components/onboarding/shell";
 import { Field } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
 import { TextInput } from "@/components/ui/text-input";
-import styles from "../onboarding.module.css";
+import styles from "../styles.module.css";
 
 export default function RecoveryOnboardingPage() {
   const [phrase, setPhrase] = useState<string[]>([]);
@@ -38,7 +38,7 @@ export default function RecoveryOnboardingPage() {
   );
 
   return (
-    <OnboardingShell
+    <Shell
       activeStep="recovery"
       introBody="Recovery confirmation is mandatory. Onboarding cannot finish without this step."
       introTitle="Confirm recovery phrase"
@@ -76,22 +76,13 @@ export default function RecoveryOnboardingPage() {
       )}
 
       <div className={styles.ctaRow}>
-        <Link className={styles.buttonGhost} href="/onboarding/identity">
+        <ButtonLink href="/onboarding/identity" variant="ghost">
           Back to identity
-        </Link>
-        <Link
-          aria-disabled={!confirmed}
-          className={styles.button}
-          href={confirmed ? "/onboarding/access" : "#"}
-          onClick={(event) => {
-            if (!confirmed) {
-              event.preventDefault();
-            }
-          }}
-        >
+        </ButtonLink>
+        <ButtonLink disabled={!confirmed} href="/onboarding/access" variant="primary">
           Continue to access
-        </Link>
+        </ButtonLink>
       </div>
-    </OnboardingShell>
+    </Shell>
   );
 }

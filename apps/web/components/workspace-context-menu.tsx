@@ -1,8 +1,7 @@
 import { IconPinned, IconPinnedOff, IconX } from "@tabler/icons-react";
 
+import { Menu, MenuItem } from "@/components/ui/menu";
 import type { WorkspaceTab } from "@/lib/workspace-tabs";
-
-import styles from "./workspace-context-menu.module.css";
 
 type WorkspaceContextMenuProps = {
   onCloseTab: (tab: WorkspaceTab) => void;
@@ -13,24 +12,16 @@ type WorkspaceContextMenuProps = {
 
 export function WorkspaceContextMenu({ onCloseTab, onTogglePinned, position, tab }: WorkspaceContextMenuProps) {
   return (
-    <div
-      className={styles.menu}
-      onClick={(event) => event.stopPropagation()}
-      role="menu"
-      style={{ left: position.x, top: position.y }}
-    >
-      <button className={styles.item} onClick={() => onTogglePinned(tab)} role="menuitem" type="button">
-        {tab.pinned ? (
-          <IconPinnedOff className={styles.icon} aria-hidden="true" />
-        ) : (
-          <IconPinned className={styles.icon} aria-hidden="true" />
-        )}
+    <Menu onClick={(event) => event.stopPropagation()} position="fixed" style={{ left: position.x, top: position.y }}>
+      <MenuItem
+        icon={tab.pinned ? <IconPinnedOff aria-hidden="true" /> : <IconPinned aria-hidden="true" />}
+        onClick={() => onTogglePinned(tab)}
+      >
         {tab.pinned ? "Unpin tab" : "Pin tab"}
-      </button>
-      <button className={`${styles.item} ${styles.danger}`} onClick={() => onCloseTab(tab)} role="menuitem" type="button">
-        <IconX className={styles.icon} aria-hidden="true" />
+      </MenuItem>
+      <MenuItem icon={<IconX aria-hidden="true" />} onClick={() => onCloseTab(tab)} tone="danger">
         Close tab
-      </button>
-    </div>
+      </MenuItem>
+    </Menu>
   );
 }

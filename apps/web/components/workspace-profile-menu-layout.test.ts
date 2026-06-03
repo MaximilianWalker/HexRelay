@@ -5,7 +5,7 @@ import { join } from "node:path";
 const menuCss = readFileSync(join(__dirname, "workspace-profile-menu.module.css"), "utf8");
 const profileCardCss = readFileSync(join(__dirname, "workspace-profile-card.module.css"), "utf8");
 const shellCss = readFileSync(join(__dirname, "workspace-shell.module.css"), "utf8");
-const settingsCss = readFileSync(join(__dirname, "../app/settings/settings.module.css"), "utf8");
+const settingsCss = readFileSync(join(__dirname, "../app/settings/styles.module.css"), "utf8");
 
 describe("workspace profile menu layout styles", () => {
   it("keeps every menu row on the same fixed block size", () => {

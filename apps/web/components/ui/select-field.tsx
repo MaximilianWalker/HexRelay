@@ -2,7 +2,7 @@ import type { SelectHTMLAttributes } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./ui.module.css";
+import styles from "./styles.module.css";
 
 export function SelectField({
   "aria-invalid": ariaInvalid,

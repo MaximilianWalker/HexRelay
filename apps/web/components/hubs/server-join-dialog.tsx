@@ -6,7 +6,7 @@ import { Field } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
 import { TextInput } from "@/components/ui/text-input";
 
-import styles from "./hubs.module.css";
+import styles from "./styles.module.css";
 
 type ServerJoinDialogProps = {
   actionMessage: string | null;

@@ -28,7 +28,7 @@ import {
 import { trackEvent } from "@/lib/telemetry";
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences";
 
-import styles from "./home.module.css";
+import styles from "./styles.module.css";
 
 export default function HomePage() {
   const [, forceRefresh] = useState(0);

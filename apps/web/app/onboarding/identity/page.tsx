@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -9,7 +8,7 @@ import {
   registerIdentityKey,
   verifyAuthChallenge,
 } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
 import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
@@ -25,8 +24,8 @@ import {
 import { ensurePersona } from "@/lib/personas";
 import { setPersonaPrivateKey, setPersonaSession } from "@/lib/sessions";
 import { trackEvent } from "@/lib/telemetry";
-import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
-import styles from "../onboarding.module.css";
+import { Shell } from "@/components/onboarding/shell";
+import styles from "../styles.module.css";
 
 const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
 const IDENTITY_MODE_OPTIONS: SegmentedControlOption<"create" | "import">[] = [
@@ -144,7 +143,7 @@ export default function IdentityOnboardingPage() {
   }
 
   return (
-    <OnboardingShell
+    <Shell
       activeStep="identity"
       introBody="Your identity keys stay on your device. Server interactions only use the public key and signed proofs."
       introTitle="Set up your local identity"
@@ -208,13 +207,13 @@ export default function IdentityOnboardingPage() {
       ) : null}
 
       <div className={styles.ctaRow}>
-        <Link className={styles.buttonGhost} href="/">
+        <ButtonLink href="/" variant="ghost">
           Back
-        </Link>
+        </ButtonLink>
         <Button disabled={!canContinue || loading} onClick={handleContinue} variant="primary">
           {loading ? "Creating identity..." : "Continue to recovery"}
         </Button>
       </div>
-    </OnboardingShell>
+    </Shell>
   );
 }

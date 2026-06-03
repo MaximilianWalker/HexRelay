@@ -2,7 +2,7 @@ import type { InputHTMLAttributes, ReactNode } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./ui.module.css";
+import styles from "./styles.module.css";
 
 export function CheckboxField({
   children,

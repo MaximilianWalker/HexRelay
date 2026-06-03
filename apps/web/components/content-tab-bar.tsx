@@ -1,6 +1,7 @@
 import type { Ref, ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight, type Icon } from "@tabler/icons-react";
 
+import { PressableButton } from "@/components/ui/pressable-button";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./content-tab-bar.module.css";
@@ -73,17 +74,16 @@ export function ContentTabBar({
             );
 
             return handleTabSelect ? (
-              <button
-                aria-pressed={active}
+              <PressableButton
                 className={tabClassName}
                 data-tab-id={tab.id}
                 key={tab.id}
                 onClick={handleTabSelect}
+                pressed={active}
                 ref={active ? (activeTabRef as Ref<HTMLButtonElement>) : undefined}
-                type="button"
               >
                 {tabContent}
-              </button>
+              </PressableButton>
             ) : (
               <div
                 className={tabClassName}

@@ -10,7 +10,7 @@ const frameworkRoots = [
   "components/settings",
   "components/onboarding",
 ];
-const sharedUiStylesPath = "components/ui/ui.module.css";
+const sharedUiStylesPath = "components/ui/control.module.css";
 const sharedActionControlTypographyExpectations = [
   {
     selector: ".button",
@@ -59,9 +59,10 @@ const activeControlExpectations = [
     },
   },
   {
-    selector: ".segmentedButtonActive",
+    selector: ".segmentedButton.segmentedButtonActive",
     properties: {
       "background": "var(--color-accent-strong)",
+      "border-color": "var(--color-accent-strong)",
       "color": "var(--color-text-inverse)",
     },
   },

@@ -27,12 +27,14 @@
 ## UI Framework Conventions
 
 - Shared UI code for `apps/web` lives under `apps/web/components/ui`, with token-backed CSS Modules and no route-owned visual systems for repeated controls.
+- The UI framework is layered as tokens/themes, headless behavior hooks, primitives, feature recipes, and route composition. Route files should orchestrate data and layout instead of owning repeated control semantics.
 - Global CSS is split into `apps/web/app/styles/tokens.css`, `themes.css`, and `base.css`, imported only through `apps/web/app/globals.css`.
 - Component CSS should use semantic variables such as `--color-bg-app`, `--color-surface`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-danger`, `--color-warning`, and `--color-success`.
 - Primitive palette values stay private to the theme files. Custom themes override semantic variables instead of editing component internals.
-- Reusable primitives are `Avatar`, `Badge`, `Button`, `Dialog`, `EmptyState`, `Field`, `IconButton`, `Notice`, `Panel`, `SegmentedControl`, `Toolbar`, and `VisuallyHidden`.
+- Reusable primitives are `Avatar`, `Badge`, `Button`, `ButtonLink`, `Dialog`, `EmptyState`, `Field`, `IconButton`, `Menu`, `MenuItem`, `Notice`, `Panel`, `SegmentedControl`, `ToggleButton`, `ToggleGroup`, `Toolbar`, and `VisuallyHidden`.
+- Component and file names should use folder context instead of repeating it. For example, `components/hubs/toolbar.tsx` exports `Toolbar`; callers rely on the import path for hub context.
 - Feature components own repeated behavior by surface:
-  - `components/hubs`: hub toolbar, bulk actions, card/list surface, item rendering, and context menu behavior.
+  - `components/hubs`: toolbar, bulk actions, card/list surface, item rendering, and context menu behavior.
   - `components/chat`: channel rail, message timeline, message row, composer, and presence indicators.
   - `components/settings`: setting panel, row, and status alignment.
   - `components/onboarding`: onboarding shell and step layout.
@@ -49,6 +51,7 @@
 ### CSS Validation
 
 - `npm --prefix apps/web run lint:styles` checks new framework CSS for raw color usage.
+- `npm --prefix apps/web run lint` also runs naming and UI-framework validators that reject redundant path-context names, repeated local pressed controls, and route-owned copies of shared controls.
 - Raw hex, rgb, rgba, hsl, hsla, one-off repeated radii, and one-off repeated spacing should be moved into tokens or semantic theme variables when promoting route CSS into shared components.
 
 ## Primary App Surfaces
