@@ -1,5 +1,6 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
@@ -37,19 +38,28 @@ export function WorkspaceProfileMenu({
   }
 
   return (
-    <div aria-label="Profile actions menu" className={styles.menu} data-placement={placement} id="profile-more-menu" role="dialog">
-      <button
-        aria-pressed={collapsed}
+    <Menu
+      aria-label="Profile actions menu"
+      className={styles.menu}
+      data-placement={placement}
+      id="profile-more-menu"
+      position="absolute"
+      role="dialog"
+    >
+      <MenuItem
         className={styles.menuItem}
+        icon={<IconFocusCentered className={styles.menuIcon} aria-hidden="true" />}
         onClick={() => onSetCollapsed(!collapsed)}
-        type="button"
+        pressed={collapsed}
+        role="button"
+        trailing={
+          <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
+            <span />
+          </span>
+        }
       >
-        <IconFocusCentered className={styles.menuIcon} aria-hidden="true" />
-        <span>Compact mode</span>
-        <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
-          <span />
-        </span>
-      </button>
+        Compact mode
+      </MenuItem>
 
       <div className={styles.layoutItem}>
         <IconArrowsExchange className={styles.menuIcon} aria-hidden="true" />
@@ -64,18 +74,18 @@ export function WorkspaceProfileMenu({
         </div>
       </div>
 
-      <button
+      <MenuItem
         className={styles.menuItem}
+        icon={<IconMicrophone className={styles.menuIcon} aria-hidden="true" />}
         onClick={() => {
           onOpenAudioDevices();
           onClose();
         }}
-        type="button"
+        role="button"
+        trailing={<IconChevronRight className={styles.menuChevron} aria-hidden="true" />}
       >
-        <IconMicrophone className={styles.menuIcon} aria-hidden="true" />
-        <span>Audio devices</span>
-        <IconChevronRight className={styles.menuChevron} aria-hidden="true" />
-      </button>
-    </div>
+        Audio devices
+      </MenuItem>
+    </Menu>
   );
 }

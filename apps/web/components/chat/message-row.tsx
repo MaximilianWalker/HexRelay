@@ -8,7 +8,7 @@ import type { MessageAlignment, MessageBubbleSize, MessageLayout } from "@/lib/w
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
 
-import styles from "./chat.module.css";
+import styles from "./styles.module.css";
 
 export function MessageRow({
   alignment,

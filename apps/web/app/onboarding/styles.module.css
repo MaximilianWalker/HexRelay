@@ -1,0 +1,31 @@
+.notice {
+  overflow-wrap: anywhere;
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-control);
+  margin-top: var(--gap-section);
+}
+
+.choiceGrid {
+  display: grid;
+  gap: var(--gap-list);
+}
+
+.choice {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.choiceTitle {
+  color: var(--color-text-strong);
+  font-size: var(--text-body);
+  font-weight: var(--weight-bold);
+}
+
+.choiceText {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}

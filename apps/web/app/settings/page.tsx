@@ -14,12 +14,12 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react";
 
-import { SettingPanel } from "@/components/settings/setting-panel";
-import { SettingButton } from "@/components/settings/setting-button";
-import { SettingRow } from "@/components/settings/setting-row";
-import { SettingSelect } from "@/components/settings/setting-select";
-import { SettingToggle } from "@/components/settings/setting-toggle";
-import { SettingValue } from "@/components/settings/setting-value";
+import { Panel } from "@/components/settings/panel";
+import { Button } from "@/components/settings/button";
+import { Row } from "@/components/settings/row";
+import { Select } from "@/components/settings/select";
+import { Toggle } from "@/components/settings/toggle";
+import { Value } from "@/components/settings/value";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import {
   activateTestingSession,
@@ -71,7 +71,7 @@ import {
 } from "@/lib/workspace-preferences";
 import { syncWorkspaceTabsForRestoreMode } from "@/lib/workspace-tabs";
 
-import settingsStyles from "./settings.module.css";
+import settingsStyles from "./styles.module.css";
 
 const DM_POLICY_KEY = "hexrelay.settings.dm-policy";
 const DM_POLICY_EVENT = "hexrelay-dm-policy-changed";
@@ -554,13 +554,13 @@ export default function SettingsPage() {
     >
       <section className={settingsStyles.page}>
         {activeSettingsTab === "profile" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="The profile used for local sessions, privacy policy updates, contacts, and fixture validation."
             label="Active profile"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Active profile"
               disabled={personas.length === 0}
               onChange={(event) => updateProfile(event.target.value)}
@@ -572,42 +572,42 @@ export default function SettingsPage() {
                   {persona.name}
                 </option>
               ))}
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Shows whether the selected profile has a browser runtime session."
             label="Session status"
             status="Live"
           >
-            <SettingValue>{hasSession ? "Active" : "No active session"}</SettingValue>
-          </SettingRow>
-          <SettingRow
+            <Value>{hasSession ? "Active" : "No active session"}</Value>
+          </Row>
+          <Row
             description="Session revoke on profile switch or removal is mandatory for the current security model."
             label="Session revoke on switch/remove"
             status="Locked"
           >
-            <SettingToggle checked disabled label="Session revoke on switch or remove" />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked disabled label="Session revoke on switch or remove" />
+          </Row>
+          <Row
             description="Recovery material remains device-local; export flow still needs final product approval."
             label="Recovery phrase export"
             status="Review"
           >
-            <SettingButton disabled>
+            <Button disabled>
               Review flow
-            </SettingButton>
-          </SettingRow>
-          </SettingPanel>
+            </Button>
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "privacy" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description={policyMessage ?? "Controls who can start an inbound private-message conversation."}
             label="DM inbound policy"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="DM inbound policy"
               disabled={!hasSession || policyBusy}
               onChange={(event) => void updatePolicy(event.target.value as DmPolicy)}
@@ -616,163 +616,163 @@ export default function SettingsPage() {
               <option value="friends_only">Friends only</option>
               <option value="same_server">Same server</option>
               <option value="anyone">Anyone</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Current product behavior requires explicit approval before contacts can message."
             label="Contact request approval"
             status="Review"
           >
-            <SettingSelect aria-label="Contact request approval" disabled value="manual">
+            <Select aria-label="Contact request approval" disabled value="manual">
               <option value="manual">Manual approval</option>
               <option value="auto">Auto-accept trusted requests</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Discovery is not part of the current MVP surface."
             label="Profile discoverability"
             status="Review"
           >
-            <SettingSelect aria-label="Profile discoverability" disabled value="off">
+            <Select aria-label="Profile discoverability" disabled value="off">
               <option value="off">Off</option>
               <option value="contacts">Contacts only</option>
               <option value="server">Shared servers</option>
-            </SettingSelect>
-          </SettingRow>
-          </SettingPanel>
+            </Select>
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "devices" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="Runtime sessions are isolated to browser session storage per persona."
             label="Current session storage"
             status="Locked"
           >
-            <SettingValue>Session storage</SettingValue>
-          </SettingRow>
-          <SettingRow
+            <Value>Session storage</Value>
+          </Row>
+          <Row
             description="Private keys stay client/device-only and are not uploaded to servers."
             label="Private key storage"
             status="Locked"
           >
-            <SettingValue>Device-only</SettingValue>
-          </SettingRow>
-          <SettingRow
+            <Value>Device-only</Value>
+          </Row>
+          <Row
             description="Profile-device heartbeat exists in the API; user-facing device management is not wired yet."
             label="Device heartbeat mode"
             status="Review"
           >
-            <SettingSelect aria-label="Device heartbeat mode" disabled value="runtime">
+            <Select aria-label="Device heartbeat mode" disabled value="runtime">
               <option value="runtime">Runtime managed</option>
               <option value="manual">Manual</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Future control for revoking stale device sessions from the selected profile."
             label="Revoke other devices"
             status="Review"
           >
-            <SettingButton disabled>
+            <Button disabled>
               Review action
-            </SettingButton>
-          </SettingRow>
-          </SettingPanel>
+            </Button>
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "notifications" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="Desktop notification permission and delivery are not implemented in the web client yet."
             label="Desktop notifications"
             status="Review"
           >
-            <SettingToggle checked={false} disabled label="Desktop notifications" />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked={false} disabled label="Desktop notifications" />
+          </Row>
+          <Row
             description="Notification rules for encrypted DMs still need product copy and runtime delivery hooks."
             label="DM notifications"
             status="Review"
           >
-            <SettingSelect aria-label="DM notifications" disabled value="mentions_dms">
+            <Select aria-label="DM notifications" disabled value="mentions_dms">
               <option value="mentions_dms">Mentions and DMs</option>
               <option value="mentions">Mentions only</option>
               <option value="off">Off</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Friend/contact request notification behavior still needs approval."
             label="Contact request notifications"
             status="Review"
           >
-            <SettingToggle checked={false} disabled label="Contact request notifications" />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked={false} disabled label="Contact request notifications" />
+          </Row>
+          <Row
             description="Server-channel notification policy is future work for server-channel surfaces."
             label="Server channel notifications"
             status="Review"
           >
-            <SettingSelect aria-label="Server channel notifications" disabled value="mentions">
+            <Select aria-label="Server channel notifications" disabled value="mentions">
               <option value="mentions">Mentions only</option>
               <option value="all">All messages</option>
               <option value="muted">Muted</option>
-            </SettingSelect>
-          </SettingRow>
-          </SettingPanel>
+            </Select>
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "voice-video" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="Mirrors the current workspace microphone quick control."
             label="Microphone muted"
             status="Live"
           >
-            <SettingToggle checked={microphoneMuted} label="Microphone muted" onChange={setMicrophoneMuted} />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked={microphoneMuted} label="Microphone muted" onChange={setMicrophoneMuted} />
+          </Row>
+          <Row
             description="Mirrors the current workspace sound quick control."
             label="Sound muted"
             status="Live"
           >
-            <SettingToggle checked={soundMuted} label="Sound muted" onChange={setSoundMuted} />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked={soundMuted} label="Sound muted" onChange={setSoundMuted} />
+          </Row>
+          <Row
             description="Voice device selection should stay local to the desktop/browser runtime."
             label="Input device"
             status="Review"
           >
-            <SettingSelect aria-label="Input device" disabled value="system">
+            <Select aria-label="Input device" disabled value="system">
               <option value="system">System default</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Output routing belongs with voice readiness, not the current MVP settings behavior."
             label="Output device"
             status="Review"
           >
-            <SettingSelect aria-label="Output device" disabled value="system">
+            <Select aria-label="Output device" disabled value="system">
               <option value="system">System default</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Audio processing controls should be added only with the actual voice stack."
             label="Noise suppression"
             status="Review"
           >
-            <SettingToggle checked={false} disabled label="Noise suppression" />
-          </SettingRow>
-          </SettingPanel>
+            <Toggle checked={false} disabled label="Noise suppression" />
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "appearance" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="Controls the app color theme across all shared UI surfaces."
             label="Theme"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Theme"
               onChange={(event) => setThemePreference(event.target.value as ThemePreference)}
               value={themePreference}
@@ -780,134 +780,134 @@ export default function SettingsPage() {
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Switches the main app navigation between sidebar and top bar layouts."
             label="Navigation layout"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Navigation layout"
               onChange={(event) => setNavLayout(event.target.value as NavLayout)}
               value={navLayout}
             >
               <option value="sidebar">Sidebar</option>
               <option value="topbar">Top bar</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Controls whether the current sidebar/top bar chrome is collapsed."
             label="Navigation collapsed"
             status="Live"
           >
-            <SettingToggle checked={sidebarCollapsed} label="Navigation collapsed" onChange={setSidebarCollapsed} />
-          </SettingRow>
-          <SettingRow
+            <Toggle checked={sidebarCollapsed} label="Navigation collapsed" onChange={setSidebarCollapsed} />
+          </Row>
+          <Row
             description="Controls whether normal workspace tabs reopen across app sessions."
             label="Workspace tab restore"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Workspace tab restore"
               onChange={(event) => updateTabRestoreMode(event.target.value as TabRestoreMode)}
               value={tabRestoreMode}
             >
               <option value="pinned">Pinned tabs only</option>
               <option value="all">Pinned and normal tabs</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Choose whether channel messages render as separated bubble cards or a continuous feed."
             label="Message layout"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Message layout"
               onChange={(event) => setMessageLayout(event.target.value as MessageLayout)}
               value={messageLayout}
             >
               <option value="bubble-cards">Bubble cards</option>
               <option value="continuous-feed">Continuous feed</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Controls message padding and spacing for people who want a tighter chat view."
             label="Message bubble size"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Message bubble size"
               onChange={(event) => setMessageBubbleSize(event.target.value as MessageBubbleSize)}
               value={messageBubbleSize}
             >
               <option value="comfortable">Comfortable</option>
               <option value="compact">Compact</option>
-            </SettingSelect>
-          </SettingRow>
-          <SettingRow
+            </Select>
+          </Row>
+          <Row
             description="Controls whether your messages sit on the right while everyone else stays on the left."
             label="Message alignment"
             status="Live"
           >
-            <SettingSelect
+            <Select
               aria-label="Message alignment"
               onChange={(event) => setMessageAlignment(event.target.value as MessageAlignment)}
               value={messageAlignment}
             >
               <option value="conversation-sides">Mine right, others left</option>
               <option value="single-column">Single column</option>
-            </SettingSelect>
-          </SettingRow>
-          </SettingPanel>
+            </Select>
+          </Row>
+          </Panel>
         ) : null}
 
         {activeSettingsTab === "advanced" ? (
-          <SettingPanel category={activeSettingsCategory}>
-          <SettingRow
+          <Panel category={activeSettingsCategory}>
+          <Row
             description="Public API endpoint used by this web client."
             label="API base URL"
             status="Live"
           >
-            <SettingValue>{env.NEXT_PUBLIC_API_BASE_URL}</SettingValue>
-          </SettingRow>
-          <SettingRow
+            <Value>{env.NEXT_PUBLIC_API_BASE_URL}</Value>
+          </Row>
+          <Row
             description="Realtime websocket endpoint used by this web client."
             label="Realtime URL"
             status="Live"
           >
-            <SettingValue>{env.NEXT_PUBLIC_REALTIME_WS_URL}</SettingValue>
-          </SettingRow>
-          <SettingRow
+            <Value>{env.NEXT_PUBLIC_REALTIME_WS_URL}</Value>
+          </Row>
+          <Row
             description="User-owned export/import is a product guardrail but not wired into the web client yet."
             label="Export profile data"
             status="Review"
           >
-            <SettingButton disabled>
+            <Button disabled>
               Review export
-            </SettingButton>
-          </SettingRow>
-          <SettingRow
+            </Button>
+          </Row>
+          <Row
             description="Import flow should be specified with the same portability/export model."
             label="Import profile data"
             status="Review"
           >
-            <SettingButton disabled>
+            <Button disabled>
               Review import
-            </SettingButton>
-          </SettingRow>
-          <SettingRow
+            </Button>
+          </Row>
+          <Row
             description="Diagnostics should be added after runtime health states are normalized."
             label="Diagnostics mode"
             status="Review"
           >
-            <SettingToggle checked={false} disabled label="Diagnostics mode" />
-          </SettingRow>
-          </SettingPanel>
+            <Toggle checked={false} disabled label="Diagnostics mode" />
+          </Row>
+          </Panel>
         ) : null}
 
         {SHOW_DEV_TESTING && activeSettingsTab === "developer" ? (
-          <SettingPanel category={activeSettingsCategory}>
+          <Panel category={activeSettingsCategory}>
             <div className={devTestingAvailable ? settingsStyles.notice : settingsStyles.warningNotice}>
               <IconFlask className={settingsStyles.icon} aria-hidden="true" />
               <div>
@@ -921,13 +921,13 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <SettingRow
+            <Row
               description="Creates a real local dev session for the selected seeded profile."
               label="Testing profile"
               status="Dev only"
             >
               <div className={settingsStyles.controlStack}>
-                <SettingSelect
+                <Select
                   aria-label="Testing profile"
                   disabled={!devTestingAvailable || testingBusy !== null}
                   onChange={(event) => setSelectedTestingProfileId(event.target.value)}
@@ -939,17 +939,17 @@ export default function SettingsPage() {
                       {profile.profile_id}
                     </option>
                   ))}
-                </SettingSelect>
-                <SettingButton
+                </Select>
+                <Button
                   disabled={!selectedTestingProfile || testingBusy !== null}
                   onClick={() => void activateSelectedTestingProfile()}
                   variant="primary"
                 >
                   {testingBusy === "profile" ? "Activating..." : "Activate profile"}
-                </SettingButton>
+                </Button>
               </div>
-            </SettingRow>
-            <SettingRow
+            </Row>
+            <Row
               description={
                 selectedShortcut
                   ? `${selectedShortcut.description} Seed: ${selectedShortcut.scenarioId}; profile: ${selectedShortcut.profileId}.`
@@ -959,7 +959,7 @@ export default function SettingsPage() {
               status="Dev only"
             >
               <div className={settingsStyles.controlStack}>
-                <SettingSelect
+                <Select
                   aria-label="Fixture shortcut"
                   disabled={!devTestingAvailable || testingBusy !== null}
                   onChange={(event) => setSelectedShortcutId(event.target.value)}
@@ -970,30 +970,30 @@ export default function SettingsPage() {
                       {shortcut.label}
                     </option>
                   ))}
-                </SettingSelect>
-                <SettingButton
+                </Select>
+                <Button
                   disabled={!selectedShortcutProfile || testingBusy !== null}
                   onClick={() => void openSelectedTestingShortcut()}
                   variant="primary"
                 >
                   {testingBusy === "shortcut" ? "Opening..." : "Open shortcut"}
-                </SettingButton>
+                </Button>
               </div>
-            </SettingRow>
-            <SettingRow
+            </Row>
+            <Row
               description="Known fixture scenarios available in fixtures/dev-seed/scenarios."
               label="Seed scenarios"
               status="Dev only"
             >
-              <SettingValue>dm-basic, contacts-edge, server-chat</SettingValue>
-            </SettingRow>
+              <Value>dm-basic, contacts-edge, server-chat</Value>
+            </Row>
             {testingMessage ? (
               <div className={settingsStyles.inlineMessage}>
                 <IconRoute className={settingsStyles.icon} aria-hidden="true" />
                 {testingMessage}
               </div>
             ) : null}
-          </SettingPanel>
+          </Panel>
         ) : null}
       </section>
     </WorkspaceShell>

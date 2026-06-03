@@ -6,14 +6,14 @@
 - Owner: HexRelay maintainers
 - Status: ready
 - Scope: repository
-- last_updated: 2026-05-28
+- last_updated: 2026-06-03
 - Source of truth: `docs/README.md`
 
 ## Quick Context
 
 - Primary edit location for this document's canonical topic.
 - Update this file when its source-of-truth topic changes.
-- Latest meaningful change: 2026-05-28 refreshed the index after navigation docs added shared web UI framework conventions and implementation guidance.
+- Latest meaningful change: 2026-06-03 refreshed the index after navigation docs added UI framework layer, shared primitive, validator, and contextual naming guidance.
 
 ## Purpose
 

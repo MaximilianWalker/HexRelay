@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
-
-import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { Shell } from "@/components/onboarding/shell";
+import { ButtonLink } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { Panel } from "@/components/ui/panel";
-import styles from "../onboarding.module.css";
+import styles from "../styles.module.css";
 
 export default function AccessOnboardingPage() {
   return (
-    <OnboardingShell
+    <Shell
       activeStep="access"
       finalStepLabel="3. Complete"
       introBody="Server join and friend-request actions now happen inside the main app to keep onboarding focused and predictable."
@@ -39,13 +38,13 @@ export default function AccessOnboardingPage() {
       </div>
 
       <div className={styles.ctaRow}>
-        <Link className={styles.buttonGhost} href="/onboarding/recovery">
+        <ButtonLink href="/onboarding/recovery" variant="ghost">
           Back to recovery
-        </Link>
-        <Link className={styles.button} href="/home">
+        </ButtonLink>
+        <ButtonLink href="/home" variant="primary">
           Enter HexRelay
-        </Link>
+        </ButtonLink>
       </div>
-    </OnboardingShell>
+    </Shell>
   );
 }

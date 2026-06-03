@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useRouter } from "next/navigation";
 import { IconPlus, IconServer2 } from "@tabler/icons-react";
 
-import { HubBulkActions } from "@/components/hubs/hub-bulk-actions";
-import { HubItemActions } from "@/components/hubs/hub-item-actions";
-import { HubSurface } from "@/components/hubs/hub-surface";
-import { HubToolbar } from "@/components/hubs/hub-toolbar";
+import { BulkActions } from "@/components/hubs/bulk-actions";
+import { ItemActions } from "@/components/hubs/item-actions";
+import { Surface } from "@/components/hubs/surface";
+import { Toolbar } from "@/components/hubs/toolbar";
 import { ServerCreateDialog } from "@/components/hubs/server-create-dialog";
 import { ServerJoinDialog } from "@/components/hubs/server-join-dialog";
 import { ServerLeaveDialog } from "@/components/hubs/server-leave-dialog";
@@ -293,7 +293,7 @@ export default function ServersPage() {
       <section>
         {actionMessage && activePanel === null ? <p className={styles.state}>{actionMessage}</p> : null}
 
-        <HubToolbar
+        <Toolbar
           actions={
             <>
               <Button
@@ -330,7 +330,7 @@ export default function ServersPage() {
         />
 
         {selecting ? (
-          <HubBulkActions
+          <BulkActions
             busy={busy}
             destructiveLabel="Leave"
             onDestructive={() => setLeaveTargets(selectedServers())}
@@ -353,14 +353,14 @@ export default function ServersPage() {
         {pageState === "empty" ? <p className={styles.state}>No servers yet. Join or create a server to get started.</p> : null}
 
         {visibleServers.length > 0 ? (
-          <HubSurface
+          <Surface
             items={visibleServers}
             layout={layout}
             noun="server"
             onOpen={(server) => router.push(serverWorkspaceRoute(server.id))}
             onToggleSelected={toggleSelected}
             renderActions={(server) => (
-              <HubItemActions
+              <ItemActions
                 busy={busy}
                 destructiveLabel="Leave"
                 muted={server.muted}

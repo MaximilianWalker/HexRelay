@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./ui.module.css";
+import styles from "./control.module.css";
 
 type ToggleSwitchProps = {
   checked: boolean;

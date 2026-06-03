@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./chat.module.css";
+import styles from "./styles.module.css";
 
 export function ChannelRail({
   children,

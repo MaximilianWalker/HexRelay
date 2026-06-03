@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { MessageBubbleSize, MessageLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./chat.module.css";
+import styles from "./styles.module.css";
 
 export function MessageTimeline({
   bubbleSize,

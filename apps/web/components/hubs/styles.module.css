@@ -1,0 +1,229 @@
+.hubToolbarStack {
+  display: grid;
+  gap: var(--gap-section);
+  margin-bottom: var(--gap-section);
+}
+
+.dialogForm,
+.dialogStack {
+  display: grid;
+  gap: var(--gap-panel);
+}
+
+.searchWrap {
+  position: relative;
+  min-width: min(100%, 260px);
+}
+
+.searchWrap input {
+  padding-left: calc(var(--size-icon-sm) + var(--space-10));
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-6);
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.hubGrid,
+.hubList {
+  display: grid;
+  gap: var(--gap-list);
+}
+
+.hubGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.hubList {
+  grid-template-columns: 1fr;
+}
+
+.hubItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--pad-card);
+  background: var(--color-surface-subtle);
+}
+
+.hubItemList {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.hubItemSelected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.hubItemMain {
+  display: grid;
+  grid-template-columns: var(--size-avatar-md) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+  border: 0;
+  padding: var(--space-0);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.hubItemText {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.hubItemTitle,
+.hubItemMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hubItemTitle {
+  color: var(--color-text-strong);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+}
+
+.hubItemMeta {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.hubBadges,
+.hubActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hubBadges {
+  grid-column: 2;
+}
+
+.hubActions {
+  grid-column: 1 / -1;
+}
+
+.hubItemList .hubBadges,
+.hubItemList .hubActions {
+  grid-column: auto;
+  justify-content: flex-end;
+}
+
+.selectIndicator {
+  display: inline-flex;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-accent-strong);
+}
+
+.selectIndicatorActive {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-text-inverse);
+}
+
+.contextMenu {
+  min-width: 180px;
+}
+
+.requestSection {
+  display: grid;
+  gap: var(--gap-panel);
+  margin-bottom: var(--gap-section);
+}
+
+.requestTitle {
+  color: var(--color-text-strong);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+}
+
+.requestGrid,
+.discoveryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-20) * 6)), 1fr));
+  gap: var(--gap-list);
+  min-width: 0;
+}
+
+.requestCard,
+.discoveryCard {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.requestHeader,
+.discoveryHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.requestPeer,
+.discoveryCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.requestPeer p,
+.discoveryCopy p {
+  overflow: hidden;
+  color: var(--color-text-strong);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requestPeer span,
+.discoveryCopy span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requestBadges,
+.requestActions,
+.discoveryBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex: 0 0 var(--size-icon-sm);
+  stroke-width: 1.8;
+}
