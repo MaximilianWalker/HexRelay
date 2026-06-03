@@ -35,7 +35,6 @@ function ToggleGroupButton<T extends string>({ active, onChange, option }: Toggl
   return (
     <button
       className={cx(styles.segmentedButton, active && styles.segmentedButtonActive)}
-      key={option.id}
       type="button"
       {...buttonProps}
     >

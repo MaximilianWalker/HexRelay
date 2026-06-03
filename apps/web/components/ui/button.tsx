@@ -62,16 +62,17 @@ export function Button({
   loading,
   pressed,
   size = "md",
+  type = "button",
   variant = "secondary",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & ButtonStyleProps) {
   return (
     <button
+      {...props}
       aria-busy={loading || undefined}
       aria-pressed={pressed}
       className={buttonClassName({ className, pressed, size, variant })}
-      type="button"
-      {...props}
+      type={type}
     >
       {renderButtonContent(children, icon, iconPosition)}
     </button>
@@ -89,6 +90,7 @@ export function ButtonLink({
   children,
   className,
   disabled,
+  href,
   icon,
   iconPosition = "start",
   loading,
@@ -110,14 +112,15 @@ export function ButtonLink({
 
   return (
     <Link
+      {...props}
       aria-busy={loading || undefined}
       aria-disabled={disabled || undefined}
       aria-pressed={pressed}
       className={buttonClassName({ className, pressed, size, variant })}
       data-disabled={disabled ? "true" : undefined}
+      href={disabled ? "#" : href}
       onClick={handleClick}
       tabIndex={disabled ? -1 : tabIndex}
-      {...props}
     >
       {renderButtonContent(children, icon, iconPosition)}
     </Link>

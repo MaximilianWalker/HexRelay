@@ -7,7 +7,6 @@ const ignoredDirectories = new Set([
   ".next",
   "coverage",
   "node_modules",
-  "validators",
 ]);
 const ignoredParentNames = new Set([
   "app",

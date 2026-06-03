@@ -51,6 +51,7 @@ export function WorkspaceProfileMenu({
         icon={<IconFocusCentered className={styles.menuIcon} aria-hidden="true" />}
         onClick={() => onSetCollapsed(!collapsed)}
         pressed={collapsed}
+        role="button"
         trailing={
           <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
             <span />
@@ -80,6 +81,7 @@ export function WorkspaceProfileMenu({
           onOpenAudioDevices();
           onClose();
         }}
+        role="button"
         trailing={<IconChevronRight className={styles.menuChevron} aria-hidden="true" />}
       >
         Audio devices

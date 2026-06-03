@@ -58,6 +58,20 @@ describe("shared controls", () => {
     expect(screen.getByRole("link", { name: "Servers" })).toHaveAttribute("href", "/servers");
   });
 
+  it("removes target navigation from disabled link-capable buttons", () => {
+    render(
+      <ButtonLink disabled href="/onboarding/access">
+        Continue to access
+      </ButtonLink>,
+    );
+
+    const link = screen.getByRole("link", { name: "Continue to access" });
+
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("href", "#");
+    expect(link).toHaveAttribute("tabindex", "-1");
+  });
+
   it("moves focus between menu items with arrow keys", async () => {
     const user = userEvent.setup();
 
@@ -75,5 +89,18 @@ describe("shared controls", () => {
     await user.keyboard("{ArrowDown}");
 
     expect(second).toHaveFocus();
+  });
+
+  it("supports dialog-style menu rows without ARIA menuitem roles", () => {
+    render(
+      <Menu role="dialog">
+        <MenuItem pressed role="button">
+          Compact mode
+        </MenuItem>
+      </Menu>,
+    );
+
+    expect(screen.getByRole("button", { name: "Compact mode" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Compact mode" })).not.toBeInTheDocument();
   });
 });

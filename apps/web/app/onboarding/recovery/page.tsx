@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
 import { Shell } from "@/components/onboarding/shell";
@@ -79,9 +79,15 @@ export default function RecoveryOnboardingPage() {
         <ButtonLink href="/onboarding/identity" variant="ghost">
           Back to identity
         </ButtonLink>
-        <ButtonLink disabled={!confirmed} href="/onboarding/access" variant="primary">
-          Continue to access
-        </ButtonLink>
+        {confirmed ? (
+          <ButtonLink href="/onboarding/access" variant="primary">
+            Continue to access
+          </ButtonLink>
+        ) : (
+          <Button disabled variant="primary">
+            Continue to access
+          </Button>
+        )}
       </div>
     </Shell>
   );

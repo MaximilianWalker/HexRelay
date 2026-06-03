@@ -70,13 +70,17 @@ export function MenuItem({
   tone?: MenuTone;
   trailing?: ReactNode;
 }) {
+  const itemRole = role ?? (pressed === undefined ? "menuitem" : "menuitemcheckbox");
+  const nativeButtonRole = itemRole === "button";
+
   return (
     <button
-      aria-checked={pressed}
-      className={cx(styles.menuItem, tone === "danger" && styles.menuItemDanger, className)}
-      role={role ?? (pressed === undefined ? "menuitem" : "menuitemcheckbox")}
-      type="button"
       {...props}
+      aria-checked={!nativeButtonRole ? pressed : undefined}
+      aria-pressed={nativeButtonRole ? pressed : undefined}
+      className={cx(styles.menuItem, tone === "danger" && styles.menuItemDanger, className)}
+      role={nativeButtonRole ? undefined : itemRole}
+      type="button"
     >
       {icon ? <span className={styles.menuIcon}>{icon}</span> : null}
       <span className={styles.menuItemLabel}>{children}</span>
