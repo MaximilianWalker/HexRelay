@@ -9,6 +9,7 @@
 
 .button {
   display: inline-flex;
+  height: var(--size-control-md);
   min-height: var(--size-control-md);
   align-items: center;
   justify-content: center;
@@ -43,7 +44,6 @@
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-inverse);
-  font-weight: var(--weight-bold);
 }
 
 .buttonPrimary:hover,
@@ -76,6 +76,7 @@
 }
 
 .buttonSm {
+  height: var(--size-control-sm);
   min-height: var(--size-control-sm);
   padding: var(--pad-control-sm);
   font-size: var(--text-sm);
@@ -87,6 +88,14 @@
   flex: 0 0 var(--size-control-md);
   padding: var(--space-0);
   border-radius: var(--radius-md);
+}
+
+.button > svg {
+  display: block;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex: 0 0 var(--size-icon-sm);
+  stroke-width: 1.8;
 }
 
 .buttonPressed {
@@ -113,6 +122,7 @@
 
 .segmentedButton {
   display: inline-flex;
+  height: var(--size-control-md);
   min-height: var(--size-control-md);
   align-items: center;
   gap: var(--gap-icon);
@@ -122,6 +132,14 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+}
+
+.segmentedButton > svg {
+  display: block;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex: 0 0 var(--size-icon-sm);
+  stroke-width: 1.8;
 }
 
 .segmentedButton:last-child {

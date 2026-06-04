@@ -90,20 +90,30 @@ function pascalToken(token) {
     .join("");
 }
 
-function auditFileName(fullPath) {
+function pathContextTokens(fullPath) {
   const parts = normalizePath(fullPath).split("/");
   const fileName = parts.at(-1) ?? "";
-  const parentName = parts.at(-2) ?? "";
+  const directories = parts.slice(0, -1);
+  const tokens = directories.flatMap((directory) => contextTokens(directory));
+
+  return {
+    fileName,
+    tokens: [...new Set(tokens)],
+  };
+}
+
+function auditFileName(fullPath) {
+  const { fileName, tokens } = pathContextTokens(fullPath);
 
   if (ignoredFileNames.has(fileName)) {
     return;
   }
 
   const fileStem = stem(fileName);
-  for (const token of contextTokens(parentName)) {
+  for (const token of tokens) {
     if (startsWithContext(fileStem, token)) {
       failures.push(
-        `${normalizePath(fullPath)}: redundant filename context "${token}" already provided by parent folder "${parentName}"`,
+        `${normalizePath(fullPath)}: redundant filename context "${token}" already provided by path context`,
       );
       return;
     }
@@ -111,9 +121,7 @@ function auditFileName(fullPath) {
 }
 
 function auditExports(fullPath) {
-  const parts = normalizePath(fullPath).split("/");
-  const parentName = parts.at(-2) ?? "";
-  const tokens = contextTokens(parentName);
+  const { tokens } = pathContextTokens(fullPath);
   if (tokens.length === 0) {
     return;
   }
@@ -128,7 +136,7 @@ function auditExports(fullPath) {
       const prefix = pascalToken(token);
       if (prefix && exportName !== prefix && exportName.startsWith(prefix)) {
         failures.push(
-          `${normalizePath(fullPath)}: export "${exportName}" repeats parent folder context "${parentName}"`,
+          `${normalizePath(fullPath)}: export "${exportName}" repeats path context "${token}"`,
         );
         return;
       }

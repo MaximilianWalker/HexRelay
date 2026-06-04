@@ -4,15 +4,15 @@
   --chrome-edge-inline: calc(var(--chrome-space) * 2);
   --sidebar-edge-block-start: var(--space-4);
   --sidebar-nav-icon-expanded-size: calc(var(--sidebar-nav-icon-size) + var(--space-3));
-  --sidebar-nav-link-height: calc(var(--workspace-tab-height) + var(--space-4));
+  --sidebar-nav-link-height: calc(var(--open-tab-height) + var(--space-4));
   --sidebar-nav-panel-pad: var(--space-2);
   --sidebar-action-height: calc(var(--space-20) + var(--space-7));
   --profile-avatar-size: calc(var(--space-20) + var(--space-1));
   --topbar-edge-block-start: var(--space-8);
   --topbar-edge-inline: var(--chrome-edge-inline);
   --topbar-row-gap: var(--space-8);
-  --topbar-workspace-row-padding: var(--space-4);
-  --topbar-primary-control-height: calc(var(--workspace-tab-height) + (var(--chrome-space) * 2));
+  --topbar-tab-row-padding: var(--space-4);
+  --topbar-primary-control-height: calc(var(--open-tab-height) + (var(--chrome-space) * 2));
   --topbar-primary-row-height: calc(
     var(--topbar-edge-block-start) + var(--topbar-primary-control-height) + var(--topbar-row-gap)
   );
@@ -21,13 +21,13 @@
   --sidebar-nav-icon-size: calc(var(--space-8) + var(--space-1));
   --sidebar-nav-icon-offset: calc((var(--brand-lockup-size-lg-mark) - var(--sidebar-nav-icon-size)) / 2);
   --sidebar-profile-offset: calc((var(--brand-lockup-size-lg-mark) - var(--size-control-md)) / 2);
-  --workspace-tab-image-size: var(--size-avatar-sm);
-  --workspace-tab-image-offset: calc((var(--brand-lockup-size-lg-mark) - var(--workspace-tab-image-size)) / 2);
+  --open-tab-image-size: var(--size-avatar-sm);
+  --open-tab-image-offset: calc((var(--brand-lockup-size-lg-mark) - var(--open-tab-image-size)) / 2);
   --content-tab-height: calc(var(--space-20) + var(--space-10) + var(--space-1));
   --topbar-logo-nav-gap: var(--space-16);
   --topbar-nav-link-height: var(--topbar-primary-row-height);
-  --workspace-tab-height: calc(var(--space-20) + var(--space-6));
-  --workspace-tab-topbar-height: calc(var(--space-20) + var(--space-8) + var(--space-1));
+  --open-tab-height: calc(var(--space-20) + var(--space-6));
+  --open-tab-topbar-height: calc(var(--space-20) + var(--space-8) + var(--space-1));
   --collapsed-rail: calc(var(--collapsed-surface) + (var(--chrome-space) * 2));
 
   min-height: 100vh;
@@ -120,14 +120,14 @@
 .topbar {
   display: grid;
   grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
-  grid-template-areas: "primary workspaces controls";
+  grid-template-areas: "primary tabs controls";
   align-items: stretch;
   min-width: 0;
   gap: var(--chrome-space);
 }
 
 .topbarMode .topbar {
-  --workspace-row-divider-offset: 0px;
+  --tab-row-divider-offset: 0px;
 
   position: relative;
   z-index: 40;
@@ -135,7 +135,7 @@
   grid-template-columns: minmax(0, 1fr) max-content;
   grid-template-areas:
     "primary controls"
-    "workspaces workspaces";
+    "tabs tabs";
   border-bottom: 1px solid var(--color-border);
   background:
     linear-gradient(
@@ -192,7 +192,7 @@
 
 .topbarMode .topbarPrimary,
 .topbarMode .topbarControls,
-.topbarMode .topbar .workspaceStack {
+.topbarMode .topbar .openTabsStack {
   position: relative;
   z-index: 1;
 }
@@ -211,29 +211,29 @@
   overflow: visible;
 }
 
-.topbar .workspaceStack {
-  grid-area: workspaces;
+.topbar .openTabsStack {
+  grid-area: tabs;
   display: flex;
   align-items: stretch;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.topbarMode .topbar .workspaceStack {
+.topbarMode .topbar .openTabsStack {
   position: relative;
-  min-height: calc(var(--workspace-tab-topbar-height) + var(--topbar-workspace-row-padding));
+  min-height: calc(var(--open-tab-topbar-height) + var(--topbar-tab-row-padding));
   align-items: center;
   border: 0;
   border-radius: 0;
   background: transparent;
   backdrop-filter: none;
   box-shadow: none;
-  padding: var(--topbar-workspace-row-padding) 0 0;
+  padding: var(--topbar-tab-row-padding) 0 0;
 }
 
-.topbarMode .topbar .workspaceStack::before {
+.topbarMode .topbar .openTabsStack::before {
   position: absolute;
-  top: var(--workspace-row-divider-offset);
+  top: var(--tab-row-divider-offset);
   right: calc(-1 * var(--topbar-edge-inline));
   left: calc(-1 * var(--topbar-edge-inline));
   height: 1px;
@@ -263,7 +263,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  height: var(--workspace-tab-height);
+  height: var(--open-tab-height);
   box-sizing: border-box;
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-md);
@@ -359,12 +359,12 @@
   pointer-events: none;
 }
 
-.workspaceStack {
+.openTabsStack {
   min-width: 0;
   min-height: 0;
 }
 
-.sidebar .workspaceStack {
+.sidebar .openTabsStack {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -661,19 +661,19 @@
 
   .topbar {
     grid-template-columns: max-content minmax(0, 1fr) max-content;
-    grid-template-areas: "primary workspaces controls";
+    grid-template-areas: "primary tabs controls";
   }
 
   .topbarMode .topbar {
     --topbar-edge-block-start: var(--space-6);
     --topbar-edge-inline: var(--space-6);
     --topbar-row-gap: var(--space-6);
-    --workspace-row-divider-offset: 0px;
+    --tab-row-divider-offset: 0px;
 
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-areas:
       "primary controls"
-      "workspaces workspaces";
+      "tabs tabs";
     row-gap: var(--topbar-row-gap);
     padding: var(--topbar-edge-block-start) var(--topbar-edge-inline) var(--space-6);
   }

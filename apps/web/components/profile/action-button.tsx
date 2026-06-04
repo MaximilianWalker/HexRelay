@@ -3,11 +3,11 @@ import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./workspace-profile-action-button.module.css";
+import styles from "./action-button.module.css";
 
-type WorkspaceProfileActionTone = "mic" | "sound" | "stream" | "leave" | "more";
+type Tone = "mic" | "sound" | "stream" | "leave" | "more";
 
-type WorkspaceProfileActionButtonProps = {
+type ActionButtonProps = {
   active?: boolean;
   className?: string;
   controls?: string;
@@ -18,10 +18,10 @@ type WorkspaceProfileActionButtonProps = {
   label: string;
   muted?: boolean;
   onClick?: () => void;
-  tone: WorkspaceProfileActionTone;
+  tone: Tone;
 };
 
-const toneClass: Record<WorkspaceProfileActionTone, string> = {
+const toneClass: Record<Tone, string> = {
   leave: styles.toneLeave,
   mic: styles.toneMic,
   more: styles.toneMore,
@@ -29,7 +29,7 @@ const toneClass: Record<WorkspaceProfileActionTone, string> = {
   stream: styles.toneStream,
 };
 
-export function WorkspaceProfileActionButton({
+export function ActionButton({
   active,
   className,
   controls,
@@ -41,7 +41,7 @@ export function WorkspaceProfileActionButton({
   muted,
   onClick,
   tone,
-}: WorkspaceProfileActionButtonProps) {
+}: ActionButtonProps) {
   return (
     <Button
       aria-controls={controls}

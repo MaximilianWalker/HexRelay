@@ -13,12 +13,12 @@ import {
 
 import type { NavLayout } from "@/lib/workspace-preferences";
 
-import { WorkspaceProfileActionButton } from "./workspace-profile-action-button";
-import { WorkspaceProfileMenu } from "./workspace-profile-menu";
-import type { WorkspaceProfilePlacement } from "./workspace-profile-types";
-import styles from "./workspace-profile-actions.module.css";
+import { ActionButton } from "./action-button";
+import { Menu } from "./menu";
+import type { Placement } from "./types";
+import styles from "./actions.module.css";
 
-type WorkspaceProfileActionsProps = {
+type ActionsProps = {
   collapsed: boolean;
   microphoneMuted: boolean;
   navLayout: NavLayout;
@@ -27,12 +27,12 @@ type WorkspaceProfileActionsProps = {
   onSetMicrophoneMuted: (muted: boolean) => void;
   onSetNavLayout: (layout: NavLayout) => void;
   onSetSoundMuted: (muted: boolean) => void;
-  placement: WorkspaceProfilePlacement;
+  placement: Placement;
   soundMuted: boolean;
   voiceActionsAvailable?: boolean;
 };
 
-export function WorkspaceProfileActions({
+export function Actions({
   collapsed,
   microphoneMuted,
   navLayout,
@@ -44,7 +44,7 @@ export function WorkspaceProfileActions({
   placement,
   soundMuted,
   voiceActionsAvailable = false,
-}: WorkspaceProfileActionsProps) {
+}: ActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -89,7 +89,7 @@ export function WorkspaceProfileActions({
       role="group"
       aria-label="Profile actions"
     >
-      <WorkspaceProfileActionButton
+      <ActionButton
         active={microphoneMuted}
         className={styles.action}
         icon={MicrophoneIcon}
@@ -98,7 +98,7 @@ export function WorkspaceProfileActions({
         onClick={() => onSetMicrophoneMuted(!microphoneMuted)}
         tone="mic"
       />
-      <WorkspaceProfileActionButton
+      <ActionButton
         active={soundMuted}
         className={styles.action}
         icon={SoundIcon}
@@ -107,21 +107,21 @@ export function WorkspaceProfileActions({
         onClick={() => onSetSoundMuted(!soundMuted)}
         tone="sound"
       />
-      <WorkspaceProfileActionButton
+      <ActionButton
         className={styles.action}
         disabled={!voiceActionsAvailable}
         icon={IconScreenShare}
         label="Start stream"
         tone="stream"
       />
-      <WorkspaceProfileActionButton
+      <ActionButton
         className={styles.action}
         disabled={!voiceActionsAvailable}
         icon={IconPhoneOff}
         label="Leave voice"
         tone="leave"
       />
-      <WorkspaceProfileActionButton
+      <ActionButton
         active={menuOpen}
         className={styles.action}
         controls={menuOpen ? "profile-more-menu" : undefined}
@@ -133,7 +133,7 @@ export function WorkspaceProfileActions({
         tone="more"
       />
       {menuOpen ? (
-        <WorkspaceProfileMenu
+        <Menu
           collapsed={collapsed}
           navLayout={navLayout}
           onClose={() => setMenuOpen(false)}

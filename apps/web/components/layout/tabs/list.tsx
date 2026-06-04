@@ -1,28 +1,28 @@
 import type { DragEvent, KeyboardEvent, MouseEvent, Ref } from "react";
 
-import type { WorkspaceTab } from "@/lib/workspace-tabs";
+import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
-import { WorkspaceTabItem } from "./workspace-tab-item";
-import type { WorkspaceTabPlacement } from "./workspace-tab-types";
-import styles from "./workspace-tabs.module.css";
+import { Item } from "./item";
+import type { Placement } from "./types";
+import styles from "./styles.module.css";
 
-type WorkspaceTabListProps = {
+type ListProps = {
   activeTabId?: string;
   collapsed: boolean;
   draggedTabId: string | null;
   emptyMessage: string;
-  onCloseTab: (tab: WorkspaceTab) => void;
-  onContextMenu: (event: MouseEvent<HTMLElement>, tab: WorkspaceTab) => void;
+  onCloseTab: (tab: OpenTab) => void;
+  onContextMenu: (event: MouseEvent<HTMLElement>, tab: OpenTab) => void;
   onDragEnd: () => void;
-  onDragStart: (tab: WorkspaceTab, event: DragEvent<HTMLElement>) => void;
-  onDrop: (tab: WorkspaceTab, event: DragEvent<HTMLElement>) => void;
-  onKeyboardContextMenu: (event: KeyboardEvent<HTMLElement>, tab: WorkspaceTab) => void;
+  onDragStart: (tab: OpenTab, event: DragEvent<HTMLElement>) => void;
+  onDrop: (tab: OpenTab, event: DragEvent<HTMLElement>) => void;
+  onKeyboardContextMenu: (event: KeyboardEvent<HTMLElement>, tab: OpenTab) => void;
   tabListRef?: Ref<HTMLDivElement>;
-  tabs: WorkspaceTab[];
-  variant: WorkspaceTabPlacement;
+  tabs: OpenTab[];
+  variant: Placement;
 };
 
-export function WorkspaceTabList({
+export function List({
   activeTabId,
   collapsed,
   draggedTabId,
@@ -36,7 +36,7 @@ export function WorkspaceTabList({
   tabListRef,
   tabs,
   variant,
-}: WorkspaceTabListProps) {
+}: ListProps) {
   if (tabs.length === 0) {
     return emptyMessage ? <p className={styles.empty}>{emptyMessage}</p> : null;
   }
@@ -44,13 +44,13 @@ export function WorkspaceTabList({
   return (
     <div
       className={styles.list}
-      data-workspace-tab-collapsed={collapsed}
-      data-workspace-tab-placement={variant}
+      data-open-tab-collapsed={collapsed}
+      data-open-tab-placement={variant}
       ref={tabListRef}
       role="list"
     >
       {tabs.map((tab) => (
-        <WorkspaceTabItem
+        <Item
           active={activeTabId === tab.id}
           dragging={Boolean(draggedTabId)}
           key={tab.id}

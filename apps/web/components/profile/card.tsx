@@ -1,15 +1,15 @@
 import { Avatar } from "@/components/ui/avatar";
 import { cx } from "@/lib/ui/cx";
 
-import type { WorkspaceProfile } from "./workspace-profile-types";
-import styles from "./workspace-profile-card.module.css";
+import type { Profile } from "./types";
+import styles from "./card.module.css";
 
-type WorkspaceProfileCardProps = {
+type CardProps = {
   collapsed: boolean;
-  profile: WorkspaceProfile;
+  profile: Profile;
 };
 
-export function WorkspaceProfileCard({ collapsed, profile }: WorkspaceProfileCardProps) {
+export function Card({ collapsed, profile }: CardProps) {
   return (
     <div className={styles.profile} title={profile.name}>
       <div className={styles.avatarFrame}>

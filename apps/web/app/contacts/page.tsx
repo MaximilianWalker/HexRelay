@@ -14,7 +14,7 @@ import { Surface } from "@/components/hubs/surface";
 import { Toolbar } from "@/components/hubs/toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import {
   acceptFriendRequest,
   blockRemoveContact,
@@ -447,7 +447,7 @@ export default function ContactsPage() {
   const selectedCount = selectedIds.size;
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="contacts"
       subtitle="People you know, friend requests, and private conversations"
       tabs={[]}
@@ -604,6 +604,6 @@ export default function ContactsPage() {
           />
         ) : null}
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

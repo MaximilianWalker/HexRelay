@@ -1,16 +1,16 @@
 import { IconPinned, IconPinnedOff, IconX } from "@tabler/icons-react";
 
 import { Menu, MenuItem } from "@/components/ui/menu";
-import type { WorkspaceTab } from "@/lib/workspace-tabs";
+import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
-type WorkspaceContextMenuProps = {
-  onCloseTab: (tab: WorkspaceTab) => void;
-  onTogglePinned: (tab: WorkspaceTab) => void;
+type TabMenuProps = {
+  onCloseTab: (tab: OpenTab) => void;
+  onTogglePinned: (tab: OpenTab) => void;
   position: { x: number; y: number };
-  tab: WorkspaceTab;
+  tab: OpenTab;
 };
 
-export function WorkspaceContextMenu({ onCloseTab, onTogglePinned, position, tab }: WorkspaceContextMenuProps) {
+export function TabMenu({ onCloseTab, onTogglePinned, position, tab }: TabMenuProps) {
   return (
     <Menu onClick={(event) => event.stopPropagation()} position="fixed" style={{ left: position.x, top: position.y }}>
       <MenuItem

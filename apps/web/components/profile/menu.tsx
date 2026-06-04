@@ -1,21 +1,21 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { Menu as UiMenu, MenuItem } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
-import type { WorkspaceProfilePlacement } from "./workspace-profile-types";
-import styles from "./workspace-profile-menu.module.css";
+import type { Placement } from "./types";
+import styles from "./menu.module.css";
 
-type WorkspaceProfileMenuProps = {
+type MenuProps = {
   collapsed: boolean;
   navLayout: NavLayout;
   onClose: () => void;
   onOpenAudioDevices: () => void;
   onSetCollapsed: (collapsed: boolean) => void;
   onSetNavLayout: (layout: NavLayout) => void;
-  placement: WorkspaceProfilePlacement;
+  placement: Placement;
 };
 
 const navLayoutOptions: Array<{ id: NavLayout; label: string }> = [
@@ -23,7 +23,7 @@ const navLayoutOptions: Array<{ id: NavLayout; label: string }> = [
   { id: "topbar", label: "Topbar" },
 ];
 
-export function WorkspaceProfileMenu({
+export function Menu({
   collapsed,
   navLayout,
   onClose,
@@ -31,14 +31,14 @@ export function WorkspaceProfileMenu({
   onSetCollapsed,
   onSetNavLayout,
   placement,
-}: WorkspaceProfileMenuProps) {
+}: MenuProps) {
   function selectNavLayout(nextLayout: NavLayout): void {
     onSetNavLayout(nextLayout);
     onClose();
   }
 
   return (
-    <Menu
+    <UiMenu
       aria-label="Profile actions menu"
       className={styles.menu}
       data-placement={placement}
@@ -86,6 +86,6 @@ export function WorkspaceProfileMenu({
       >
         Audio devices
       </MenuItem>
-    </Menu>
+    </UiMenu>
   );
 }

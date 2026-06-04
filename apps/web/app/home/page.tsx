@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { Panel } from "@/components/ui/panel";
 import { TextInput } from "@/components/ui/text-input";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import { revokeSession } from "@/lib/api";
 import {
   ensurePersona,
@@ -115,7 +115,7 @@ export default function HomePage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="home"
       subtitle="Recent activity and persona-scoped session control"
       tabs={[
@@ -208,6 +208,6 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

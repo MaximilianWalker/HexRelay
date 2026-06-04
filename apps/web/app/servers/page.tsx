@@ -12,7 +12,7 @@ import { ServerCreateDialog } from "@/components/hubs/server-create-dialog";
 import { ServerJoinDialog } from "@/components/hubs/server-join-dialog";
 import { ServerLeaveDialog } from "@/components/hubs/server-leave-dialog";
 import { Button } from "@/components/ui/button";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import {
   createServer,
   fetchServers,
@@ -284,7 +284,7 @@ export default function ServersPage() {
   const selectedCount = selectedIds.size;
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="servers"
       subtitle="Global servers hub with shared card and list controls"
       tabs={[]}
@@ -422,7 +422,7 @@ export default function ServersPage() {
           />
         ) : null}
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }
 

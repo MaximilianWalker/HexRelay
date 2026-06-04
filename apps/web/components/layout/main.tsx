@@ -23,28 +23,28 @@ import {
   type TabRestoreMode,
 } from "@/lib/workspace-preferences";
 import {
-  closeWorkspaceTab,
-  openWorkspaceTab,
-  readWorkspaceTabsSnapshot,
-  reorderWorkspaceTab,
-  routeToWorkspaceTab,
-  subscribeWorkspaceTabs,
-  syncWorkspaceTabsForRestoreMode,
-  toggleWorkspaceTabPinned,
-  type WorkspaceTab,
+  closeWorkspaceTab as closeOpenTab,
+  openWorkspaceTab as addOpenTab,
+  readWorkspaceTabsSnapshot as readOpenTabsSnapshot,
+  reorderWorkspaceTab as reorderOpenTab,
+  routeToWorkspaceTab as routeToOpenTab,
+  subscribeWorkspaceTabs as subscribeOpenTabs,
+  syncWorkspaceTabsForRestoreMode as syncOpenTabsForRestoreMode,
+  toggleWorkspaceTabPinned as toggleOpenTabPinned,
+  type WorkspaceTab as OpenTab,
 } from "@/lib/workspace-tabs";
 
 import { BrandLockup } from "@/components/brand-lockup";
-import { ContentTabBar, type ContentTabItem } from "@/components/content-tab-bar";
-import { WorkspaceContextMenu } from "@/components/workspace-context-menu";
-import { WorkspaceProfileControls } from "@/components/workspace-profile-controls";
-import { WorkspaceTabs } from "@/components/workspace-tabs";
-import { RealtimeClient } from "./realtime-client";
-import styles from "./workspace-shell.module.css";
+import { Bar as ContentTabs, type Item as ContentTab } from "@/components/content-tabs/bar";
+import { Controls } from "@/components/profile/controls";
+import { TabMenu } from "./tab-menu";
+import { Root as Tabs } from "./tabs/root";
+import { RealtimeClient } from "../realtime-client";
+import styles from "./main.module.css";
 
-type TabItem = ContentTabItem;
+type TabItem = ContentTab;
 
-type WorkspaceTabMeta = {
+type TabMeta = {
   label?: string;
   imageLabel?: string;
   unread?: number;
@@ -62,7 +62,7 @@ const EMPTY_TAB_SCROLL_STATE: TabScrollState = {
   canScrollRight: false,
 };
 
-const EMPTY_WORKSPACE_TABS: WorkspaceTab[] = [];
+const EMPTY_OPEN_TABS: OpenTab[] = [];
 const DEFAULT_PROFILE = JSON.stringify({ active: false, name: "your profile", status: "No active profile" });
 
 type ProfileSummary = {
@@ -120,13 +120,13 @@ function parseProfileSnapshot(value: string): ProfileSummary {
   }
 }
 
-export function WorkspaceShell({
+export function MainLayout({
   title,
   subtitle,
   tabs,
   activeTabId,
   tabActions,
-  workspaceTab,
+  openTab,
   onTabChange,
   children,
 }: {
@@ -135,7 +135,7 @@ export function WorkspaceShell({
   tabs: TabItem[];
   activeTabId: string;
   tabActions?: React.ReactNode;
-  workspaceTab?: WorkspaceTabMeta;
+  openTab?: TabMeta;
   onTabChange?: (tabId: string) => void;
   children: React.ReactNode;
 }) {
@@ -147,41 +147,41 @@ export function WorkspaceShell({
   const microphoneMuted = useSyncExternalStore(subscribeWorkspacePreferences, readMicrophoneMuted, () => false);
   const profileSnapshot = useSyncExternalStore(subscribeWorkspacePreferences, readProfileSnapshot, () => DEFAULT_PROFILE);
   const contentTabsRef = useRef<HTMLDivElement | null>(null);
-  const workspaceTabsRef = useRef<HTMLDivElement | null>(null);
+  const openTabsRef = useRef<HTMLDivElement | null>(null);
   const contentTabOverflowUpdateRef = useRef<{
     frame: number | null;
     timeout: number | null;
     settledTimeout: number | null;
   }>({ frame: null, timeout: null, settledTimeout: null });
-  const workspaceTabOverflowUpdateRef = useRef<{
+  const openTabOverflowUpdateRef = useRef<{
     frame: number | null;
     timeout: number | null;
     settledTimeout: number | null;
   }>({ frame: null, timeout: null, settledTimeout: null });
   const [contentTabScrollState, setContentTabScrollState] = useState<TabScrollState>(EMPTY_TAB_SCROLL_STATE);
-  const [workspaceTabScrollState, setWorkspaceTabScrollState] = useState<TabScrollState>(EMPTY_TAB_SCROLL_STATE);
-  const [draggedWorkspaceTabId, setDraggedWorkspaceTabId] = useState<string | null>(null);
-  const [workspaceTabMenu, setWorkspaceTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
+  const [openTabScrollState, setOpenTabScrollState] = useState<TabScrollState>(EMPTY_TAB_SCROLL_STATE);
+  const [draggedOpenTabId, setDraggedOpenTabId] = useState<string | null>(null);
+  const [openTabMenu, setOpenTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
   const tabRestoreMode = useSyncExternalStore<TabRestoreMode>(
     subscribeWorkspacePreferences,
     readTabRestoreMode,
     () => "pinned",
   );
-  const workspaceTabs = useSyncExternalStore(subscribeWorkspaceTabs, readWorkspaceTabsSnapshot, () => EMPTY_WORKSPACE_TABS);
+  const openTabs = useSyncExternalStore(subscribeOpenTabs, readOpenTabsSnapshot, () => EMPTY_OPEN_TABS);
   const routeTab = useMemo(() => {
-    const tab = routeToWorkspaceTab(pathname);
+    const tab = routeToOpenTab(pathname);
     if (!tab) {
       return null;
     }
 
     return {
       ...tab,
-      label: workspaceTab?.label ?? tab.label,
-      imageLabel: workspaceTab?.imageLabel ?? workspaceTab?.label ?? tab.label,
-      unread: normalizeUnread(workspaceTab?.unread),
+      label: openTab?.label ?? tab.label,
+      imageLabel: openTab?.imageLabel ?? openTab?.label ?? tab.label,
+      unread: normalizeUnread(openTab?.unread),
     };
-  }, [pathname, workspaceTab?.imageLabel, workspaceTab?.label, workspaceTab?.unread]);
-  const workspaceTabMenuTab = workspaceTabMenu ? workspaceTabs.find((tab) => tab.id === workspaceTabMenu.tabId) : undefined;
+  }, [pathname, openTab?.imageLabel, openTab?.label, openTab?.unread]);
+  const openTabMenuTab = openTabMenu ? openTabs.find((tab) => tab.id === openTabMenu.tabId) : undefined;
 
   const centerContentTabNode = useCallback((node: HTMLElement): void => {
     const element = contentTabsRef.current;
@@ -200,8 +200,8 @@ export function WorkspaceShell({
       return;
     }
 
-    const activeTab = Array.from(element.querySelectorAll<HTMLElement>("[data-tab-id]")).find(
-      (node) => node.dataset.tabId === activeTabId,
+    const activeTab = Array.from(element.querySelectorAll<HTMLElement>("[data-content-tab-id]")).find(
+      (node) => node.dataset.contentTabId === activeTabId,
     );
     if (activeTab) {
       centerContentTabNode(activeTab);
@@ -217,7 +217,7 @@ export function WorkspaceShell({
 
     const tabBar = element.parentElement;
     const scrollButtons = tabBar
-      ? Array.from(tabBar.querySelectorAll<HTMLElement>("[data-tab-scroll-button]"))
+      ? Array.from(tabBar.querySelectorAll<HTMLElement>("[data-content-tab-scroll-button]"))
       : [];
     const gap = tabBar ? Number.parseFloat(window.getComputedStyle(tabBar).columnGap || "0") || 0 : 0;
     const buttonWidth = scrollButtons.reduce((width, button) => width + button.offsetWidth, 0);
@@ -240,10 +240,10 @@ export function WorkspaceShell({
     );
   }, []);
 
-  const updateWorkspaceTabOverflow = useCallback(() => {
-    const element = workspaceTabsRef.current;
+  const updateOpenTabOverflow = useCallback(() => {
+    const element = openTabsRef.current;
     if (!element) {
-      setWorkspaceTabScrollState(EMPTY_TAB_SCROLL_STATE);
+      setOpenTabScrollState(EMPTY_TAB_SCROLL_STATE);
       return;
     }
 
@@ -256,7 +256,7 @@ export function WorkspaceShell({
       canScrollRight: hasOverflow && scrollLeft < maxScrollLeft - 1,
     };
 
-    setWorkspaceTabScrollState((current) =>
+    setOpenTabScrollState((current) =>
       current.hasOverflow === nextState.hasOverflow &&
       current.canScrollLeft === nextState.canScrollLeft &&
       current.canScrollRight === nextState.canScrollRight
@@ -282,8 +282,8 @@ export function WorkspaceShell({
     scheduled.settledTimeout = null;
   }, []);
 
-  const clearScheduledWorkspaceTabOverflowUpdate = useCallback(() => {
-    const scheduled = workspaceTabOverflowUpdateRef.current;
+  const clearScheduledOpenTabOverflowUpdate = useCallback(() => {
+    const scheduled = openTabOverflowUpdateRef.current;
     if (scheduled.frame !== null) {
       window.cancelAnimationFrame(scheduled.frame);
     }
@@ -306,19 +306,19 @@ export function WorkspaceShell({
     contentTabOverflowUpdateRef.current.settledTimeout = window.setTimeout(updateContentTabOverflow, 120);
   }, [clearScheduledContentTabOverflowUpdate, updateContentTabOverflow]);
 
-  const scheduleWorkspaceTabOverflowUpdate = useCallback(() => {
-    clearScheduledWorkspaceTabOverflowUpdate();
-    workspaceTabOverflowUpdateRef.current.frame = window.requestAnimationFrame(updateWorkspaceTabOverflow);
-    workspaceTabOverflowUpdateRef.current.timeout = window.setTimeout(updateWorkspaceTabOverflow, 0);
-    workspaceTabOverflowUpdateRef.current.settledTimeout = window.setTimeout(updateWorkspaceTabOverflow, 120);
-  }, [clearScheduledWorkspaceTabOverflowUpdate, updateWorkspaceTabOverflow]);
+  const scheduleOpenTabOverflowUpdate = useCallback(() => {
+    clearScheduledOpenTabOverflowUpdate();
+    openTabOverflowUpdateRef.current.frame = window.requestAnimationFrame(updateOpenTabOverflow);
+    openTabOverflowUpdateRef.current.timeout = window.setTimeout(updateOpenTabOverflow, 0);
+    openTabOverflowUpdateRef.current.settledTimeout = window.setTimeout(updateOpenTabOverflow, 120);
+  }, [clearScheduledOpenTabOverflowUpdate, updateOpenTabOverflow]);
 
   useEffect(() => {
     return () => {
       clearScheduledContentTabOverflowUpdate();
-      clearScheduledWorkspaceTabOverflowUpdate();
+      clearScheduledOpenTabOverflowUpdate();
     };
-  }, [clearScheduledContentTabOverflowUpdate, clearScheduledWorkspaceTabOverflowUpdate]);
+  }, [clearScheduledContentTabOverflowUpdate, clearScheduledOpenTabOverflowUpdate]);
 
   const setContentTabsNode = useCallback((node: HTMLDivElement | null) => {
     contentTabsRef.current = node;
@@ -329,15 +329,15 @@ export function WorkspaceShell({
     scheduleContentTabOverflowUpdate();
   }, [scheduleContentTabOverflowUpdate]);
 
-  const setWorkspaceTabsNode = useCallback((node: HTMLDivElement | null) => {
-    workspaceTabsRef.current = node;
+  const setOpenTabsNode = useCallback((node: HTMLDivElement | null) => {
+    openTabsRef.current = node;
     if (!node) {
-      setWorkspaceTabScrollState(EMPTY_TAB_SCROLL_STATE);
+      setOpenTabScrollState(EMPTY_TAB_SCROLL_STATE);
       return;
     }
 
-    scheduleWorkspaceTabOverflowUpdate();
-  }, [scheduleWorkspaceTabOverflowUpdate]);
+    scheduleOpenTabOverflowUpdate();
+  }, [scheduleOpenTabOverflowUpdate]);
 
   const activeContentTabRef = useCallback((node: HTMLElement | null) => {
     if (!node) {
@@ -397,16 +397,16 @@ export function WorkspaceShell({
   }, [scheduleContentTabOverflowUpdate, tabs.length, updateContentTabOverflow]);
 
   useEffect(() => {
-    const element = workspaceTabsRef.current;
+    const element = openTabsRef.current;
     if (!element) {
       return;
     }
 
     const handleResize = (): void => {
-      scheduleWorkspaceTabOverflowUpdate();
+      scheduleOpenTabOverflowUpdate();
     };
     const handleScroll = (): void => {
-      updateWorkspaceTabOverflow();
+      updateOpenTabOverflow();
     };
     const frame = window.requestAnimationFrame(handleResize);
     element.addEventListener("scroll", handleScroll, { passive: true });
@@ -425,28 +425,28 @@ export function WorkspaceShell({
     collapsed,
     navLayout,
     routeTab?.id,
-    scheduleWorkspaceTabOverflowUpdate,
-    updateWorkspaceTabOverflow,
-    workspaceTabs.length,
+    scheduleOpenTabOverflowUpdate,
+    updateOpenTabOverflow,
+    openTabs.length,
   ]);
 
   useEffect(() => {
-    const element = workspaceTabsRef.current;
+    const element = openTabsRef.current;
     if (!element || !routeTab?.id) {
       return;
     }
 
     const frame = window.requestAnimationFrame(() => {
-      const activeTab = element.querySelector<HTMLElement>(`[data-workspace-tab-id="${CSS.escape(routeTab.id)}"]`);
+      const activeTab = element.querySelector<HTMLElement>(`[data-open-tab-id="${CSS.escape(routeTab.id)}"]`);
       if (!activeTab) {
-        updateWorkspaceTabOverflow();
+        updateOpenTabOverflow();
         return;
       }
 
       const centeredLeft = activeTab.offsetLeft + activeTab.offsetWidth / 2 - element.clientWidth / 2;
       const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
       element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, centeredLeft));
-      scheduleWorkspaceTabOverflowUpdate();
+      scheduleOpenTabOverflowUpdate();
     });
 
     return () => {
@@ -456,28 +456,28 @@ export function WorkspaceShell({
     collapsed,
     navLayout,
     routeTab?.id,
-    scheduleWorkspaceTabOverflowUpdate,
-    updateWorkspaceTabOverflow,
-    workspaceTabs.length,
+    scheduleOpenTabOverflowUpdate,
+    updateOpenTabOverflow,
+    openTabs.length,
   ]);
 
   useEffect(() => {
     if (routeTab) {
-      openWorkspaceTab(routeTab);
+      addOpenTab(routeTab);
     }
   }, [routeTab]);
 
   useEffect(() => {
-    syncWorkspaceTabsForRestoreMode(tabRestoreMode);
+    syncOpenTabsForRestoreMode(tabRestoreMode);
   }, [tabRestoreMode]);
 
   useEffect(() => {
-    if (!workspaceTabMenu) {
+    if (!openTabMenu) {
       return;
     }
 
     function closeMenu(): void {
-      setWorkspaceTabMenu(null);
+      setOpenTabMenu(null);
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent): void {
@@ -497,64 +497,64 @@ export function WorkspaceShell({
       window.removeEventListener("resize", closeMenu);
       window.removeEventListener("scroll", closeMenu, true);
     };
-  }, [workspaceTabMenu]);
+  }, [openTabMenu]);
 
-  function handleCloseWorkspaceTab(tab: WorkspaceTab): void {
+  function handleCloseOpenTab(tab: OpenTab): void {
     const closingActiveTab = routeTab?.id === tab.id;
-    const tabsBeforeClose = readWorkspaceTabsSnapshot();
+    const tabsBeforeClose = readOpenTabsSnapshot();
     const closedIndex = tabsBeforeClose.findIndex((item) => item.id === tab.id);
     const nextActiveTab =
       tabsBeforeClose[closedIndex + 1] ?? tabsBeforeClose[closedIndex - 1] ?? tabsBeforeClose.find((item) => item.id !== tab.id);
 
-    closeWorkspaceTab(tab.id);
+    closeOpenTab(tab.id);
 
     if (closingActiveTab) {
       router.push(nextActiveTab?.href ?? "/home");
     }
   }
 
-  function handleWorkspaceTabDrop(targetTab: WorkspaceTab): void {
-    if (!draggedWorkspaceTabId) {
+  function handleOpenTabDrop(targetTab: OpenTab): void {
+    if (!draggedOpenTabId) {
       return;
     }
 
-    reorderWorkspaceTab(draggedWorkspaceTabId, targetTab.id);
-    setDraggedWorkspaceTabId(null);
+    reorderOpenTab(draggedOpenTabId, targetTab.id);
+    setDraggedOpenTabId(null);
   }
 
-  function handleWorkspaceTabDragStart(tab: WorkspaceTab, event: DragEvent<HTMLElement>): void {
-    setDraggedWorkspaceTabId(tab.id);
+  function handleOpenTabDragStart(tab: OpenTab, event: DragEvent<HTMLElement>): void {
+    setDraggedOpenTabId(tab.id);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", tab.id);
   }
 
-  function openWorkspaceTabMenu(event: MouseEvent<HTMLElement>, tab: WorkspaceTab): void {
+  function addOpenTabMenu(event: MouseEvent<HTMLElement>, tab: OpenTab): void {
     event.preventDefault();
-    setWorkspaceTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+    setOpenTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
   }
 
-  function openWorkspaceTabMenuFromKeyboard(event: KeyboardEvent<HTMLElement>, tab: WorkspaceTab): void {
+  function addOpenTabMenuFromKeyboard(event: KeyboardEvent<HTMLElement>, tab: OpenTab): void {
     if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) {
       return;
     }
 
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    setWorkspaceTabMenu({
+    setOpenTabMenu({
       tabId: tab.id,
       x: Math.round(rect.left + Math.min(rect.width - 24, 48)),
       y: Math.round(rect.top + rect.height - 4),
     });
   }
 
-  function handleWorkspaceMenuPin(tab: WorkspaceTab): void {
-    toggleWorkspaceTabPinned(tab.id);
-    setWorkspaceTabMenu(null);
+  function handleOpenMenuPin(tab: OpenTab): void {
+    toggleOpenTabPinned(tab.id);
+    setOpenTabMenu(null);
   }
 
-  function handleWorkspaceMenuClose(tab: WorkspaceTab): void {
-    handleCloseWorkspaceTab(tab);
-    setWorkspaceTabMenu(null);
+  function handleOpenMenuClose(tab: OpenTab): void {
+    handleCloseOpenTab(tab);
+    setOpenTabMenu(null);
   }
 
   function scrollContentTabs(direction: -1 | 1): void {
@@ -569,8 +569,8 @@ export function WorkspaceShell({
     scheduleContentTabOverflowUpdate();
   }
 
-  function scrollWorkspaceTabs(direction: -1 | 1): void {
-    const element = workspaceTabsRef.current;
+  function scrollOpenTabs(direction: -1 | 1): void {
+    const element = openTabsRef.current;
     if (!element) {
       return;
     }
@@ -578,11 +578,11 @@ export function WorkspaceShell({
     const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
     const distance = Math.max(180, Math.floor(element.clientWidth * 0.72));
     element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + direction * distance));
-    scheduleWorkspaceTabOverflowUpdate();
+    scheduleOpenTabOverflowUpdate();
   }
 
-  function handleWorkspaceTabWheel(event: WheelEvent<HTMLElement>): void {
-    const element = workspaceTabsRef.current;
+  function handleOpenTabWheel(event: WheelEvent<HTMLElement>): void {
+    const element = openTabsRef.current;
     if (!element) {
       return;
     }
@@ -599,7 +599,7 @@ export function WorkspaceShell({
 
     event.preventDefault();
     element.scrollLeft = Math.min(maxScrollLeft, Math.max(0, element.scrollLeft + delta));
-    scheduleWorkspaceTabOverflowUpdate();
+    scheduleOpenTabOverflowUpdate();
   }
 
   const nav = useMemo(
@@ -635,7 +635,7 @@ export function WorkspaceShell({
   });
 
   const profileControls = (
-    <WorkspaceProfileControls
+    <Controls
       collapsed={collapsed}
       microphoneMuted={microphoneMuted}
       navLayout={navLayout}
@@ -656,59 +656,59 @@ export function WorkspaceShell({
     />
   );
 
-  const pinnedWorkspaceTabs = workspaceTabs.filter((tab) => tab.pinned);
-  const regularWorkspaceTabs = workspaceTabs.filter((tab) => !tab.pinned);
-  const workspaceTabContextMenu = workspaceTabMenuTab ? (
-    <WorkspaceContextMenu
-      onCloseTab={handleWorkspaceMenuClose}
-      onTogglePinned={handleWorkspaceMenuPin}
-      position={{ x: workspaceTabMenu?.x ?? 0, y: workspaceTabMenu?.y ?? 0 }}
-      tab={workspaceTabMenuTab}
+  const pinnedOpenTabs = openTabs.filter((tab) => tab.pinned);
+  const regularOpenTabs = openTabs.filter((tab) => !tab.pinned);
+  const openTabContextMenu = openTabMenuTab ? (
+    <TabMenu
+      onCloseTab={handleOpenMenuClose}
+      onTogglePinned={handleOpenMenuPin}
+      position={{ x: openTabMenu?.x ?? 0, y: openTabMenu?.y ?? 0 }}
+      tab={openTabMenuTab}
     />
   ) : null;
-  const sidebarWorkspaceTabSections = (
+  const sidebarOpenTabSections = (
     <>
-      <WorkspaceTabs
+      <Tabs
         activeTabId={routeTab?.id}
         collapsed={collapsed}
-        draggedTabId={draggedWorkspaceTabId}
+        draggedTabId={draggedOpenTabId}
         emptyMessage="Open a server or conversation to create a tab."
-        onCloseTab={handleCloseWorkspaceTab}
-        onContextMenu={openWorkspaceTabMenu}
-        onDragEnd={() => setDraggedWorkspaceTabId(null)}
-        onDragStart={handleWorkspaceTabDragStart}
-        onDrop={handleWorkspaceTabDrop}
-        onKeyboardContextMenu={openWorkspaceTabMenuFromKeyboard}
-        pinnedTabs={pinnedWorkspaceTabs}
-        regularTabs={regularWorkspaceTabs}
+        onCloseTab={handleCloseOpenTab}
+        onContextMenu={addOpenTabMenu}
+        onDragEnd={() => setDraggedOpenTabId(null)}
+        onDragStart={handleOpenTabDragStart}
+        onDrop={handleOpenTabDrop}
+        onKeyboardContextMenu={addOpenTabMenuFromKeyboard}
+        pinnedTabs={pinnedOpenTabs}
+        regularTabs={regularOpenTabs}
         variant="sidebar"
       />
-      {workspaceTabContextMenu}
+      {openTabContextMenu}
     </>
   );
   const brand = <BrandLockup className={styles.brandLockup} collapsed={collapsed} size="lg" />;
-  const topbarWorkspaceTabStrip = (
+  const topbarOpenTabStrip = (
     <>
-      <WorkspaceTabs
+      <Tabs
         activeTabId={routeTab?.id}
         collapsed={collapsed}
-        draggedTabId={draggedWorkspaceTabId}
+        draggedTabId={draggedOpenTabId}
         emptyMessage="Open a server or conversation to create a tab."
-        onCloseTab={handleCloseWorkspaceTab}
-        onContextMenu={openWorkspaceTabMenu}
-        onDragEnd={() => setDraggedWorkspaceTabId(null)}
-        onDragStart={handleWorkspaceTabDragStart}
-        onDrop={handleWorkspaceTabDrop}
-        onKeyboardContextMenu={openWorkspaceTabMenuFromKeyboard}
-        onScrollTabs={scrollWorkspaceTabs}
-        onWheel={handleWorkspaceTabWheel}
-        pinnedTabs={pinnedWorkspaceTabs}
-        regularTabs={regularWorkspaceTabs}
-        scrollState={workspaceTabScrollState}
-        tabListRef={setWorkspaceTabsNode}
+        onCloseTab={handleCloseOpenTab}
+        onContextMenu={addOpenTabMenu}
+        onDragEnd={() => setDraggedOpenTabId(null)}
+        onDragStart={handleOpenTabDragStart}
+        onDrop={handleOpenTabDrop}
+        onKeyboardContextMenu={addOpenTabMenuFromKeyboard}
+        onScrollTabs={scrollOpenTabs}
+        onWheel={handleOpenTabWheel}
+        pinnedTabs={pinnedOpenTabs}
+        regularTabs={regularOpenTabs}
+        scrollState={openTabScrollState}
+        tabListRef={setOpenTabsNode}
         variant="topbar"
       />
-      {workspaceTabContextMenu}
+      {openTabContextMenu}
     </>
   );
 
@@ -724,8 +724,8 @@ export function WorkspaceShell({
                 {navLinks}
               </nav>
             </div>
-            <div className={styles.workspaceStack} role="group" aria-label="Workspace tabs">
-              {topbarWorkspaceTabStrip}
+            <div className={styles.openTabsStack} role="group" aria-label="Open tabs">
+              {topbarOpenTabStrip}
             </div>
             <div className={styles.topbarControls}>
               {profileControls}
@@ -740,8 +740,8 @@ export function WorkspaceShell({
               </nav>
             </div>
 
-            <div className={styles.workspaceStack} role="group" aria-label="Workspace tabs">
-              {sidebarWorkspaceTabSections}
+            <div className={styles.openTabsStack} role="group" aria-label="Open tabs">
+              {sidebarOpenTabSections}
             </div>
             <div className={styles.sidebarControls}>
               {profileControls}
@@ -750,26 +750,26 @@ export function WorkspaceShell({
         )}
 
         <section
-          aria-describedby="workspace-page-subtitle"
-          aria-labelledby="workspace-page-title"
+          aria-describedby="main-page-subtitle"
+          aria-labelledby="main-page-title"
           className={`${styles.content} ${hasContentTabs || tabActions ? "" : styles.contentNoTabBar}`}
         >
           <header className={styles.visuallyHidden}>
-            <h1 id="workspace-page-title">{title}</h1>
-            <p id="workspace-page-subtitle">{subtitle}</p>
+            <h1 id="main-page-title">{title}</h1>
+            <p id="main-page-subtitle">{subtitle}</p>
           </header>
-          <ContentTabBar
-            activeTabId={activeTabId}
-            activeTabRef={activeContentTabRef}
+          <ContentTabs
+            activeId={activeTabId}
+            activeRef={activeContentTabRef}
+            actions={tabActions}
             canScrollLeft={contentTabScrollState.canScrollLeft}
             canScrollRight={contentTabScrollState.canScrollRight}
+            items={tabs}
             label={`${title} sections`}
+            listRef={setContentTabsNode}
+            onChange={onTabChange}
             onScrollLeft={() => scrollContentTabs(-1)}
             onScrollRight={() => scrollContentTabs(1)}
-            onTabChange={onTabChange}
-            tabActions={tabActions}
-            tabListRef={setContentTabsNode}
-            tabs={tabs}
           />
 
           <section className={`${styles.body} ${hasContentTabs || tabActions ? "" : styles.bodyNoTabs}`}>{children}</section>

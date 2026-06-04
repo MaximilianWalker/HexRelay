@@ -17,7 +17,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import { fetchContacts, updateContactPreferences } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
@@ -247,12 +247,12 @@ export default function ContactMessagesPage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="contacts"
       subtitle={`Private conversation with ${title}`}
       tabs={[]}
       title="Private Chat"
-      workspaceTab={{ imageLabel: title, label: title, unread: contact?.unread }}
+      openTab={{ imageLabel: title, label: title, unread: contact?.unread }}
     >
       <article className={styles.conversationPage}>
         <header className={styles.conversationTopbar}>
@@ -356,6 +356,6 @@ export default function ContactMessagesPage() {
           </details>
         </section>
       </article>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

@@ -1,4 +1,4 @@
-.tabBar {
+.bar {
   position: relative;
   z-index: 2;
   display: flex;
@@ -19,13 +19,13 @@
   padding: 0 calc(var(--space-8) + var(--space-1));
 }
 
-.actionBarOnly {
+.actionsOnly {
   justify-content: flex-end;
   min-height: auto;
   padding: var(--space-5) calc(var(--space-8) + var(--space-1));
 }
 
-.actionBarOnly .tabActions {
+.actionsOnly .actions {
   padding-bottom: 0;
 }
 
@@ -49,7 +49,7 @@
   display: none;
 }
 
-.tabActions {
+.actions {
   position: relative;
   z-index: 1;
   display: flex;
@@ -59,7 +59,7 @@
   margin-left: auto;
 }
 
-.tab {
+.item {
   position: relative;
   display: inline-flex;
   min-width: calc((var(--space-20) * 3) - var(--space-1));
@@ -88,12 +88,12 @@
   white-space: nowrap;
 }
 
-.tabButton {
+.button {
   cursor: pointer;
 }
 
-.tabButton:hover,
-.tabButton:focus-visible {
+.button:hover,
+.button:focus-visible {
   background:
     linear-gradient(
       180deg,
@@ -104,12 +104,12 @@
   color: var(--color-text-heading);
 }
 
-.tabButton:focus-visible {
+.button:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
-.tabActive {
+.active {
   z-index: 2;
   background:
     linear-gradient(
@@ -121,7 +121,7 @@
   color: var(--color-accent-strong);
 }
 
-.tabActive::before {
+.active::before {
   position: absolute;
   right: 0;
   bottom: -1px;
@@ -134,7 +134,7 @@
   pointer-events: none;
 }
 
-.tabActive::after {
+.active::after {
   position: absolute;
   inset: auto 0 0;
   height: 34%;
@@ -143,7 +143,7 @@
   pointer-events: none;
 }
 
-.tabIcon {
+.icon {
   position: relative;
   z-index: 3;
   width: calc(var(--space-8) - var(--space-1));
@@ -152,7 +152,7 @@
   stroke-width: 1.9;
 }
 
-.tabLabel {
+.label {
   position: relative;
   z-index: 3;
 }
@@ -190,14 +190,14 @@
 }
 
 @media (max-width: 860px) {
-  .tabActions {
+  .actions {
     order: 1;
     flex-basis: 100%;
     margin-left: 0;
     padding-bottom: 0;
   }
 
-  .tabBar {
+  .bar {
     min-height: auto;
     align-items: flex-end;
     flex-wrap: wrap;

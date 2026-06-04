@@ -20,7 +20,7 @@ import { Row } from "@/components/settings/row";
 import { Select } from "@/components/settings/select";
 import { Toggle } from "@/components/settings/toggle";
 import { Value } from "@/components/settings/value";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import {
   activateTestingSession,
   fetchDmPolicy,
@@ -545,7 +545,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId={activeSettingsTab}
       onTabChange={selectSettingsTab}
       subtitle="Profile, privacy, device, workspace, and developer settings"
@@ -996,6 +996,6 @@ export default function SettingsPage() {
           </Panel>
         ) : null}
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

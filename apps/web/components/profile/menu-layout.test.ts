@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const menuCss = readFileSync(join(__dirname, "workspace-profile-menu.module.css"), "utf8");
-const profileCardCss = readFileSync(join(__dirname, "workspace-profile-card.module.css"), "utf8");
-const shellCss = readFileSync(join(__dirname, "workspace-shell.module.css"), "utf8");
-const settingsCss = readFileSync(join(__dirname, "../app/settings/styles.module.css"), "utf8");
+const menuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
+const profileCardCss = readFileSync(join(__dirname, "card.module.css"), "utf8");
+const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "utf8");
+const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
 
-describe("workspace profile menu layout styles", () => {
+describe("profile menu layout styles", () => {
   it("keeps every menu row on the same fixed block size", () => {
     const sharedRowRule = menuCss.match(/\.menuItem\s*,\s*\.layoutItem\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
@@ -33,7 +33,7 @@ describe("settings page layout styles", () => {
   });
 
   it("balances scrollbar gutters in topbar content so centered settings stay visually aligned", () => {
-    const topbarBodyRule = shellCss.match(/\.topbarMode \.body \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const topbarBodyRule = layoutCss.match(/\.topbarMode \.body \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
     expect(topbarBodyRule).toContain("scrollbar-gutter: stable both-edges;");
   });
