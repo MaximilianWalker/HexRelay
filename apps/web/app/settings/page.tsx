@@ -908,13 +908,13 @@ export default function SettingsPage() {
 
         {SHOW_DEV_TESTING && activeSettingsTab === "developer" ? (
           <Panel category={activeSettingsCategory}>
-            <div className={devTestingAvailable ? settingsStyles.notice : settingsStyles.warningNotice}>
+            <div className={devTestingAvailable ? settingsStyles.alert : settingsStyles.warningAlert}>
               <IconFlask className={settingsStyles.icon} aria-hidden="true" />
               <div>
-                <p className={settingsStyles.noticeTitle}>
+                <p className={settingsStyles.alertTitle}>
                   {devTestingAvailable ? "Dev testing API available" : "Dev testing API unavailable"}
                 </p>
-                <p className={settingsStyles.noticeText}>
+                <p className={settingsStyles.alertText}>
                   {devTestingAvailable
                     ? "Seeded profiles can be activated and fixture routes can be opened from this tab."
                     : "Start the local API with dev testing enabled, then seed dm-basic, contacts-edge, or server-chat."}

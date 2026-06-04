@@ -68,7 +68,7 @@ export function SettingsView({
       </header>
 
       {!hasSession ? (
-        <div className={styles.serverNotice}>
+        <div className={styles.serverAlert}>
           <IconInfoCircle className={styles.icon} aria-hidden="true" />
           <span>Showing seeded admin settings. Live changes are disabled until server admin APIs are available.</span>
         </div>

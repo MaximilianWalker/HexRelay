@@ -52,7 +52,7 @@ export function UsersView({
       </header>
 
       {!hasSession ? (
-        <div className={styles.serverNotice}>
+        <div className={styles.serverAlert}>
           <IconInfoCircle className={styles.icon} aria-hidden="true" />
           <span>Showing seeded Atlas membership data until a local testing profile loads live server state.</span>
         </div>

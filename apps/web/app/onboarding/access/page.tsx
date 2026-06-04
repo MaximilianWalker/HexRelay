@@ -2,7 +2,7 @@
 
 import { Shell } from "@/components/onboarding/shell";
 import { ButtonLink } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import styles from "../styles.module.css";
 
@@ -22,9 +22,9 @@ export default function AccessOnboardingPage() {
       wizardSubtitle="Continue to the app. Use Servers and Contacts hubs for join and request workflows."
       wizardTitle="Onboarding complete"
     >
-      <Notice className={styles.notice} tone="success">
+      <Alert className={styles.alert} tone="success">
         Identity and recovery checkpoints passed.
-      </Notice>
+      </Alert>
 
       <div className={styles.choiceGrid}>
         <Panel className={styles.choice} padding="sm">

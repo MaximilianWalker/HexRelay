@@ -32,14 +32,14 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
-    selector: ".segmentedButton",
+    selector: ".buttonGroupButton",
     properties: {
       "height": "var(--size-control-md)",
       "min-height": "var(--size-control-md)",
     },
   },
   {
-    selector: ".segmentedButton > svg",
+    selector: ".buttonGroupButton > svg",
     properties: {
       "display": "block",
       "width": "var(--size-icon-sm)",
@@ -61,7 +61,7 @@ const sharedActionControlTypographyExpectations = [
     },
   },
   {
-    selector: ".segmentedButton",
+    selector: ".buttonGroupButton",
     properties: {
       "font-family": "inherit",
       "font-size": "var(--text-md)",
@@ -97,7 +97,7 @@ const activeControlExpectations = [
     },
   },
   {
-    selector: ".segmentedButton.segmentedButtonActive",
+    selector: ".buttonGroupButton.buttonGroupButtonActive",
     properties: {
       "background": "var(--color-accent-strong)",
       "border-color": "var(--color-accent-strong)",
@@ -111,7 +111,7 @@ const forbiddenSharedControlTypographyOverrides = [
   ".buttonGhost",
   ".buttonDanger",
   ".buttonPressed",
-  ".segmentedButton.segmentedButtonActive",
+  ".buttonGroupButton.buttonGroupButtonActive",
 ].flatMap((selector) =>
   ["font-family", "font-size", "font-weight", "line-height"].map((property) => ({
     property,

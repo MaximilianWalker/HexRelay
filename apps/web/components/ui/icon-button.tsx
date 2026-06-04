@@ -7,12 +7,12 @@ export function IconButton({
   label,
   title,
   ...props
-}: Omit<ComponentProps<typeof Button>, "aria-label" | "children" | "icon" | "size"> & {
+}: Omit<ComponentProps<typeof Button>, "aria-label" | "children" | "icon" | "shape"> & {
   children: ReactNode;
   label: string;
 }) {
   return (
-    <Button aria-label={label} size="icon" title={title ?? label} {...props}>
+    <Button aria-label={label} shape="icon" title={title ?? label} {...props}>
       {children}
     </Button>
   );

@@ -6,7 +6,7 @@ import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import { TextInput } from "@/components/ui/text-input";
 import { MainLayout } from "@/components/layout/main";
@@ -141,7 +141,7 @@ export default function HomePage() {
           </Badge>
         </div>
 
-        {actionMessage ? <Notice className={styles.message}>{actionMessage}</Notice> : null}
+        {actionMessage ? <Alert className={styles.message}>{actionMessage}</Alert> : null}
 
         <div className={styles.createRow}>
           <TextInput

@@ -4,9 +4,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ButtonLink } from "./button";
+import { Badge } from "./badge";
+import { ButtonGroup } from "./button-group";
+import { Button, ButtonLink } from "./button";
+import { IconButton } from "./icon-button";
 import { Menu, MenuItem } from "./menu";
-import { SegmentedControl } from "./segmented-control";
 import { ToggleButton } from "./toggle-button";
 
 describe("shared controls", () => {
@@ -28,12 +30,12 @@ describe("shared controls", () => {
     expect(onPressedChange).toHaveBeenCalledWith(true);
   });
 
-  it("uses the same pressed behavior for segmented control options", async () => {
+  it("uses the same pressed behavior for button group options", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
 
     render(
-      <SegmentedControl
+      <ButtonGroup
         label="View mode"
         onChange={onChange}
         options={[
@@ -70,6 +72,50 @@ describe("shared controls", () => {
     expect(link).toHaveAttribute("aria-disabled", "true");
     expect(link).toHaveAttribute("href", "#");
     expect(link).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("exposes the same three sizes for text and icon-only buttons", () => {
+    render(
+      <>
+        <Button size="sm">Small</Button>
+        <Button>Medium</Button>
+        <Button size="lg">Large</Button>
+        <IconButton label="Small icon" size="sm">
+          <span aria-hidden="true">S</span>
+        </IconButton>
+        <IconButton label="Medium icon">
+          <span aria-hidden="true">M</span>
+        </IconButton>
+        <IconButton label="Large icon" size="lg">
+          <span aria-hidden="true">L</span>
+        </IconButton>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Small" }).className).toContain("buttonSm");
+    expect(screen.getByRole("button", { name: "Medium" }).className).not.toContain("buttonSm");
+    expect(screen.getByRole("button", { name: "Medium" }).className).not.toContain("buttonLg");
+    expect(screen.getByRole("button", { name: "Large" }).className).toContain("buttonLg");
+    expect(screen.getByRole("button", { name: "Small icon" }).className).toContain("buttonIcon");
+    expect(screen.getByRole("button", { name: "Small icon" }).className).toContain("buttonSm");
+    expect(screen.getByRole("button", { name: "Medium icon" }).className).toContain("buttonIcon");
+    expect(screen.getByRole("button", { name: "Large icon" }).className).toContain("buttonIcon");
+    expect(screen.getByRole("button", { name: "Large icon" }).className).toContain("buttonLg");
+  });
+
+  it("exposes three badge sizes", () => {
+    render(
+      <>
+        <Badge size="sm">Small badge</Badge>
+        <Badge>Medium badge</Badge>
+        <Badge size="lg">Large badge</Badge>
+      </>,
+    );
+
+    expect(screen.getByText("Small badge").className).toContain("badgeSm");
+    expect(screen.getByText("Medium badge").className).not.toContain("badgeSm");
+    expect(screen.getByText("Medium badge").className).not.toContain("badgeLg");
+    expect(screen.getByText("Large badge").className).toContain("badgeLg");
   });
 
   it("moves focus between menu items with arrow keys", async () => {

@@ -7,7 +7,7 @@ import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
 import { Shell } from "@/components/onboarding/shell";
 import { Field } from "@/components/ui/field";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { TextInput } from "@/components/ui/text-input";
 import styles from "../styles.module.css";
 
@@ -51,9 +51,9 @@ export default function RecoveryOnboardingPage() {
       wizardSubtitle="Write this phrase down offline, then prove backup with selected words."
       wizardTitle="Recovery checkpoint"
     >
-      <Notice className={styles.notice} suppressHydrationWarning tone="warning">
+      <Alert className={styles.alert} suppressHydrationWarning tone="warning">
         {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
-      </Notice>
+      </Alert>
 
       <Field label="Enter word 3">
         <TextInput value={word3} onChange={(event) => setWord3(event.target.value)} />
@@ -66,13 +66,13 @@ export default function RecoveryOnboardingPage() {
       </Field>
 
       {confirmed ? (
-        <Notice className={styles.notice} tone="success">
+        <Alert className={styles.alert} tone="success">
           Recovery backup status: confirmed.
-        </Notice>
+        </Alert>
       ) : (
-        <Notice className={styles.notice} tone="danger">
+        <Alert className={styles.alert} tone="danger">
           recovery_unconfirmed: words do not match required positions.
-        </Notice>
+        </Alert>
       )}
 
       <div className={styles.ctaRow}>

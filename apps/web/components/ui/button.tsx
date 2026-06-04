@@ -7,8 +7,9 @@ import { cx } from "@/lib/ui/cx";
 import styles from "./control.module.css";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "sm" | "md" | "icon";
+export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonIconPosition = "start" | "end";
+export type ButtonShape = "default" | "icon";
 
 const variantClass: Record<ButtonVariant, string> = {
   primary: styles.buttonPrimary,
@@ -22,6 +23,7 @@ type ButtonStyleProps = {
   iconPosition?: ButtonIconPosition;
   loading?: boolean;
   pressed?: boolean;
+  shape?: ButtonShape;
   size?: ButtonSize;
   variant?: ButtonVariant;
 };
@@ -29,6 +31,7 @@ type ButtonStyleProps = {
 function buttonClassName({
   className,
   pressed,
+  shape = "default",
   size = "md",
   variant = "secondary",
 }: ButtonStyleProps & {
@@ -38,7 +41,8 @@ function buttonClassName({
     styles.button,
     variantClass[variant],
     size === "sm" && styles.buttonSm,
-    size === "icon" && styles.buttonIcon,
+    size === "lg" && styles.buttonLg,
+    shape === "icon" && styles.buttonIcon,
     pressed && styles.buttonPressed,
     className,
   );
@@ -61,6 +65,7 @@ export function Button({
   iconPosition = "start",
   loading,
   pressed,
+  shape = "default",
   size = "md",
   type = "button",
   variant = "secondary",
@@ -71,7 +76,7 @@ export function Button({
       {...props}
       aria-busy={loading || undefined}
       aria-pressed={pressed}
-      className={buttonClassName({ className, pressed, size, variant })}
+      className={buttonClassName({ className, pressed, shape, size, variant })}
       type={type}
     >
       {renderButtonContent(children, icon, iconPosition)}
@@ -96,6 +101,7 @@ export function ButtonLink({
   loading,
   onClick,
   pressed,
+  shape,
   size,
   tabIndex,
   variant,
@@ -116,7 +122,7 @@ export function ButtonLink({
       aria-busy={loading || undefined}
       aria-disabled={disabled || undefined}
       aria-pressed={pressed}
-      className={buttonClassName({ className, pressed, size, variant })}
+      className={buttonClassName({ className, pressed, shape, size, variant })}
       data-disabled={disabled ? "true" : undefined}
       href={disabled ? "#" : href}
       onClick={handleClick}

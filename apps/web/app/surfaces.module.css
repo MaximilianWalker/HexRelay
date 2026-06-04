@@ -290,7 +290,7 @@
   padding: 6px;
 }
 
-.serverNotice {
+.serverAlert {
   display: flex;
   align-items: center;
   gap: 8px;

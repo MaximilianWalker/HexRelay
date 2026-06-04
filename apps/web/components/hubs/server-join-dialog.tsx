@@ -3,7 +3,7 @@ import { CheckboxField } from "@/components/ui/checkbox-field";
 import { Dialog } from "@/components/ui/dialog";
 import { DialogActions } from "@/components/ui/dialog-actions";
 import { Field } from "@/components/ui/field";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { TextInput } from "@/components/ui/text-input";
 
 import styles from "./styles.module.css";
@@ -91,7 +91,7 @@ export function ServerJoinDialog({
             </Field>
           </>
         ) : null}
-        {actionMessage ? <Notice>{actionMessage}</Notice> : null}
+        {actionMessage ? <Alert>{actionMessage}</Alert> : null}
         <DialogActions>
           <Button disabled={busy} onClick={onClose}>
             Cancel

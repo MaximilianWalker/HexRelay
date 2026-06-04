@@ -16,7 +16,7 @@ import { Composer } from "@/components/chat/composer";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { MainLayout } from "@/components/layout/main";
 import { fetchContacts, updateContactPreferences } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
@@ -304,15 +304,15 @@ export default function ContactMessagesPage() {
         </header>
 
         <section className={styles.conversationBody}>
-          {loading ? <Notice>Loading conversation...</Notice> : null}
-          {!hasSession ? <Notice tone="warning">Create or select a profile before messaging contacts.</Notice> : null}
-          {!contactId ? <Notice tone="danger">This contact link is invalid.</Notice> : null}
-          {loadError ? <Notice tone="danger">{loadError}</Notice> : null}
+          {loading ? <Alert>Loading conversation...</Alert> : null}
+          {!hasSession ? <Alert tone="warning">Create or select a profile before messaging contacts.</Alert> : null}
+          {!contactId ? <Alert tone="danger">This contact link is invalid.</Alert> : null}
+          {loadError ? <Alert tone="danger">{loadError}</Alert> : null}
           {!loading && hasSession && contactId && !loadError && !contact ? (
-            <Notice tone="warning">This contact was not found in your current contacts list.</Notice>
+            <Alert tone="warning">This contact was not found in your current contacts list.</Alert>
           ) : null}
           {contact && !canMessage ? (
-            <Notice tone="warning">Finish the contact request before starting an encrypted conversation.</Notice>
+            <Alert tone="warning">Finish the contact request before starting an encrypted conversation.</Alert>
           ) : null}
 
           {chatContact ? (
@@ -345,7 +345,7 @@ export default function ContactMessagesPage() {
           ) : null}
 
           {statusMessage ? (
-            <Notice icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}>{statusMessage}</Notice>
+            <Alert icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}>{statusMessage}</Alert>
           ) : null}
 
           <details className={styles.conversationDetails}>

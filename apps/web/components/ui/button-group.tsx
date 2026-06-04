@@ -1,8 +1,8 @@
 import { ToggleGroup, type ToggleGroupOption } from "./toggle-group";
 
-export type SegmentedControlOption<T extends string> = ToggleGroupOption<T>;
+export type ButtonGroupOption<T extends string> = ToggleGroupOption<T>;
 
-export function SegmentedControl<T extends string>({
+export function ButtonGroup<T extends string>({
   label,
   onChange,
   options,
@@ -10,7 +10,7 @@ export function SegmentedControl<T extends string>({
 }: {
   label: string;
   onChange: (value: T) => void;
-  options: SegmentedControlOption<T>[];
+  options: ButtonGroupOption<T>[];
   value: T;
 }) {
   return <ToggleGroup label={label} onChange={onChange} options={options} value={value} />;

@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./action-button.module.css";
@@ -43,19 +43,18 @@ export function ActionButton({
   tone,
 }: ActionButtonProps) {
   return (
-    <Button
+    <IconButton
       aria-controls={controls}
       aria-expanded={expanded}
       aria-haspopup={hasPopup}
-      aria-label={label}
       className={cx(styles.button, toneClass[tone], active && styles.active, muted && styles.muted, className)}
       disabled={disabled}
+      label={label}
       onClick={onClick}
       pressed={active}
-      size="icon"
       title={label}
     >
       <Icon className={styles.icon} aria-hidden={true} />
-    </Button>
+    </IconButton>
   );
 }

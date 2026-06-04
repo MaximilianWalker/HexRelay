@@ -4,7 +4,7 @@ import { IconX } from "@tabler/icons-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
 import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
@@ -87,15 +87,14 @@ export function Item({
           </Badge>
         ) : null}
         {!tab.pinned ? (
-          <Button
-            aria-label={`Close ${tab.label}`}
+          <IconButton
             className={styles.closeButton}
+            label={`Close ${tab.label}`}
             onClick={() => onClose(tab)}
-            size="icon"
             title="Close tab"
           >
             <IconX className={styles.icon} aria-hidden="true" />
-          </Button>
+          </IconButton>
         ) : null}
       </div>
     </div>

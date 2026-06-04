@@ -72,7 +72,7 @@ export function Overview({
       </header>
 
       {!hasSession ? (
-        <div className={styles.serverNotice}>
+        <div className={styles.serverAlert}>
           <IconInfoCircle className={styles.icon} aria-hidden="true" />
           <span>Activate a local testing profile to load live server data. Showing seeded Atlas preview data.</span>
         </div>

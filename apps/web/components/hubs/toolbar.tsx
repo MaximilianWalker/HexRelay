@@ -10,7 +10,7 @@ import {
   IconVolumeOff,
 } from "@tabler/icons-react";
 
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { TextInput } from "@/components/ui/text-input";
 import { ToggleButton } from "@/components/ui/toggle-button";
 import { Toolbar as UiToolbar } from "@/components/ui/toolbar";
@@ -69,7 +69,7 @@ export function Toolbar({
         >
           Muted
         </ToggleButton>
-        <SegmentedControl
+        <ButtonGroup
           label="View mode"
           onChange={onLayoutChange}
           options={[

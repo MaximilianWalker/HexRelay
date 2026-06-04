@@ -176,6 +176,37 @@
   grid-column: 1 / -1;
 }
 
+.buttonLayout {
+  display: grid;
+  grid-template-columns: minmax(calc(var(--space-20) * 8), 1fr) minmax(0, max-content);
+  align-items: stretch;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.buttonStack {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.buttonLayout > .example {
+  min-width: 0;
+}
+
+.buttonLayout > .example:last-child {
+  width: max-content;
+  max-width: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+  justify-self: end;
+}
+
+.buttonLayout > .example:last-child .sizeTable {
+  align-self: center;
+}
+
 .example h3,
 .panelPreview h3 {
   font-size: var(--text-title);
@@ -195,6 +226,91 @@
   align-content: start;
   gap: var(--gap-control);
   min-width: 0;
+}
+
+.matrix {
+  display: grid;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.matrixRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.matrixLabel,
+.sampleLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+}
+
+.matrixLabel {
+  flex: 0 0 calc(var(--space-20) * 4);
+}
+
+.sizeTable {
+  display: grid;
+  grid-template-columns: max-content repeat(3, max-content);
+  align-items: center;
+  justify-content: start;
+  gap: var(--gap-control) var(--space-12);
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sizeTableCorner {
+  min-width: calc(var(--space-20) * 2);
+}
+
+.sizeTableHeader,
+.sizeTableLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+}
+
+.sizeTableHeader {
+  align-self: end;
+  justify-self: stretch;
+  text-align: center;
+}
+
+.sizeTableLabel {
+  min-width: calc(var(--space-20) * 2);
+}
+
+.sizeTableCell {
+  display: flex;
+  min-height: var(--size-control-lg);
+  align-items: center;
+  justify-content: center;
+}
+
+.avatarGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--space-20) * 4), 1fr));
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.avatarSample {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--gap-control);
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-card);
+  background: var(--color-surface);
 }
 
 .fieldGrid {
@@ -224,6 +340,13 @@
   align-content: start;
   gap: var(--space-3);
   min-height: calc(var(--space-20) * 4);
+}
+
+.dialogCopy {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-body);
+  line-height: var(--line-normal);
 }
 
 @media (max-width: 860px) {
@@ -258,6 +381,19 @@
 
   .fieldGrid {
     grid-template-columns: 1fr;
+  }
+
+  .matrixLabel {
+    flex-basis: 100%;
+  }
+
+  .buttonLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .buttonLayout > .example:last-child {
+    width: auto;
+    justify-self: stretch;
   }
 }
 

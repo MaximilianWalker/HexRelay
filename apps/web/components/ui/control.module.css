@@ -1,5 +1,5 @@
 .button,
-.segmentedButton {
+.buttonGroupButton {
   font-family: inherit;
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
@@ -82,6 +82,13 @@
   font-size: var(--text-sm);
 }
 
+.buttonLg {
+  height: var(--size-control-lg);
+  min-height: var(--size-control-lg);
+  padding: var(--pad-control-lg);
+  font-size: var(--text-body);
+}
+
 .buttonIcon {
   width: var(--size-control-md);
   height: var(--size-control-md);
@@ -90,12 +97,38 @@
   border-radius: var(--radius-md);
 }
 
+.buttonIcon.buttonSm {
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  min-height: var(--size-control-sm);
+  flex-basis: var(--size-control-sm);
+}
+
+.buttonIcon.buttonLg {
+  width: var(--size-control-lg);
+  height: var(--size-control-lg);
+  min-height: var(--size-control-lg);
+  flex-basis: var(--size-control-lg);
+}
+
 .button > svg {
   display: block;
   width: var(--size-icon-sm);
   height: var(--size-icon-sm);
   flex: 0 0 var(--size-icon-sm);
   stroke-width: 1.8;
+}
+
+.buttonLg > svg {
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+  flex-basis: var(--size-icon-md);
+}
+
+.buttonIcon.buttonLg > svg {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+  flex-basis: var(--size-icon-lg);
 }
 
 .buttonPressed {
@@ -111,7 +144,7 @@
   color: var(--color-text-inverse);
 }
 
-.segmentedControl {
+.buttonGroup {
   display: inline-flex;
   align-items: stretch;
   overflow: hidden;
@@ -120,7 +153,7 @@
   background: var(--color-surface-muted);
 }
 
-.segmentedButton {
+.buttonGroupButton {
   display: inline-flex;
   height: var(--size-control-md);
   min-height: var(--size-control-md);
@@ -134,7 +167,7 @@
   cursor: pointer;
 }
 
-.segmentedButton > svg {
+.buttonGroupButton > svg {
   display: block;
   width: var(--size-icon-sm);
   height: var(--size-icon-sm);
@@ -142,11 +175,11 @@
   stroke-width: 1.8;
 }
 
-.segmentedButton:last-child {
+.buttonGroupButton:last-child {
   border-right: 0;
 }
 
-.segmentedButton.segmentedButtonActive {
+.buttonGroupButton.buttonGroupButtonActive {
   border-color: var(--color-accent-strong);
   background: var(--color-accent-strong);
   color: var(--color-text-inverse);

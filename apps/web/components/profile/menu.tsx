@@ -1,7 +1,7 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Menu as UiMenu, MenuItem } from "@/components/ui/menu";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
@@ -65,7 +65,7 @@ export function Menu({
         <IconArrowsExchange className={styles.menuIcon} aria-hidden="true" />
         <span>Navigation</span>
         <div className={styles.layoutChoices}>
-          <SegmentedControl
+          <ButtonGroup
             label="Navigation layout"
             onChange={selectNavLayout}
             options={navLayoutOptions}
