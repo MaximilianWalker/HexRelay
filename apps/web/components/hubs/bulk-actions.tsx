@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/ui/toolbar";
 
-import styles from "./styles.module.css";
-
 export function BulkActions({
   busy,
   destructiveLabel,
@@ -34,19 +32,19 @@ export function BulkActions({
   return (
     <Toolbar>
       <Badge tone="accent">{selectedCount} selected</Badge>
-      <Button disabled={disabled} icon={<IconPinned className={styles.icon} aria-hidden="true" />} onClick={onPin}>
+      <Button disabled={disabled} icon={<IconPinned aria-hidden="true" />} onClick={onPin}>
         Pin
       </Button>
-      <Button disabled={disabled} icon={<IconPinnedOff className={styles.icon} aria-hidden="true" />} onClick={onUnpin}>
+      <Button disabled={disabled} icon={<IconPinnedOff aria-hidden="true" />} onClick={onUnpin}>
         Unpin
       </Button>
-      <Button disabled={disabled} icon={<IconVolumeOff className={styles.icon} aria-hidden="true" />} onClick={onMute}>
+      <Button disabled={disabled} icon={<IconVolumeOff aria-hidden="true" />} onClick={onMute}>
         Mute
       </Button>
-      <Button disabled={disabled} icon={<IconVolume className={styles.icon} aria-hidden="true" />} onClick={onUnmute}>
+      <Button disabled={disabled} icon={<IconVolume aria-hidden="true" />} onClick={onUnmute}>
         Unmute
       </Button>
-      <Button disabled={disabled} icon={<IconTrash className={styles.icon} aria-hidden="true" />} onClick={onDestructive} variant="danger">
+      <Button disabled={disabled} icon={<IconTrash aria-hidden="true" />} onClick={onDestructive} variant="danger">
         {destructiveLabel}
       </Button>
       <Button disabled={busy} onClick={onDone}>

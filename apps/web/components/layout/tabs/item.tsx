@@ -82,18 +82,19 @@ export function Item({
       </Link>
       <div className={styles.actions}>
         {isServer && unread > 0 ? (
-          <Badge className={styles.badge} aria-label={`${unread} unread notifications`} tone="accent">
+          <Badge aria-label={`${unread} unread notifications`} shape="counter" size="sm" tone="accent">
             {unread}
           </Badge>
         ) : null}
         {!tab.pinned ? (
           <IconButton
-            className={styles.closeButton}
             label={`Close ${tab.label}`}
             onClick={() => onClose(tab)}
+            size="sm"
             title="Close tab"
+            variant="ghost"
           >
-            <IconX className={styles.icon} aria-hidden="true" />
+            <IconX aria-hidden="true" />
           </IconButton>
         ) : null}
       </div>

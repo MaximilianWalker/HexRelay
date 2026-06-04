@@ -234,6 +234,16 @@
   min-width: 0;
 }
 
+.controlSizeList {
+  display: grid;
+  width: max-content;
+  max-width: 100%;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  gap: var(--gap-control) var(--space-12);
+  overflow-x: auto;
+}
+
 .matrixRow {
   display: flex;
   flex-wrap: wrap;
@@ -320,19 +330,45 @@
   min-width: 0;
 }
 
-.menu {
+.popupCell {
+  display: grid;
+  min-height: calc(var(--space-20) * 12);
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.popupDemo {
+  display: grid;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.popupControls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.popupAnchor {
   position: relative;
-  inset: auto;
+  display: inline-grid;
+  place-items: center;
+}
+
+.popupText {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-body);
+  line-height: var(--line-normal);
 }
 
 .switchLabel {
   color: var(--color-text-muted);
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
-}
-
-.toolbarExample {
-  min-width: 0;
 }
 
 .panelPreview {
@@ -380,6 +416,10 @@
   }
 
   .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .popupControls {
     grid-template-columns: 1fr;
   }
 

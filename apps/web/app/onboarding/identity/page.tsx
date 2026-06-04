@@ -172,7 +172,7 @@ export default function IdentityOnboardingPage() {
 
       {mode === "create" ? (
         <>
-          <Alert className={styles.alert} tone="success">
+          <Alert tone="success">
             New ed25519 keypair will be generated locally on continue.
           </Alert>
           <Field label="Public key preview">
@@ -189,11 +189,11 @@ export default function IdentityOnboardingPage() {
             />
           </Field>
           {importKey.length > 0 && !isLikelyKey(importKey) ? (
-            <Alert className={styles.alert} tone="danger">
+            <Alert tone="danger">
               identity_key_invalid: unsupported key format.
             </Alert>
           ) : (
-            <Alert className={styles.alert} tone="warning">
+            <Alert tone="warning">
               Imported keys are encrypted locally before persistence.
             </Alert>
           )}
@@ -201,7 +201,7 @@ export default function IdentityOnboardingPage() {
       )}
 
       {error ? (
-        <Alert className={styles.alert} tone="danger">
+        <Alert tone="danger">
           {error}
         </Alert>
       ) : null}

@@ -5,7 +5,7 @@ import { useToggleButton } from "./behavior";
 
 type PressableButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-pressed"> & {
   onPressedChange?: (pressed: boolean) => void;
-  pressed: boolean;
+  pressed?: boolean;
 };
 
 export const PressableButton = forwardRef<HTMLButtonElement, PressableButtonProps>(function PressableButton(

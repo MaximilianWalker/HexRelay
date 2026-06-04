@@ -1,24 +1,31 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, KeyboardEvent, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, KeyboardEvent, ReactNode } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./control.module.css";
 
-type MenuPosition = "absolute" | "fixed" | "static";
+type MenuSize = "sm" | "md" | "lg";
 type MenuTone = "neutral" | "danger";
+
+const itemSizeClass: Record<MenuSize, string | undefined> = {
+  lg: styles.menuItemLg,
+  md: undefined,
+  sm: styles.menuItemSm,
+};
+
+const rowSizeClass: Record<MenuSize, string | undefined> = {
+  lg: styles.menuRowLg,
+  md: undefined,
+  sm: styles.menuRowSm,
+};
 
 export function Menu({
   children,
   className,
   onKeyDown,
-  position = "fixed",
   role = "menu",
-  style,
   ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  position?: MenuPosition;
-  style?: CSSProperties;
-}) {
+}: HTMLAttributes<HTMLDivElement>) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event);
 
@@ -44,10 +51,8 @@ export function Menu({
   return (
     <div
       className={cx(styles.menu, className)}
-      data-position={position}
       onKeyDown={handleKeyDown}
       role={role}
-      style={style}
       {...props}
     >
       {children}
@@ -61,12 +66,14 @@ export function MenuItem({
   icon,
   pressed,
   role,
+  size = "md",
   tone = "neutral",
   trailing,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: ReactNode;
   pressed?: boolean;
+  size?: MenuSize;
   tone?: MenuTone;
   trailing?: ReactNode;
 }) {
@@ -78,7 +85,7 @@ export function MenuItem({
       {...props}
       aria-checked={!nativeButtonRole ? pressed : undefined}
       aria-pressed={nativeButtonRole ? pressed : undefined}
-      className={cx(styles.menuItem, tone === "danger" && styles.menuItemDanger, className)}
+      className={cx(styles.menuItem, itemSizeClass[size], tone === "danger" && styles.menuItemDanger, className)}
       role={nativeButtonRole ? undefined : itemRole}
       type="button"
     >
@@ -86,5 +93,26 @@ export function MenuItem({
       <span className={styles.menuItemLabel}>{children}</span>
       {trailing ? <span className={styles.menuItemTrailing}>{trailing}</span> : null}
     </button>
+  );
+}
+
+export function MenuRow({
+  children,
+  className,
+  icon,
+  size = "md",
+  trailing,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  icon?: ReactNode;
+  size?: MenuSize;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className={cx(styles.menuRow, rowSizeClass[size], className)} {...props}>
+      {icon ? <span className={styles.menuIcon}>{icon}</span> : null}
+      <span className={styles.menuItemLabel}>{children}</span>
+      {trailing ? <span className={styles.menuItemTrailing}>{trailing}</span> : null}
+    </div>
   );
 }

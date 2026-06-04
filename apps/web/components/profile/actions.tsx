@@ -91,7 +91,6 @@ export function Actions({
     >
       <ActionButton
         active={microphoneMuted}
-        className={styles.action}
         icon={MicrophoneIcon}
         label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
         muted={microphoneMuted}
@@ -100,7 +99,6 @@ export function Actions({
       />
       <ActionButton
         active={soundMuted}
-        className={styles.action}
         icon={SoundIcon}
         label={soundMuted ? "Unmute sound" : "Mute sound"}
         muted={soundMuted}
@@ -108,14 +106,12 @@ export function Actions({
         tone="sound"
       />
       <ActionButton
-        className={styles.action}
         disabled={!voiceActionsAvailable}
         icon={IconScreenShare}
         label="Start stream"
         tone="stream"
       />
       <ActionButton
-        className={styles.action}
         disabled={!voiceActionsAvailable}
         icon={IconPhoneOff}
         label="Leave voice"
@@ -123,7 +119,6 @@ export function Actions({
       />
       <ActionButton
         active={menuOpen}
-        className={styles.action}
         controls={menuOpen ? "profile-more-menu" : undefined}
         expanded={menuOpen}
         hasPopup="dialog"

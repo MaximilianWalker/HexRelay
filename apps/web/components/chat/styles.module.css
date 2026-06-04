@@ -1,10 +1,3 @@
-.icon {
-  width: var(--size-icon-sm);
-  height: var(--size-icon-sm);
-  flex: 0 0 var(--size-icon-sm);
-  stroke-width: 1.8;
-}
-
 .channelRail {
   display: grid;
   width: 264px;
@@ -56,10 +49,6 @@
 .messageTimelineCompact {
   gap: var(--space-3);
   padding: var(--space-5);
-}
-
-.loadOlderButton {
-  align-self: center;
 }
 
 .messageRow {

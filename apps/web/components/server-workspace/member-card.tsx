@@ -1,5 +1,7 @@
 import { IconBell, IconBellOff, IconClock, IconStar } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
+
 import type { Member } from "./types";
 
 import styles from "@/app/surfaces.module.css";
@@ -38,32 +40,33 @@ export function MemberCard({
       <div className={styles.memberInfo}>
         <div className={styles.memberNameRow}>
           <h4>{name}</h4>
-          {current ? <span className={styles.memberBadge}>You</span> : null}
+          {current ? (
+            <Badge size="sm" tone="accent">
+              You
+            </Badge>
+          ) : null}
         </div>
         <p>@{authorHandle(member.identityId)}</p>
         <p>{member.title}</p>
         <span>{member.lastActive}</span>
       </div>
       <div className={styles.memberMetaStack}>
-        <span>
-          <IconClock className={styles.icon} aria-hidden="true" />
+        <Badge icon={<IconClock aria-hidden="true" />} size="sm">
           Joined {formatTimestamp(member.joinedAt)}
-        </span>
-        <span>
-          {member.muted ? (
-            <IconBellOff className={styles.icon} aria-hidden="true" />
-          ) : (
-            <IconBell className={styles.icon} aria-hidden="true" />
-          )}
+        </Badge>
+        <Badge icon={member.muted ? <IconBellOff aria-hidden="true" /> : <IconBell aria-hidden="true" />} size="sm">
           {member.muted ? "Muted" : "Audible"}
-        </span>
+        </Badge>
         {member.pinned ? (
-          <span>
-            <IconStar className={styles.icon} aria-hidden="true" />
+          <Badge icon={<IconStar aria-hidden="true" />} size="sm" tone="accent">
             Pinned
-          </span>
+          </Badge>
         ) : null}
-        {member.unread > 0 ? <strong>{member.unread}</strong> : null}
+        {member.unread > 0 ? (
+          <Badge aria-label={`${member.unread} unread notifications`} size="sm" tone="accent">
+            {member.unread}
+          </Badge>
+        ) : null}
       </div>
     </article>
   );

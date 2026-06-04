@@ -65,14 +65,14 @@ export function ContactAddDialog({
         <DialogActions>
           <Button
             disabled={discoveryBusy}
-            icon={<IconSearch className={styles.icon} aria-hidden="true" />}
+            icon={<IconSearch aria-hidden="true" />}
             onClick={onSearchUsers}
           >
             {discoveryBusy ? "Searching..." : "Search"}
           </Button>
           <Button
             disabled={sendBusyIdentityId === query.trim()}
-            icon={<IconUserPlus className={styles.icon} aria-hidden="true" />}
+            icon={<IconUserPlus aria-hidden="true" />}
             onClick={() => onSendFriendRequest(query)}
             variant="primary"
           >

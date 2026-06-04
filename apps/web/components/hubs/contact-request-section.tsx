@@ -66,7 +66,7 @@ export function ContactRequestSection({
                   <>
                     <Button
                       disabled={busyRequestId === request.request_id}
-                      icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}
+                      icon={<IconInfoCircle aria-hidden="true" />}
                       onClick={() => void onTransition(request.request_id, "accept")}
                       size="sm"
                     >
@@ -74,7 +74,7 @@ export function ContactRequestSection({
                     </Button>
                     <Button
                       disabled={busyRequestId === request.request_id}
-                      icon={<IconX className={styles.icon} aria-hidden="true" />}
+                      icon={<IconX aria-hidden="true" />}
                       onClick={() => void onTransition(request.request_id, "decline")}
                       size="sm"
                     >
@@ -84,7 +84,7 @@ export function ContactRequestSection({
                 ) : (
                   <Button
                     disabled={busyRequestId === request.request_id}
-                    icon={<IconX className={styles.icon} aria-hidden="true" />}
+                    icon={<IconX aria-hidden="true" />}
                     onClick={() => void onTransition(request.request_id, "cancel")}
                     size="sm"
                   >

@@ -5,7 +5,7 @@ type ToggleButtonBehaviorOptions = {
   disabled?: boolean;
   onClick?: ButtonHTMLAttributes<HTMLButtonElement>["onClick"];
   onPressedChange?: (pressed: boolean) => void;
-  pressed: boolean;
+  pressed?: boolean;
 };
 
 export function useToggleButton({
@@ -22,7 +22,7 @@ export function useToggleButton({
         return;
       }
 
-      onPressedChange?.(!pressed);
+      onPressedChange?.(!(pressed ?? false));
     },
     [disabled, onClick, onPressedChange, pressed],
   );

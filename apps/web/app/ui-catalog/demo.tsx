@@ -17,7 +17,6 @@ import {
   IconPinned,
   IconPlus,
   IconSearch,
-  IconSend,
   IconServer2,
   IconSettings,
   IconTrash,
@@ -29,7 +28,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox-field";
 import { Dialog } from "@/components/ui/dialog";
 import { DialogActions } from "@/components/ui/dialog-actions";
@@ -37,27 +36,29 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
 import { ListActionButton } from "@/components/ui/list-action-button";
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { Menu, MenuItem, MenuRow } from "@/components/ui/menu";
 import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
+import { Popup, type PopupPlacement } from "@/components/ui/popup";
 import { SelectField } from "@/components/ui/select-field";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { ToggleButton } from "@/components/ui/toggle-button";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
-import { Toolbar } from "@/components/ui/toolbar";
 
 import styles from "./styles.module.css";
 
 type ButtonGroupState = "list" | "cards" | "disabled";
 type Filter = "all" | "unread" | "muted";
+type PopupContent = "alert" | "menu" | "panel";
+type PopupHorizontal = "center" | "left" | "right";
+type PopupVertical = "bottom" | "center" | "top";
 
 const sections = [
   { id: "buttons", label: "Buttons" },
   { id: "toggles", label: "Toggles" },
   { id: "menus", label: "Menus" },
   { id: "lists", label: "List Actions" },
-  { id: "toolbars", label: "Toolbars" },
   { id: "forms", label: "Forms" },
   { id: "badges", label: "Badges" },
   { id: "avatars", label: "Avatars" },
@@ -65,25 +66,68 @@ const sections = [
   { id: "empty-states", label: "Empty States" },
   { id: "panels", label: "Panels" },
   { id: "dialogs", label: "Dialogs" },
+  { id: "popups", label: "Popups" },
 ] as const;
+
+const popupVerticalOptions: Array<{ label: string; value: PopupVertical }> = [
+  { label: "Top", value: "top" },
+  { label: "Center", value: "center" },
+  { label: "Bottom", value: "bottom" },
+];
+
+const popupHorizontalOptions: Array<{ label: string; value: PopupHorizontal }> = [
+  { label: "Left", value: "left" },
+  { label: "Center", value: "center" },
+  { label: "Right", value: "right" },
+];
+
+const popupContentOptions: Array<{ label: string; value: PopupContent }> = [
+  { label: "Panel", value: "panel" },
+  { label: "Menu", value: "menu" },
+  { label: "Alert", value: "alert" },
+];
+
+function getPopupPlacement(vertical: PopupVertical, horizontal: PopupHorizontal): PopupPlacement {
+  if (vertical === "center" && horizontal === "center") {
+    return "center";
+  }
+
+  if (vertical === "center") {
+    return horizontal === "left" ? "left-center" : "right-center";
+  }
+
+  if (horizontal === "left") {
+    return `${vertical}-start`;
+  }
+
+  if (horizontal === "right") {
+    return `${vertical}-end`;
+  }
+
+  return `${vertical}-center`;
+}
 
 function Section({
   children,
   description,
+  hideHeader = false,
   id,
   title,
 }: {
   children: ReactNode;
-  description: string;
+  description?: string;
+  hideHeader?: boolean;
   id: string;
   title: string;
 }) {
   return (
-    <section className={styles.section} id={id}>
-      <div className={styles.sectionHeader}>
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
+    <section aria-label={hideHeader ? title : undefined} className={styles.section} id={id}>
+      {hideHeader ? null : (
+        <div className={styles.sectionHeader}>
+          <h2>{title}</h2>
+          {description ? <p>{description}</p> : null}
+        </div>
+      )}
       {children}
     </section>
   );
@@ -106,13 +150,48 @@ function Example({
   );
 }
 
+function PopupPreviewContent({ content }: { content: PopupContent }) {
+  if (content === "menu") {
+    return (
+      <Menu role="group">
+        <MenuItem icon={<IconSettings aria-hidden="true" />} role="button">
+          Open settings
+        </MenuItem>
+        <MenuItem icon={<IconBellOff aria-hidden="true" />} role="button">
+          Mute activity
+        </MenuItem>
+      </Menu>
+    );
+  }
+
+  if (content === "alert") {
+    return (
+      <Alert icon={<IconCircleCheck aria-hidden="true" />} tone="success">
+        Activity synced
+      </Alert>
+    );
+  }
+
+  return (
+    <Panel padding="sm" variant="raised">
+      <p className={styles.popupText}>Atlas activity is synced.</p>
+    </Panel>
+  );
+}
+
 export function Demo() {
   const [buttonGroup, setButtonGroup] = useState<ButtonGroupState>("list");
   const [filter, setFilter] = useState<Filter>("muted");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [popupContent, setPopupContent] = useState<PopupContent>("panel");
+  const [popupHorizontal, setPopupHorizontal] = useState<PopupHorizontal>("center");
+  const [popupOpen, setPopupOpen] = useState(true);
+  const [popupVertical, setPopupVertical] = useState<PopupVertical>("bottom");
   const [switchOff, setSwitchOff] = useState(false);
   const [switchOn, setSwitchOn] = useState(true);
   const [pinned, setPinned] = useState(true);
+
+  const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
 
   useEffect(() => {
     function scrollToHash(): void {
@@ -184,6 +263,23 @@ export function Demo() {
                   </div>
                 </Example>
 
+                <Example title="Tones">
+                  <div className={styles.row}>
+                    <Button icon={<IconBell aria-hidden="true" />} tone="accent">
+                      Accent
+                    </Button>
+                    <Button icon={<IconCircleCheck aria-hidden="true" />} tone="success">
+                      Success
+                    </Button>
+                    <Button icon={<IconTrash aria-hidden="true" />} tone="danger">
+                      Danger
+                    </Button>
+                    <Button icon={<IconBellOff aria-hidden="true" />} tone="muted">
+                      Muted
+                    </Button>
+                  </div>
+                </Example>
+
                 <Example title="Content">
                   <div className={styles.row}>
                     <Button>Text only</Button>
@@ -204,17 +300,11 @@ export function Demo() {
                       onPressedChange={setPinned}
                       pressed={pinned}
                     >
-                      Pinned
+                      Pressed
                     </ToggleButton>
                     <Button disabled icon={<IconX aria-hidden="true" />}>
                       Disabled
                     </Button>
-                    <Button loading icon={<IconSend aria-hidden="true" />} variant="primary">
-                      Loading
-                    </Button>
-                    <ButtonLink href="/servers" icon={<IconServer2 aria-hidden="true" />} variant="secondary">
-                      Link
-                    </ButtonLink>
                   </div>
                 </Example>
               </div>
@@ -278,54 +368,83 @@ export function Demo() {
             title="Toggles"
             description="Toggle buttons, button groups, and switches share active color, font, weight, and icon sizing."
           >
-            <div className={styles.exampleGrid}>
-              <Example title="Toggle Buttons">
-                <div className={styles.row}>
-                  <ToggleButton
-                    icon={<IconMessageCircle aria-hidden="true" />}
-                    onPressedChange={() => setFilter(filter === "unread" ? "all" : "unread")}
-                    pressed={filter === "unread"}
-                  >
-                    Unread
-                  </ToggleButton>
-                  <ToggleButton
-                    icon={<IconBellOff aria-hidden="true" />}
-                    onPressedChange={() => setFilter(filter === "muted" ? "all" : "muted")}
-                    pressed={filter === "muted"}
-                  >
-                    Muted
-                  </ToggleButton>
-                  <ToggleButton
-                    icon={<IconPinned aria-hidden="true" />}
-                    onPressedChange={() => setFilter(filter === "all" ? "muted" : "all")}
-                    pressed={filter === "all"}
-                  >
-                    All
-                  </ToggleButton>
-                </div>
-              </Example>
+            <div className={styles.buttonLayout}>
+              <div className={styles.buttonStack}>
+                <Example title="Toggle Buttons">
+                  <div className={styles.row}>
+                    <ToggleButton
+                      icon={<IconMessageCircle aria-hidden="true" />}
+                      onPressedChange={() => setFilter(filter === "unread" ? "all" : "unread")}
+                      pressed={filter === "unread"}
+                    >
+                      Unread
+                    </ToggleButton>
+                    <ToggleButton
+                      icon={<IconBellOff aria-hidden="true" />}
+                      onPressedChange={() => setFilter(filter === "muted" ? "all" : "muted")}
+                      pressed={filter === "muted"}
+                    >
+                      Muted
+                    </ToggleButton>
+                    <ToggleButton
+                      icon={<IconPinned aria-hidden="true" />}
+                      onPressedChange={() => setFilter(filter === "all" ? "muted" : "all")}
+                      pressed={filter === "all"}
+                    >
+                      All
+                    </ToggleButton>
+                  </div>
+                </Example>
 
-              <Example title="Button Groups">
-                <ButtonGroup
-                  label="View mode"
-                  onChange={setButtonGroup}
-                  options={[
-                    { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
-                    { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
-                    { id: "disabled", label: "Disabled", disabled: true },
-                  ]}
-                  value={buttonGroup}
-                />
-              </Example>
+                <Example title="Switches">
+                  <div className={styles.row}>
+                    <span className={styles.switchLabel}>Off</span>
+                    <ToggleSwitch checked={switchOff} label="Off switch" onChange={setSwitchOff} />
+                    <span className={styles.switchLabel}>On</span>
+                    <ToggleSwitch checked={switchOn} label="On switch" onChange={setSwitchOn} />
+                    <span className={styles.switchLabel}>Disabled</span>
+                    <ToggleSwitch checked={false} disabled label="Disabled switch" />
+                  </div>
+                </Example>
+              </div>
 
-              <Example title="Switches">
-                <div className={styles.row}>
-                  <span className={styles.switchLabel}>Off</span>
-                  <ToggleSwitch checked={switchOff} label="Off switch" onChange={setSwitchOff} />
-                  <span className={styles.switchLabel}>On</span>
-                  <ToggleSwitch checked={switchOn} label="On switch" onChange={setSwitchOn} />
-                  <span className={styles.switchLabel}>Disabled</span>
-                  <ToggleSwitch checked={false} disabled label="Disabled switch" />
+              <Example title="Sizes">
+                <div className={styles.controlSizeList}>
+                  <span className={styles.matrixLabel}>Small</span>
+                  <ButtonGroup
+                    label="Small view mode"
+                    onChange={setButtonGroup}
+                    options={[
+                      { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
+                      { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
+                      { id: "disabled", label: "Disabled", disabled: true },
+                    ]}
+                    size="sm"
+                    value={buttonGroup}
+                  />
+                  <span className={styles.matrixLabel}>Medium</span>
+                  <ButtonGroup
+                    label="Medium view mode"
+                    onChange={setButtonGroup}
+                    options={[
+                      { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
+                      { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
+                      { id: "disabled", label: "Disabled", disabled: true },
+                    ]}
+                    value={buttonGroup}
+                  />
+                  <span className={styles.matrixLabel}>Large</span>
+                  <ButtonGroup
+                    label="Large view mode"
+                    onChange={setButtonGroup}
+                    options={[
+                      { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
+                      { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
+                      { id: "disabled", label: "Disabled", disabled: true },
+                    ]}
+                    size="lg"
+                    value={buttonGroup}
+                  />
                 </div>
               </Example>
             </div>
@@ -334,11 +453,11 @@ export function Demo() {
           <Section
             id="menus"
             title="Menus"
-            description="Menus centralize item layout, keyboard focus movement, icon slots, danger tone, and checked state."
+            description="Menus centralize item layout, keyboard focus movement, icon slots, danger tone, and item size."
           >
             <div className={styles.exampleGrid}>
-              <Example title="Menu Items">
-                <Menu className={styles.menu} position="static">
+              <Example title="Items">
+                <Menu>
                   <MenuItem icon={<IconSettings aria-hidden="true" />}>Profile settings</MenuItem>
                   <MenuItem icon={<IconBellOff aria-hidden="true" />} pressed>
                     Mute notifications
@@ -352,13 +471,38 @@ export function Demo() {
                 </Menu>
               </Example>
 
-              <Example title="Action Menu">
-                <Menu className={styles.menu} position="static" role="group">
+              <Example title="Actions">
+                <Menu role="group">
                   <MenuItem icon={<IconPinned aria-hidden="true" />} role="button">
                     Pin tab
                   </MenuItem>
                   <MenuItem disabled icon={<IconVolume aria-hidden="true" />} role="button">
                     Voice unavailable
+                  </MenuItem>
+                </Menu>
+              </Example>
+
+              <Example title="Static Content">
+                <Menu role="group">
+                  <MenuRow icon={<IconInfoCircle aria-hidden="true" />} trailing={<Badge tone="muted">Current</Badge>}>
+                    Sidebar layout
+                  </MenuRow>
+                  <MenuItem icon={<IconSettings aria-hidden="true" />} role="button">
+                    Edit preferences
+                  </MenuItem>
+                </Menu>
+              </Example>
+
+              <Example title="Sizes">
+                <Menu role="group">
+                  <MenuItem icon={<IconSettings aria-hidden="true" />} role="button" size="sm">
+                    Small
+                  </MenuItem>
+                  <MenuItem icon={<IconPinned aria-hidden="true" />} role="button">
+                    Medium
+                  </MenuItem>
+                  <MenuItem icon={<IconVolume aria-hidden="true" />} role="button" size="lg">
+                    Large
                   </MenuItem>
                 </Menu>
               </Example>
@@ -383,50 +527,19 @@ export function Demo() {
                   <ListActionButton disabled icon={<IconBellOff aria-hidden="true" />}>Disabled</ListActionButton>
                 </div>
               </Example>
-            </div>
-          </Section>
 
-          <Section
-            id="toolbars"
-            title="Toolbars"
-            description="Toolbars group primary filters and secondary actions without redefining button layout."
-          >
-            <div className={styles.exampleGrid}>
-              <Example title="Search Toolbar" wide>
-                <Toolbar
-                  actions={
-                    <>
-                      <Button icon={<IconPlus aria-hidden="true" />} variant="primary">
-                        Add
-                      </Button>
-                      <IconButton label="More actions">
-                        <IconChevronDown aria-hidden="true" />
-                      </IconButton>
-                    </>
-                  }
-                  className={styles.toolbarExample}
-                >
-                  <TextInput aria-label="Search catalog entries" placeholder="Search" />
-                </Toolbar>
-              </Example>
-
-              <Example title="Action Toolbar">
-                <Toolbar
-                  actions={
-                    <>
-                      <Button icon={<IconCheck aria-hidden="true" />}>Accept</Button>
-                      <Button icon={<IconTrash aria-hidden="true" />} variant="danger">
-                        Remove
-                      </Button>
-                    </>
-                  }
-                  className={styles.toolbarExample}
-                >
-                  <Button icon={<IconPinned aria-hidden="true" />} pressed>
-                    Pinned
-                  </Button>
-                  <Button icon={<IconBell aria-hidden="true" />}>Notify</Button>
-                </Toolbar>
+              <Example title="Sizes">
+                <div className={styles.stack}>
+                  <ListActionButton icon={<IconHash aria-hidden="true" />} size="sm">
+                    Small
+                  </ListActionButton>
+                  <ListActionButton icon={<IconMessageCircle aria-hidden="true" />}>
+                    Medium
+                  </ListActionButton>
+                  <ListActionButton icon={<IconServer2 aria-hidden="true" />} size="lg">
+                    Large
+                  </ListActionButton>
+                </div>
               </Example>
             </div>
           </Section>
@@ -514,7 +627,7 @@ export function Demo() {
                     </Badge>
                   </div>
                   <div className={styles.sizeTableCell}>
-                    <Badge size="sm" tone="accent">
+                    <Badge shape="counter" size="sm" tone="accent">
                       8
                     </Badge>
                   </div>
@@ -529,7 +642,7 @@ export function Demo() {
                     </Badge>
                   </div>
                   <div className={styles.sizeTableCell}>
-                    <Badge tone="accent">12</Badge>
+                    <Badge shape="counter" tone="accent">12</Badge>
                   </div>
 
                   <span className={styles.sizeTableLabel}>Large</span>
@@ -542,7 +655,7 @@ export function Demo() {
                     </Badge>
                   </div>
                   <div className={styles.sizeTableCell}>
-                    <Badge size="lg" tone="accent">
+                    <Badge shape="counter" size="lg" tone="accent">
                       24
                     </Badge>
                   </div>
@@ -688,6 +801,83 @@ export function Demo() {
                 <Button icon={<IconPlus aria-hidden="true" />} onClick={() => setDialogOpen(true)} variant="primary">
                   Open dialog
                 </Button>
+              </Example>
+            </div>
+          </Section>
+
+          <Section hideHeader id="popups" title="Popups">
+            <div className={styles.exampleGrid}>
+              <Example title="Playground" wide>
+                <div className={styles.popupDemo}>
+                  <div className={styles.popupControls}>
+                    <Field label="Vertical alignment">
+                      <SelectField
+                        value={popupVertical}
+                        onChange={(event) => {
+                          setPopupVertical(event.target.value as PopupVertical);
+                          setPopupOpen(true);
+                        }}
+                      >
+                        {popupVerticalOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </Field>
+
+                    <Field label="Horizontal alignment">
+                      <SelectField
+                        value={popupHorizontal}
+                        onChange={(event) => {
+                          setPopupHorizontal(event.target.value as PopupHorizontal);
+                          setPopupOpen(true);
+                        }}
+                      >
+                        {popupHorizontalOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </Field>
+
+                    <Field label="Content">
+                      <SelectField
+                        value={popupContent}
+                        onChange={(event) => {
+                          setPopupContent(event.target.value as PopupContent);
+                          setPopupOpen(true);
+                        }}
+                      >
+                        {popupContentOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </Field>
+                  </div>
+
+                  <div className={styles.popupCell}>
+                    <div className={styles.popupAnchor}>
+                      <Button
+                        aria-controls="catalog-popup-demo"
+                        aria-expanded={popupOpen}
+                        icon={<IconChevronDown aria-hidden="true" />}
+                        iconPosition="end"
+                        onClick={() => setPopupOpen((open) => !open)}
+                      >
+                        Activity
+                      </Button>
+                      {popupOpen ? (
+                        <Popup id="catalog-popup-demo" placement={popupPlacement}>
+                          <PopupPreviewContent content={popupContent} />
+                        </Popup>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               </Example>
             </div>
           </Section>

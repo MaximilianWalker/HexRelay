@@ -22,7 +22,7 @@ export default function AccessOnboardingPage() {
       wizardSubtitle="Continue to the app. Use Servers and Contacts hubs for join and request workflows."
       wizardTitle="Onboarding complete"
     >
-      <Alert className={styles.alert} tone="success">
+      <Alert tone="success">
         Identity and recovery checkpoints passed.
       </Alert>
 

@@ -53,7 +53,7 @@ export function ContactDiscoveryResults({
           </div>
           <Button
             disabled={!user.can_send_friend_request || sendBusyIdentityId === user.identity_id}
-            icon={<IconUserPlus className={styles.icon} aria-hidden="true" />}
+            icon={<IconUserPlus aria-hidden="true" />}
             onClick={() => onSendFriendRequest(user.identity_id)}
             size="sm"
           >

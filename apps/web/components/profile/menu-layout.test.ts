@@ -4,15 +4,35 @@ import { join } from "node:path";
 
 const menuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
 const profileCardCss = readFileSync(join(__dirname, "card.module.css"), "utf8");
+const controlCss = readFileSync(join(__dirname, "../ui/control.module.css"), "utf8");
 const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "utf8");
 const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
 
 describe("profile menu layout styles", () => {
-  it("keeps every menu row on the same fixed block size", () => {
-    const sharedRowRule = menuCss.match(/\.menuItem\s*,\s*\.layoutItem\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+  it("keeps menu row sizing in the shared menu primitive", () => {
+    const sharedRowRule = controlCss.match(/\.menuItem,\s*\.menuRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const menuRule = controlCss.match(/\.menu \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
-    expect(sharedRowRule).toContain("height: var(--space-20);");
-    expect(sharedRowRule).not.toContain("min-height");
+    expect(sharedRowRule).toContain("height: var(--menu-item-height);");
+    expect(sharedRowRule).toContain("align-items: center;");
+    expect(sharedRowRule).toContain("padding: var(--space-0) var(--menu-item-padding-inline);");
+    expect(menuRule).not.toContain("padding-block");
+    expect(controlCss).not.toContain(".menuPaddingSm");
+    expect(controlCss).not.toContain(".menuWidthLg");
+    expect(menuCss).not.toContain(".menuItem");
+    expect(menuCss).not.toContain(".layoutItem");
+    expect(menuCss).not.toContain(".menuIcon");
+  });
+
+  it("keeps popup placement in the shared popup primitive", () => {
+    expect(controlCss).toContain(".popup[data-placement=\"right-end\"]");
+    expect(controlCss).toContain(".popup[data-placement=\"right-center\"]");
+    expect(controlCss).toContain("left: calc(100% + var(--space-4));");
+    expect(controlCss).toContain("transform: translateY(-50%);");
+    expect(controlCss).not.toContain(".menu[data-placement=");
+    expect(menuCss).not.toContain("data-placement");
+    expect(menuCss).not.toContain("position: absolute");
+    expect(menuCss).not.toContain("bottom: calc(100%");
   });
 
   it("renders navigation choices as one inline button group instead of a second row", () => {

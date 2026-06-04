@@ -1,15 +1,12 @@
 import type { ComponentType } from "react";
 
+import type { ButtonTone } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { cx } from "@/lib/ui/cx";
-
-import styles from "./action-button.module.css";
 
 type Tone = "mic" | "sound" | "stream" | "leave" | "more";
 
 type ActionButtonProps = {
   active?: boolean;
-  className?: string;
   controls?: string;
   disabled?: boolean;
   expanded?: boolean;
@@ -21,17 +18,16 @@ type ActionButtonProps = {
   tone: Tone;
 };
 
-const toneClass: Record<Tone, string> = {
-  leave: styles.toneLeave,
-  mic: styles.toneMic,
-  more: styles.toneMore,
-  sound: styles.toneSound,
-  stream: styles.toneStream,
+const toneValue: Record<Tone, ButtonTone> = {
+  leave: "danger",
+  mic: "success",
+  more: "muted",
+  sound: "accent",
+  stream: "accent",
 };
 
 export function ActionButton({
   active,
-  className,
   controls,
   disabled,
   expanded,
@@ -42,19 +38,25 @@ export function ActionButton({
   onClick,
   tone,
 }: ActionButtonProps) {
+  const dangerPressed = muted || tone === "leave";
+
   return (
     <IconButton
       aria-controls={controls}
       aria-expanded={expanded}
       aria-haspopup={hasPopup}
-      className={cx(styles.button, toneClass[tone], active && styles.active, muted && styles.muted, className)}
+      align="stretch"
+      data-profile-action="true"
       disabled={disabled}
+      iconSize="lg"
       label={label}
       onClick={onClick}
       pressed={active}
+      pressedTone={dangerPressed ? "danger" : "accent"}
       title={label}
+      tone={muted ? "danger" : toneValue[tone]}
     >
-      <Icon className={styles.icon} aria-hidden={true} />
+      <Icon aria-hidden={true} />
     </IconButton>
   );
 }

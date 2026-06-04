@@ -1,5 +1,7 @@
 import { IconCircleCheck, IconInfoCircle, IconShieldCheck, IconUsers } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
+
 import { MemberCard } from "./member-card";
 import type { RoleGroup } from "./types";
 
@@ -36,18 +38,15 @@ export function UsersView({
           </p>
         </div>
         <div className={styles.usersStats} aria-label="Member summary">
-          <span>
-            <IconUsers className={styles.icon} aria-hidden="true" />
+          <Badge icon={<IconUsers aria-hidden="true" />} size="sm">
             {members.length} members
-          </span>
-          <span>
-            <IconShieldCheck className={styles.icon} aria-hidden="true" />
+          </Badge>
+          <Badge icon={<IconShieldCheck aria-hidden="true" />} size="sm">
             {roleGroups.length} roles
-          </span>
-          <span>
-            <IconCircleCheck className={styles.icon} aria-hidden="true" />
+          </Badge>
+          <Badge icon={<IconCircleCheck aria-hidden="true" />} size="sm" tone="success">
             {onlineCount} online
-          </span>
+          </Badge>
         </div>
       </header>
 

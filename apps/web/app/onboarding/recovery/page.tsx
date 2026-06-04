@@ -51,7 +51,7 @@ export default function RecoveryOnboardingPage() {
       wizardSubtitle="Write this phrase down offline, then prove backup with selected words."
       wizardTitle="Recovery checkpoint"
     >
-      <Alert className={styles.alert} suppressHydrationWarning tone="warning">
+      <Alert suppressHydrationWarning tone="warning">
         {phrase.length === 12 ? phrase.join(" ") : "recovery_phrase_unavailable"}
       </Alert>
 
@@ -66,11 +66,11 @@ export default function RecoveryOnboardingPage() {
       </Field>
 
       {confirmed ? (
-        <Alert className={styles.alert} tone="success">
+        <Alert tone="success">
           Recovery backup status: confirmed.
         </Alert>
       ) : (
-        <Alert className={styles.alert} tone="danger">
+        <Alert tone="danger">
           recovery_unconfirmed: words do not match required positions.
         </Alert>
       )}

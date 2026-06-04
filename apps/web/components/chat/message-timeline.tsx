@@ -32,9 +32,9 @@ export function MessageTimeline({
     >
       {loadOlderLabel && onLoadOlder ? (
         <Button
-          className={styles.loadOlderButton}
+          align="center"
           disabled={loadingOlder}
-          icon={<IconMessageCircle className={styles.icon} aria-hidden="true" />}
+          icon={<IconMessageCircle aria-hidden="true" />}
           onClick={onLoadOlder}
           size="sm"
         >

@@ -145,10 +145,6 @@
   color: var(--color-text-inverse);
 }
 
-.contextMenu {
-  min-width: 180px;
-}
-
 .requestSection {
   display: grid;
   gap: var(--gap-panel);

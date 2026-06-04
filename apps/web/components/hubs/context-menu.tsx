@@ -3,8 +3,7 @@
 import { IconCheck, IconExternalLink } from "@tabler/icons-react";
 
 import { Menu, MenuItem } from "@/components/ui/menu";
-
-import styles from "./styles.module.css";
+import { Popup } from "@/components/ui/popup";
 
 export function ContextMenu({
   noun,
@@ -22,18 +21,15 @@ export function ContextMenu({
   y: number;
 }) {
   return (
-    <Menu
-      className={styles.contextMenu}
-      onClick={(event) => event.stopPropagation()}
-      position="fixed"
-      style={{ left: x, top: y }}
-    >
-      <MenuItem icon={<IconExternalLink className={styles.icon} aria-hidden="true" />} onClick={onOpen}>
-        Open {noun}
-      </MenuItem>
-      <MenuItem icon={<IconCheck className={styles.icon} aria-hidden="true" />} onClick={onToggleSelected}>
-        {selected ? "Deselect" : "Select"}
-      </MenuItem>
-    </Menu>
+    <Popup position="fixed" style={{ left: x, top: y }}>
+      <Menu onClick={(event) => event.stopPropagation()}>
+        <MenuItem icon={<IconExternalLink aria-hidden="true" />} onClick={onOpen}>
+          Open {noun}
+        </MenuItem>
+        <MenuItem icon={<IconCheck aria-hidden="true" />} onClick={onToggleSelected}>
+          {selected ? "Deselect" : "Select"}
+        </MenuItem>
+      </Menu>
+    </Popup>
   );
 }

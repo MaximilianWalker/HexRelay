@@ -1,7 +1,8 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Menu as UiMenu, MenuItem } from "@/components/ui/menu";
+import { Menu as UiMenu, MenuItem, MenuRow } from "@/components/ui/menu";
+import { Popup, type PopupPlacement } from "@/components/ui/popup";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
@@ -32,60 +33,58 @@ export function Menu({
   onSetNavLayout,
   placement,
 }: MenuProps) {
+  const menuPlacement: PopupPlacement = placement === "topbar" ? "bottom-end" : "right-end";
+
   function selectNavLayout(nextLayout: NavLayout): void {
     onSetNavLayout(nextLayout);
     onClose();
   }
 
   return (
-    <UiMenu
-      aria-label="Profile actions menu"
-      className={styles.menu}
-      data-placement={placement}
-      id="profile-more-menu"
-      position="absolute"
-      role="dialog"
-    >
-      <MenuItem
-        className={styles.menuItem}
-        icon={<IconFocusCentered className={styles.menuIcon} aria-hidden="true" />}
-        onClick={() => onSetCollapsed(!collapsed)}
-        pressed={collapsed}
-        role="button"
-        trailing={
-          <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
-            <span />
-          </span>
-        }
-      >
-        Compact mode
-      </MenuItem>
+    <Popup placement={menuPlacement}>
+      <UiMenu aria-label="Profile actions menu" id="profile-more-menu" role="dialog">
+        <MenuItem
+          icon={<IconFocusCentered aria-hidden="true" />}
+          onClick={() => onSetCollapsed(!collapsed)}
+          pressed={collapsed}
+          role="button"
+          trailing={
+            <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
+              <span />
+            </span>
+          }
+        >
+          Compact mode
+        </MenuItem>
 
-      <div className={styles.layoutItem}>
-        <IconArrowsExchange className={styles.menuIcon} aria-hidden="true" />
-        <span>Navigation</span>
-        <div className={styles.layoutChoices}>
-          <ButtonGroup
-            label="Navigation layout"
-            onChange={selectNavLayout}
-            options={navLayoutOptions}
-            value={navLayout}
-          />
-        </div>
-      </div>
+        <MenuRow
+          icon={<IconArrowsExchange aria-hidden="true" />}
+          trailing={
+            <div className={styles.layoutChoices}>
+              <ButtonGroup
+                label="Navigation layout"
+                onChange={selectNavLayout}
+                options={navLayoutOptions}
+                value={navLayout}
+              />
+            </div>
+          }
+        >
+          Navigation
+        </MenuRow>
 
-      <MenuItem
-        className={styles.menuItem}
-        icon={<IconMicrophone className={styles.menuIcon} aria-hidden="true" />}
-        onClick={() => {
-          onOpenAudioDevices();
-          onClose();
-        }}
-        role="button"
-        trailing={<IconChevronRight className={styles.menuChevron} aria-hidden="true" />}
-      >
-        Audio devices
-      </MenuItem>
-    </UiMenu>
+        <MenuItem
+          icon={<IconMicrophone aria-hidden="true" />}
+          onClick={() => {
+            onOpenAudioDevices();
+            onClose();
+          }}
+          role="button"
+          trailing={<IconChevronRight aria-hidden="true" />}
+        >
+          Audio devices
+        </MenuItem>
+      </UiMenu>
+    </Popup>
   );
 }

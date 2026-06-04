@@ -51,7 +51,7 @@ export function Composer({
       />
       <div className={styles.composerBar}>
         <div className={styles.composerHints}>{hints}</div>
-        <Button disabled={disabled} icon={<IconSend className={styles.icon} aria-hidden="true" />} onClick={onSend} variant="primary">
+        <Button disabled={disabled} icon={<IconSend aria-hidden="true" />} onClick={onSend} variant="primary">
           {sendLabel}
         </Button>
       </div>

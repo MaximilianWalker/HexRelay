@@ -298,14 +298,14 @@ export default function ServersPage() {
             <>
               <Button
                 disabled={!hasSession || busy}
-                icon={<IconPlus className={styles.icon} aria-hidden="true" />}
+                icon={<IconPlus aria-hidden="true" />}
                 onClick={() => setActivePanel("create")}
               >
                 Create
               </Button>
               <Button
                 disabled={!hasSession || busy}
-                icon={<IconServer2 className={styles.icon} aria-hidden="true" />}
+                icon={<IconServer2 aria-hidden="true" />}
                 onClick={() => setActivePanel("join")}
               >
                 Join

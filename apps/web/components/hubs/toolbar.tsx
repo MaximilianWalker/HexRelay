@@ -49,21 +49,21 @@ export function Toolbar({
     <div className={styles.hubToolbarStack}>
       <UiToolbar actions={actions}>
         <ToggleButton
-          icon={<IconPinned className={styles.icon} aria-hidden="true" />}
+          icon={<IconPinned aria-hidden="true" />}
           onPressedChange={() => onPinnedChange()}
           pressed={pinnedOnly}
         >
           Pinned
         </ToggleButton>
         <ToggleButton
-          icon={<IconMessageCircle className={styles.icon} aria-hidden="true" />}
+          icon={<IconMessageCircle aria-hidden="true" />}
           onPressedChange={() => onUnreadChange()}
           pressed={unreadOnly}
         >
           Unread
         </ToggleButton>
         <ToggleButton
-          icon={<IconVolumeOff className={styles.icon} aria-hidden="true" />}
+          icon={<IconVolumeOff aria-hidden="true" />}
           onPressedChange={() => onMutedChange()}
           pressed={mutedOnly}
         >
@@ -73,8 +73,8 @@ export function Toolbar({
           label="View mode"
           onChange={onLayoutChange}
           options={[
-            { id: "list", label: "List", icon: <IconList className={styles.icon} aria-hidden="true" /> },
-            { id: "cards", label: "Cards", icon: <IconLayoutGrid className={styles.icon} aria-hidden="true" /> },
+            { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
+            { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
           ]}
           value={layout}
         />

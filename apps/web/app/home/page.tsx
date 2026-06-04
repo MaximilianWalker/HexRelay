@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import { TextInput } from "@/components/ui/text-input";
@@ -141,7 +140,11 @@ export default function HomePage() {
           </Badge>
         </div>
 
-        {actionMessage ? <Alert className={styles.message}>{actionMessage}</Alert> : null}
+        {actionMessage ? (
+          <div className={styles.message}>
+            <Alert>{actionMessage}</Alert>
+          </div>
+        ) : null}
 
         <div className={styles.createRow}>
           <TextInput
@@ -203,9 +206,9 @@ export default function HomePage() {
         </div>
 
         <div className={styles.links}>
-          <Link className={styles.linkGhost} href="/onboarding/identity">
+          <ButtonLink href="/onboarding/identity" variant="ghost">
             Restart onboarding
-          </Link>
+          </ButtonLink>
         </div>
       </section>
     </MainLayout>

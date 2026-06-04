@@ -1,7 +1,9 @@
 import { IconDotsVertical, IconInfoCircle, IconLogout } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import { Menu, MenuItem } from "@/components/ui/menu";
+import { Popup } from "@/components/ui/popup";
 import type { ServerSummary } from "@/lib/api";
 
 import { Icon } from "./icon";
@@ -35,11 +37,11 @@ export function Overview({
           <h2 className={styles.serverTitle}>{server.name}</h2>
           <div className={styles.serverTagRow} aria-label="Server tags">
             {tags.map((tag) => (
-              <span className={styles.serverTag} key={tag}>
+              <Badge key={tag} size="sm">
                 {tag}
-              </span>
+              </Badge>
             ))}
-            {server.unread > 0 ? <span className={styles.serverTag}>{server.unread} unread</span> : null}
+            {server.unread > 0 ? <Badge size="sm">{server.unread} unread</Badge> : null}
           </div>
         </div>
         <div className={styles.serverMenu}>
@@ -49,24 +51,22 @@ export function Overview({
             onClick={onToggleMenu}
             title="Server actions"
           >
-            <IconDotsVertical className={styles.icon} aria-hidden="true" />
+            <IconDotsVertical aria-hidden="true" />
           </IconButton>
           {menuOpen ? (
-            <Menu className={styles.serverMenuList} position="absolute">
-              <MenuItem onClick={() => onMenuAction("Mark server as read")}>
-                Mark as read
-              </MenuItem>
-              <MenuItem onClick={() => onMenuAction("Mute notifications")}>
-                Mute notifications
-              </MenuItem>
-              <MenuItem
-                icon={<IconLogout className={styles.icon} aria-hidden="true" />}
-                onClick={() => onMenuAction("Leave server")}
-                tone="danger"
-              >
-                Leave server
-              </MenuItem>
-            </Menu>
+            <Popup placement="bottom-end">
+              <Menu>
+                <MenuItem onClick={() => onMenuAction("Mark server as read")}>Mark as read</MenuItem>
+                <MenuItem onClick={() => onMenuAction("Mute notifications")}>Mute notifications</MenuItem>
+                <MenuItem
+                  icon={<IconLogout aria-hidden="true" />}
+                  onClick={() => onMenuAction("Leave server")}
+                  tone="danger"
+                >
+                  Leave server
+                </MenuItem>
+              </Menu>
+            </Popup>
           ) : null}
         </div>
       </header>

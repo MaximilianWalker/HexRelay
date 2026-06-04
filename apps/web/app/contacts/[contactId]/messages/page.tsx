@@ -187,7 +187,7 @@ export default function ContactMessagesPage() {
   const contactBadges = contact ? (
     <>
       <Badge
-        icon={<IconCircleCheck className={styles.icon} aria-hidden="true" />}
+        icon={<IconCircleCheck aria-hidden="true" />}
         tone={contact.status === "online" ? "success" : "muted"}
       >
         {statusLabel(contact.status)}
@@ -274,9 +274,9 @@ export default function ContactMessagesPage() {
                   disabled={busyPreferenceAction !== null}
                   icon={
                     contact.pinned ? (
-                      <IconPinnedOff className={styles.icon} aria-hidden="true" />
+                      <IconPinnedOff aria-hidden="true" />
                     ) : (
-                      <IconPinned className={styles.icon} aria-hidden="true" />
+                      <IconPinned aria-hidden="true" />
                     )
                   }
                   onClick={() => void updateContactPreference({ pinned: !contact.pinned }, "pin")}
@@ -288,9 +288,9 @@ export default function ContactMessagesPage() {
                   disabled={busyPreferenceAction !== null}
                   icon={
                     contact.muted ? (
-                      <IconVolume className={styles.icon} aria-hidden="true" />
+                      <IconVolume aria-hidden="true" />
                     ) : (
-                      <IconVolumeOff className={styles.icon} aria-hidden="true" />
+                      <IconVolumeOff aria-hidden="true" />
                     )
                   }
                   onClick={() => void updateContactPreference({ muted: !contact.muted }, "mute")}
@@ -345,7 +345,7 @@ export default function ContactMessagesPage() {
           ) : null}
 
           {statusMessage ? (
-            <Alert icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}>{statusMessage}</Alert>
+            <Alert icon={<IconInfoCircle aria-hidden="true" />}>{statusMessage}</Alert>
           ) : null}
 
           <details className={styles.conversationDetails}>

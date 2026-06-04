@@ -486,7 +486,7 @@ export default function ContactsPage() {
           actions={
             <Button
               disabled={!hasSession}
-              icon={<IconUserPlus className={styles.icon} aria-hidden="true" />}
+              icon={<IconUserPlus aria-hidden="true" />}
               onClick={() => openPanel("add")}
             >
               Add contact
@@ -534,7 +534,7 @@ export default function ContactsPage() {
           <section className={styles.state} aria-label="No contacts">
             <p className={styles.title}>No contacts yet</p>
             <p className={styles.meta}>Search for someone to send a friend request.</p>
-            <Button icon={<IconUserPlus className={styles.icon} aria-hidden="true" />} onClick={() => openPanel("add")}>
+            <Button icon={<IconUserPlus aria-hidden="true" />} onClick={() => openPanel("add")}>
               Add your first contact
             </Button>
           </section>

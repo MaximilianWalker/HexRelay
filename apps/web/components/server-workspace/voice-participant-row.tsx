@@ -1,5 +1,7 @@
 import { IconMicrophone } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
+
 import styles from "@/app/surfaces.module.css";
 import { initials } from "@/lib/ui/initials";
 
@@ -25,10 +27,9 @@ export function VoiceParticipantRow({
         <h4>{name}</h4>
         <p>@{authorHandle(identityId)}</p>
       </div>
-      <span>
-        <IconMicrophone className={styles.icon} aria-hidden="true" />
+      <Badge icon={<IconMicrophone aria-hidden="true" />} size="sm" tone={speaking ? "accent" : "neutral"}>
         {speaking ? "Speaking" : "Connected"}
-      </span>
+      </Badge>
     </article>
   );
 }

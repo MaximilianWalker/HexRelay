@@ -1,5 +1,6 @@
 import { IconHash, IconInfoCircle, IconShieldCheck, IconUsers, IconVolume } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ServerChannelSummary, ServerSummary } from "@/lib/api";
 
@@ -48,22 +49,18 @@ export function SettingsView({
           </p>
         </div>
         <div className={styles.usersStats} aria-label="Settings summary">
-          <span>
-            <IconShieldCheck className={styles.icon} aria-hidden="true" />
+          <Badge icon={<IconShieldCheck aria-hidden="true" />} size="sm" tone="success">
             Admin visible
-          </span>
-          <span>
-            <IconUsers className={styles.icon} aria-hidden="true" />
+          </Badge>
+          <Badge icon={<IconUsers aria-hidden="true" />} size="sm">
             {memberCount} members
-          </span>
-          <span>
-            <IconHash className={styles.icon} aria-hidden="true" />
+          </Badge>
+          <Badge icon={<IconHash aria-hidden="true" />} size="sm">
             {channels.length} text
-          </span>
-          <span>
-            <IconVolume className={styles.icon} aria-hidden="true" />
+          </Badge>
+          <Badge icon={<IconVolume aria-hidden="true" />} size="sm">
             {voiceChannelCount} voice
-          </span>
+          </Badge>
         </div>
       </header>
 

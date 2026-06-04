@@ -32,19 +32,44 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    selector: ".buttonGroup",
+    properties: {
+      "--button-group-height": "var(--size-control-md)",
+      "--button-group-font-size": "var(--text-md)",
+      "--button-group-icon-size": "var(--size-icon-sm)",
+      "height": "var(--button-group-height)",
+      "min-height": "var(--button-group-height)",
+    },
+  },
+  {
+    selector: ".buttonGroupSm",
+    properties: {
+      "--button-group-height": "var(--size-control-sm)",
+      "--button-group-font-size": "var(--text-sm)",
+    },
+  },
+  {
+    selector: ".buttonGroupLg",
+    properties: {
+      "--button-group-height": "var(--size-control-lg)",
+      "--button-group-font-size": "var(--text-body)",
+      "--button-group-icon-size": "var(--size-icon-md)",
+    },
+  },
+  {
     selector: ".buttonGroupButton",
     properties: {
-      "height": "var(--size-control-md)",
-      "min-height": "var(--size-control-md)",
+      "height": "100%",
+      "min-height": "0",
     },
   },
   {
     selector: ".buttonGroupButton > svg",
     properties: {
       "display": "block",
-      "width": "var(--size-icon-sm)",
-      "height": "var(--size-icon-sm)",
-      "flex": "0 0 var(--size-icon-sm)",
+      "width": "var(--button-group-icon-size)",
+      "height": "var(--button-group-icon-size)",
+      "flex": "0 0 var(--button-group-icon-size)",
       "stroke-width": "1.8",
     },
   },
@@ -64,7 +89,7 @@ const sharedActionControlTypographyExpectations = [
     selector: ".buttonGroupButton",
     properties: {
       "font-family": "inherit",
-      "font-size": "var(--text-md)",
+      "font-size": "var(--button-group-font-size)",
       "font-weight": "var(--weight-medium)",
       "line-height": "var(--line-tight)",
       "white-space": "nowrap",
