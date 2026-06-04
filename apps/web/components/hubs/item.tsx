@@ -5,6 +5,7 @@ import { IconCheck, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { PressableButton } from "@/components/ui/pressable-button";
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
 
@@ -58,12 +59,11 @@ export function Item<T extends ItemData>({
         </span>
       ) : null}
 
-      <button
-        aria-pressed={selecting ? selected : undefined}
+      <PressableButton
         className={styles.hubItemMain}
         data-hub-main
         onClick={onOpen}
-        type="button"
+        pressed={selecting ? selected : undefined}
       >
         <Avatar kind={kind} text={initials(item.name)} />
         <span className={styles.hubItemText}>
@@ -72,11 +72,11 @@ export function Item<T extends ItemData>({
             {item.unread > 0 ? `${item.unread} unread` : `No unread ${noun === "server" ? "channels" : "messages"}`}
           </span>
         </span>
-      </button>
+      </PressableButton>
 
       <div className={styles.hubBadges}>
         {item.pinned ? <Badge tone="accent">Pinned</Badge> : null}
-        <Badge icon={item.muted ? <IconVolumeOff className={styles.icon} aria-hidden="true" /> : <IconVolume className={styles.icon} aria-hidden="true" />} tone={item.muted ? "muted" : "neutral"}>
+        <Badge icon={item.muted ? <IconVolumeOff aria-hidden="true" /> : <IconVolume aria-hidden="true" />} tone={item.muted ? "muted" : "neutral"}>
           {item.muted ? "Muted" : "Audible"}
         </Badge>
         {renderBadges?.(item)}

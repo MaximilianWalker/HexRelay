@@ -16,8 +16,8 @@ import { Composer } from "@/components/chat/composer";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { Alert } from "@/components/ui/alert";
+import { MainLayout } from "@/components/layout/main";
 import { fetchContacts, updateContactPreferences } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";
 import { getPersonaSession } from "@/lib/sessions";
@@ -187,7 +187,7 @@ export default function ContactMessagesPage() {
   const contactBadges = contact ? (
     <>
       <Badge
-        icon={<IconCircleCheck className={styles.icon} aria-hidden="true" />}
+        icon={<IconCircleCheck aria-hidden="true" />}
         tone={contact.status === "online" ? "success" : "muted"}
       >
         {statusLabel(contact.status)}
@@ -247,12 +247,12 @@ export default function ContactMessagesPage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="contacts"
       subtitle={`Private conversation with ${title}`}
       tabs={[]}
       title="Private Chat"
-      workspaceTab={{ imageLabel: title, label: title, unread: contact?.unread }}
+      openTab={{ imageLabel: title, label: title, unread: contact?.unread }}
     >
       <article className={styles.conversationPage}>
         <header className={styles.conversationTopbar}>
@@ -274,9 +274,9 @@ export default function ContactMessagesPage() {
                   disabled={busyPreferenceAction !== null}
                   icon={
                     contact.pinned ? (
-                      <IconPinnedOff className={styles.icon} aria-hidden="true" />
+                      <IconPinnedOff aria-hidden="true" />
                     ) : (
-                      <IconPinned className={styles.icon} aria-hidden="true" />
+                      <IconPinned aria-hidden="true" />
                     )
                   }
                   onClick={() => void updateContactPreference({ pinned: !contact.pinned }, "pin")}
@@ -288,9 +288,9 @@ export default function ContactMessagesPage() {
                   disabled={busyPreferenceAction !== null}
                   icon={
                     contact.muted ? (
-                      <IconVolume className={styles.icon} aria-hidden="true" />
+                      <IconVolume aria-hidden="true" />
                     ) : (
-                      <IconVolumeOff className={styles.icon} aria-hidden="true" />
+                      <IconVolumeOff aria-hidden="true" />
                     )
                   }
                   onClick={() => void updateContactPreference({ muted: !contact.muted }, "mute")}
@@ -304,15 +304,15 @@ export default function ContactMessagesPage() {
         </header>
 
         <section className={styles.conversationBody}>
-          {loading ? <Notice>Loading conversation...</Notice> : null}
-          {!hasSession ? <Notice tone="warning">Create or select a profile before messaging contacts.</Notice> : null}
-          {!contactId ? <Notice tone="danger">This contact link is invalid.</Notice> : null}
-          {loadError ? <Notice tone="danger">{loadError}</Notice> : null}
+          {loading ? <Alert>Loading conversation...</Alert> : null}
+          {!hasSession ? <Alert tone="warning">Create or select a profile before messaging contacts.</Alert> : null}
+          {!contactId ? <Alert tone="danger">This contact link is invalid.</Alert> : null}
+          {loadError ? <Alert tone="danger">{loadError}</Alert> : null}
           {!loading && hasSession && contactId && !loadError && !contact ? (
-            <Notice tone="warning">This contact was not found in your current contacts list.</Notice>
+            <Alert tone="warning">This contact was not found in your current contacts list.</Alert>
           ) : null}
           {contact && !canMessage ? (
-            <Notice tone="warning">Finish the contact request before starting an encrypted conversation.</Notice>
+            <Alert tone="warning">Finish the contact request before starting an encrypted conversation.</Alert>
           ) : null}
 
           {chatContact ? (
@@ -345,7 +345,7 @@ export default function ContactMessagesPage() {
           ) : null}
 
           {statusMessage ? (
-            <Notice icon={<IconInfoCircle className={styles.icon} aria-hidden="true" />}>{statusMessage}</Notice>
+            <Alert icon={<IconInfoCircle aria-hidden="true" />}>{statusMessage}</Alert>
           ) : null}
 
           <details className={styles.conversationDetails}>
@@ -356,6 +356,6 @@ export default function ContactMessagesPage() {
           </details>
         </section>
       </article>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

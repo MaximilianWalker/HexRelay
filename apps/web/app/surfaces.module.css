@@ -167,20 +167,6 @@
   text-transform: uppercase;
 }
 
-.mentionToken {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  padding: 3px 7px;
-  background: var(--color-accent-muted);
-  color: var(--color-accent-strong);
-  font-size: 0.72rem;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
 .statusLine {
   display: flex;
   align-items: center;
@@ -259,22 +245,8 @@
 .serverTagRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
-}
-
-.serverTag {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--color-border-control);
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: var(--color-surface-subtle);
-  color: var(--color-text-strong);
-  font-size: 0.72rem;
-  font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
 }
 
 .serverMenu {
@@ -282,15 +254,7 @@
   justify-self: end;
 }
 
-.serverMenuList {
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 5;
-  min-width: 176px;
-  padding: 6px;
-}
-
-.serverNotice {
+.serverAlert {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -445,21 +409,6 @@
   justify-content: flex-end;
   gap: 6px;
   min-width: 180px;
-}
-
-.usersStats span,
-.memberBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--color-border-control);
-  border-radius: 999px;
-  padding: 5px 8px;
-  background: var(--color-surface-subtle);
-  color: var(--color-text-strong);
-  font-size: 0.74rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .roleGroups {
@@ -629,33 +578,6 @@
   min-width: 0;
 }
 
-.memberMetaStack span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 999px;
-  padding: 5px 8px;
-  background: var(--color-surface);
-  color: var(--color-text-strong);
-  font-size: 0.72rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.memberMetaStack strong {
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
-  font-size: 0.74rem;
-  line-height: 1;
-}
-
 .chatGrid {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
@@ -757,20 +679,6 @@
   color: var(--color-text-muted);
   font-size: 0.78rem;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.voiceParticipant span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 999px;
-  padding: 5px 8px;
-  background: var(--color-surface);
-  color: var(--color-text-strong);
-  font-size: 0.72rem;
-  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -933,7 +841,7 @@
     grid-template-columns: 42px minmax(0, 1fr);
   }
 
-  .voiceParticipant span {
+  .voiceParticipant > :last-child {
     grid-column: 1 / -1;
     justify-self: start;
   }

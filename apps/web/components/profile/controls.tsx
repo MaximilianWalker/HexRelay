@@ -2,12 +2,12 @@
 
 import type { NavLayout } from "@/lib/workspace-preferences";
 
-import { WorkspaceProfileActions } from "./workspace-profile-actions";
-import { WorkspaceProfileCard } from "./workspace-profile-card";
-import type { WorkspaceProfile, WorkspaceProfilePlacement } from "./workspace-profile-types";
-import styles from "./workspace-profile-controls.module.css";
+import { Actions } from "./actions";
+import { Card } from "./card";
+import type { Placement, Profile } from "./types";
+import styles from "./controls.module.css";
 
-type WorkspaceProfileControlsProps = {
+type ControlsProps = {
   collapsed: boolean;
   microphoneMuted: boolean;
   navLayout: NavLayout;
@@ -16,13 +16,13 @@ type WorkspaceProfileControlsProps = {
   onSetNavLayout: (layout: NavLayout) => void;
   onSetMicrophoneMuted: (muted: boolean) => void;
   onSetSoundMuted: (muted: boolean) => void;
-  placement: WorkspaceProfilePlacement;
-  profile: WorkspaceProfile;
+  placement: Placement;
+  profile: Profile;
   soundMuted: boolean;
   voiceActionsAvailable?: boolean;
 };
 
-export function WorkspaceProfileControls({
+export function Controls({
   collapsed,
   microphoneMuted,
   navLayout,
@@ -35,11 +35,11 @@ export function WorkspaceProfileControls({
   profile,
   soundMuted,
   voiceActionsAvailable = false,
-}: WorkspaceProfileControlsProps) {
+}: ControlsProps) {
   return (
     <div className={styles.root} data-profile-collapsed={collapsed} data-profile-placement={placement}>
-      <WorkspaceProfileCard collapsed={collapsed} profile={profile} />
-      <WorkspaceProfileActions
+      <Card collapsed={collapsed} profile={profile} />
+      <Actions
         collapsed={collapsed}
         microphoneMuted={microphoneMuted}
         navLayout={navLayout}

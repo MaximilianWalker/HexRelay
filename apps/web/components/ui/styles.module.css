@@ -1,10 +1,3 @@
-.icon {
-  width: var(--size-icon-sm);
-  height: var(--size-icon-sm);
-  flex: 0 0 var(--size-icon-sm);
-  stroke-width: 1.8;
-}
-
 .badge {
   display: inline-flex;
   max-width: 100%;
@@ -19,6 +12,52 @@
   font-weight: var(--weight-medium);
   line-height: var(--line-tight);
   white-space: nowrap;
+}
+
+.badgeSm {
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.badgeLg {
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.badgeCounter {
+  width: calc(var(--space-16) + var(--space-1));
+  height: calc(var(--space-16) + var(--space-1));
+  min-width: calc(var(--space-16) + var(--space-1));
+  justify-content: center;
+  padding: var(--space-0);
+  border-color: var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  font-weight: var(--weight-heavy);
+  line-height: 1;
+}
+
+.badgeCounter.badgeLg {
+  width: calc(var(--space-16) + var(--space-3));
+  height: calc(var(--space-16) + var(--space-3));
+  min-width: calc(var(--space-16) + var(--space-3));
+  border-radius: var(--radius-md);
+}
+
+.badge > svg {
+  width: var(--size-icon-xs);
+  height: var(--size-icon-xs);
+  flex: 0 0 var(--size-icon-xs);
+  stroke-width: 1.8;
+}
+
+.badgeLg > svg {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex-basis: var(--size-icon-sm);
 }
 
 .badgeMuted {
@@ -119,9 +158,9 @@
   padding: var(--space-8);
 }
 
-.notice {
+.alert {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--gap-control);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-lg);
@@ -130,21 +169,30 @@
   color: var(--color-text-muted);
   font-size: var(--text-body);
   line-height: var(--line-normal);
+  overflow-wrap: anywhere;
 }
 
-.noticeSuccess {
+.alert > svg {
+  display: block;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex: 0 0 var(--size-icon-sm);
+  stroke-width: 1.8;
+}
+
+.alertSuccess {
   border-color: var(--color-success);
   background: var(--color-success-muted);
   color: var(--color-success);
 }
 
-.noticeWarning {
+.alertWarning {
   border-color: var(--color-warning);
   background: var(--color-warning-muted);
   color: var(--color-warning);
 }
 
-.noticeDanger {
+.alertDanger {
   border-color: var(--color-danger-strong);
   background: var(--color-danger-muted);
   color: var(--color-danger);

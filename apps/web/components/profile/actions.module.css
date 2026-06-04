@@ -23,10 +23,10 @@
   padding: var(--sidebar-nav-panel-pad);
 }
 
-.actions[data-placement="sidebar"] .action {
+.actions[data-placement="sidebar"] [data-profile-action="true"] {
   height: var(--sidebar-action-height);
 }
 
-.actions[data-placement="sidebar"][data-collapsed="true"] .action {
+.actions[data-placement="sidebar"][data-collapsed="true"] [data-profile-action="true"] {
   height: var(--sidebar-nav-link-height);
 }

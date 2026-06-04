@@ -25,6 +25,7 @@
 
   --pad-control-sm: var(--space-3) var(--space-5);
   --pad-control-md: var(--space-4) var(--space-6);
+  --pad-control-lg: var(--space-5) var(--space-7);
   --pad-field: var(--space-5) var(--space-6);
   --pad-card: var(--space-6);
   --pad-panel: var(--space-7);
@@ -54,10 +55,13 @@
   --weight-bold: 700;
   --weight-heavy: 800;
 
+  --size-icon-xs: 14px;
   --size-icon-sm: 16px;
   --size-icon-md: 18px;
+  --size-icon-lg: 20px;
   --size-control-sm: 30px;
   --size-control-md: 36px;
+  --size-control-lg: 42px;
   --size-avatar-sm: 34px;
   --size-avatar-md: 38px;
   --size-avatar-lg: 52px;

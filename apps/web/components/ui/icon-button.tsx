@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "./button";
 
@@ -7,12 +7,12 @@ export function IconButton({
   label,
   title,
   ...props
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "aria-label"> & {
+}: Omit<ComponentProps<typeof Button>, "aria-label" | "children" | "icon" | "shape"> & {
   children: ReactNode;
   label: string;
 }) {
   return (
-    <Button aria-label={label} size="icon" title={title ?? label} {...props}>
+    <Button aria-label={label} shape="icon" title={title ?? label} {...props}>
       {children}
     </Button>
   );

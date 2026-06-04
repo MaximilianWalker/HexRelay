@@ -4,6 +4,7 @@ import { ChannelRail } from "@/components/chat/channel-rail";
 import { Composer } from "@/components/chat/composer";
 import { MessageRow } from "@/components/chat/message-row";
 import { MessageTimeline } from "@/components/chat/message-timeline";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ServerChannelMessage } from "@/lib/api";
 
@@ -72,7 +73,7 @@ export function ChatView({
           </div>
           <Button
             disabled={!hasSession || !activeChannel || messageState === "loading"}
-            icon={<IconRefresh className={styles.icon} aria-hidden="true" />}
+            icon={<IconRefresh aria-hidden="true" />}
             onClick={onRefresh}
           >
             Refresh
@@ -117,9 +118,9 @@ export function ChatView({
             hints={
               mentionIdentityIds.length > 0 ? (
                 mentionIdentityIds.map((mention) => (
-                  <span className={styles.mentionToken} key={mention}>
+                  <Badge key={mention} size="sm" tone="accent">
                     @{authorHandle(mention)}
-                  </span>
+                  </Badge>
                 ))
               ) : (
                 <span className={styles.meta}>Use @alice, @bob, or @carol with the seeded fixture.</span>

@@ -68,10 +68,6 @@
   font-size: var(--text-md);
 }
 
-.status {
-  align-self: center;
-}
-
 .readOnlyValue {
   display: inline-flex;
   max-width: 260px;

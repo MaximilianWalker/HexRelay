@@ -28,6 +28,7 @@ describe("Surface", () => {
     );
 
     expect(markup).not.toContain(">Select<");
+    expect(markup).not.toContain("aria-pressed");
   });
 
   it("marks selected items through the primary item button while selecting", () => {

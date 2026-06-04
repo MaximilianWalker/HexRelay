@@ -4,23 +4,23 @@ import { IconX } from "@tabler/icons-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
-import type { WorkspaceTab } from "@/lib/workspace-tabs";
+import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
-import styles from "./workspace-tab-item.module.css";
+import styles from "./item.module.css";
 
-type WorkspaceTabItemProps = {
+type ItemProps = {
   active: boolean;
   dragging: boolean;
-  onClose: (tab: WorkspaceTab) => void;
-  onContextMenu: (event: MouseEvent<HTMLElement>, tab: WorkspaceTab) => void;
+  onClose: (tab: OpenTab) => void;
+  onContextMenu: (event: MouseEvent<HTMLElement>, tab: OpenTab) => void;
   onDragEnd: () => void;
-  onDragStart: (tab: WorkspaceTab, event: DragEvent<HTMLElement>) => void;
-  onDrop: (tab: WorkspaceTab, event: DragEvent<HTMLElement>) => void;
-  onKeyboardContextMenu: (event: KeyboardEvent<HTMLElement>, tab: WorkspaceTab) => void;
-  tab: WorkspaceTab;
+  onDragStart: (tab: OpenTab, event: DragEvent<HTMLElement>) => void;
+  onDrop: (tab: OpenTab, event: DragEvent<HTMLElement>) => void;
+  onKeyboardContextMenu: (event: KeyboardEvent<HTMLElement>, tab: OpenTab) => void;
+  tab: OpenTab;
 };
 
 function unreadCount(value: number | undefined): number {
@@ -31,7 +31,7 @@ function unreadCount(value: number | undefined): number {
   return Math.floor(value);
 }
 
-export function WorkspaceTabItem({
+export function Item({
   active,
   dragging,
   onClose,
@@ -41,7 +41,7 @@ export function WorkspaceTabItem({
   onDrop,
   onKeyboardContextMenu,
   tab,
-}: WorkspaceTabItemProps) {
+}: ItemProps) {
   const imageLabel = tab.imageLabel ?? tab.label;
   const isServer = tab.kind === "server";
   const unread = unreadCount(tab.unread);
@@ -49,7 +49,7 @@ export function WorkspaceTabItem({
   return (
     <div
       className={cx(styles.tab, active && styles.active, tab.pinned && styles.pinned)}
-      data-workspace-tab-id={tab.id}
+      data-open-tab-id={tab.id}
       draggable
       onContextMenu={(event) => onContextMenu(event, tab)}
       onDragEnd={onDragEnd}
@@ -82,20 +82,20 @@ export function WorkspaceTabItem({
       </Link>
       <div className={styles.actions}>
         {isServer && unread > 0 ? (
-          <Badge className={styles.badge} aria-label={`${unread} unread notifications`} tone="accent">
+          <Badge aria-label={`${unread} unread notifications`} shape="counter" size="sm" tone="accent">
             {unread}
           </Badge>
         ) : null}
         {!tab.pinned ? (
-          <Button
-            aria-label={`Close ${tab.label}`}
-            className={styles.closeButton}
+          <IconButton
+            label={`Close ${tab.label}`}
             onClick={() => onClose(tab)}
-            size="icon"
+            size="sm"
             title="Close tab"
+            variant="ghost"
           >
-            <IconX className={styles.icon} aria-hidden="true" />
-          </Button>
+            <IconX aria-hidden="true" />
+          </IconButton>
         ) : null}
       </div>
     </div>

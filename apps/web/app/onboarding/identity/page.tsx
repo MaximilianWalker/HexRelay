@@ -8,10 +8,10 @@ import {
   registerIdentityKey,
   verifyAuthChallenge,
 } from "@/lib/api";
+import { ButtonGroup, type ButtonGroupOption } from "@/components/ui/button-group";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Notice } from "@/components/ui/notice";
-import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
+import { Alert } from "@/components/ui/alert";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import {
@@ -28,7 +28,7 @@ import { Shell } from "@/components/onboarding/shell";
 import styles from "../styles.module.css";
 
 const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
-const IDENTITY_MODE_OPTIONS: SegmentedControlOption<"create" | "import">[] = [
+const IDENTITY_MODE_OPTIONS: ButtonGroupOption<"create" | "import">[] = [
   { id: "create", label: "Create identity" },
   { id: "import", label: "Import identity" },
 ];
@@ -168,13 +168,13 @@ export default function IdentityOnboardingPage() {
         />
       </Field>
 
-      <SegmentedControl label="Identity setup mode" onChange={setMode} options={IDENTITY_MODE_OPTIONS} value={mode} />
+      <ButtonGroup label="Identity setup mode" onChange={setMode} options={IDENTITY_MODE_OPTIONS} value={mode} />
 
       {mode === "create" ? (
         <>
-          <Notice className={styles.notice} tone="success">
+          <Alert tone="success">
             New ed25519 keypair will be generated locally on continue.
-          </Notice>
+          </Alert>
           <Field label="Public key preview">
             <TextInput value={SAMPLE_PUBLIC_KEY} readOnly />
           </Field>
@@ -189,21 +189,21 @@ export default function IdentityOnboardingPage() {
             />
           </Field>
           {importKey.length > 0 && !isLikelyKey(importKey) ? (
-            <Notice className={styles.notice} tone="danger">
+            <Alert tone="danger">
               identity_key_invalid: unsupported key format.
-            </Notice>
+            </Alert>
           ) : (
-            <Notice className={styles.notice} tone="warning">
+            <Alert tone="warning">
               Imported keys are encrypted locally before persistence.
-            </Notice>
+            </Alert>
           )}
         </>
       )}
 
       {error ? (
-        <Notice className={styles.notice} tone="danger">
+        <Alert tone="danger">
           {error}
-        </Notice>
+        </Alert>
       ) : null}
 
       <div className={styles.ctaRow}>

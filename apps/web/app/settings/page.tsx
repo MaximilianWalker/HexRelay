@@ -20,7 +20,7 @@ import { Row } from "@/components/settings/row";
 import { Select } from "@/components/settings/select";
 import { Toggle } from "@/components/settings/toggle";
 import { Value } from "@/components/settings/value";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import {
   activateTestingSession,
   fetchDmPolicy,
@@ -545,7 +545,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId={activeSettingsTab}
       onTabChange={selectSettingsTab}
       subtitle="Profile, privacy, device, workspace, and developer settings"
@@ -908,13 +908,13 @@ export default function SettingsPage() {
 
         {SHOW_DEV_TESTING && activeSettingsTab === "developer" ? (
           <Panel category={activeSettingsCategory}>
-            <div className={devTestingAvailable ? settingsStyles.notice : settingsStyles.warningNotice}>
+            <div className={devTestingAvailable ? settingsStyles.alert : settingsStyles.warningAlert}>
               <IconFlask className={settingsStyles.icon} aria-hidden="true" />
               <div>
-                <p className={settingsStyles.noticeTitle}>
+                <p className={settingsStyles.alertTitle}>
                   {devTestingAvailable ? "Dev testing API available" : "Dev testing API unavailable"}
                 </p>
-                <p className={settingsStyles.noticeText}>
+                <p className={settingsStyles.alertText}>
                   {devTestingAvailable
                     ? "Seeded profiles can be activated and fixture routes can be opened from this tab."
                     : "Start the local API with dev testing enabled, then seed dm-basic, contacts-edge, or server-chat."}
@@ -996,6 +996,6 @@ export default function SettingsPage() {
           </Panel>
         ) : null}
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

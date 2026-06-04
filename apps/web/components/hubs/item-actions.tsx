@@ -2,8 +2,6 @@ import { IconClock, IconMessageCircle, IconPinned, IconPinnedOff, IconTrash, Ico
 
 import { Button } from "@/components/ui/button";
 
-import styles from "./styles.module.css";
-
 type ItemActionsProps = {
   busy: boolean;
   destructiveLabel: string;
@@ -34,13 +32,13 @@ export function ItemActions({
   return (
     <>
       {pendingLabel ? (
-        <Button disabled icon={<IconClock className={styles.icon} aria-hidden="true" />} size="sm">
+        <Button disabled icon={<IconClock aria-hidden="true" />} size="sm">
           {pendingLabel}
         </Button>
       ) : messageAction ? (
         <Button
           disabled={messageAction.disabled}
-          icon={<IconMessageCircle className={styles.icon} aria-hidden="true" />}
+          icon={<IconMessageCircle aria-hidden="true" />}
           onClick={messageAction.onClick}
           size="sm"
         >
@@ -51,9 +49,9 @@ export function ItemActions({
         disabled={busy}
         icon={
           pinned ? (
-            <IconPinnedOff className={styles.icon} aria-hidden="true" />
+            <IconPinnedOff aria-hidden="true" />
           ) : (
-            <IconPinned className={styles.icon} aria-hidden="true" />
+            <IconPinned aria-hidden="true" />
           )
         }
         onClick={onTogglePinned}
@@ -65,9 +63,9 @@ export function ItemActions({
         disabled={busy}
         icon={
           muted ? (
-            <IconVolume className={styles.icon} aria-hidden="true" />
+            <IconVolume aria-hidden="true" />
           ) : (
-            <IconVolumeOff className={styles.icon} aria-hidden="true" />
+            <IconVolumeOff aria-hidden="true" />
           )
         }
         onClick={onToggleMuted}
@@ -77,7 +75,7 @@ export function ItemActions({
       </Button>
       <Button
         disabled={busy}
-        icon={<IconTrash className={styles.icon} aria-hidden="true" />}
+        icon={<IconTrash aria-hidden="true" />}
         onClick={onDestructive}
         size="sm"
         variant="danger"

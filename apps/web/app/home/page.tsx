@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import { TextInput } from "@/components/ui/text-input";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import { revokeSession } from "@/lib/api";
 import {
   ensurePersona,
@@ -115,7 +114,7 @@ export default function HomePage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId="home"
       subtitle="Recent activity and persona-scoped session control"
       tabs={[
@@ -141,7 +140,11 @@ export default function HomePage() {
           </Badge>
         </div>
 
-        {actionMessage ? <Notice className={styles.message}>{actionMessage}</Notice> : null}
+        {actionMessage ? (
+          <div className={styles.message}>
+            <Alert>{actionMessage}</Alert>
+          </div>
+        ) : null}
 
         <div className={styles.createRow}>
           <TextInput
@@ -203,11 +206,11 @@ export default function HomePage() {
         </div>
 
         <div className={styles.links}>
-          <Link className={styles.linkGhost} href="/onboarding/identity">
+          <ButtonLink href="/onboarding/identity" variant="ghost">
             Restart onboarding
-          </Link>
+          </ButtonLink>
         </div>
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

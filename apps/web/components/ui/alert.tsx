@@ -4,16 +4,16 @@ import { cx } from "@/lib/ui/cx";
 
 import styles from "./styles.module.css";
 
-type NoticeTone = "info" | "success" | "warning" | "danger";
+type AlertTone = "info" | "success" | "warning" | "danger";
 
-const toneClass: Record<NoticeTone, string> = {
+const toneClass: Record<AlertTone, string> = {
   info: "",
-  success: styles.noticeSuccess,
-  warning: styles.noticeWarning,
-  danger: styles.noticeDanger,
+  success: styles.alertSuccess,
+  warning: styles.alertWarning,
+  danger: styles.alertDanger,
 };
 
-export function Notice({
+export function Alert({
   children,
   className,
   icon,
@@ -21,10 +21,10 @@ export function Notice({
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
-  tone?: NoticeTone;
+  tone?: AlertTone;
 }) {
   return (
-    <div className={cx(styles.notice, toneClass[tone], className)} {...props}>
+    <div className={cx(styles.alert, toneClass[tone], className)} {...props}>
       {icon}
       {children}
     </div>

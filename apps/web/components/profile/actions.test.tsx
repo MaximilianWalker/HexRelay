@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { WorkspaceProfileActions } from "./workspace-profile-actions";
+import { Actions } from "./actions";
 
 function renderActions(voiceActionsAvailable = false): string {
   return renderToStaticMarkup(
-    <WorkspaceProfileActions
+    <Actions
       collapsed={false}
       microphoneMuted={false}
       navLayout="sidebar"
@@ -25,7 +25,7 @@ function buttonMarkup(markup: string, label: string): string {
   return markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 }
 
-describe("WorkspaceProfileActions", () => {
+describe("profile actions", () => {
   it("disables stream and voice leave actions outside a call or voice channel", () => {
     const markup = renderActions();
 

@@ -11,11 +11,13 @@ export type ToggleGroupOption<T extends string> = {
   id: T;
   label: string;
 };
+export type ToggleGroupSize = "sm" | "md" | "lg";
 
 type ToggleGroupProps<T extends string> = {
   label: string;
   onChange: (value: T) => void;
   options: ToggleGroupOption<T>[];
+  size?: ToggleGroupSize;
   value: T;
 };
 
@@ -34,7 +36,7 @@ function ToggleGroupButton<T extends string>({ active, onChange, option }: Toggl
 
   return (
     <button
-      className={cx(styles.segmentedButton, active && styles.segmentedButtonActive)}
+      className={cx(styles.buttonGroupButton, active && styles.buttonGroupButtonActive)}
       type="button"
       {...buttonProps}
     >
@@ -44,9 +46,13 @@ function ToggleGroupButton<T extends string>({ active, onChange, option }: Toggl
   );
 }
 
-export function ToggleGroup<T extends string>({ label, onChange, options, value }: ToggleGroupProps<T>) {
+export function ToggleGroup<T extends string>({ label, onChange, options, size = "md", value }: ToggleGroupProps<T>) {
   return (
-    <div aria-label={label} className={styles.segmentedControl} role="group">
+    <div
+      aria-label={label}
+      className={cx(styles.buttonGroup, size === "sm" && styles.buttonGroupSm, size === "lg" && styles.buttonGroupLg)}
+      role="group"
+    >
       {options.map((option) => (
         <ToggleGroupButton active={option.id === value} key={option.id} onChange={onChange} option={option} />
       ))}

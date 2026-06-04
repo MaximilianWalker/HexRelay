@@ -1,0 +1,35 @@
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: var(--space-16);
+  height: var(--space-8);
+  align-items: center;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  padding: var(--space-1);
+}
+
+.switch span {
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-panel);
+  transform: translateX(0);
+  transition: transform var(--motion-fast);
+}
+
+.switchOn {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent);
+}
+
+.switchOn span {
+  transform: translateX(var(--space-8));
+}
+
+.layoutChoices {
+  display: inline-flex;
+  justify-self: end;
+}

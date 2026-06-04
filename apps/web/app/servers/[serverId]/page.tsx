@@ -15,7 +15,7 @@ import type {
   RoleGroup,
   VoiceChannel,
 } from "@/components/server-workspace/types";
-import { WorkspaceShell } from "@/components/workspace-shell";
+import { MainLayout } from "@/components/layout/main";
 import {
   createServerChannelMessage,
   fetchServer,
@@ -734,12 +734,12 @@ export default function ServerWorkspacePage() {
   }
 
   return (
-    <WorkspaceShell
+    <MainLayout
       activeTabId={view}
       subtitle={`${visibleServer.name} server view`}
       tabs={serverTabs}
       title={visibleServer.name}
-      workspaceTab={{
+      openTab={{
         imageLabel: visibleServer.name,
         label: visibleServer.name,
         unread: visibleServer.unread,
@@ -807,6 +807,6 @@ export default function ServerWorkspacePage() {
           />
         )}
       </section>
-    </WorkspaceShell>
+    </MainLayout>
   );
 }

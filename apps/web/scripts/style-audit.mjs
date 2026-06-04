@@ -3,14 +3,77 @@ import { join } from "node:path";
 
 const colorRoots = ["app", "components"];
 const rawColorAllowedFiles = new Set(["app/styles/tokens.css", "app/styles/themes.css"]);
-const frameworkRoots = [
-  "components/ui",
-  "components/hubs",
-  "components/chat",
-  "components/settings",
-  "components/onboarding",
-];
+const frameworkRoots = ["components"];
 const sharedUiStylesPath = "components/ui/control.module.css";
+const sharedActionControlBaseExpectations = [
+  {
+    selector: ".button",
+    properties: {
+      "height": "var(--size-control-md)",
+      "min-height": "var(--size-control-md)",
+    },
+  },
+  {
+    selector: ".buttonSm",
+    properties: {
+      "height": "var(--size-control-sm)",
+      "min-height": "var(--size-control-sm)",
+      "font-size": "var(--text-sm)",
+    },
+  },
+  {
+    selector: ".button > svg",
+    properties: {
+      "display": "block",
+      "width": "var(--size-icon-sm)",
+      "height": "var(--size-icon-sm)",
+      "flex": "0 0 var(--size-icon-sm)",
+      "stroke-width": "1.8",
+    },
+  },
+  {
+    selector: ".buttonGroup",
+    properties: {
+      "--button-group-height": "var(--size-control-md)",
+      "--button-group-font-size": "var(--text-md)",
+      "--button-group-icon-size": "var(--size-icon-sm)",
+      "height": "var(--button-group-height)",
+      "min-height": "var(--button-group-height)",
+    },
+  },
+  {
+    selector: ".buttonGroupSm",
+    properties: {
+      "--button-group-height": "var(--size-control-sm)",
+      "--button-group-font-size": "var(--text-sm)",
+    },
+  },
+  {
+    selector: ".buttonGroupLg",
+    properties: {
+      "--button-group-height": "var(--size-control-lg)",
+      "--button-group-font-size": "var(--text-body)",
+      "--button-group-icon-size": "var(--size-icon-md)",
+    },
+  },
+  {
+    selector: ".buttonGroupButton",
+    properties: {
+      "height": "100%",
+      "min-height": "0",
+    },
+  },
+  {
+    selector: ".buttonGroupButton > svg",
+    properties: {
+      "display": "block",
+      "width": "var(--button-group-icon-size)",
+      "height": "var(--button-group-icon-size)",
+      "flex": "0 0 var(--button-group-icon-size)",
+      "stroke-width": "1.8",
+    },
+  },
+];
 const sharedActionControlTypographyExpectations = [
   {
     selector: ".button",
@@ -23,10 +86,10 @@ const sharedActionControlTypographyExpectations = [
     },
   },
   {
-    selector: ".segmentedButton",
+    selector: ".buttonGroupButton",
     properties: {
       "font-family": "inherit",
-      "font-size": "var(--text-md)",
+      "font-size": "var(--button-group-font-size)",
       "font-weight": "var(--weight-medium)",
       "line-height": "var(--line-tight)",
       "white-space": "nowrap",
@@ -59,7 +122,7 @@ const activeControlExpectations = [
     },
   },
   {
-    selector: ".segmentedButton.segmentedButtonActive",
+    selector: ".buttonGroupButton.buttonGroupButtonActive",
     properties: {
       "background": "var(--color-accent-strong)",
       "border-color": "var(--color-accent-strong)",
@@ -67,6 +130,19 @@ const activeControlExpectations = [
     },
   },
 ];
+const forbiddenSharedControlTypographyOverrides = [
+  ".buttonPrimary",
+  ".buttonSecondary",
+  ".buttonGhost",
+  ".buttonDanger",
+  ".buttonPressed",
+  ".buttonGroupButton.buttonGroupButtonActive",
+].flatMap((selector) =>
+  ["font-family", "font-size", "font-weight", "line-height"].map((property) => ({
+    property,
+    selector,
+  })),
+);
 
 const rawColorPattern = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/;
 const rawSpacingPattern =
@@ -138,6 +214,7 @@ function parseCssDeclarations(block) {
 
 function findSelectorDeclarations(css, selector) {
   const blockPattern = /([^{}]+)\{([^{}]*)\}/g;
+  const declarations = new Map();
   let match;
 
   while ((match = blockPattern.exec(css)) !== null) {
@@ -147,17 +224,23 @@ function findSelectorDeclarations(css, selector) {
       .filter(Boolean);
 
     if (selectors.includes(selector)) {
-      return parseCssDeclarations(match[2]);
+      parseCssDeclarations(match[2]).forEach((value, property) => {
+        declarations.set(property, value);
+      });
     }
   }
 
-  return null;
+  return declarations.size > 0 ? declarations : null;
 }
 
 function auditSharedActiveControlTokens() {
   const css = readFileSync(sharedUiStylesPath, "utf8");
 
-  [...sharedActionControlTypographyExpectations, ...activeControlExpectations].forEach(({ properties, selector }) => {
+  [
+    ...sharedActionControlBaseExpectations,
+    ...sharedActionControlTypographyExpectations,
+    ...activeControlExpectations,
+  ].forEach(({ properties, selector }) => {
     const declarations = findSelectorDeclarations(css, selector);
     if (!declarations) {
       failures.push(`${sharedUiStylesPath}: missing shared control selector: ${selector}`);
@@ -172,6 +255,13 @@ function auditSharedActiveControlTokens() {
         );
       }
     });
+  });
+
+  forbiddenSharedControlTypographyOverrides.forEach(({ property, selector }) => {
+    const declarations = findSelectorDeclarations(css, selector);
+    if (declarations?.has(property)) {
+      failures.push(`${sharedUiStylesPath}: ${selector} must inherit ${property} from the shared control base`);
+    }
   });
 }
 

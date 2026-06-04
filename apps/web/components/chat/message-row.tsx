@@ -80,7 +80,7 @@ export function MessageRow({
       </div>
       {!deleted ? (
         <IconButton label={`Reply to message from ${authorLabel(message.author_id)}`} onClick={() => onReply(message)}>
-          <IconMessageCircle className={styles.icon} aria-hidden="true" />
+          <IconMessageCircle aria-hidden="true" />
         </IconButton>
       ) : null}
     </article>

@@ -1,7 +1,3 @@
-.notice {
-  overflow-wrap: anywhere;
-}
-
 .ctaRow {
   display: flex;
   flex-wrap: wrap;

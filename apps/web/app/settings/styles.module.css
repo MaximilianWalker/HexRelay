@@ -21,8 +21,8 @@
   gap: var(--gap-control);
 }
 
-.notice,
-.warningNotice,
+.alert,
+.warningAlert,
 .inlineMessage {
   display: flex;
   align-items: flex-start;
@@ -34,19 +34,19 @@
   color: var(--color-text-strong);
 }
 
-.warningNotice {
+.warningAlert {
   border-color: var(--color-warning);
   background: var(--color-warning-muted);
   color: var(--color-warning);
 }
 
-.noticeTitle {
+.alertTitle {
   font-size: var(--text-body);
   font-weight: var(--weight-bold);
   line-height: 1.25;
 }
 
-.noticeText {
+.alertText {
   margin-top: var(--space-2);
   font-size: var(--text-sm);
   line-height: 1.4;

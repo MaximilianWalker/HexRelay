@@ -47,7 +47,7 @@ export function VoiceView({
             </h3>
             <p className={styles.serverMeta}>{activeChannel?.description ?? "Select a voice channel."}</p>
           </div>
-          <Button disabled icon={<IconMicrophone className={styles.icon} aria-hidden="true" />} variant="primary">
+          <Button disabled icon={<IconMicrophone aria-hidden="true" />} variant="primary">
             Join voice
           </Button>
         </header>
@@ -102,10 +102,10 @@ export function VoiceView({
               <span>Preview</span>
             </div>
             <div className={styles.voiceControlGrid}>
-              <Button disabled icon={<IconMicrophone className={styles.icon} aria-hidden="true" />}>
+              <Button disabled icon={<IconMicrophone aria-hidden="true" />}>
                 Mute
               </Button>
-              <Button disabled icon={<IconVolume className={styles.icon} aria-hidden="true" />}>
+              <Button disabled icon={<IconVolume aria-hidden="true" />}>
                 Deafen
               </Button>
             </div>

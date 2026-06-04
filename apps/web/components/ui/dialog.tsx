@@ -115,7 +115,7 @@ export function Dialog({
             ) : null}
           </div>
           <IconButton label={`Close ${title}`} onClick={onClose}>
-            <IconX className={styles.icon} aria-hidden="true" />
+            <IconX aria-hidden="true" />
           </IconButton>
         </header>
         {children}

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { DialogActions } from "@/components/ui/dialog-actions";
 import { Field } from "@/components/ui/field";
-import { Notice } from "@/components/ui/notice";
+import { Alert } from "@/components/ui/alert";
 import { TextInput } from "@/components/ui/text-input";
 
 import { ContactDiscoveryResults, type ContactDiscoveryUser } from "./contact-discovery-results";
@@ -61,18 +61,18 @@ export function ContactAddDialog({
             />
           </div>
         </Field>
-        {actionMessage ? <Notice>{actionMessage}</Notice> : null}
+        {actionMessage ? <Alert>{actionMessage}</Alert> : null}
         <DialogActions>
           <Button
             disabled={discoveryBusy}
-            icon={<IconSearch className={styles.icon} aria-hidden="true" />}
+            icon={<IconSearch aria-hidden="true" />}
             onClick={onSearchUsers}
           >
             {discoveryBusy ? "Searching..." : "Search"}
           </Button>
           <Button
             disabled={sendBusyIdentityId === query.trim()}
-            icon={<IconUserPlus className={styles.icon} aria-hidden="true" />}
+            icon={<IconUserPlus aria-hidden="true" />}
             onClick={() => onSendFriendRequest(query)}
             variant="primary"
           >
