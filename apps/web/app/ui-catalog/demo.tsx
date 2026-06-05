@@ -26,6 +26,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import { BrandLockup } from "@/components/brand-lockup";
+import { BrandLogo } from "@/components/brand-logo";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -57,6 +59,7 @@ type PopupHorizontal = "center" | "left" | "right";
 type PopupVertical = "bottom" | "center" | "top";
 
 const sections = [
+  { id: "brand", label: "Brand" },
   { id: "buttons", label: "Buttons" },
   { id: "toggles", label: "Toggles" },
   { id: "menus", label: "Menus" },
@@ -69,6 +72,12 @@ const sections = [
   { id: "panels", label: "Panels" },
   { id: "dialogs", label: "Dialogs" },
   { id: "popups", label: "Popups" },
+] as const;
+
+const brandSizes = [
+  { className: styles.brandLogoSm, label: "Small", size: "sm" },
+  { className: styles.brandLogoMd, label: "Medium", size: "md" },
+  { className: styles.brandLogoLg, label: "Large", size: "lg" },
 ] as const;
 
 type CatalogSection = (typeof sections)[number];
@@ -305,7 +314,8 @@ export function Demo() {
               Catalog
             </Button>
           </span>
-          <h1>UI catalog</h1>
+          <BrandLockup className={styles.headerBrand} size="sm" />
+          <h1>UI Catalog</h1>
           <div className={styles.searchWrap}>
             <IconSearch aria-hidden="true" className={styles.searchIcon} />
             <TextInput
@@ -333,6 +343,40 @@ export function Demo() {
         </aside>
 
         <div className={styles.content}>
+          <Section
+            id="brand"
+            title="Brand"
+            visible={isSectionVisible("brand")}
+            description="The HexRelay mark and lockup scale together across compact, default, and large placements."
+          >
+            <div className={styles.exampleGrid}>
+              <Example title="Logo Mark" wide>
+                <div className={styles.brandSamples}>
+                  {brandSizes.map((brandSize) => (
+                    <div className={styles.brandSample} key={brandSize.size}>
+                      <span className={styles.sampleLabel}>{brandSize.label}</span>
+                      <BrandLogo
+                        aria-label={`HexRelay logo ${brandSize.label.toLowerCase()}`}
+                        className={`${styles.brandLogo} ${brandSize.className}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Example>
+
+              <Example title="Logo With Name" wide>
+                <div className={styles.brandSamples}>
+                  {brandSizes.map((brandSize) => (
+                    <div className={styles.brandSample} key={brandSize.size}>
+                      <span className={styles.sampleLabel}>{brandSize.label}</span>
+                      <BrandLockup size={brandSize.size} />
+                    </div>
+                  ))}
+                </div>
+              </Example>
+            </div>
+          </Section>
+
           <Section
             id="buttons"
             title="Buttons"

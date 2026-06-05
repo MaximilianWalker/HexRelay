@@ -3,7 +3,7 @@ import { cx } from "@/lib/ui/cx";
 
 import styles from "./brand-lockup.module.css";
 
-type BrandLockupSize = "md" | "lg";
+type BrandLockupSize = "sm" | "md" | "lg";
 
 export function BrandLockup({
   className,

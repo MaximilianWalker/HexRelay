@@ -248,6 +248,26 @@
   cursor: not-allowed;
 }
 
+.selectControl {
+  appearance: none;
+  padding-inline-end: calc(var(--space-16) + var(--space-8));
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right calc(var(--space-8) + var(--space-2))
+      center / var(--space-3) var(--space-3) no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right var(--space-8) center / var(--space-3)
+      var(--space-3) no-repeat,
+    var(--color-surface);
+}
+
+.selectControl:disabled {
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right calc(var(--space-8) + var(--space-2))
+      center / var(--space-3) var(--space-3) no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right var(--space-8) center / var(--space-3)
+      var(--space-3) no-repeat,
+    var(--color-surface-muted);
+}
+
 .fieldControlInvalid {
   border-color: var(--color-danger-strong);
 }

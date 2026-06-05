@@ -26,16 +26,21 @@ describe("UI catalog", () => {
     render(<Demo />);
 
     const navButton = screen.getByRole("button", { name: "Catalog" });
-    const title = screen.getByRole("heading", { name: "UI catalog" });
-    const headerTitle = navButton.parentElement?.nextElementSibling;
+    const header = document.querySelector("header") as HTMLElement;
+    const brandName = within(header).getByText("HexRelay");
+    const title = screen.getByRole("heading", { name: "UI Catalog" });
 
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
     expect(
       Boolean(
-        navButton.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+        navButton.compareDocumentPosition(brandName) & Node.DOCUMENT_POSITION_FOLLOWING,
       ),
     ).toBe(true);
-    expect(headerTitle).toBe(title);
+    expect(
+      Boolean(
+        brandName.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
     expect(screen.queryByText("Development catalog")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Shared primitives, states, tones, and composed patterns used by app surfaces."),
@@ -80,6 +85,12 @@ describe("UI catalog", () => {
     const user = userEvent.setup();
 
     render(<Demo />);
+
+    const brand = section("brand");
+    expect(brand.getByText("Logo Mark")).toBeInTheDocument();
+    expect(brand.getByText("Logo With Name")).toBeInTheDocument();
+    expect(brand.getAllByText("HexRelay")).toHaveLength(3);
+    expect(brand.getAllByRole("img")).toHaveLength(3);
 
     const buttons = section("buttons");
     expect(buttons.getByText("Tones")).toBeInTheDocument();
