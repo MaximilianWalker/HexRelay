@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   IconAlertTriangle,
   IconBell,
   IconBellOff,
   IconCheck,
   IconChevronDown,
+  IconChevronRight,
   IconCircleCheck,
   IconCircleX,
   IconHash,
@@ -57,31 +58,84 @@ type Filter = "all" | "unread" | "muted";
 type PopupContent = "alert" | "menu" | "panel";
 type PopupHorizontal = "center" | "left" | "right";
 type PopupVertical = "bottom" | "center" | "top";
+type ScrollMetrics = {
+  canScroll: boolean;
+  thumbOffset: number;
+  thumbSize: number;
+};
 
-const sections = [
-  { id: "brand", label: "Brand" },
-  { id: "buttons", label: "Buttons" },
-  { id: "toggles", label: "Toggles" },
-  { id: "menus", label: "Menus" },
-  { id: "lists", label: "List Actions" },
-  { id: "forms", label: "Forms" },
-  { id: "badges", label: "Badges" },
-  { id: "avatars", label: "Avatars" },
-  { id: "alerts", label: "Alerts" },
-  { id: "empty-states", label: "Empty States" },
-  { id: "panels", label: "Panels" },
-  { id: "dialogs", label: "Dialogs" },
-  { id: "popups", label: "Popups" },
+const sectionGroups = [
+  {
+    id: "identity",
+    label: "Identity",
+    sections: [{ id: "logo", label: "Logo", keywords: "brand mark lockup wordmark hexrelay" }],
+  },
+  {
+    id: "inputs-controls",
+    label: "Inputs & Controls",
+    sections: [
+      { id: "buttons", label: "Buttons", keywords: "button icon action press" },
+      { id: "toggles", label: "Toggles", keywords: "switch segmented pressed control" },
+      { id: "forms", label: "Forms", keywords: "field input select textarea checkbox" },
+    ],
+  },
+  {
+    id: "navigation-actions",
+    label: "Navigation & Actions",
+    sections: [
+      { id: "menus", label: "Menus", keywords: "menu row item popover" },
+      { id: "lists", label: "List Actions", keywords: "list nav row channel action" },
+    ],
+  },
+  {
+    id: "data-display",
+    label: "Data Display",
+    sections: [
+      { id: "avatars", label: "Avatars", keywords: "user profile entity" },
+      { id: "badges", label: "Badges", keywords: "label count status" },
+    ],
+  },
+  {
+    id: "feedback",
+    label: "Feedback",
+    sections: [
+      { id: "alerts", label: "Alerts", keywords: "notice success danger warning" },
+      { id: "empty-states", label: "Empty States", keywords: "empty blank fallback" },
+    ],
+  },
+  {
+    id: "surfaces",
+    label: "Surfaces",
+    sections: [{ id: "panels", label: "Panels", keywords: "card container raised subtle" }],
+  },
+  {
+    id: "overlays",
+    label: "Overlays",
+    sections: [
+      { id: "dialogs", label: "Dialogs", keywords: "modal confirmation" },
+      { id: "popups", label: "Popups", keywords: "popover floating anchored placement" },
+    ],
+  },
 ] as const;
 
-const brandSizes = [
-  { className: styles.brandLogoSm, label: "Small", size: "sm" },
-  { className: styles.brandLogoMd, label: "Medium", size: "md" },
-  { className: styles.brandLogoLg, label: "Large", size: "lg" },
-] as const;
-
-type CatalogSection = (typeof sections)[number];
+type CatalogSectionGroup = (typeof sectionGroups)[number];
+type CatalogSectionGroupId = CatalogSectionGroup["id"];
+type CatalogSection = CatalogSectionGroup["sections"][number];
 type CatalogSectionId = CatalogSection["id"];
+type VisibleCatalogSectionGroup = {
+  id: CatalogSectionGroupId;
+  label: CatalogSectionGroup["label"];
+  sections: readonly CatalogSection[];
+};
+
+const sections: readonly CatalogSection[] = sectionGroups.flatMap((group) => group.sections);
+const sectionIds = new Set<string>(sections.map((section) => section.id));
+
+const logoSizes = [
+  { className: styles.logoMarkSm, label: "Small", size: "sm" },
+  { className: styles.logoMarkMd, label: "Medium", size: "md" },
+  { className: styles.logoMarkLg, label: "Large", size: "lg" },
+] as const;
 
 const popupVerticalOptions: Array<{ label: string; value: PopupVertical }> = [
   { label: "Top", value: "top" },
@@ -119,6 +173,22 @@ function getPopupPlacement(vertical: PopupVertical, horizontal: PopupHorizontal)
   }
 
   return `${vertical}-center`;
+}
+
+function getCatalogSectionIdFromHash(hash: string): CatalogSectionId | null {
+  const id = hash.slice(1);
+
+  return sectionIds.has(id) ? (id as CatalogSectionId) : null;
+}
+
+function getCatalogGroupIdForSectionId(sectionId: CatalogSectionId): CatalogSectionGroupId {
+  const group = sectionGroups.find((item) => item.sections.some((section) => section.id === sectionId));
+
+  return group?.id ?? "identity";
+}
+
+function matchesCatalogSection(section: CatalogSection, group: CatalogSectionGroup, query: string): boolean {
+  return `${group.label} ${group.id} ${section.label} ${section.id} ${section.keywords}`.toLowerCase().includes(query);
 }
 
 function Section({
@@ -170,21 +240,75 @@ function Example({
   );
 }
 
-function CatalogNavLinks({
-  items = sections,
+function CatalogNavGroups({
+  activeSectionId,
+  groups,
+  navId,
   onNavigate,
+  onToggleGroup,
+  openGroupIds,
+  searchActive,
 }: {
-  items?: readonly CatalogSection[];
-  onNavigate?: () => void;
+  activeSectionId: CatalogSectionId;
+  groups: readonly VisibleCatalogSectionGroup[];
+  navId: string;
+  onNavigate: (sectionId: CatalogSectionId) => void;
+  onToggleGroup: (groupId: CatalogSectionGroupId) => void;
+  openGroupIds: ReadonlySet<CatalogSectionGroupId>;
+  searchActive: boolean;
 }) {
+  if (groups.length === 0) {
+    return <p className={styles.navEmpty}>No matching components</p>;
+  }
+
   return (
-    <>
-      {items.map((section) => (
-        <a href={`#${section.id}`} key={section.id} onClick={onNavigate}>
-          {section.label}
-        </a>
+    <div className={styles.navGroups}>
+      {groups.map((group) => (
+        <div className={styles.navGroup} key={group.id}>
+          {(() => {
+            const expanded = searchActive || openGroupIds.has(group.id);
+            const panelId = `${navId}-${group.id}-links`;
+
+            return (
+              <>
+                <PressableButton
+                  aria-controls={panelId}
+                  aria-expanded={expanded}
+                  className={styles.navGroupButton}
+                  data-expanded={expanded ? "true" : undefined}
+                  onClick={() => onToggleGroup(group.id)}
+                  type="button"
+                >
+                  <span>{group.label}</span>
+                  {expanded ? (
+                    <IconChevronDown aria-hidden="true" className={styles.navGroupChevron} />
+                  ) : (
+                    <IconChevronRight aria-hidden="true" className={styles.navGroupChevron} />
+                  )}
+                </PressableButton>
+                <div className={styles.navGroupLinks} hidden={!expanded} id={panelId}>
+                  {group.sections.map((section) => {
+                    const active = section.id === activeSectionId;
+
+                    return (
+                      <a
+                        aria-current={active ? "page" : undefined}
+                        data-active={active ? "true" : undefined}
+                        href={`#${section.id}`}
+                        key={section.id}
+                        onClick={() => onNavigate(section.id)}
+                      >
+                        {section.label}
+                      </a>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </div>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -217,6 +341,99 @@ function PopupPreviewContent({ content }: { content: PopupContent }) {
   );
 }
 
+function CatalogScrollArea({ children }: { children: ReactNode }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [metrics, setMetrics] = useState<ScrollMetrics>({
+    canScroll: false,
+    thumbOffset: 0,
+    thumbSize: 0,
+  });
+
+  const updateMetrics = useCallback(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const { clientHeight, scrollHeight, scrollTop } = viewport;
+    const canScroll = scrollHeight > clientHeight + 1;
+
+    if (!canScroll) {
+      setMetrics((current) =>
+        current.canScroll || current.thumbOffset !== 0 || current.thumbSize !== 0
+          ? { canScroll: false, thumbOffset: 0, thumbSize: 0 }
+          : current,
+      );
+      return;
+    }
+
+    const minThumbSize = Math.min(clientHeight, 40);
+    const thumbSize = Math.max(minThumbSize, Math.round((clientHeight / scrollHeight) * clientHeight));
+    const maxThumbOffset = clientHeight - thumbSize;
+    const maxScrollTop = scrollHeight - clientHeight;
+    const thumbOffset = maxScrollTop > 0 ? Math.round((scrollTop / maxScrollTop) * maxThumbOffset) : 0;
+
+    setMetrics((current) =>
+      current.canScroll === canScroll && current.thumbOffset === thumbOffset && current.thumbSize === thumbSize
+        ? current
+        : { canScroll, thumbOffset, thumbSize },
+    );
+  }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    let animationFrame = window.requestAnimationFrame(updateMetrics);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = window.requestAnimationFrame(updateMetrics);
+          });
+
+    function handleScroll(): void {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updateMetrics);
+    }
+
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+    resizeObserver?.observe(viewport);
+    if (viewport.firstElementChild) {
+      resizeObserver?.observe(viewport.firstElementChild);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      viewport.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+      resizeObserver?.disconnect();
+    };
+  }, [updateMetrics]);
+
+  const thumbStyle = {
+    "--catalog-scroll-thumb-offset": `${metrics.thumbOffset}px`,
+    "--catalog-scroll-thumb-size": `${metrics.thumbSize}px`,
+  } as CSSProperties;
+
+  return (
+    <div className={styles.catalogScrollArea} data-scrollable={metrics.canScroll ? "true" : undefined}>
+      <div className={styles.content} ref={viewportRef}>
+        {children}
+      </div>
+      <div aria-hidden="true" className={styles.catalogScrollTrack}>
+        <span className={styles.catalogScrollThumb} style={thumbStyle} />
+      </div>
+    </div>
+  );
+}
+
 export function Demo() {
   const [buttonGroup, setButtonGroup] = useState<ButtonGroupState>("list");
   const [filter, setFilter] = useState<Filter>("muted");
@@ -230,27 +447,84 @@ export function Demo() {
   const [pinned, setPinned] = useState(true);
   const [catalogNavOpen, setCatalogNavOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
+  const [activeSectionId, setActiveSectionId] = useState<CatalogSectionId>(() => {
+    if (typeof window === "undefined") {
+      return "logo";
+    }
+
+    return getCatalogSectionIdFromHash(window.location.hash) ?? "logo";
+  });
+  const [openGroupIds, setOpenGroupIds] = useState<ReadonlySet<CatalogSectionGroupId>>(() => {
+    const sectionId =
+      typeof window === "undefined" ? "logo" : getCatalogSectionIdFromHash(window.location.hash) ?? "logo";
+
+    return new Set([getCatalogGroupIdForSectionId(sectionId)]);
+  });
 
   const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
   const catalogSearchQuery = catalogSearch.trim().toLowerCase();
-  const visibleSections = catalogSearchQuery
-    ? sections.filter((section) => `${section.label} ${section.id}`.toLowerCase().includes(catalogSearchQuery))
-    : sections;
+  const catalogSearchActive = catalogSearchQuery.length > 0;
+  const visibleSectionGroups: readonly VisibleCatalogSectionGroup[] = catalogSearchQuery
+    ? sectionGroups
+        .map((group) => ({
+          id: group.id,
+          label: group.label,
+          sections: group.sections.filter((section) => matchesCatalogSection(section, group, catalogSearchQuery)),
+        }))
+        .filter((group) => group.sections.length > 0)
+    : sectionGroups;
+  const visibleSections = visibleSectionGroups.flatMap((group) => group.sections);
   const visibleSectionIds = new Set<CatalogSectionId>(visibleSections.map((section) => section.id));
 
   function isSectionVisible(sectionId: CatalogSectionId): boolean {
     return visibleSectionIds.has(sectionId);
   }
 
+  function navigateCatalogSection(sectionId: CatalogSectionId): void {
+    setActiveSectionId(sectionId);
+    setOpenGroupIds((currentGroupIds) => {
+      const nextGroupIds = new Set(currentGroupIds);
+      nextGroupIds.add(getCatalogGroupIdForSectionId(sectionId));
+
+      return nextGroupIds;
+    });
+    setCatalogNavOpen(false);
+  }
+
+  function toggleCatalogGroup(groupId: CatalogSectionGroupId): void {
+    if (catalogSearchActive) {
+      return;
+    }
+
+    setOpenGroupIds((currentGroupIds) => {
+      const nextGroupIds = new Set(currentGroupIds);
+
+      if (nextGroupIds.has(groupId)) {
+        nextGroupIds.delete(groupId);
+      } else {
+        nextGroupIds.add(groupId);
+      }
+
+      return nextGroupIds;
+    });
+  }
+
   useEffect(() => {
     function scrollToHash(): void {
-      const id = window.location.hash.slice(1);
-      if (!id) {
+      const sectionId = getCatalogSectionIdFromHash(window.location.hash);
+      if (!sectionId) {
         return;
       }
 
+      setActiveSectionId(sectionId);
+      setOpenGroupIds((currentGroupIds) => {
+        const nextGroupIds = new Set(currentGroupIds);
+        nextGroupIds.add(getCatalogGroupIdForSectionId(sectionId));
+
+        return nextGroupIds;
+      });
       window.requestAnimationFrame(() => {
-        const target = document.getElementById(id);
+        const target = document.getElementById(sectionId);
 
         if (typeof target?.scrollIntoView === "function") {
           target.scrollIntoView({ block: "start" });
@@ -336,40 +610,54 @@ export function Demo() {
 
       <div className={styles.shell}>
         <aside className={styles.nav} aria-label="UI catalog sections">
-          <p className={styles.navTitle}>Catalog</p>
-          <nav>
-            <CatalogNavLinks items={visibleSections} />
+          <p className={styles.navTitle}>Components</p>
+          <nav aria-label="UI catalog categories">
+            <CatalogNavGroups
+              activeSectionId={activeSectionId}
+              groups={visibleSectionGroups}
+              navId="catalog-sidebar"
+              onNavigate={navigateCatalogSection}
+              onToggleGroup={toggleCatalogGroup}
+              openGroupIds={openGroupIds}
+              searchActive={catalogSearchActive}
+            />
           </nav>
         </aside>
 
-        <div className={styles.content}>
+        <CatalogScrollArea>
+          {visibleSections.length === 0 ? (
+            <EmptyState className={styles.catalogEmptyState} title="No components found">
+              <p>Try a different component name or category.</p>
+            </EmptyState>
+          ) : null}
+
           <Section
-            id="brand"
-            title="Brand"
-            visible={isSectionVisible("brand")}
+            id="logo"
+            title="Logo"
+            visible={isSectionVisible("logo")}
             description="The HexRelay mark and lockup scale together across compact, default, and large placements."
           >
             <div className={styles.exampleGrid}>
               <Example title="Logo Mark" wide>
-                <div className={styles.brandSamples}>
-                  {brandSizes.map((brandSize) => (
-                    <div className={styles.brandSample} key={brandSize.size}>
-                      <span className={styles.sampleLabel}>{brandSize.label}</span>
+                <div className={styles.logoSamples}>
+                  {logoSizes.map((logoSize) => (
+                    <div className={styles.logoSample} key={logoSize.size}>
+                      <span className={styles.sampleLabel}>{logoSize.label}</span>
                       <BrandLogo
-                        aria-label={`HexRelay logo ${brandSize.label.toLowerCase()}`}
-                        className={`${styles.brandLogo} ${brandSize.className}`}
+                        aria-label={`HexRelay logo ${logoSize.label.toLowerCase()}`}
+                        className={`${styles.logoMark} ${logoSize.className}`}
                       />
                     </div>
                   ))}
                 </div>
               </Example>
 
-              <Example title="Logo With Name" wide>
-                <div className={styles.brandSamples}>
-                  {brandSizes.map((brandSize) => (
-                    <div className={styles.brandSample} key={brandSize.size}>
-                      <span className={styles.sampleLabel}>{brandSize.label}</span>
-                      <BrandLockup size={brandSize.size} />
+              <Example title="Logo Lockup" wide>
+                <div className={styles.logoSamples}>
+                  {logoSizes.map((logoSize) => (
+                    <div className={styles.logoSample} key={logoSize.size}>
+                      <span className={styles.sampleLabel}>{logoSize.label}</span>
+                      <BrandLockup size={logoSize.size} />
                     </div>
                   ))}
                 </div>
@@ -591,6 +879,75 @@ export function Demo() {
           </Section>
 
           <Section
+            id="forms"
+            title="Forms"
+            visible={isSectionVisible("forms")}
+            description="Fields share label, helper, invalid, disabled, and control typography styles."
+          >
+            <div className={styles.exampleGrid}>
+              <Example title="Text Inputs" wide>
+                <div className={styles.fieldGrid}>
+                  <Field helper="Shown in profile cards and mentions." label="Default">
+                    <TextInput defaultValue="Diogo" />
+                  </Field>
+                  <Field label="Invalid" error="Server name is required.">
+                    <TextInput invalid placeholder="Product team" />
+                  </Field>
+                  <Field helper="Locked by current role." label="Disabled">
+                    <TextInput defaultValue="Read only" disabled />
+                  </Field>
+                </div>
+              </Example>
+
+              <Example title="Selects" wide>
+                <div className={styles.fieldGrid}>
+                  <Field helper="Visible to contacts." label="Default">
+                    <SelectField defaultValue="online">
+                      <option value="online">Online</option>
+                      <option value="away">Away</option>
+                      <option value="offline">Offline</option>
+                    </SelectField>
+                  </Field>
+                  <Field label="Invalid" error="Pick a role before saving.">
+                    <SelectField defaultValue="" invalid>
+                      <option value="">Select role</option>
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                    </SelectField>
+                  </Field>
+                  <Field helper="Managed by server policy." label="Disabled">
+                    <SelectField defaultValue="member" disabled>
+                      <option value="member">Member</option>
+                    </SelectField>
+                  </Field>
+                </div>
+              </Example>
+
+              <Example title="Text Areas" wide>
+                <div className={styles.fieldGrid}>
+                  <Field label="Default">
+                    <TextArea defaultValue="Share release notes, planning threads, and voice rooms here." rows={4} />
+                  </Field>
+                  <Field label="Invalid" error="Message is too long.">
+                    <TextArea defaultValue="This note needs a shorter summary." invalid rows={4} />
+                  </Field>
+                  <Field helper="Generated from server settings." label="Disabled">
+                    <TextArea defaultValue="Only admins can edit this note." disabled rows={4} />
+                  </Field>
+                </div>
+              </Example>
+
+              <Example title="Checkboxes">
+                <div className={styles.column}>
+                  <CheckboxField>Unchecked</CheckboxField>
+                  <CheckboxField defaultChecked>Checked</CheckboxField>
+                  <CheckboxField disabled>Disabled</CheckboxField>
+                </div>
+              </Example>
+            </div>
+          </Section>
+
+          <Section
             id="menus"
             title="Menus"
             visible={isSectionVisible("menus")}
@@ -687,69 +1044,43 @@ export function Demo() {
           </Section>
 
           <Section
-            id="forms"
-            title="Forms"
-            visible={isSectionVisible("forms")}
-            description="Fields share label, helper, invalid, disabled, and control typography styles."
+            id="avatars"
+            title="Avatars"
+            visible={isSectionVisible("avatars")}
+            description="Avatars expose user and server shapes with the same three supported sizes."
           >
             <div className={styles.exampleGrid}>
-              <Example title="Text Inputs" wide>
-                <div className={styles.fieldGrid}>
-                  <Field helper="Shown in profile cards and mentions." label="Default">
-                    <TextInput defaultValue="Diogo" />
-                  </Field>
-                  <Field label="Invalid" error="Server name is required.">
-                    <TextInput invalid placeholder="Product team" />
-                  </Field>
-                  <Field helper="Locked by current role." label="Disabled">
-                    <TextInput defaultValue="Read only" disabled />
-                  </Field>
+              <Example title="User Sizes" wide>
+                <div className={styles.avatarGrid}>
+                  <div className={styles.avatarSample}>
+                    <Avatar label="Small user" size="sm" text="SM" />
+                    <span className={styles.sampleLabel}>Small user</span>
+                  </div>
+                  <div className={styles.avatarSample}>
+                    <Avatar label="Medium user" text="MD" />
+                    <span className={styles.sampleLabel}>Medium user</span>
+                  </div>
+                  <div className={styles.avatarSample}>
+                    <Avatar label="Large user" size="lg" text="LG" />
+                    <span className={styles.sampleLabel}>Large user</span>
+                  </div>
                 </div>
               </Example>
 
-              <Example title="Selects" wide>
-                <div className={styles.fieldGrid}>
-                  <Field helper="Visible to contacts." label="Default">
-                    <SelectField defaultValue="online">
-                      <option value="online">Online</option>
-                      <option value="away">Away</option>
-                      <option value="offline">Offline</option>
-                    </SelectField>
-                  </Field>
-                  <Field label="Invalid" error="Pick a role before saving.">
-                    <SelectField defaultValue="" invalid>
-                      <option value="">Select role</option>
-                      <option value="admin">Admin</option>
-                      <option value="member">Member</option>
-                    </SelectField>
-                  </Field>
-                  <Field helper="Managed by server policy." label="Disabled">
-                    <SelectField defaultValue="member" disabled>
-                      <option value="member">Member</option>
-                    </SelectField>
-                  </Field>
-                </div>
-              </Example>
-
-              <Example title="Text Areas" wide>
-                <div className={styles.fieldGrid}>
-                  <Field label="Default">
-                    <TextArea defaultValue="Share release notes, planning threads, and voice rooms here." rows={4} />
-                  </Field>
-                  <Field label="Invalid" error="Message is too long.">
-                    <TextArea defaultValue="This note needs a shorter summary." invalid rows={4} />
-                  </Field>
-                  <Field helper="Generated from server settings." label="Disabled">
-                    <TextArea defaultValue="Only admins can edit this note." disabled rows={4} />
-                  </Field>
-                </div>
-              </Example>
-
-              <Example title="Checkboxes">
-                <div className={styles.column}>
-                  <CheckboxField>Unchecked</CheckboxField>
-                  <CheckboxField defaultChecked>Checked</CheckboxField>
-                  <CheckboxField disabled>Disabled</CheckboxField>
+              <Example title="Server Sizes" wide>
+                <div className={styles.avatarGrid}>
+                  <div className={styles.avatarSample}>
+                    <Avatar kind="server" label="Small server" size="sm" text="SM" />
+                    <span className={styles.sampleLabel}>Small server</span>
+                  </div>
+                  <div className={styles.avatarSample}>
+                    <Avatar kind="server" label="Medium server" text="MD" />
+                    <span className={styles.sampleLabel}>Medium server</span>
+                  </div>
+                  <div className={styles.avatarSample}>
+                    <Avatar kind="server" label="Large server" size="lg" text="LG" />
+                    <span className={styles.sampleLabel}>Large server</span>
+                  </div>
                 </div>
               </Example>
             </div>
@@ -822,49 +1153,6 @@ export function Demo() {
                   <Badge tone="success">Success</Badge>
                   <Badge tone="warning">Warning</Badge>
                   <Badge tone="danger">Danger</Badge>
-                </div>
-              </Example>
-            </div>
-          </Section>
-
-          <Section
-            id="avatars"
-            title="Avatars"
-            visible={isSectionVisible("avatars")}
-            description="Avatars expose user and server shapes with the same three supported sizes."
-          >
-            <div className={styles.exampleGrid}>
-              <Example title="User Sizes" wide>
-                <div className={styles.avatarGrid}>
-                  <div className={styles.avatarSample}>
-                    <Avatar label="Small user" size="sm" text="SM" />
-                    <span className={styles.sampleLabel}>Small user</span>
-                  </div>
-                  <div className={styles.avatarSample}>
-                    <Avatar label="Medium user" text="MD" />
-                    <span className={styles.sampleLabel}>Medium user</span>
-                  </div>
-                  <div className={styles.avatarSample}>
-                    <Avatar label="Large user" size="lg" text="LG" />
-                    <span className={styles.sampleLabel}>Large user</span>
-                  </div>
-                </div>
-              </Example>
-
-              <Example title="Server Sizes" wide>
-                <div className={styles.avatarGrid}>
-                  <div className={styles.avatarSample}>
-                    <Avatar kind="server" label="Small server" size="sm" text="SM" />
-                    <span className={styles.sampleLabel}>Small server</span>
-                  </div>
-                  <div className={styles.avatarSample}>
-                    <Avatar kind="server" label="Medium server" text="MD" />
-                    <span className={styles.sampleLabel}>Medium server</span>
-                  </div>
-                  <div className={styles.avatarSample}>
-                    <Avatar kind="server" label="Large server" size="lg" text="LG" />
-                    <span className={styles.sampleLabel}>Large server</span>
-                  </div>
                 </div>
               </Example>
             </div>
@@ -1058,7 +1346,7 @@ export function Demo() {
               </Example>
             </div>
           </Section>
-        </div>
+        </CatalogScrollArea>
       </div>
       {catalogNavOpen ? (
         <div className={styles.navOverlay}>
@@ -1083,8 +1371,16 @@ export function Demo() {
                 <IconX aria-hidden="true" />
               </IconButton>
             </div>
-            <nav>
-              <CatalogNavLinks items={visibleSections} onNavigate={() => setCatalogNavOpen(false)} />
+            <nav aria-label="UI catalog categories">
+              <CatalogNavGroups
+                activeSectionId={activeSectionId}
+                groups={visibleSectionGroups}
+                navId="catalog-overlay"
+                onNavigate={navigateCatalogSection}
+                onToggleGroup={toggleCatalogGroup}
+                openGroupIds={openGroupIds}
+                searchActive={catalogSearchActive}
+              />
             </nav>
           </div>
         </div>

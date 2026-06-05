@@ -51,8 +51,15 @@ describe("UI catalog", () => {
     await user.click(navButton);
 
     const dialog = screen.getByRole("dialog", { name: "Catalog navigation" });
+    expect(within(dialog).getByRole("button", { name: "Identity" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(dialog).getByRole("link", { name: "Logo" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Inputs & Controls" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Inputs & Controls" }));
     expect(within(dialog).getByRole("link", { name: "Buttons" })).toBeInTheDocument();
 
+    await user.click(within(dialog).getByRole("button", { name: "Navigation & Actions" }));
     await user.click(within(dialog).getByRole("link", { name: "Menus" }));
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
 
@@ -67,18 +74,85 @@ describe("UI catalog", () => {
     const user = userEvent.setup();
 
     render(<Demo />);
+    const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
 
     await user.type(screen.getByRole("searchbox", { name: "Search components" }), "badges");
 
     expect(document.getElementById("buttons")).not.toBeInTheDocument();
     expect(document.getElementById("badges")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Badges" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "Data Display" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(sidebar).getByRole("link", { name: "Badges" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("button", { name: "Inputs & Controls" })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
 
     await user.clear(screen.getByRole("searchbox", { name: "Search components" }));
 
     expect(document.getElementById("buttons")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Buttons" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "Inputs & Controls" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(sidebar).queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+
+    await user.click(within(sidebar).getByRole("button", { name: "Inputs & Controls" }));
+
+    expect(within(sidebar).getByRole("link", { name: "Buttons" })).toBeInTheDocument();
+  });
+
+  it("toggles sidebar category dropdowns", async () => {
+    const user = userEvent.setup();
+
+    render(<Demo />);
+    const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
+    const identity = within(sidebar).getByRole("button", { name: "Identity" });
+    const inputs = within(sidebar).getByRole("button", { name: "Inputs & Controls" });
+
+    expect(identity).toHaveAttribute("aria-expanded", "true");
+    expect(within(sidebar).getByRole("link", { name: "Logo" })).toBeInTheDocument();
+    expect(inputs).toHaveAttribute("aria-expanded", "false");
+    expect(within(sidebar).queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+
+    await user.click(inputs);
+
+    expect(inputs).toHaveAttribute("aria-expanded", "true");
+    expect(within(sidebar).getByRole("link", { name: "Buttons" })).toBeInTheDocument();
+
+    await user.click(inputs);
+
+    expect(inputs).toHaveAttribute("aria-expanded", "false");
+    expect(within(sidebar).queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+  });
+
+  it("uses custom catalog scrollbar chrome instead of the native rail", () => {
+    render(<Demo />);
+
+    expect(document.querySelector('[class*="content"]')).toBeInTheDocument();
+    expect(document.querySelector('[class*="catalogScrollTrack"]')).toBeInTheDocument();
+    expect(document.querySelector('[class*="catalogScrollThumb"]')).toBeInTheDocument();
+  });
+
+  it("shows an empty state when no catalog sections match search", async () => {
+    const user = userEvent.setup();
+
+    render(<Demo />);
+    const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
+
+    await user.type(screen.getByRole("searchbox", { name: "Search components" }), "not-a-component");
+
+    expect(document.getElementById("buttons")).not.toBeInTheDocument();
+    expect(document.getElementById("logo")).not.toBeInTheDocument();
+    expect(within(sidebar).getByText("No matching components")).toBeInTheDocument();
+    expect(screen.getByText("No components found")).toBeInTheDocument();
+  });
+
+  it("marks the current hash section as active in the sidebar", () => {
+    window.history.replaceState(null, "", "/ui-catalog#menus");
+
+    render(<Demo />);
+    const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
+
+    expect(within(sidebar).getByRole("button", { name: "Navigation & Actions" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(within(sidebar).getByRole("link", { name: "Menus" })).toHaveAttribute("aria-current", "page");
   });
 
   it("documents the current shared control options", async () => {
@@ -86,11 +160,11 @@ describe("UI catalog", () => {
 
     render(<Demo />);
 
-    const brand = section("brand");
-    expect(brand.getByText("Logo Mark")).toBeInTheDocument();
-    expect(brand.getByText("Logo With Name")).toBeInTheDocument();
-    expect(brand.getAllByText("HexRelay")).toHaveLength(3);
-    expect(brand.getAllByRole("img")).toHaveLength(3);
+    const logo = section("logo");
+    expect(logo.getByText("Logo Mark")).toBeInTheDocument();
+    expect(logo.getByText("Logo Lockup")).toBeInTheDocument();
+    expect(logo.getAllByText("HexRelay")).toHaveLength(3);
+    expect(logo.getAllByRole("img")).toHaveLength(3);
 
     const buttons = section("buttons");
     expect(buttons.getByText("Tones")).toBeInTheDocument();
