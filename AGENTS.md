@@ -46,6 +46,7 @@ Only project-specific constraints are defined here.
 - CSS Modules should be component-scoped and small enough to audit. If a CSS module grows because unrelated surfaces share it, split by component or feature instead of adding more classes.
 - Avoid CSS specificity fights, duplicated classes, and state encoded through long selector chains. Prefer explicit component props mapped to a small set of classes or data attributes.
 - Component CSS must use semantic tokens from `apps/web/app/styles/*`. Do not add raw hex/rgb colors, one-off shadows, one-off radii, or arbitrary spacing unless the token set is missing a real reusable value.
+- Do not fix broken layout with visual nudges, arbitrary offsets, compensating margins, or breakpoint-only tweaks. First identify the incorrect parent layout, alignment model, content hierarchy, or component boundary; then implement the clean structural fix using grid/flex alignment, intrinsic sizing, and tokens.
 - Keep styling restrained and native to the app. Reference images guide layout and interaction ideas; do not copy captions, decorative panels, gradients, or visual noise unless those elements are intentionally adopted into the design system.
 - Collapse and responsive states should hide optional text or reflow layout without changing core target sizes, margins, or icon alignment unexpectedly.
 - Repeated UI behavior must live in a shared component before the third copy. This includes tab scrolling, popovers, setting rows, action docks, search fields, empty states, and selection controls.

@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { Demo } from "./demo";
+
+afterEach(() => {
+  cleanup();
+  window.history.replaceState(null, "", "/");
+});
 
 function section(id: string) {
   const element = document.getElementById(id);
@@ -15,6 +20,42 @@ function section(id: string) {
 }
 
 describe("UI catalog", () => {
+  it("opens and closes the responsive catalog navigation", async () => {
+    const user = userEvent.setup();
+
+    render(<Demo />);
+
+    const navButton = screen.getByRole("button", { name: "Open catalog navigation" });
+    const title = screen.getByRole("heading", { name: "UI catalog" });
+    const headerTitle = navButton.parentElement?.nextElementSibling;
+
+    expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
+    expect(
+      Boolean(
+        navButton.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+    expect(headerTitle).toBe(title);
+    expect(screen.queryByText("Development catalog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Shared primitives, states, tones, and composed patterns used by app surfaces."),
+    ).not.toBeInTheDocument();
+
+    await user.click(navButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Catalog navigation" });
+    expect(within(dialog).getByRole("link", { name: "Buttons" })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("link", { name: "Menus" }));
+    expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open catalog navigation" }));
+    expect(screen.getByRole("dialog", { name: "Catalog navigation" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
+  });
+
   it("documents the current shared control options", async () => {
     const user = userEvent.setup();
 

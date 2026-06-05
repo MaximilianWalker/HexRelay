@@ -13,6 +13,7 @@ import {
   IconInfoCircle,
   IconLayoutGrid,
   IconList,
+  IconMenu2,
   IconMessageCircle,
   IconPinned,
   IconPlus,
@@ -40,6 +41,7 @@ import { Menu, MenuItem, MenuRow } from "@/components/ui/menu";
 import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import { Popup, type PopupPlacement } from "@/components/ui/popup";
+import { PressableButton } from "@/components/ui/pressable-button";
 import { SelectField } from "@/components/ui/select-field";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
@@ -150,6 +152,18 @@ function Example({
   );
 }
 
+function CatalogNavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <>
+      {sections.map((section) => (
+        <a href={`#${section.id}`} key={section.id} onClick={onNavigate}>
+          {section.label}
+        </a>
+      ))}
+    </>
+  );
+}
+
 function PopupPreviewContent({ content }: { content: PopupContent }) {
   if (content === "menu") {
     return (
@@ -190,6 +204,7 @@ export function Demo() {
   const [switchOff, setSwitchOff] = useState(false);
   const [switchOn, setSwitchOn] = useState(true);
   const [pinned, setPinned] = useState(true);
+  const [catalogNavOpen, setCatalogNavOpen] = useState(false);
 
   const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
 
@@ -201,7 +216,11 @@ export function Demo() {
       }
 
       window.requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({ block: "start" });
+        const target = document.getElementById(id);
+
+        if (typeof target?.scrollIntoView === "function") {
+          target.scrollIntoView({ block: "start" });
+        }
       });
     }
 
@@ -211,30 +230,70 @@ export function Demo() {
     return () => window.removeEventListener("hashchange", scrollToHash);
   }, []);
 
+  useEffect(() => {
+    if (!catalogNavOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setCatalogNavOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [catalogNavOpen]);
+
+  useEffect(() => {
+    if (!window.matchMedia) {
+      return;
+    }
+
+    const wideCatalogQuery = window.matchMedia("(min-width: 1281px)");
+
+    function closeOnWideCatalog(event: MediaQueryList | MediaQueryListEvent): void {
+      if (event.matches) {
+        setCatalogNavOpen(false);
+      }
+    }
+
+    closeOnWideCatalog(wideCatalogQuery);
+    wideCatalogQuery.addEventListener("change", closeOnWideCatalog);
+
+    return () => wideCatalogQuery.removeEventListener("change", closeOnWideCatalog);
+  }, []);
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Development catalog</p>
-          <h1>HexRelay UI framework</h1>
-          <p className={styles.summary}>
-            Shared primitives, states, tones, and composed patterns used by app surfaces.
-          </p>
+        <div className={styles.headerMain}>
+          <span className={styles.navToggle}>
+            <IconButton
+              aria-controls="catalog-nav-overlay"
+              aria-expanded={catalogNavOpen}
+              label="Open catalog navigation"
+              onClick={() => setCatalogNavOpen(true)}
+              size="lg"
+            >
+              <IconMenu2 aria-hidden="true" />
+            </IconButton>
+          </span>
+          <h1>UI catalog</h1>
         </div>
-        <Badge tone="accent" icon={<IconCircleCheck aria-hidden="true" />}>
-          Shared APIs
-        </Badge>
+        <span className={styles.headerBadge}>
+          <Badge tone="accent" icon={<IconCircleCheck aria-hidden="true" />}>
+            Shared APIs
+          </Badge>
+        </span>
       </header>
 
       <div className={styles.shell}>
         <aside className={styles.nav} aria-label="UI catalog sections">
           <p className={styles.navTitle}>Catalog</p>
           <nav>
-            {sections.map((section) => (
-              <a href={`#${section.id}`} key={section.id}>
-                {section.label}
-              </a>
-            ))}
+            <CatalogNavLinks />
           </nav>
         </aside>
 
@@ -883,6 +942,35 @@ export function Demo() {
           </Section>
         </div>
       </div>
+      {catalogNavOpen ? (
+        <div className={styles.navOverlay}>
+          <PressableButton
+            aria-label="Close catalog navigation"
+            className={styles.navBackdrop}
+            onClick={() => setCatalogNavOpen(false)}
+            type="button"
+          />
+          <div
+            aria-labelledby="catalog-nav-title"
+            aria-modal="true"
+            className={styles.navPanel}
+            id="catalog-nav-overlay"
+            role="dialog"
+          >
+            <div className={styles.navPanelHeader}>
+              <p className={styles.navTitle} id="catalog-nav-title">
+                Catalog navigation
+              </p>
+              <IconButton label="Close catalog navigation" onClick={() => setCatalogNavOpen(false)} size="sm">
+                <IconX aria-hidden="true" />
+              </IconButton>
+            </div>
+            <nav>
+              <CatalogNavLinks onNavigate={() => setCatalogNavOpen(false)} />
+            </nav>
+          </div>
+        </div>
+      ) : null}
       {dialogOpen ? (
         <Dialog
           description="Dialog content uses the shared modal frame and action row."
