@@ -25,7 +25,7 @@ describe("UI catalog", () => {
 
     render(<Demo />);
 
-    const navButton = screen.getByRole("button", { name: "Open catalog navigation" });
+    const navButton = screen.getByRole("button", { name: "Catalog" });
     const title = screen.getByRole("heading", { name: "UI catalog" });
     const headerTitle = navButton.parentElement?.nextElementSibling;
 
@@ -40,6 +40,8 @@ describe("UI catalog", () => {
     expect(
       screen.queryByText("Shared primitives, states, tones, and composed patterns used by app surfaces."),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Shared APIs").className).toContain("badgeLg");
+    expect(screen.getByRole("searchbox", { name: "Search components" })).toBeInTheDocument();
 
     await user.click(navButton);
 
@@ -49,11 +51,29 @@ describe("UI catalog", () => {
     await user.click(within(dialog).getByRole("link", { name: "Menus" }));
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open catalog navigation" }));
+    await user.click(screen.getByRole("button", { name: "Catalog" }));
     expect(screen.getByRole("dialog", { name: "Catalog navigation" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
+  });
+
+  it("filters catalog sections from the command bar search", async () => {
+    const user = userEvent.setup();
+
+    render(<Demo />);
+
+    await user.type(screen.getByRole("searchbox", { name: "Search components" }), "badges");
+
+    expect(document.getElementById("buttons")).not.toBeInTheDocument();
+    expect(document.getElementById("badges")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Badges" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Buttons" })).not.toBeInTheDocument();
+
+    await user.clear(screen.getByRole("searchbox", { name: "Search components" }));
+
+    expect(document.getElementById("buttons")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buttons" })).toBeInTheDocument();
   });
 
   it("documents the current shared control options", async () => {

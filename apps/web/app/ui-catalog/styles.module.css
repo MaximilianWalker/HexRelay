@@ -12,13 +12,19 @@
 }
 
 .header {
-  display: flex;
+  display: grid;
   width: 100%;
   max-width: calc(var(--space-20) * 32);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-section);
   margin: 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-surface-glass) 88%, var(--color-surface));
+  box-shadow: var(--shadow-panel);
 }
 
 .header > div,
@@ -29,16 +35,18 @@
 .headerMain {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--gap-section);
   min-width: 0;
 }
 
 .headerBadge {
   display: inline-flex;
   flex: 0 0 auto;
+  justify-self: end;
 }
 
 .header h1 {
+  flex: 0 0 auto;
   margin: 0;
   color: var(--color-text-heading);
   font-size: var(--text-page);
@@ -47,6 +55,29 @@
 
 .navToggle {
   display: none;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1 1 calc(var(--space-20) * 10);
+  min-width: min(100%, calc(var(--space-20) * 7));
+  max-width: calc(var(--space-20) * 13);
+}
+
+.searchWrap input {
+  width: 100%;
+  padding-left: calc(var(--size-icon-sm) + var(--space-10));
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-6);
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .navTitle {
@@ -492,12 +523,20 @@
 
 @media (max-width: 700px) {
   .header {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .headerMain {
+    flex-wrap: wrap;
+  }
+
+  .searchWrap {
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .headerBadge {
-    align-self: stretch;
-    justify-content: flex-start;
+    justify-self: start;
   }
 }
 

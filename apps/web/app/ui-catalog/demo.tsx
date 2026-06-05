@@ -71,6 +71,9 @@ const sections = [
   { id: "popups", label: "Popups" },
 ] as const;
 
+type CatalogSection = (typeof sections)[number];
+type CatalogSectionId = CatalogSection["id"];
+
 const popupVerticalOptions: Array<{ label: string; value: PopupVertical }> = [
   { label: "Top", value: "top" },
   { label: "Center", value: "center" },
@@ -115,13 +118,19 @@ function Section({
   hideHeader = false,
   id,
   title,
+  visible = true,
 }: {
   children: ReactNode;
   description?: string;
   hideHeader?: boolean;
   id: string;
   title: string;
+  visible?: boolean;
 }) {
+  if (!visible) {
+    return null;
+  }
+
   return (
     <section aria-label={hideHeader ? title : undefined} className={styles.section} id={id}>
       {hideHeader ? null : (
@@ -152,10 +161,16 @@ function Example({
   );
 }
 
-function CatalogNavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function CatalogNavLinks({
+  items = sections,
+  onNavigate,
+}: {
+  items?: readonly CatalogSection[];
+  onNavigate?: () => void;
+}) {
   return (
     <>
-      {sections.map((section) => (
+      {items.map((section) => (
         <a href={`#${section.id}`} key={section.id} onClick={onNavigate}>
           {section.label}
         </a>
@@ -205,8 +220,18 @@ export function Demo() {
   const [switchOn, setSwitchOn] = useState(true);
   const [pinned, setPinned] = useState(true);
   const [catalogNavOpen, setCatalogNavOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
 
   const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
+  const catalogSearchQuery = catalogSearch.trim().toLowerCase();
+  const visibleSections = catalogSearchQuery
+    ? sections.filter((section) => `${section.label} ${section.id}`.toLowerCase().includes(catalogSearchQuery))
+    : sections;
+  const visibleSectionIds = new Set<CatalogSectionId>(visibleSections.map((section) => section.id));
+
+  function isSectionVisible(sectionId: CatalogSectionId): boolean {
+    return visibleSectionIds.has(sectionId);
+  }
 
   useEffect(() => {
     function scrollToHash(): void {
@@ -270,20 +295,30 @@ export function Demo() {
       <header className={styles.header}>
         <div className={styles.headerMain}>
           <span className={styles.navToggle}>
-            <IconButton
+            <Button
               aria-controls="catalog-nav-overlay"
               aria-expanded={catalogNavOpen}
-              label="Open catalog navigation"
+              icon={<IconMenu2 aria-hidden="true" />}
               onClick={() => setCatalogNavOpen(true)}
               size="lg"
             >
-              <IconMenu2 aria-hidden="true" />
-            </IconButton>
+              Catalog
+            </Button>
           </span>
           <h1>UI catalog</h1>
+          <div className={styles.searchWrap}>
+            <IconSearch aria-hidden="true" className={styles.searchIcon} />
+            <TextInput
+              aria-label="Search components"
+              onChange={(event) => setCatalogSearch(event.target.value)}
+              placeholder="Search components"
+              type="search"
+              value={catalogSearch}
+            />
+          </div>
         </div>
         <span className={styles.headerBadge}>
-          <Badge tone="accent" icon={<IconCircleCheck aria-hidden="true" />}>
+          <Badge tone="accent" icon={<IconCircleCheck aria-hidden="true" />} size="lg">
             Shared APIs
           </Badge>
         </span>
@@ -293,7 +328,7 @@ export function Demo() {
         <aside className={styles.nav} aria-label="UI catalog sections">
           <p className={styles.navTitle}>Catalog</p>
           <nav>
-            <CatalogNavLinks />
+            <CatalogNavLinks items={visibleSections} />
           </nav>
         </aside>
 
@@ -301,6 +336,7 @@ export function Demo() {
           <Section
             id="buttons"
             title="Buttons"
+            visible={isSectionVisible("buttons")}
             description="One shared Button contract covers text, icon-text, icon-only, link, active, disabled, and loading states."
           >
             <div className={styles.buttonLayout}>
@@ -425,6 +461,7 @@ export function Demo() {
           <Section
             id="toggles"
             title="Toggles"
+            visible={isSectionVisible("toggles")}
             description="Toggle buttons, button groups, and switches share active color, font, weight, and icon sizing."
           >
             <div className={styles.buttonLayout}>
@@ -512,6 +549,7 @@ export function Demo() {
           <Section
             id="menus"
             title="Menus"
+            visible={isSectionVisible("menus")}
             description="Menus centralize item layout, keyboard focus movement, icon slots, danger tone, and item size."
           >
             <div className={styles.exampleGrid}>
@@ -571,6 +609,7 @@ export function Demo() {
           <Section
             id="lists"
             title="List Actions"
+            visible={isSectionVisible("lists")}
             description="Channel, hub, and action-list rows should use the shared list action recipe instead of local button styling."
           >
             <div className={styles.exampleGrid}>
@@ -603,7 +642,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="forms" title="Forms" description="Fields share label, helper, invalid, disabled, and control typography styles.">
+          <Section
+            id="forms"
+            title="Forms"
+            visible={isSectionVisible("forms")}
+            description="Fields share label, helper, invalid, disabled, and control typography styles."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Text Inputs" wide>
                 <div className={styles.fieldGrid}>
@@ -667,7 +711,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="badges" title="Badges" description="Badges expose semantic tones and optional icons without changing text metrics.">
+          <Section
+            id="badges"
+            title="Badges"
+            visible={isSectionVisible("badges")}
+            description="Badges expose semantic tones and optional icons without changing text metrics."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Types and Sizes" wide>
                 <div className={styles.sizeTable}>
@@ -734,7 +783,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="avatars" title="Avatars" description="Avatars expose user and server shapes with the same three supported sizes.">
+          <Section
+            id="avatars"
+            title="Avatars"
+            visible={isSectionVisible("avatars")}
+            description="Avatars expose user and server shapes with the same three supported sizes."
+          >
             <div className={styles.exampleGrid}>
               <Example title="User Sizes" wide>
                 <div className={styles.avatarGrid}>
@@ -772,7 +826,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="alerts" title="Alerts" description="Alerts expose every semantic tone through the same layout and typography.">
+          <Section
+            id="alerts"
+            title="Alerts"
+            visible={isSectionVisible("alerts")}
+            description="Alerts expose every semantic tone through the same layout and typography."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Tones" wide>
                 <div className={styles.stack}>
@@ -791,7 +850,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="empty-states" title="Empty States" description="Empty states centralize title, copy, and optional action placement.">
+          <Section
+            id="empty-states"
+            title="Empty States"
+            visible={isSectionVisible("empty-states")}
+            description="Empty states centralize title, copy, and optional action placement."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Default">
                 <EmptyState title="No contacts yet">Contacts will appear here after requests are accepted.</EmptyState>
@@ -812,7 +876,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="panels" title="Panels" description="Panels carry surface tone and padding variants without redefining controls.">
+          <Section
+            id="panels"
+            title="Panels"
+            visible={isSectionVisible("panels")}
+            description="Panels carry surface tone and padding variants without redefining controls."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Variants" wide>
                 <div className={styles.surfaceGrid}>
@@ -854,7 +923,12 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section id="dialogs" title="Dialogs" description="Dialogs centralize modal structure, focus handling, close behavior, and action placement.">
+          <Section
+            id="dialogs"
+            title="Dialogs"
+            visible={isSectionVisible("dialogs")}
+            description="Dialogs centralize modal structure, focus handling, close behavior, and action placement."
+          >
             <div className={styles.exampleGrid}>
               <Example title="Modal Dialog">
                 <Button icon={<IconPlus aria-hidden="true" />} onClick={() => setDialogOpen(true)} variant="primary">
@@ -864,7 +938,7 @@ export function Demo() {
             </div>
           </Section>
 
-          <Section hideHeader id="popups" title="Popups">
+          <Section hideHeader id="popups" title="Popups" visible={isSectionVisible("popups")}>
             <div className={styles.exampleGrid}>
               <Example title="Playground" wide>
                 <div className={styles.popupDemo}>
@@ -966,7 +1040,7 @@ export function Demo() {
               </IconButton>
             </div>
             <nav>
-              <CatalogNavLinks onNavigate={() => setCatalogNavOpen(false)} />
+              <CatalogNavLinks items={visibleSections} onNavigate={() => setCatalogNavOpen(false)} />
             </nav>
           </div>
         </div>
