@@ -357,7 +357,13 @@
 }
 
 .popup {
+  min-width: min(calc(var(--space-20) * 5), calc(100vw - var(--space-8)));
+  max-width: min(calc(var(--space-20) * 10), calc(100vw - var(--space-8)));
   z-index: var(--z-menu);
+}
+
+.popup > * {
+  max-width: 100%;
 }
 
 .popup[data-position="absolute"] {

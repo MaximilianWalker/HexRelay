@@ -303,6 +303,11 @@
   min-width: 0;
 }
 
+.example > .row {
+  column-gap: var(--gap-section);
+  justify-content: center;
+}
+
 .column,
 .stack {
   display: grid;
@@ -325,6 +330,12 @@
   align-items: center;
   gap: var(--gap-control) var(--space-12);
   overflow-x: auto;
+}
+
+.example > .controlSizeList,
+.example > .sizeTable {
+  justify-self: center;
+  margin-inline: auto;
 }
 
 .matrixRow {
