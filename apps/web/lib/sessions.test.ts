@@ -211,6 +211,37 @@ describe("sessions", () => {
     expect(decrypt).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed without writing private-key material to browser storage", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues<T extends ArrayBufferView>(values: T): T {
+        return values;
+      },
+      subtle: {
+        decrypt: vi.fn(),
+        deriveKey: vi.fn(),
+        encrypt: vi.fn(),
+        importKey: vi.fn(),
+      },
+    });
+
+    (globalThis as { window?: unknown }).window = buildWindow();
+    const windowRef = globalThis.window as ReturnType<typeof buildWindow>;
+
+    await expect(setPersonaPrivateKey("persona-no-provider", "deadbeef")).rejects.toThrow(
+      "Secure storage provider unavailable",
+    );
+    expect(
+      windowRef.sessionStorage.getItem(
+        "hexrelay.secure.fallback.hexrelay.identity.master-key",
+      ),
+    ).toBeNull();
+    expect(
+      windowRef.sessionStorage.getItem(
+        "hexrelay.secure.fallback.hexrelay.identity.private.persona-no-provider",
+      ),
+    ).toBeNull();
+  });
+
   it("returns null for missing or undecryptable private keys and clears stored key handles", async () => {
     const stored = new Map<string, string>();
 
