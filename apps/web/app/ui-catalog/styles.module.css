@@ -28,7 +28,7 @@
 }
 
 .header > div,
-.headerBadge {
+.headerActions {
   min-width: 0;
 }
 
@@ -43,10 +43,41 @@
   flex: 0 0 auto;
 }
 
-.headerBadge {
+.headerActions {
   display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--gap-section);
+  row-gap: var(--gap-control);
   flex: 0 0 auto;
   justify-self: end;
+}
+
+.themeField {
+  display: grid;
+  width: calc(var(--space-20) * 6);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.themeLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.themeLabel > svg {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  flex: 0 0 var(--size-icon-sm);
+  color: var(--color-text-subtle);
+  stroke-width: 1.8;
+}
+
+.themeField select {
+  min-height: var(--size-control-md);
 }
 
 .header h1 {
@@ -701,7 +732,7 @@
     max-width: none;
   }
 
-  .headerBadge {
+  .headerActions {
     justify-self: start;
   }
 }

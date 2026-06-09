@@ -4,10 +4,14 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { THEME_STORAGE_KEY } from "@/lib/ui/theme";
+
 import { Demo } from "./demo";
 
 afterEach(() => {
   cleanup();
+  document.documentElement.removeAttribute("data-theme");
+  window.localStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
@@ -46,6 +50,7 @@ describe("UI catalog", () => {
       screen.queryByText("Shared primitives, states, tones, and composed patterns used by app surfaces."),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Shared APIs").className).toContain("badgeLg");
+    expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("system");
     expect(screen.getByRole("searchbox", { name: "Search components" })).toBeInTheDocument();
 
     await user.click(navButton);
@@ -68,6 +73,31 @@ describe("UI catalog", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
+  });
+
+  it("changes the catalog theme through the shared theme preference", async () => {
+    const user = userEvent.setup();
+
+    render(<Demo />);
+    const themeSelect = screen.getByRole("combobox", { name: "Theme" });
+
+    await user.selectOptions(themeSelect, "light");
+
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    expect(themeSelect).toHaveValue("light");
+
+    await user.selectOptions(themeSelect, "dark");
+
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    expect(themeSelect).toHaveValue("dark");
+
+    await user.selectOptions(themeSelect, "system");
+
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("system");
+    expect(document.documentElement).toHaveAttribute("data-theme", "system");
+    expect(themeSelect).toHaveValue("system");
   });
 
   it("filters catalog sections from the command bar search", async () => {

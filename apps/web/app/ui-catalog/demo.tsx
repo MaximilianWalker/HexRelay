@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   IconAlertTriangle,
   IconBell,
@@ -16,6 +16,7 @@ import {
   IconList,
   IconMenu2,
   IconMessageCircle,
+  IconPalette,
   IconPinned,
   IconPlus,
   IconSearch,
@@ -51,6 +52,13 @@ import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { ToggleButton } from "@/components/ui/toggle-button";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import {
+  THEME_OPTIONS,
+  readThemePreference,
+  setThemePreference,
+  subscribeThemePreference,
+  type ThemePreference,
+} from "@/lib/ui/theme";
 
 import styles from "./styles.module.css";
 
@@ -59,6 +67,14 @@ type Filter = "all" | "unread" | "muted";
 type PopupContent = "alert" | "menu" | "panel";
 type PopupHorizontal = "center" | "left" | "right";
 type PopupVertical = "bottom" | "center" | "top";
+
+const themeLabels: Record<ThemePreference, string> = {
+  dark: "Dark",
+  light: "Light",
+  system: "System",
+};
+
+const themeOptions = THEME_OPTIONS.map((theme) => ({ label: themeLabels[theme], value: theme }));
 
 const sectionGroups = [
   {
@@ -369,6 +385,11 @@ export function Demo() {
   });
 
   const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
+  const themePreference = useSyncExternalStore<ThemePreference>(
+    subscribeThemePreference,
+    readThemePreference,
+    () => "system",
+  );
   const catalogSearchQuery = catalogSearch.trim().toLowerCase();
   const catalogSearchActive = catalogSearchQuery.length > 0;
   const visibleSectionGroups: readonly VisibleCatalogSectionGroup[] = catalogSearchQuery
@@ -508,11 +529,31 @@ export function Demo() {
             />
           </div>
         </div>
-        <span className={styles.headerBadge}>
+        <div className={styles.headerActions}>
+          <Field
+            className={styles.themeField}
+            label={
+              <span className={styles.themeLabel}>
+                <IconPalette aria-hidden="true" />
+                <span>Theme</span>
+              </span>
+            }
+          >
+            <SelectField
+              onChange={(event) => setThemePreference(event.target.value as ThemePreference)}
+              value={themePreference}
+            >
+              {themeOptions.map((themeOption) => (
+                <option key={themeOption.value} value={themeOption.value}>
+                  {themeOption.label}
+                </option>
+              ))}
+            </SelectField>
+          </Field>
           <Badge tone="accent" icon={<IconCircleCheck aria-hidden="true" />} size="lg">
             Shared APIs
           </Badge>
-        </span>
+        </div>
       </header>
 
       <div className={styles.shell}>
