@@ -123,9 +123,9 @@ describe("UI catalog", () => {
   it("uses custom catalog scrollbar chrome instead of the native rail", () => {
     render(<Demo />);
 
-    expect(document.querySelector('[class*="content"]')).toBeInTheDocument();
-    expect(document.querySelector('[class*="catalogScrollTrack"]')).toBeInTheDocument();
-    expect(document.querySelector('[class*="catalogScrollThumb"]')).toBeInTheDocument();
+    expect(screen.getByTestId("scroll-area")).toHaveAttribute("data-overlay", "true");
+    expect(screen.getByTestId("scroll-area")).toHaveStyle({ "--scroll-area-thumb-width": "4px" });
+    expect(screen.getByTestId("scroll-area-viewport").className).toContain("content");
   });
 
   it("shows an empty state when no catalog sections match search", async () => {

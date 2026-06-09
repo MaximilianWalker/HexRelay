@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   IconAlertTriangle,
   IconBell,
@@ -46,6 +46,7 @@ import { Panel } from "@/components/ui/panel";
 import { Popup, type PopupPlacement } from "@/components/ui/popup";
 import { PressableButton } from "@/components/ui/pressable-button";
 import { SelectField } from "@/components/ui/select-field";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { ToggleButton } from "@/components/ui/toggle-button";
@@ -58,11 +59,6 @@ type Filter = "all" | "unread" | "muted";
 type PopupContent = "alert" | "menu" | "panel";
 type PopupHorizontal = "center" | "left" | "right";
 type PopupVertical = "bottom" | "center" | "top";
-type ScrollMetrics = {
-  canScroll: boolean;
-  thumbOffset: number;
-  thumbSize: number;
-};
 
 const sectionGroups = [
   {
@@ -128,7 +124,11 @@ type VisibleCatalogSectionGroup = {
   sections: readonly CatalogSection[];
 };
 
-const sections: readonly CatalogSection[] = sectionGroups.flatMap((group) => group.sections);
+function getSectionsForGroup(group: CatalogSectionGroup): readonly CatalogSection[] {
+  return group.sections;
+}
+
+const sections: readonly CatalogSection[] = sectionGroups.flatMap(getSectionsForGroup);
 const sectionIds = new Set<string>(sections.map((section) => section.id));
 
 const logoSizes = [
@@ -341,99 +341,6 @@ function PopupPreviewContent({ content }: { content: PopupContent }) {
   );
 }
 
-function CatalogScrollArea({ children }: { children: ReactNode }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [metrics, setMetrics] = useState<ScrollMetrics>({
-    canScroll: false,
-    thumbOffset: 0,
-    thumbSize: 0,
-  });
-
-  const updateMetrics = useCallback(() => {
-    const viewport = viewportRef.current;
-
-    if (!viewport) {
-      return;
-    }
-
-    const { clientHeight, scrollHeight, scrollTop } = viewport;
-    const canScroll = scrollHeight > clientHeight + 1;
-
-    if (!canScroll) {
-      setMetrics((current) =>
-        current.canScroll || current.thumbOffset !== 0 || current.thumbSize !== 0
-          ? { canScroll: false, thumbOffset: 0, thumbSize: 0 }
-          : current,
-      );
-      return;
-    }
-
-    const minThumbSize = Math.min(clientHeight, 40);
-    const thumbSize = Math.max(minThumbSize, Math.round((clientHeight / scrollHeight) * clientHeight));
-    const maxThumbOffset = clientHeight - thumbSize;
-    const maxScrollTop = scrollHeight - clientHeight;
-    const thumbOffset = maxScrollTop > 0 ? Math.round((scrollTop / maxScrollTop) * maxThumbOffset) : 0;
-
-    setMetrics((current) =>
-      current.canScroll === canScroll && current.thumbOffset === thumbOffset && current.thumbSize === thumbSize
-        ? current
-        : { canScroll, thumbOffset, thumbSize },
-    );
-  }, []);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-
-    if (!viewport) {
-      return;
-    }
-
-    let animationFrame = window.requestAnimationFrame(updateMetrics);
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => {
-            window.cancelAnimationFrame(animationFrame);
-            animationFrame = window.requestAnimationFrame(updateMetrics);
-          });
-
-    function handleScroll(): void {
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(updateMetrics);
-    }
-
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll);
-    resizeObserver?.observe(viewport);
-    if (viewport.firstElementChild) {
-      resizeObserver?.observe(viewport.firstElementChild);
-    }
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      viewport.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-      resizeObserver?.disconnect();
-    };
-  }, [updateMetrics]);
-
-  const thumbStyle = {
-    "--catalog-scroll-thumb-offset": `${metrics.thumbOffset}px`,
-    "--catalog-scroll-thumb-size": `${metrics.thumbSize}px`,
-  } as CSSProperties;
-
-  return (
-    <div className={styles.catalogScrollArea} data-scrollable={metrics.canScroll ? "true" : undefined}>
-      <div className={styles.content} ref={viewportRef}>
-        {children}
-      </div>
-      <div aria-hidden="true" className={styles.catalogScrollTrack}>
-        <span className={styles.catalogScrollThumb} style={thumbStyle} />
-      </div>
-    </div>
-  );
-}
-
 export function Demo() {
   const [buttonGroup, setButtonGroup] = useState<ButtonGroupState>("list");
   const [filter, setFilter] = useState<Filter>("muted");
@@ -624,7 +531,7 @@ export function Demo() {
           </nav>
         </aside>
 
-        <CatalogScrollArea>
+        <ScrollArea className={styles.catalogScrollArea} overlay viewportClassName={styles.content} width={4}>
           {visibleSections.length === 0 ? (
             <EmptyState className={styles.catalogEmptyState} title="No components found">
               <p>Try a different component name or category.</p>
@@ -1346,7 +1253,7 @@ export function Demo() {
               </Example>
             </div>
           </Section>
-        </CatalogScrollArea>
+        </ScrollArea>
       </div>
       {catalogNavOpen ? (
         <div className={styles.navOverlay}>

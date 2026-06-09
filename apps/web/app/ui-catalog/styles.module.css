@@ -307,44 +307,6 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding-right: var(--space-6);
-  scrollbar-width: none;
-}
-
-.content::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.catalogScrollTrack {
-  position: absolute;
-  top: 0;
-  right: var(--space-1);
-  bottom: 0;
-  width: var(--space-4);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--motion-fast);
-}
-
-.catalogScrollArea[data-scrollable="true"] .catalogScrollTrack {
-  opacity: 1;
-}
-
-.catalogScrollThumb {
-  position: absolute;
-  top: 0;
-  right: var(--space-1);
-  width: var(--space-2);
-  height: var(--catalog-scroll-thumb-size, 0);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-accent) 58%, var(--color-border-strong));
-  transform: translateY(var(--catalog-scroll-thumb-offset, 0));
-}
-
-.catalogScrollThumb:hover {
-  background: var(--color-accent-strong);
 }
 
 .catalogEmptyState {
