@@ -4,8 +4,8 @@ import { extname, join } from "node:path";
 const roots = ["app", "components"];
 const allowedPressedFiles = new Set([
   "components/ui/button.tsx",
-  "components/ui/list.tsx",
-  "components/ui/menu.tsx",
+  "components/ui/list/root.tsx",
+  "components/ui/menu/root.tsx",
 ]);
 const allowedRawButtonFiles = new Set([
   "components/content-tabs/bar.tsx",

@@ -13,70 +13,70 @@ import type {
 
 import { cx } from "@/lib/ui/cx";
 
-import styles from "./control.module.css";
+import styles from "./styles.module.css";
 
-export type ListSize = "sm" | "md" | "lg";
-export type ListTone = "neutral" | "danger";
-export type ListIconColor = "default" | "accent" | "danger" | "muted";
-type ListCurrent = AriaAttributes["aria-current"] | boolean;
-type ListRootElement = "div" | "nav";
+export type Size = "sm" | "md" | "lg";
+export type Tone = "neutral" | "danger";
+export type IconColor = "default" | "accent" | "danger" | "muted";
+type Current = AriaAttributes["aria-current"] | boolean;
+type RootElement = "div" | "nav";
 
-const rowSizeClass: Record<ListSize, string | undefined> = {
+const rowSizeClass: Record<Size, string | undefined> = {
   lg: styles.listRowLg,
   md: undefined,
   sm: styles.listRowSm,
 };
 
-const primarySizeClass: Record<ListSize, string | undefined> = {
+const primarySizeClass: Record<Size, string | undefined> = {
   lg: styles.listPrimaryLg,
   md: undefined,
   sm: styles.listPrimarySm,
 };
 
-const iconColorClass: Record<ListIconColor, string | undefined> = {
+const iconColorClass: Record<IconColor, string | undefined> = {
   accent: styles.listIconAccent,
   danger: styles.listIconDanger,
   default: undefined,
   muted: styles.listIconMuted,
 };
 
-type ListProps = HTMLAttributes<HTMLElement> & {
-  as?: ListRootElement;
+type RootProps = HTMLAttributes<HTMLElement> & {
+  as?: RootElement;
   keyboardNavigation?: boolean;
   panel?: boolean;
 };
 
-type ListContentProps = {
+type ContentProps = {
   active?: boolean;
   end?: ReactNode;
   icon?: ReactNode;
-  iconColor?: ListIconColor;
+  iconColor?: IconColor;
   name?: ReactNode;
-  size?: ListSize;
-  tone?: ListTone;
+  size?: Size;
+  tone?: Tone;
 };
 
-type ListButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-current" | "children" | "name"> &
-  ListContentProps & {
+type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-current" | "children" | "name"> &
+  ContentProps & {
     children?: ReactNode;
-    current?: ListCurrent;
+    current?: Current;
     pressed?: boolean;
   };
 
-type ListLinkProps = Omit<ComponentProps<typeof Link>, "aria-current" | "children" | "className"> &
-  ListContentProps & {
+type LinkProps = Omit<ComponentProps<typeof Link>, "aria-current" | "children" | "className"> &
+  ContentProps & {
     children?: ReactNode;
     className?: string;
-    current?: ListCurrent;
+    current?: Current;
     disabled?: boolean;
   };
 
-type ListRowProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> &
-  ListContentProps & {
+type RowProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> &
+  ContentProps & {
     children?: ReactNode;
   };
 
-function getAriaCurrent(current: ListCurrent | undefined): AriaAttributes["aria-current"] | undefined {
+function getAriaCurrent(current: Current | undefined): AriaAttributes["aria-current"] | undefined {
   if (current === true) {
     return "page";
   }
@@ -84,7 +84,7 @@ function getAriaCurrent(current: ListCurrent | undefined): AriaAttributes["aria-
   return current || undefined;
 }
 
-function renderListContent({
+function renderContent({
   children,
   icon,
   iconColor = "default",
@@ -92,7 +92,7 @@ function renderListContent({
 }: {
   children?: ReactNode;
   icon?: ReactNode;
-  iconColor?: ListIconColor;
+  iconColor?: IconColor;
   name?: ReactNode;
 }) {
   const label = name ?? children;
@@ -100,20 +100,31 @@ function renderListContent({
   return (
     <>
       {icon ? (
-        <span aria-hidden="true" className={cx(styles.listIcon, iconColorClass[iconColor])}>
+        <span
+          aria-hidden="true"
+          className={cx(styles.listIcon, iconColorClass[iconColor])}
+          data-list-icon="true"
+          data-list-icon-color={iconColor === "default" ? undefined : iconColor}
+        >
           {icon}
         </span>
       ) : null}
-      <span className={styles.listName}>{label}</span>
+      <span className={styles.listName} data-list-name="true">
+        {label}
+      </span>
     </>
   );
 }
 
-function renderListEnd(end: ReactNode) {
-  return end ? <span className={styles.listEnd}>{end}</span> : null;
+function renderEnd(end: ReactNode) {
+  return end ? (
+    <span className={styles.listEnd} data-list-end="true">
+      {end}
+    </span>
+  ) : null;
 }
 
-export function List({
+export function Root({
   as: Component = "div",
   children,
   className,
@@ -122,7 +133,7 @@ export function List({
   panel = true,
   role,
   ...props
-}: ListProps) {
+}: RootProps) {
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     onKeyDown?.(event);
 
@@ -167,7 +178,7 @@ export function List({
   );
 }
 
-export function ListButton({
+export function Button({
   active = false,
   children,
   className,
@@ -181,7 +192,7 @@ export function ListButton({
   size = "md",
   tone = "neutral",
   ...props
-}: ListButtonProps) {
+}: ButtonProps) {
   const checkedRole = role === "menuitemcheckbox" || role === "checkbox";
 
   return (
@@ -189,6 +200,7 @@ export function ListButton({
       className={cx(styles.listItem, rowSizeClass[size], tone === "danger" && styles.listItemDanger)}
       data-active={active ? "true" : undefined}
       data-disabled={props.disabled ? "true" : undefined}
+      data-list-item="true"
     >
       <button
         {...props}
@@ -207,14 +219,14 @@ export function ListButton({
         role={role}
         type={props.type ?? "button"}
       >
-        {renderListContent({ children, icon, iconColor, name })}
+        {renderContent({ children, icon, iconColor, name })}
       </button>
-      {renderListEnd(end)}
+      {renderEnd(end)}
     </div>
   );
 }
 
-export function ListLink({
+export function LinkRow({
   active = false,
   children,
   className,
@@ -230,7 +242,7 @@ export function ListLink({
   tabIndex,
   tone = "neutral",
   ...props
-}: ListLinkProps) {
+}: LinkProps) {
   function handleClick(event: Parameters<NonNullable<AnchorHTMLAttributes<HTMLAnchorElement>["onClick"]>>[0]) {
     if (disabled) {
       event.preventDefault();
@@ -245,6 +257,7 @@ export function ListLink({
       className={cx(styles.listItem, rowSizeClass[size], tone === "danger" && styles.listItemDanger)}
       data-active={active ? "true" : undefined}
       data-disabled={disabled ? "true" : undefined}
+      data-list-item="true"
     >
       <Link
         {...props}
@@ -263,14 +276,14 @@ export function ListLink({
         onClick={handleClick}
         tabIndex={disabled ? -1 : tabIndex}
       >
-        {renderListContent({ children, icon, iconColor, name })}
+        {renderContent({ children, icon, iconColor, name })}
       </Link>
-      {renderListEnd(end)}
+      {renderEnd(end)}
     </div>
   );
 }
 
-export function ListRow({
+export function Row({
   active = false,
   children,
   className,
@@ -281,15 +294,16 @@ export function ListRow({
   size = "md",
   tone = "neutral",
   ...props
-}: ListRowProps) {
+}: RowProps) {
   return (
     <div
       className={cx(styles.listRow, rowSizeClass[size], tone === "danger" && styles.listItemDanger, className)}
       data-active={active ? "true" : undefined}
+      data-list-row="true"
       {...props}
     >
-      {renderListContent({ children, icon, iconColor, name })}
-      {renderListEnd(end)}
+      {renderContent({ children, icon, iconColor, name })}
+      {renderEnd(end)}
     </div>
   );
 }

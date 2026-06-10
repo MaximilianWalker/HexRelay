@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -172,17 +172,19 @@ describe("UI catalog", () => {
     expect(screen.getByText("No components found")).toBeInTheDocument();
   });
 
-  it("marks the current hash section as active in the sidebar", () => {
+  it("marks the current hash section as active in the sidebar", async () => {
     window.history.replaceState(null, "", "/ui-catalog#list");
 
     render(<Demo />);
     const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
 
-    expect(within(sidebar).getByRole("button", { name: "Navigation & Actions" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(within(sidebar).getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => {
+      expect(within(sidebar).getByRole("button", { name: "Navigation & Actions" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(within(sidebar).getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "page");
+    });
   });
 
   it("documents the current shared control options", async () => {

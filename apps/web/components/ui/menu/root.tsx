@@ -6,8 +6,8 @@ import { useState } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
-import { List, ListButton, ListLink, type ListIconColor, type ListSize, type ListTone } from "./list";
-import styles from "./control.module.css";
+import { List, ListButton, ListLink, type ListIconColor, type ListSize, type ListTone } from "../list";
+import styles from "./styles.module.css";
 
 type IdCollection = Iterable<string>;
 type MenuRootElement = "div" | "nav";

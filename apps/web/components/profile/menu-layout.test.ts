@@ -2,46 +2,59 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const menuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
+const profileMenuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
 const profileCardCss = readFileSync(join(__dirname, "card.module.css"), "utf8");
 const controlCss = readFileSync(join(__dirname, "../ui/control.module.css"), "utf8");
+const listCss = readFileSync(join(__dirname, "../ui/list/styles.module.css"), "utf8");
+const sharedMenuCss = readFileSync(join(__dirname, "../ui/menu/styles.module.css"), "utf8");
 const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "utf8");
 const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
 
 describe("profile menu layout styles", () => {
   it("keeps list row sizing in the shared list primitive", () => {
-    const sharedRowRule = controlCss.match(/\.listPrimary,\s*\.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
-    const listRule = controlCss.match(/\.list \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const sharedRowRule = listCss.match(/\.listPrimary,\s*\.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const listRule = listCss.match(/\.list \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
     expect(sharedRowRule).toContain("height: var(--list-row-height);");
     expect(sharedRowRule).toContain("align-items: center;");
     expect(sharedRowRule).toContain("padding: var(--space-0) var(--list-row-padding-inline);");
     expect(listRule).not.toContain("padding-block");
-    expect(controlCss).not.toContain(".listPaddingSm");
-    expect(controlCss).not.toContain(".listWidthLg");
-    expect(menuCss).not.toContain(".listPrimary");
-    expect(menuCss).not.toContain(".layoutItem");
-    expect(menuCss).not.toContain(".listIcon");
+    expect(listCss).not.toContain(".listPaddingSm");
+    expect(listCss).not.toContain(".listWidthLg");
+    expect(sharedMenuCss).not.toContain(".listPrimary");
+    expect(sharedMenuCss).not.toContain(".listItem");
+    expect(sharedMenuCss).not.toContain(".listRow");
+    expect(sharedMenuCss).not.toContain(".listIcon");
+    expect(profileMenuCss).not.toContain(".listPrimary");
+    expect(profileMenuCss).not.toContain(".layoutItem");
+    expect(profileMenuCss).not.toContain(".listIcon");
   });
 
   it("keeps sidebar menu skin as a cosmetic shared exception", () => {
     const sidebarSkinRule =
-      controlCss.match(/\.menu\[data-menu-skin="sidebar"\] \.listItem,\s*\.menu\[data-menu-skin="sidebar"\] \.listRow\s*\{(?<body>[^}]+)\}/)
+      sharedMenuCss.match(
+        /\.menu\[data-menu-skin="sidebar"\] \[data-list-item="true"\],\s*\.menu\[data-menu-skin="sidebar"\] \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/,
+      )
         ?.groups?.body ?? "";
-    const menuPrimaryRule = controlCss.match(/\.menu \.listPrimary,\s*\.menu \.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
-    const menuRowRule = controlCss.match(/\.menu \.listItem,\s*\.menu \.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const menuPrimaryRule =
+      sharedMenuCss.match(/\.menu \[data-list-primary="true"\],\s*\.menu \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/)
+        ?.groups?.body ?? "";
+    const menuRowRule =
+      sharedMenuCss.match(/\.menu \[data-list-item="true"\],\s*\.menu \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/)
+        ?.groups?.body ?? "";
 
-    expect(controlCss).toContain(".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]");
-    expect(controlCss).toContain(".menu[data-menu-idle-border=\"hidden\"] .listItem");
-    expect(controlCss).toContain(".menu[data-menu-skin=\"sidebar\"] .listItem");
-    expect(controlCss).toContain(".listIconAccent");
+    expect(sharedMenuCss).toContain(".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]");
+    expect(sharedMenuCss).toContain(".menu[data-menu-idle-border=\"hidden\"] [data-list-item=\"true\"]");
+    expect(sharedMenuCss).toContain(".menu[data-menu-skin=\"sidebar\"] [data-list-item=\"true\"]");
+    expect(sharedMenuCss).toContain("[data-list-icon-color=\"accent\"]");
+    expect(listCss).toContain(".listIconAccent");
     expect(menuRowRule).toContain("background: transparent");
-    expect(controlCss).toContain("background: var(--color-surface-selected);");
+    expect(sharedMenuCss).toContain("background: var(--color-surface-selected);");
     expect(sidebarSkinRule).not.toContain("border-color: transparent");
     expect(menuPrimaryRule).not.toContain("padding:");
-    expect(controlCss).not.toContain("data-menu-variant");
-    expect(controlCss).not.toContain("data-menu-surface");
-    expect(controlCss).not.toContain("arrow-rail");
+    expect(sharedMenuCss).not.toContain("data-menu-variant");
+    expect(sharedMenuCss).not.toContain("data-menu-surface");
+    expect(sharedMenuCss).not.toContain("arrow-rail");
     expect(layoutCss).not.toContain(".sidebar .topNav");
     expect(layoutCss).not.toContain(".sidebar .navLinkActive");
   });
@@ -52,13 +65,13 @@ describe("profile menu layout styles", () => {
     expect(controlCss).toContain("left: calc(100% + var(--space-4));");
     expect(controlCss).toContain("transform: translateY(-50%);");
     expect(controlCss).not.toContain(".menu[data-placement=");
-    expect(menuCss).not.toContain("data-placement");
-    expect(menuCss).not.toContain("position: absolute");
-    expect(menuCss).not.toContain("bottom: calc(100%");
+    expect(profileMenuCss).not.toContain("data-placement");
+    expect(profileMenuCss).not.toContain("position: absolute");
+    expect(profileMenuCss).not.toContain("bottom: calc(100%");
   });
 
   it("renders navigation choices as one inline button group instead of a second row", () => {
-    const layoutChoicesRule = menuCss.match(/\.layoutChoices \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const layoutChoicesRule = profileMenuCss.match(/\.layoutChoices \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
     expect(layoutChoicesRule).toContain("display: inline-flex;");
     expect(layoutChoicesRule).not.toContain("grid-column");

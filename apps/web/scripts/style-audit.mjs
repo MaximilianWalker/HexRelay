@@ -4,7 +4,9 @@ import { join } from "node:path";
 const colorRoots = ["app", "components"];
 const rawColorAllowedFiles = new Set(["app/styles/tokens.css", "app/styles/themes.css"]);
 const frameworkRoots = ["components"];
-const sharedUiStylesPath = "components/ui/control.module.css";
+const sharedControlStylesPath = "components/ui/control.module.css";
+const sharedListStylesPath = "components/ui/list/styles.module.css";
+const sharedMenuStylesPath = "components/ui/menu/styles.module.css";
 const sharedActionControlBaseExpectations = [
   {
     selector: ".button",
@@ -74,6 +76,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedListStylesPath,
     selector: ".listItem",
     properties: {
       "display": "grid",
@@ -81,6 +84,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedListStylesPath,
     selector: ".listPrimary",
     properties: {
       "height": "var(--list-row-height)",
@@ -88,6 +92,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedListStylesPath,
     selector: ".list[data-list-panel=\"false\"]",
     properties: {
       "border": "0",
@@ -96,6 +101,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedMenuStylesPath,
     selector: ".menu",
     properties: {
       "--menu-spacing": "var(--gap-list)",
@@ -103,36 +109,49 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedMenuStylesPath,
     selector: ".menu[data-list-panel=\"true\"]",
     properties: {
       "padding": "var(--menu-spacing)",
     },
   },
   {
+    stylesPath: sharedMenuStylesPath,
     selector: ".menu[data-menu-spacing=\"sm\"]",
     properties: {
       "--menu-spacing": "var(--space-2)",
     },
   },
   {
+    stylesPath: sharedMenuStylesPath,
     selector: ".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]",
     properties: {
       "border-radius": "var(--radius-xl)",
     },
   },
   {
-    selector: ".menu[data-menu-idle-border=\"hidden\"] .listItem",
+    stylesPath: sharedMenuStylesPath,
+    selector: ".menu[data-menu-idle-border=\"hidden\"] [data-list-item=\"true\"]",
     properties: {
       "border-color": "transparent",
     },
   },
   {
-    selector: ".menu[data-menu-skin=\"sidebar\"] .listItem",
+    stylesPath: sharedMenuStylesPath,
+    selector: ".menu[data-menu-skin=\"sidebar\"] [data-list-item=\"true\"]",
     properties: {
       "background": "transparent",
     },
   },
   {
+    stylesPath: sharedMenuStylesPath,
+    selector: ".menu[data-menu-skin=\"sidebar\"] [data-list-icon-color=\"accent\"]",
+    properties: {
+      "stroke-width": "1.9",
+    },
+  },
+  {
+    stylesPath: sharedListStylesPath,
     selector: ".listIconAccent",
     properties: {
       "color": "var(--color-accent-strong)",
@@ -161,6 +180,7 @@ const sharedActionControlTypographyExpectations = [
     },
   },
   {
+    stylesPath: sharedListStylesPath,
     selector: ".listPrimary",
     properties: {
       "font-family": "inherit",
@@ -221,6 +241,7 @@ const rawColorPattern = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/;
 const rawSpacingPattern =
   /^\s*(?:gap|row-gap|column-gap|padding(?:-(?:top|right|bottom|left))?|margin(?:-(?:top|right|bottom|left))?|border-radius)\s*:[^;]*\d+(?:\.\d+)?px\b/;
 const failures = [];
+const cssCache = new Map();
 
 function normalizePath(path) {
   return path.replaceAll("\\", "/");
@@ -306,17 +327,24 @@ function findSelectorDeclarations(css, selector) {
   return declarations.size > 0 ? declarations : null;
 }
 
-function auditSharedActiveControlTokens() {
-  const css = readFileSync(sharedUiStylesPath, "utf8");
+function readCss(stylesPath) {
+  if (!cssCache.has(stylesPath)) {
+    cssCache.set(stylesPath, readFileSync(stylesPath, "utf8"));
+  }
 
+  return cssCache.get(stylesPath);
+}
+
+function auditSharedActiveControlTokens() {
   [
     ...sharedActionControlBaseExpectations,
     ...sharedActionControlTypographyExpectations,
     ...activeControlExpectations,
-  ].forEach(({ properties, selector }) => {
+  ].forEach(({ properties, selector, stylesPath = sharedControlStylesPath }) => {
+    const css = readCss(stylesPath);
     const declarations = findSelectorDeclarations(css, selector);
     if (!declarations) {
-      failures.push(`${sharedUiStylesPath}: missing shared control selector: ${selector}`);
+      failures.push(`${stylesPath}: missing shared control selector: ${selector}`);
       return;
     }
 
@@ -324,16 +352,17 @@ function auditSharedActiveControlTokens() {
       const actualValue = declarations.get(property);
       if (actualValue !== expectedValue) {
         failures.push(
-          `${sharedUiStylesPath}: ${selector} must set ${property}: ${expectedValue}; found ${actualValue ?? "missing"}`,
+          `${stylesPath}: ${selector} must set ${property}: ${expectedValue}; found ${actualValue ?? "missing"}`,
         );
       }
     });
   });
 
   forbiddenSharedControlTypographyOverrides.forEach(({ property, selector }) => {
+    const css = readCss(sharedControlStylesPath);
     const declarations = findSelectorDeclarations(css, selector);
     if (declarations?.has(property)) {
-      failures.push(`${sharedUiStylesPath}: ${selector} must inherit ${property} from the shared control base`);
+      failures.push(`${sharedControlStylesPath}: ${selector} must inherit ${property} from the shared control base`);
     }
   });
 }

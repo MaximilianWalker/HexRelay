@@ -346,18 +346,9 @@ export function Demo() {
   const [pinned, setPinned] = useState(true);
   const [catalogNavOpen, setCatalogNavOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [activeSectionId, setActiveSectionId] = useState<CatalogSectionId>(() => {
-    if (typeof window === "undefined") {
-      return "logo";
-    }
-
-    return getCatalogSectionIdFromHash(window.location.hash) ?? "logo";
-  });
+  const [activeSectionId, setActiveSectionId] = useState<CatalogSectionId>("logo");
   const [openGroupIds, setOpenGroupIds] = useState<ReadonlySet<CatalogSectionGroupId>>(() => {
-    const sectionId =
-      typeof window === "undefined" ? "logo" : getCatalogSectionIdFromHash(window.location.hash) ?? "logo";
-
-    return new Set([getCatalogGroupIdForSectionId(sectionId)]);
+    return new Set([getCatalogGroupIdForSectionId("logo")]);
   });
 
   const popupPlacement = getPopupPlacement(popupVertical, popupHorizontal);
