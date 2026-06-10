@@ -4,11 +4,13 @@ import { join } from "node:path";
 const colorRoots = ["app", "components"];
 const rawColorAllowedFiles = new Set(["app/styles/tokens.css", "app/styles/themes.css"]);
 const frameworkRoots = ["components"];
-const sharedControlStylesPath = "components/ui/control.module.css";
+const sharedButtonStylesPath = "components/ui/button/styles.module.css";
+const sharedToggleGroupStylesPath = "components/ui/toggle-group/styles.module.css";
 const sharedListStylesPath = "components/ui/list/styles.module.css";
 const sharedMenuStylesPath = "components/ui/menu/styles.module.css";
 const sharedActionControlBaseExpectations = [
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".button",
     properties: {
       "height": "var(--size-control-md)",
@@ -16,6 +18,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".buttonSm",
     properties: {
       "height": "var(--size-control-sm)",
@@ -24,6 +27,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".button > svg",
     properties: {
       "display": "block",
@@ -34,6 +38,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroup",
     properties: {
       "--button-group-height": "var(--size-control-md)",
@@ -44,6 +49,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupSm",
     properties: {
       "--button-group-height": "var(--size-control-sm)",
@@ -51,6 +57,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupLg",
     properties: {
       "--button-group-height": "var(--size-control-lg)",
@@ -59,6 +66,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupButton",
     properties: {
       "height": "100%",
@@ -66,6 +74,7 @@ const sharedActionControlBaseExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupButton > svg",
     properties: {
       "display": "block",
@@ -160,6 +169,7 @@ const sharedActionControlBaseExpectations = [
 ];
 const sharedActionControlTypographyExpectations = [
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".button",
     properties: {
       "font-family": "inherit",
@@ -170,6 +180,7 @@ const sharedActionControlTypographyExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupButton",
     properties: {
       "font-family": "inherit",
@@ -191,6 +202,7 @@ const sharedActionControlTypographyExpectations = [
 ];
 const activeControlExpectations = [
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".buttonPressed",
     properties: {
       "background": "var(--color-accent-strong)",
@@ -199,6 +211,7 @@ const activeControlExpectations = [
     },
   },
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".buttonPressed:hover",
     properties: {
       "background": "var(--color-accent-strong)",
@@ -207,6 +220,7 @@ const activeControlExpectations = [
     },
   },
   {
+    stylesPath: sharedButtonStylesPath,
     selector: ".buttonPressed:focus-visible",
     properties: {
       "background": "var(--color-accent-strong)",
@@ -215,6 +229,7 @@ const activeControlExpectations = [
     },
   },
   {
+    stylesPath: sharedToggleGroupStylesPath,
     selector: ".buttonGroupButton.buttonGroupButtonActive",
     properties: {
       "background": "var(--color-accent-strong)",
@@ -224,16 +239,17 @@ const activeControlExpectations = [
   },
 ];
 const forbiddenSharedControlTypographyOverrides = [
-  ".buttonPrimary",
-  ".buttonSecondary",
-  ".buttonGhost",
-  ".buttonDanger",
-  ".buttonPressed",
-  ".buttonGroupButton.buttonGroupButtonActive",
-].flatMap((selector) =>
+  { selector: ".buttonPrimary", stylesPath: sharedButtonStylesPath },
+  { selector: ".buttonSecondary", stylesPath: sharedButtonStylesPath },
+  { selector: ".buttonGhost", stylesPath: sharedButtonStylesPath },
+  { selector: ".buttonDanger", stylesPath: sharedButtonStylesPath },
+  { selector: ".buttonPressed", stylesPath: sharedButtonStylesPath },
+  { selector: ".buttonGroupButton.buttonGroupButtonActive", stylesPath: sharedToggleGroupStylesPath },
+].flatMap(({ selector, stylesPath }) =>
   ["font-family", "font-size", "font-weight", "line-height"].map((property) => ({
     property,
     selector,
+    stylesPath,
   })),
 );
 
@@ -340,7 +356,7 @@ function auditSharedActiveControlTokens() {
     ...sharedActionControlBaseExpectations,
     ...sharedActionControlTypographyExpectations,
     ...activeControlExpectations,
-  ].forEach(({ properties, selector, stylesPath = sharedControlStylesPath }) => {
+  ].forEach(({ properties, selector, stylesPath }) => {
     const css = readCss(stylesPath);
     const declarations = findSelectorDeclarations(css, selector);
     if (!declarations) {
@@ -358,11 +374,11 @@ function auditSharedActiveControlTokens() {
     });
   });
 
-  forbiddenSharedControlTypographyOverrides.forEach(({ property, selector }) => {
-    const css = readCss(sharedControlStylesPath);
+  forbiddenSharedControlTypographyOverrides.forEach(({ property, selector, stylesPath }) => {
+    const css = readCss(stylesPath);
     const declarations = findSelectorDeclarations(css, selector);
     if (declarations?.has(property)) {
-      failures.push(`${sharedControlStylesPath}: ${selector} must inherit ${property} from the shared control base`);
+      failures.push(`${stylesPath}: ${selector} must inherit ${property} from the shared control base`);
     }
   });
 }

@@ -1,0 +1,32 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.toolbarPrimary {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: var(--gap-control);
+  min-width: 0;
+}
+
+.toolbarActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--gap-control);
+  margin-left: auto;
+}
+
+@media (max-width: 560px) {
+  .toolbarActions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}

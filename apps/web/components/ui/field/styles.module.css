@@ -1,0 +1,68 @@
+.field {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.fieldLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.fieldControl {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-field);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-body);
+  line-height: var(--line-normal);
+}
+
+.fieldControl:disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}
+
+.selectControl {
+  appearance: none;
+  padding-inline-end: calc(var(--space-16) + var(--space-8));
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right calc(var(--space-8) + var(--space-2))
+      center / var(--space-3) var(--space-3) no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right var(--space-8) center / var(--space-3)
+      var(--space-3) no-repeat,
+    var(--color-surface);
+}
+
+.selectControl:disabled {
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) right calc(var(--space-8) + var(--space-2))
+      center / var(--space-3) var(--space-3) no-repeat,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) right var(--space-8) center / var(--space-3)
+      var(--space-3) no-repeat,
+    var(--color-surface-muted);
+}
+
+.fieldControlInvalid {
+  border-color: var(--color-danger-strong);
+}
+
+.fieldHelper {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: var(--line-normal);
+}
+
+.fieldError {
+  color: var(--color-danger);
+}

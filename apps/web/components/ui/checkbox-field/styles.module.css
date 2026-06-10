@@ -1,0 +1,7 @@
+.checkboxField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-control);
+  color: var(--color-text-muted);
+  font-size: var(--text-body);
+}

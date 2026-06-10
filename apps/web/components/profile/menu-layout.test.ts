@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 const profileMenuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
 const profileCardCss = readFileSync(join(__dirname, "card.module.css"), "utf8");
-const controlCss = readFileSync(join(__dirname, "../ui/control.module.css"), "utf8");
 const listCss = readFileSync(join(__dirname, "../ui/list/styles.module.css"), "utf8");
+const popupCss = readFileSync(join(__dirname, "../ui/popup/styles.module.css"), "utf8");
 const sharedMenuCss = readFileSync(join(__dirname, "../ui/menu/styles.module.css"), "utf8");
 const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "utf8");
 const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
@@ -60,11 +60,11 @@ describe("profile menu layout styles", () => {
   });
 
   it("keeps popup placement in the shared popup primitive", () => {
-    expect(controlCss).toContain(".popup[data-placement=\"right-end\"]");
-    expect(controlCss).toContain(".popup[data-placement=\"right-center\"]");
-    expect(controlCss).toContain("left: calc(100% + var(--space-4));");
-    expect(controlCss).toContain("transform: translateY(-50%);");
-    expect(controlCss).not.toContain(".menu[data-placement=");
+    expect(popupCss).toContain(".popup[data-placement=\"right-end\"]");
+    expect(popupCss).toContain(".popup[data-placement=\"right-center\"]");
+    expect(popupCss).toContain("left: calc(100% + var(--space-4));");
+    expect(popupCss).toContain("transform: translateY(-50%);");
+    expect(sharedMenuCss).not.toContain(".menu[data-placement=");
     expect(profileMenuCss).not.toContain("data-placement");
     expect(profileMenuCss).not.toContain("position: absolute");
     expect(profileMenuCss).not.toContain("bottom: calc(100%");

@@ -1,0 +1,28 @@
+.panel {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.panelRaised {
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-panel);
+}
+
+.panelDanger {
+  border-color: var(--color-border-danger);
+  background: var(--color-danger-muted);
+}
+
+.panelPaddingSm {
+  padding: var(--pad-card);
+}
+
+.panelPaddingMd {
+  padding: var(--pad-panel);
+}
+
+.panelPaddingLg {
+  padding: var(--space-8);
+}
