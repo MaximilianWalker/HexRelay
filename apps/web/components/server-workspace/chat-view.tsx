@@ -6,9 +6,9 @@ import { MessageRow } from "@/components/chat/message-row";
 import { MessageTimeline } from "@/components/chat/message-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
 import type { ServerChannelMessage } from "@/lib/api";
 
-import { ChannelButton } from "./channel-button";
 import type { AuthorFormatters, ChatData, ChatPrefs, ChatState } from "./types";
 
 import styles from "@/app/surfaces.module.css";
@@ -46,19 +46,27 @@ export function ChatView({
   const { composer, hasSession, identityId, mentionIdentityIds, messageState, olderState, replyTo, sendBusy } = state;
   const loadOlderLabel =
     nextCursor && hasSession ? (olderState === "loading" ? "Loading older..." : "Load older messages") : null;
+  const channelItems: MenuEntry[] = channels.map((channel) => {
+    const notificationCount = channelNotificationCounts.get(channel.id) ?? 0;
+
+    return {
+      end:
+        notificationCount > 0 ? (
+          <Badge aria-label={`${notificationCount} unseen mentions`} shape="counter" size="sm" tone="accent">
+            {notificationCount}
+          </Badge>
+        ) : undefined,
+      icon: <IconHash aria-hidden="true" />,
+      id: channel.id,
+      name: channel.name,
+      onSelect: () => onSelectChannel(channel.id),
+    };
+  });
 
   return (
     <section className={styles.chatGrid} aria-label="Server chat">
       <ChannelRail aria-label="Channels" title="Channels">
-        {channels.map((channel) => (
-          <ChannelButton
-            active={channel.id === activeChannel?.id}
-            channel={channel}
-            key={channel.id}
-            notificationCount={channelNotificationCounts.get(channel.id) ?? 0}
-            onSelect={onSelectChannel}
-          />
-        ))}
+        <Menu activeId={activeChannel?.id} activeIndicator="rail" items={channelItems} panel={false} />
       </ChannelRail>
 
       <article className={styles.chatPanel}>

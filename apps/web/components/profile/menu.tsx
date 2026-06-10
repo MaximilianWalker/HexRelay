@@ -1,7 +1,7 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Menu as UiMenu, MenuItem, MenuRow } from "@/components/ui/menu";
+import { List, ListButton, ListRow } from "@/components/ui/list";
 import { Popup, type PopupPlacement } from "@/components/ui/popup";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
@@ -42,24 +42,24 @@ export function Menu({
 
   return (
     <Popup placement={menuPlacement}>
-      <UiMenu aria-label="Profile actions menu" id="profile-more-menu" role="dialog">
-        <MenuItem
+      <List aria-label="Profile actions menu" id="profile-more-menu" role="dialog">
+        <ListButton
           icon={<IconFocusCentered aria-hidden="true" />}
+          name="Compact mode"
           onClick={() => onSetCollapsed(!collapsed)}
           pressed={collapsed}
           role="button"
-          trailing={
+          end={
             <span className={cx(styles.switch, collapsed && styles.switchOn)} aria-hidden="true">
               <span />
             </span>
           }
-        >
-          Compact mode
-        </MenuItem>
+        />
 
-        <MenuRow
+        <ListRow
           icon={<IconArrowsExchange aria-hidden="true" />}
-          trailing={
+          name="Navigation"
+          end={
             <div className={styles.layoutChoices}>
               <ButtonGroup
                 label="Navigation layout"
@@ -69,22 +69,19 @@ export function Menu({
               />
             </div>
           }
-        >
-          Navigation
-        </MenuRow>
+        />
 
-        <MenuItem
+        <ListButton
           icon={<IconMicrophone aria-hidden="true" />}
+          name="Audio devices"
           onClick={() => {
             onOpenAudioDevices();
             onClose();
           }}
           role="button"
-          trailing={<IconChevronRight aria-hidden="true" />}
-        >
-          Audio devices
-        </MenuItem>
-      </UiMenu>
+          end={<IconChevronRight aria-hidden="true" />}
+        />
+      </List>
     </Popup>
   );
 }

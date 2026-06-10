@@ -73,6 +73,71 @@ const sharedActionControlBaseExpectations = [
       "stroke-width": "1.8",
     },
   },
+  {
+    selector: ".listItem",
+    properties: {
+      "display": "grid",
+      "min-height": "var(--list-row-height)",
+    },
+  },
+  {
+    selector: ".listPrimary",
+    properties: {
+      "height": "var(--list-row-height)",
+      "min-height": "var(--list-row-height)",
+    },
+  },
+  {
+    selector: ".list[data-list-panel=\"false\"]",
+    properties: {
+      "border": "0",
+      "background": "transparent",
+      "box-shadow": "none",
+    },
+  },
+  {
+    selector: ".menu",
+    properties: {
+      "--menu-spacing": "var(--gap-list)",
+      "gap": "var(--menu-spacing)",
+    },
+  },
+  {
+    selector: ".menu[data-list-panel=\"true\"]",
+    properties: {
+      "padding": "var(--menu-spacing)",
+    },
+  },
+  {
+    selector: ".menu[data-menu-spacing=\"sm\"]",
+    properties: {
+      "--menu-spacing": "var(--space-2)",
+    },
+  },
+  {
+    selector: ".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]",
+    properties: {
+      "border-radius": "var(--radius-xl)",
+    },
+  },
+  {
+    selector: ".menu[data-menu-idle-border=\"hidden\"] .listItem",
+    properties: {
+      "border-color": "transparent",
+    },
+  },
+  {
+    selector: ".menu[data-menu-skin=\"sidebar\"] .listItem",
+    properties: {
+      "background": "transparent",
+    },
+  },
+  {
+    selector: ".listIconAccent",
+    properties: {
+      "color": "var(--color-accent-strong)",
+    },
+  },
 ];
 const sharedActionControlTypographyExpectations = [
   {
@@ -93,6 +158,14 @@ const sharedActionControlTypographyExpectations = [
       "font-weight": "var(--weight-medium)",
       "line-height": "var(--line-tight)",
       "white-space": "nowrap",
+    },
+  },
+  {
+    selector: ".listPrimary",
+    properties: {
+      "font-family": "inherit",
+      "font-size": "inherit",
+      "line-height": "inherit",
     },
   },
 ];

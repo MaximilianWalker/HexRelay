@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,8 +8,8 @@ import { Badge } from "./badge";
 import { ButtonGroup } from "./button-group";
 import { Button, ButtonLink } from "./button";
 import { IconButton } from "./icon-button";
-import { ListActionButton } from "./list-action-button";
-import { Menu, MenuItem, MenuRow } from "./menu";
+import { List, ListButton, ListLink, ListRow } from "./list";
+import { Menu } from "./menu";
 import { Popup } from "./popup";
 import { ToggleButton } from "./toggle-button";
 
@@ -198,18 +198,18 @@ describe("shared controls", () => {
     expect(screen.getByText("2").className).toContain("badgeCounter");
   });
 
-  it("moves focus between menu items with arrow keys", async () => {
+  it("moves focus between list primary actions with arrow keys", async () => {
     const user = userEvent.setup();
 
     render(
-      <Menu>
-        <MenuItem>Pin tab</MenuItem>
-        <MenuItem>Close tab</MenuItem>
-      </Menu>,
+      <List>
+        <ListButton name="Pin tab" />
+        <ListButton end={<button type="button">End action</button>} name="Close tab" />
+      </List>,
     );
 
-    const first = screen.getByRole("menuitem", { name: "Pin tab" });
-    const second = screen.getByRole("menuitem", { name: "Close tab" });
+    const first = screen.getByRole("button", { name: "Pin tab" });
+    const second = screen.getByRole("button", { name: "Close tab" });
 
     first.focus();
     await user.keyboard("{ArrowDown}");
@@ -217,22 +217,56 @@ describe("shared controls", () => {
     expect(second).toHaveFocus();
   });
 
+  it("keeps list active state visual while pressed and current remain explicit semantics", () => {
+    render(
+      <List>
+        <ListButton active name="Visual active" />
+        <ListButton name="Pressed action" pressed />
+        <ListLink current href="/servers" name="Servers" />
+      </List>,
+    );
+
+    expect(screen.getByRole("button", { name: "Visual active" })).not.toHaveAttribute("aria-pressed");
+    expect(screen.getByRole("button", { name: "Pressed action" })).toHaveAttribute("aria-pressed", "true");
+    const currentLink = screen
+      .getAllByRole("link", { name: "Servers" })
+      .find((link) => link.getAttribute("aria-current") === "page");
+
+    expect(currentLink).toBeInTheDocument();
+  });
+
+  it("lets list containers opt out of the default panel frame", () => {
+    render(
+      <>
+        <List aria-label="Panel list">
+          <ListButton name="Framed row" />
+        </List>
+        <List aria-label="Plain list" panel={false}>
+          <ListButton name="Plain row" />
+        </List>
+      </>,
+    );
+
+    expect(screen.getByRole("list", { name: "Panel list" })).toHaveAttribute("data-list-panel", "true");
+    expect(screen.getByRole("list", { name: "Plain list" })).toHaveAttribute("data-list-panel", "false");
+  });
+
   it("maps popup placement separately from menu content", () => {
     render(
       <Popup placement="bottom-center">
-        <Menu>
-          <MenuItem>Open settings</MenuItem>
-        </Menu>
+        <List role="menu">
+          <ListButton name="Open settings" role="menuitem" />
+        </List>
       </Popup>,
     );
 
-    const menu = screen.getByText("Open settings").closest('[role="menu"]');
-    const popup = menu?.parentElement;
+    const list = screen.getByText("Open settings").closest('[role="menu"]');
+    const popup = list?.parentElement;
 
     expect(popup).toHaveAttribute("data-position", "absolute");
     expect(popup).toHaveAttribute("data-placement", "bottom-center");
     expect(popup?.className).toContain("popup");
-    expect(menu?.className).toContain("menu");
+    expect(list?.className).toContain("list");
   });
 
   it("supports centered popup placement", () => {
@@ -245,40 +279,112 @@ describe("shared controls", () => {
     expect(screen.getByText("Centered popup").parentElement).toHaveAttribute("data-placement", "center");
   });
 
-  it("supports dialog-style menu rows without ARIA menuitem roles", () => {
+  it("supports dialog-style list rows without ARIA menuitem roles", () => {
     render(
-      <Menu role="dialog">
-        <MenuItem pressed role="button">
-          Compact mode
-        </MenuItem>
-        <MenuRow trailing={<span>Sidebar</span>}>Navigation</MenuRow>
-      </Menu>,
+      <List role="dialog">
+        <ListButton name="Compact mode" pressed />
+        <ListRow end={<span>Sidebar</span>} name="Navigation" />
+      </List>,
     );
 
     expect(screen.getByRole("button", { name: "Compact mode" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("menuitemcheckbox", { name: "Compact mode" })).not.toBeInTheDocument();
-    expect(screen.getByText("Navigation").className).toContain("menuItemLabel");
+    expect(screen.getByText("Navigation").className).toContain("listName");
   });
 
-  it("maps menu and list action row sizes through shared classes", () => {
+  it("maps list and menu row sizes through shared classes", () => {
     render(
       <>
-        <Menu role="group">
-          <MenuItem role="button" size="sm">Small menu row</MenuItem>
-          <MenuItem role="button" size="lg">Large menu row</MenuItem>
-        </Menu>
-        <ListActionButton icon={<span aria-hidden="true">#</span>} size="sm">
-          Small list row
-        </ListActionButton>
-        <ListActionButton icon={<span aria-hidden="true">#</span>} size="lg">
-          Large list row
-        </ListActionButton>
+        <List role="group">
+          <ListButton name="Small list row" size="sm" />
+          <ListButton name="Large list row" size="lg" />
+        </List>
+        <Menu
+          items={[
+            { icon: <span aria-hidden="true">#</span>, id: "small", name: "Small menu row", size: "sm" },
+            { icon: <span aria-hidden="true">#</span>, id: "large", name: "Large menu row", size: "lg" },
+          ]}
+        />
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Small menu row" }).className).toContain("menuItemSm");
-    expect(screen.getByRole("button", { name: "Large menu row" }).className).toContain("menuItemLg");
-    expect(screen.getByRole("button", { name: "Small list row" }).className).toContain("listActionSm");
-    expect(screen.getByRole("button", { name: "Large list row" }).className).toContain("listActionLg");
+    expect(screen.getByRole("button", { name: "Small list row" }).className).toContain("listPrimarySm");
+    expect(screen.getByRole("button", { name: "Large list row" }).className).toContain("listPrimaryLg");
+    expect(screen.getByRole("button", { name: "Small menu row" }).className).toContain("listPrimarySm");
+    expect(screen.getByRole("button", { name: "Large menu row" }).className).toContain("listPrimaryLg");
+  });
+
+  it("renders menu links, command rows, skin exceptions, and active current state", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <Menu
+        activeId="servers"
+        activeIndicator="none"
+        aria-label="Primary"
+        as="nav"
+        collapsed
+        iconColor="accent"
+        idleBorder={false}
+        items={[
+          { href: "/home", icon: <span aria-hidden="true">H</span>, id: "home", name: "Home" },
+          { href: "/servers", icon: <span aria-hidden="true">S</span>, id: "servers", name: "Servers" },
+          { icon: <span aria-hidden="true">C</span>, id: "command", name: "Command", onSelect },
+        ]}
+        panel
+        skin="sidebar"
+        spacing="sm"
+      />,
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const servers = within(nav).getByRole("link", { name: "Servers" });
+    const command = within(nav).getByRole("button", { name: "Command" });
+
+    expect(nav).toHaveAttribute("data-list-panel", "true");
+    expect(nav).toHaveAttribute("data-menu-skin", "sidebar");
+    expect(nav).toHaveAttribute("data-menu-collapsed", "true");
+    expect(nav).toHaveAttribute("data-menu-active-indicator", "none");
+    expect(nav).toHaveAttribute("data-menu-idle-border", "hidden");
+    expect(nav).toHaveAttribute("data-menu-spacing", "sm");
+    expect(servers.querySelector('[aria-hidden="true"]')?.className).toContain("listIconAccent");
+    expect(servers).toHaveAttribute("aria-current", "page");
+    expect(servers).not.toHaveAttribute("aria-pressed");
+
+    await user.click(command);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports controlled, forced, and empty menu expansion states", async () => {
+    const onExpandedChange = vi.fn();
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <Menu
+        expandedIds={[]}
+        forceExpandedIds={["group"]}
+        items={[
+          {
+            id: "group",
+            items: [{ id: "child", name: "Child" }],
+            name: "Group",
+          },
+        ]}
+        onExpandedChange={onExpandedChange}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Group" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Child" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Group" }));
+
+    expect(onExpandedChange).toHaveBeenCalledWith(["group"]);
+
+    rerender(<Menu empty={<span>No menu items</span>} items={[]} />);
+
+    expect(screen.getByText("No menu items")).toBeInTheDocument();
   });
 });

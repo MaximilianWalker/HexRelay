@@ -9,19 +9,41 @@ const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "ut
 const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
 
 describe("profile menu layout styles", () => {
-  it("keeps menu row sizing in the shared menu primitive", () => {
-    const sharedRowRule = controlCss.match(/\.menuItem,\s*\.menuRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
-    const menuRule = controlCss.match(/\.menu \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+  it("keeps list row sizing in the shared list primitive", () => {
+    const sharedRowRule = controlCss.match(/\.listPrimary,\s*\.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const listRule = controlCss.match(/\.list \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
-    expect(sharedRowRule).toContain("height: var(--menu-item-height);");
+    expect(sharedRowRule).toContain("height: var(--list-row-height);");
     expect(sharedRowRule).toContain("align-items: center;");
-    expect(sharedRowRule).toContain("padding: var(--space-0) var(--menu-item-padding-inline);");
-    expect(menuRule).not.toContain("padding-block");
-    expect(controlCss).not.toContain(".menuPaddingSm");
-    expect(controlCss).not.toContain(".menuWidthLg");
-    expect(menuCss).not.toContain(".menuItem");
+    expect(sharedRowRule).toContain("padding: var(--space-0) var(--list-row-padding-inline);");
+    expect(listRule).not.toContain("padding-block");
+    expect(controlCss).not.toContain(".listPaddingSm");
+    expect(controlCss).not.toContain(".listWidthLg");
+    expect(menuCss).not.toContain(".listPrimary");
     expect(menuCss).not.toContain(".layoutItem");
-    expect(menuCss).not.toContain(".menuIcon");
+    expect(menuCss).not.toContain(".listIcon");
+  });
+
+  it("keeps sidebar menu skin as a cosmetic shared exception", () => {
+    const sidebarSkinRule =
+      controlCss.match(/\.menu\[data-menu-skin="sidebar"\] \.listItem,\s*\.menu\[data-menu-skin="sidebar"\] \.listRow\s*\{(?<body>[^}]+)\}/)
+        ?.groups?.body ?? "";
+    const menuPrimaryRule = controlCss.match(/\.menu \.listPrimary,\s*\.menu \.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+    const menuRowRule = controlCss.match(/\.menu \.listItem,\s*\.menu \.listRow\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? "";
+
+    expect(controlCss).toContain(".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]");
+    expect(controlCss).toContain(".menu[data-menu-idle-border=\"hidden\"] .listItem");
+    expect(controlCss).toContain(".menu[data-menu-skin=\"sidebar\"] .listItem");
+    expect(controlCss).toContain(".listIconAccent");
+    expect(menuRowRule).toContain("background: transparent");
+    expect(controlCss).toContain("background: var(--color-surface-selected);");
+    expect(sidebarSkinRule).not.toContain("border-color: transparent");
+    expect(menuPrimaryRule).not.toContain("padding:");
+    expect(controlCss).not.toContain("data-menu-variant");
+    expect(controlCss).not.toContain("data-menu-surface");
+    expect(controlCss).not.toContain("arrow-rail");
+    expect(layoutCss).not.toContain(".sidebar .topNav");
+    expect(layoutCss).not.toContain(".sidebar .navLinkActive");
   });
 
   it("keeps popup placement in the shared popup primitive", () => {

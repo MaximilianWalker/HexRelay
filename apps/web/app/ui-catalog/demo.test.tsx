@@ -65,7 +65,7 @@ describe("UI catalog", () => {
     expect(within(dialog).getByRole("link", { name: "Buttons" })).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Navigation & Actions" }));
-    await user.click(within(dialog).getByRole("link", { name: "Menus" }));
+    await user.click(within(dialog).getByRole("link", { name: "List" }));
     expect(screen.queryByRole("dialog", { name: "Catalog navigation" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Catalog" }));
@@ -173,7 +173,7 @@ describe("UI catalog", () => {
   });
 
   it("marks the current hash section as active in the sidebar", () => {
-    window.history.replaceState(null, "", "/ui-catalog#menus");
+    window.history.replaceState(null, "", "/ui-catalog#list");
 
     render(<Demo />);
     const sidebar = screen.getByRole("complementary", { name: "UI catalog sections" });
@@ -182,7 +182,7 @@ describe("UI catalog", () => {
       "aria-expanded",
       "true",
     );
-    expect(within(sidebar).getByRole("link", { name: "Menus" })).toHaveAttribute("aria-current", "page");
+    expect(within(sidebar).getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "page");
   });
 
   it("documents the current shared control options", async () => {
@@ -215,22 +215,34 @@ describe("UI catalog", () => {
     expect(toggles.getByRole("group", { name: "Medium view mode" }).className).not.toContain("buttonGroupLg");
     expect(toggles.getByRole("group", { name: "Large view mode" }).className).toContain("buttonGroupLg");
 
-    const menus = section("menus");
-    expect(menus.getByText("Items")).toBeInTheDocument();
-    expect(menus.getByText("Actions")).toBeInTheDocument();
-    expect(menus.getByText("Static Content")).toBeInTheDocument();
-    expect(menus.getByText("Sizes")).toBeInTheDocument();
-    expect(menus.getByText("Profile settings")).toBeInTheDocument();
-    expect(menus.getByText("Mute notifications")).toBeInTheDocument();
-    expect(menus.getByText("Invite contact")).toBeInTheDocument();
-    expect(menus.getByText("Leave server")).toBeInTheDocument();
-    expect(menus.getByText("Pin tab")).toBeInTheDocument();
-    expect(menus.getByText("Voice unavailable")).toBeInTheDocument();
-    expect(menus.getByText("Sidebar layout")).toBeInTheDocument();
-    expect(menus.getByText("Edit preferences")).toBeInTheDocument();
-    expect(menus.queryByText("Rows")).not.toBeInTheDocument();
-    expect(menus.queryByText("Padding and Width")).not.toBeInTheDocument();
-    expect(menus.queryByText("Large width")).not.toBeInTheDocument();
+    const list = section("list");
+    expect(list.getByText("Items")).toBeInTheDocument();
+    expect(list.getByText("Actions")).toBeInTheDocument();
+    expect(list.getByText("Static Content")).toBeInTheDocument();
+    expect(list.getByText("Sizes")).toBeInTheDocument();
+    expect(list.getByText("Without Panel")).toBeInTheDocument();
+    expect(list.getByText("Profile settings")).toBeInTheDocument();
+    expect(list.getByText("Mute notifications")).toBeInTheDocument();
+    expect(list.getByText("Invite contact")).toBeInTheDocument();
+    expect(list.getByText("Leave server")).toBeInTheDocument();
+    expect(list.getByText("Pin tab")).toBeInTheDocument();
+    expect(list.getByText("Voice unavailable")).toBeInTheDocument();
+    expect(list.getByText("Sidebar layout")).toBeInTheDocument();
+    expect(list.getByText("Edit preferences")).toBeInTheDocument();
+    expect(list.getByText("Plain action")).toBeInTheDocument();
+    expect(list.queryByText("Rows")).not.toBeInTheDocument();
+    expect(list.queryByText("Padding and Width")).not.toBeInTheDocument();
+    expect(list.queryByText("Large width")).not.toBeInTheDocument();
+
+    const menu = section("menu");
+    expect(menu.getByText("States")).toBeInTheDocument();
+    expect(menu.getByText("Nested")).toBeInTheDocument();
+    expect(menu.getByText("Panel Menu")).toBeInTheDocument();
+    expect(menu.getByText("Sidebar")).toBeInTheDocument();
+    expect(menu.getByRole("button", { name: "With badge" })).toBeInTheDocument();
+    expect(menu.getByRole("button", { name: "Mentions" })).toBeInTheDocument();
+    expect(menu.getByRole("button", { name: "Inputs & Controls" })).toHaveAttribute("aria-expanded", "true");
+    expect(menu.getByRole("button", { name: "Servers" })).toBeInTheDocument();
 
     const popups = section("popups");
     const dialogsElement = document.getElementById("dialogs");
@@ -253,7 +265,7 @@ describe("UI catalog", () => {
     await user.selectOptions(popups.getByRole("combobox", { name: "Horizontal alignment" }), "left");
     expect(document.getElementById("catalog-popup-demo")).toHaveAttribute("data-placement", "left-center");
 
-    await user.selectOptions(popups.getByRole("combobox", { name: "Content" }), "menu");
+    await user.selectOptions(popups.getByRole("combobox", { name: "Content" }), "list");
     expect(popups.getByText("Open settings")).toBeInTheDocument();
   });
 });

@@ -2,8 +2,9 @@ import { IconInfoCircle, IconMicrophone, IconVolume } from "@tabler/icons-react"
 
 import { ChannelRail } from "@/components/chat/channel-rail";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
 
-import { VoiceChannelButton } from "./voice-channel-button";
 import { VoiceParticipantRow } from "./voice-participant-row";
 import type { VoiceChannel } from "./types";
 
@@ -24,17 +25,27 @@ export function VoiceView({
   channels,
   onSelectChannel,
 }: VoiceViewProps) {
+  const channelItems: MenuEntry[] = channels.map((channel) => {
+    const connectedCount = channel.participantIds.length;
+
+    return {
+      end:
+        connectedCount > 0 ? (
+          <Badge aria-label={`${connectedCount} connected users`} shape="counter" size="sm" tone="accent">
+            {connectedCount}
+          </Badge>
+        ) : undefined,
+      icon: <IconVolume aria-hidden="true" />,
+      id: channel.id,
+      name: channel.name,
+      onSelect: () => onSelectChannel(channel.id),
+    };
+  });
+
   return (
     <section className={styles.chatGrid} aria-label="Server voice">
       <ChannelRail aria-label="Voice channels" title="Voice channels">
-        {channels.map((channel) => (
-          <VoiceChannelButton
-            active={channel.id === activeChannel?.id}
-            channel={channel}
-            key={channel.id}
-            onSelect={onSelectChannel}
-          />
-        ))}
+        <Menu activeId={activeChannel?.id} activeIndicator="rail" items={channelItems} panel={false} />
       </ChannelRail>
 
       <article className={`${styles.chatPanel} ${styles.voicePanel}`}>

@@ -7,7 +7,6 @@ import {
   IconBellOff,
   IconCheck,
   IconChevronDown,
-  IconChevronRight,
   IconCircleCheck,
   IconCircleX,
   IconHash,
@@ -40,8 +39,8 @@ import { DialogActions } from "@/components/ui/dialog-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
-import { ListActionButton } from "@/components/ui/list-action-button";
-import { Menu, MenuItem, MenuRow } from "@/components/ui/menu";
+import { List, ListButton, ListRow } from "@/components/ui/list";
+import { Menu, type Item as CatalogEntry } from "@/components/ui/menu";
 import { Alert } from "@/components/ui/alert";
 import { Panel } from "@/components/ui/panel";
 import { Popup, type PopupPlacement } from "@/components/ui/popup";
@@ -64,7 +63,7 @@ import styles from "./styles.module.css";
 
 type ButtonGroupState = "list" | "cards" | "disabled";
 type Filter = "all" | "unread" | "muted";
-type PopupContent = "alert" | "menu" | "panel";
+type PopupContent = "alert" | "list" | "panel";
 type PopupHorizontal = "center" | "left" | "right";
 type PopupVertical = "bottom" | "center" | "top";
 
@@ -95,8 +94,8 @@ const sectionGroups = [
     id: "navigation-actions",
     label: "Navigation & Actions",
     sections: [
-      { id: "menus", label: "Menus", keywords: "menu row item popover" },
-      { id: "lists", label: "List Actions", keywords: "list nav row channel action" },
+      { id: "list", label: "List", keywords: "list row item popover" },
+      { id: "menu", label: "Menu", keywords: "menu nav row channel action submenu sidebar" },
     ],
   },
   {
@@ -167,7 +166,7 @@ const popupHorizontalOptions: Array<{ label: string; value: PopupHorizontal }> =
 
 const popupContentOptions: Array<{ label: string; value: PopupContent }> = [
   { label: "Panel", value: "panel" },
-  { label: "Menu", value: "menu" },
+  { label: "List", value: "list" },
   { label: "Alert", value: "alert" },
 ];
 
@@ -260,16 +259,16 @@ function CatalogNavGroups({
   activeSectionId,
   groups,
   navId,
+  onExpandedChange,
   onNavigate,
-  onToggleGroup,
   openGroupIds,
   searchActive,
 }: {
   activeSectionId: CatalogSectionId;
   groups: readonly VisibleCatalogSectionGroup[];
   navId: string;
+  onExpandedChange: (groupIds: ReadonlySet<CatalogSectionGroupId>) => void;
   onNavigate: (sectionId: CatalogSectionId) => void;
-  onToggleGroup: (groupId: CatalogSectionGroupId) => void;
   openGroupIds: ReadonlySet<CatalogSectionGroupId>;
   searchActive: boolean;
 }) {
@@ -277,68 +276,45 @@ function CatalogNavGroups({
     return <p className={styles.navEmpty}>No matching components</p>;
   }
 
+  const items: CatalogEntry[] = groups.map((group) => ({
+    id: group.id,
+    items: group.sections.map((section) => ({
+      href: `#${section.id}`,
+      id: section.id,
+      name: section.label,
+      onSelect: () => onNavigate(section.id),
+    })),
+    name: group.label,
+  }));
+  const expandedGroupIds = [...openGroupIds];
+  const forceExpandedGroupIds = searchActive ? groups.map((group) => group.id) : [];
+
   return (
-    <div className={styles.navGroups}>
-      {groups.map((group) => (
-        <div className={styles.navGroup} key={group.id}>
-          {(() => {
-            const expanded = searchActive || openGroupIds.has(group.id);
-            const panelId = `${navId}-${group.id}-links`;
-
-            return (
-              <>
-                <PressableButton
-                  aria-controls={panelId}
-                  aria-expanded={expanded}
-                  className={styles.navGroupButton}
-                  data-expanded={expanded ? "true" : undefined}
-                  onClick={() => onToggleGroup(group.id)}
-                  type="button"
-                >
-                  <span>{group.label}</span>
-                  {expanded ? (
-                    <IconChevronDown aria-hidden="true" className={styles.navGroupChevron} />
-                  ) : (
-                    <IconChevronRight aria-hidden="true" className={styles.navGroupChevron} />
-                  )}
-                </PressableButton>
-                <div className={styles.navGroupLinks} hidden={!expanded} id={panelId}>
-                  {group.sections.map((section) => {
-                    const active = section.id === activeSectionId;
-
-                    return (
-                      <a
-                        aria-current={active ? "page" : undefined}
-                        data-active={active ? "true" : undefined}
-                        href={`#${section.id}`}
-                        key={section.id}
-                        onClick={() => onNavigate(section.id)}
-                      >
-                        {section.label}
-                      </a>
-                    );
-                  })}
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      ))}
-    </div>
+    <Menu
+      activeId={activeSectionId}
+      activeIndicator="rail"
+      aria-label={`${navId} sections`}
+      expandedIds={expandedGroupIds}
+      forceExpandedIds={forceExpandedGroupIds}
+      idleBorder={false}
+      items={items}
+      onExpandedChange={(nextExpandedIds) => {
+        if (!searchActive) {
+          onExpandedChange(new Set(nextExpandedIds as CatalogSectionGroupId[]));
+        }
+      }}
+      panel={false}
+    />
   );
 }
 
 function PopupPreviewContent({ content }: { content: PopupContent }) {
-  if (content === "menu") {
+  if (content === "list") {
     return (
-      <Menu role="group">
-        <MenuItem icon={<IconSettings aria-hidden="true" />} role="button">
-          Open settings
-        </MenuItem>
-        <MenuItem icon={<IconBellOff aria-hidden="true" />} role="button">
-          Mute activity
-        </MenuItem>
-      </Menu>
+      <List role="group">
+        <ListButton icon={<IconSettings aria-hidden="true" />} name="Open settings" />
+        <ListButton icon={<IconBellOff aria-hidden="true" />} name="Mute activity" />
+      </List>
     );
   }
 
@@ -417,24 +393,6 @@ export function Demo() {
       return nextGroupIds;
     });
     setCatalogNavOpen(false);
-  }
-
-  function toggleCatalogGroup(groupId: CatalogSectionGroupId): void {
-    if (catalogSearchActive) {
-      return;
-    }
-
-    setOpenGroupIds((currentGroupIds) => {
-      const nextGroupIds = new Set(currentGroupIds);
-
-      if (nextGroupIds.has(groupId)) {
-        nextGroupIds.delete(groupId);
-      } else {
-        nextGroupIds.add(groupId);
-      }
-
-      return nextGroupIds;
-    });
   }
 
   useEffect(() => {
@@ -564,8 +522,8 @@ export function Demo() {
               activeSectionId={activeSectionId}
               groups={visibleSectionGroups}
               navId="catalog-sidebar"
+              onExpandedChange={setOpenGroupIds}
               onNavigate={navigateCatalogSection}
-              onToggleGroup={toggleCatalogGroup}
               openGroupIds={openGroupIds}
               searchActive={catalogSearchActive}
             />
@@ -896,97 +854,171 @@ export function Demo() {
           </Section>
 
           <Section
-            id="menus"
-            title="Menus"
-            visible={isSectionVisible("menus")}
-            description="Menus centralize item layout, keyboard focus movement, icon slots, danger tone, and item size."
+            id="list"
+            title="List"
+            visible={isSectionVisible("list")}
+            description="Lists provide basic customizable rows with name, icon, end slot, state, size, and tone props."
           >
             <div className={styles.exampleGrid}>
               <Example title="Items">
-                <Menu>
-                  <MenuItem icon={<IconSettings aria-hidden="true" />}>Profile settings</MenuItem>
-                  <MenuItem icon={<IconBellOff aria-hidden="true" />} pressed>
-                    Mute notifications
-                  </MenuItem>
-                  <MenuItem icon={<IconUserPlus aria-hidden="true" />} trailing={<Badge tone="muted">New</Badge>}>
-                    Invite contact
-                  </MenuItem>
-                  <MenuItem icon={<IconTrash aria-hidden="true" />} tone="danger">
-                    Leave server
-                  </MenuItem>
-                </Menu>
+                <List role="menu">
+                  <ListButton icon={<IconSettings aria-hidden="true" />} name="Profile settings" role="menuitem" />
+                  <ListButton
+                    icon={<IconBellOff aria-hidden="true" />}
+                    name="Mute notifications"
+                    pressed
+                    role="menuitemcheckbox"
+                  />
+                  <ListButton
+                    end={<Badge tone="muted">New</Badge>}
+                    icon={<IconUserPlus aria-hidden="true" />}
+                    name="Invite contact"
+                    role="menuitem"
+                  />
+                  <ListButton icon={<IconTrash aria-hidden="true" />} name="Leave server" role="menuitem" tone="danger" />
+                </List>
               </Example>
 
               <Example title="Actions">
-                <Menu role="group">
-                  <MenuItem icon={<IconPinned aria-hidden="true" />} role="button">
-                    Pin tab
-                  </MenuItem>
-                  <MenuItem disabled icon={<IconVolume aria-hidden="true" />} role="button">
-                    Voice unavailable
-                  </MenuItem>
-                </Menu>
+                <List role="group">
+                  <ListButton icon={<IconPinned aria-hidden="true" />} name="Pin tab" />
+                  <ListButton disabled icon={<IconVolume aria-hidden="true" />} name="Voice unavailable" />
+                </List>
               </Example>
 
               <Example title="Static Content">
-                <Menu role="group">
-                  <MenuRow icon={<IconInfoCircle aria-hidden="true" />} trailing={<Badge tone="muted">Current</Badge>}>
-                    Sidebar layout
-                  </MenuRow>
-                  <MenuItem icon={<IconSettings aria-hidden="true" />} role="button">
-                    Edit preferences
-                  </MenuItem>
-                </Menu>
+                <List role="group">
+                  <ListRow
+                    end={<Badge tone="muted">Current</Badge>}
+                    icon={<IconInfoCircle aria-hidden="true" />}
+                    name="Sidebar layout"
+                  />
+                  <ListButton icon={<IconSettings aria-hidden="true" />} name="Edit preferences" />
+                </List>
               </Example>
 
               <Example title="Sizes">
-                <Menu role="group">
-                  <MenuItem icon={<IconSettings aria-hidden="true" />} role="button" size="sm">
-                    Small
-                  </MenuItem>
-                  <MenuItem icon={<IconPinned aria-hidden="true" />} role="button">
-                    Medium
-                  </MenuItem>
-                  <MenuItem icon={<IconVolume aria-hidden="true" />} role="button" size="lg">
-                    Large
-                  </MenuItem>
-                </Menu>
+                <List role="group">
+                  <ListButton icon={<IconSettings aria-hidden="true" />} name="Small" size="sm" />
+                  <ListButton icon={<IconPinned aria-hidden="true" />} name="Medium" />
+                  <ListButton icon={<IconVolume aria-hidden="true" />} name="Large" size="lg" />
+                </List>
+              </Example>
+
+              <Example title="Without Panel">
+                <List panel={false} role="group">
+                  <ListButton icon={<IconSettings aria-hidden="true" />} name="Plain action" />
+                  <ListButton icon={<IconBellOff aria-hidden="true" />} name="Muted row" />
+                  <ListRow
+                    end={<Badge tone="muted">Static</Badge>}
+                    icon={<IconInfoCircle aria-hidden="true" />}
+                    name="Plain row"
+                  />
+                </List>
               </Example>
             </div>
           </Section>
 
           <Section
-            id="lists"
-            title="List Actions"
-            visible={isSectionVisible("lists")}
-            description="Channel, hub, and action-list rows should use the shared list action recipe instead of local button styling."
+            id="menu"
+            title="Menu"
+            visible={isSectionVisible("menu")}
+            description="Menu composes lists from objects for sidebars, channel rails, actions, and nested navigation."
           >
             <div className={styles.exampleGrid}>
               <Example title="States">
-                <div className={styles.stack}>
-                  <ListActionButton icon={<IconHash aria-hidden="true" />}>Default</ListActionButton>
-                  <ListActionButton active icon={<IconMessageCircle aria-hidden="true" />}>
-                    Active
-                  </ListActionButton>
-                  <ListActionButton badge="8" badgeLabel="8 unread" icon={<IconHash aria-hidden="true" />}>
-                    With badge
-                  </ListActionButton>
-                  <ListActionButton disabled icon={<IconBellOff aria-hidden="true" />}>Disabled</ListActionButton>
-                </div>
+                <Menu
+                  activeId="messages"
+                  items={[
+                    { icon: <IconHash aria-hidden="true" />, id: "default", name: "Default" },
+                    { icon: <IconMessageCircle aria-hidden="true" />, id: "messages", name: "Active" },
+                    {
+                      end: (
+                        <Badge aria-label="8 unread" shape="counter" size="sm" tone="accent">
+                          8
+                        </Badge>
+                      ),
+                      icon: <IconHash aria-hidden="true" />,
+                      id: "badge",
+                      name: "With badge",
+                    },
+                    { disabled: true, icon: <IconBellOff aria-hidden="true" />, id: "disabled", name: "Disabled" },
+                  ]}
+                  panel={false}
+                />
               </Example>
 
               <Example title="Sizes">
-                <div className={styles.stack}>
-                  <ListActionButton icon={<IconHash aria-hidden="true" />} size="sm">
-                    Small
-                  </ListActionButton>
-                  <ListActionButton icon={<IconMessageCircle aria-hidden="true" />}>
-                    Medium
-                  </ListActionButton>
-                  <ListActionButton icon={<IconServer2 aria-hidden="true" />} size="lg">
-                    Large
-                  </ListActionButton>
-                </div>
+                <Menu
+                  items={[
+                    { icon: <IconHash aria-hidden="true" />, id: "small", name: "Small", size: "sm" },
+                    { icon: <IconMessageCircle aria-hidden="true" />, id: "medium", name: "Medium" },
+                    { icon: <IconServer2 aria-hidden="true" />, id: "large", name: "Large", size: "lg" },
+                  ]}
+                  panel={false}
+                />
+              </Example>
+
+              <Example title="Nested">
+                <Menu
+                  activeId="forms"
+                  defaultExpandedIds={["controls"]}
+                  items={[
+                    {
+                      icon: <IconLayoutGrid aria-hidden="true" />,
+                      id: "controls",
+                      items: [
+                        { href: "#buttons", id: "buttons-link", name: "Buttons" },
+                        { href: "#forms", id: "forms", name: "Forms" },
+                      ],
+                      name: "Inputs & Controls",
+                    },
+                    {
+                      icon: <IconServer2 aria-hidden="true" />,
+                      id: "workspace",
+                      items: [
+                        { id: "channels", name: "Channels" },
+                        { id: "voice", name: "Voice" },
+                      ],
+                      name: "Workspace",
+                    },
+                  ]}
+                  panel={false}
+                />
+              </Example>
+
+              <Example title="Panel Menu">
+                <Menu
+                  activeId="mentions"
+                  items={[
+                    { icon: <IconMessageCircle aria-hidden="true" />, id: "mentions", name: "Mentions" },
+                    { icon: <IconHash aria-hidden="true" />, id: "channels", name: "Channels" },
+                    {
+                      end: <Badge tone="muted">3</Badge>,
+                      icon: <IconBell aria-hidden="true" />,
+                      id: "alerts",
+                      name: "Alerts",
+                    },
+                  ]}
+                  panel
+                />
+              </Example>
+
+              <Example title="Sidebar">
+                <Menu
+                  activeId="servers"
+                  activeIndicator="rail"
+                  iconColor="accent"
+                  idleBorder={false}
+                  items={[
+                    { icon: <IconLayoutGrid aria-hidden="true" />, id: "home", name: "Home" },
+                    { icon: <IconServer2 aria-hidden="true" />, id: "servers", name: "Servers" },
+                    { icon: <IconSettings aria-hidden="true" />, id: "settings", name: "Settings" },
+                  ]}
+                  panel
+                  skin="sidebar"
+                  spacing="sm"
+                />
               </Example>
             </div>
           </Section>
@@ -1171,7 +1203,7 @@ export function Demo() {
                   </Panel>
                   <Panel className={styles.panelPreview} variant="raised">
                     <h3>Raised</h3>
-                    <p>Menus, dialogs, and focus surfaces.</p>
+                    <p>Lists, dialogs, and focus surfaces.</p>
                   </Panel>
                   <Panel className={styles.panelPreview} variant="danger">
                     <h3>Danger</h3>
@@ -1324,8 +1356,8 @@ export function Demo() {
                 activeSectionId={activeSectionId}
                 groups={visibleSectionGroups}
                 navId="catalog-overlay"
+                onExpandedChange={setOpenGroupIds}
                 onNavigate={navigateCatalogSection}
-                onToggleGroup={toggleCatalogGroup}
                 openGroupIds={openGroupIds}
                 searchActive={catalogSearchActive}
               />

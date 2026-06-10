@@ -6,14 +6,14 @@
 - Owner: Product and design maintainers
 - Status: revision_in_progress
 - Scope: repository
-- last_updated: 2026-05-26
+- last_updated: 2026-06-10
 - Source of truth: `docs/product/07-ui-navigation-spec.md`
 
 ## Quick Context
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-05-26 added the internal UI framework conventions for tokenized CSS, semantic themes, shared primitives, and feature component ownership while preserving the approved navigation behavior.
+- Latest meaningful change: 2026-06-10 split shared list/menu primitives so `List` owns customizable rows, icon color, and optional panel framing while `Menu` owns object-driven navigation/action lists, overall spacing, optional idle borders, and sidebar skin limited to cosmetic exceptions.
 
 ## Design Direction
 
@@ -31,7 +31,8 @@
 - Global CSS is split into `apps/web/app/styles/tokens.css`, `themes.css`, and `base.css`, imported only through `apps/web/app/globals.css`.
 - Component CSS should use semantic variables such as `--color-bg-app`, `--color-surface`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-danger`, `--color-warning`, and `--color-success`.
 - Primitive palette values stay private to the theme files. Custom themes override semantic variables instead of editing component internals.
-- Reusable primitives are `Avatar`, `Badge`, `Button`, `ButtonLink`, `Dialog`, `EmptyState`, `Field`, `IconButton`, `Menu`, `MenuItem`, `Notice`, `Panel`, `SegmentedControl`, `ToggleButton`, `ToggleGroup`, `Toolbar`, and `VisuallyHidden`.
+- Reusable primitives are `Avatar`, `Badge`, `Button`, `ButtonLink`, `Dialog`, `EmptyState`, `Field`, `IconButton`, `List`, `ListButton`, `ListLink`, `ListRow`, `Menu`, `Notice`, `Panel`, `SegmentedControl`, `ToggleButton`, `ToggleGroup`, `Toolbar`, and `VisuallyHidden`.
+- `List` is the low-level customizable row primitive for popup rows, static rows, links, buttons, icons, icon color, end slots, and optional panel framing through `panel`. `Menu` composes `List` from item objects for sidebars, channel rails, action lists, and nested navigation, and exposes `panel`, `spacing`, plus `idleBorder` for borderless idle rows that still gain borders on hover, focus, or active state. Core row sizing and spacing stay in `Menu`; named skins are exceptions and must stay cosmetic. The app sidebar uses `panel`, `spacing="sm"`, `idleBorder={false}`, the explicit `sidebar` skin, accent icons, and a rail indicator without arrow decoration.
 - Component and file names should use folder context instead of repeating it. For example, `components/hubs/toolbar.tsx` exports `Toolbar`; callers rely on the import path for hub context.
 - Feature components own repeated behavior by surface:
   - `components/hubs`: toolbar, bulk actions, card/list surface, item rendering, and context menu behavior.

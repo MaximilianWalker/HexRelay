@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 const roots = ["app", "components"];
 const allowedPressedFiles = new Set([
   "components/ui/button.tsx",
-  "components/ui/list-action-button.tsx",
+  "components/ui/list.tsx",
   "components/ui/menu.tsx",
 ]);
 const allowedRawButtonFiles = new Set([
@@ -12,9 +12,9 @@ const allowedRawButtonFiles = new Set([
   "components/layout/tabs/root.tsx",
 ]);
 const primitiveComponentPattern =
-  /<(?:Button|ButtonLink|IconButton|Badge|Alert|Menu|MenuItem|MenuRow|Popup|ListActionButton|ToggleButton|ToggleSwitch|ButtonGroup)\b[^>]*\bclassName=/s;
+  /<(?:Button|ButtonLink|IconButton|Badge|Alert|List|ListButton|ListLink|ListRow|Menu|Popup|ToggleButton|ToggleSwitch|ButtonGroup)\b[^>]*\bclassName=/s;
 const primitiveIconClassPattern =
-  /\b(?:icon|trailing)=\{<Icon[A-Za-z0-9]+\b[^}]*\bclassName=\{(?:styles|[A-Za-z0-9]+Styles)\.icon\}/s;
+  /\b(?:end|icon)=\{<Icon[A-Za-z0-9]+\b[^}]*\bclassName=\{(?:styles|[A-Za-z0-9]+Styles)\.icon\}/s;
 const iconButtonChildClassPattern =
   /<IconButton\b[^>]*>[\s\n\r]*<Icon[A-Za-z0-9]+\b[^>]*\bclassName=\{(?:styles|[A-Za-z0-9]+Styles)\.icon\}/s;
 const bannedControlPatterns = [
@@ -65,7 +65,7 @@ function auditPressedButtons(fullPath, source) {
   }
 
   if (source.includes("aria-pressed=")) {
-    failures.push(`${normalizedPath}: pressed state must go through shared button/menu/list-action primitives`);
+    failures.push(`${normalizedPath}: pressed state must go through shared button, menu, or list primitives`);
   }
 }
 
@@ -94,7 +94,7 @@ function auditRawButtons(fullPath, source) {
   }
 
   if (source.includes("<button")) {
-    failures.push(`${normalizedPath}: raw button must use shared Button, IconButton, PressableButton, MenuItem, or ListActionButton`);
+    failures.push(`${normalizedPath}: raw button must use shared Button, IconButton, PressableButton, ListButton, or Menu`);
   }
 }
 

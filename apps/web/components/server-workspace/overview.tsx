@@ -2,7 +2,7 @@ import { IconDotsVertical, IconInfoCircle, IconLogout } from "@tabler/icons-reac
 
 import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { List, ListButton } from "@/components/ui/list";
 import { Popup } from "@/components/ui/popup";
 import type { ServerSummary } from "@/lib/api";
 
@@ -55,17 +55,21 @@ export function Overview({
           </IconButton>
           {menuOpen ? (
             <Popup placement="bottom-end">
-              <Menu>
-                <MenuItem onClick={() => onMenuAction("Mark server as read")}>Mark as read</MenuItem>
-                <MenuItem onClick={() => onMenuAction("Mute notifications")}>Mute notifications</MenuItem>
-                <MenuItem
+              <List role="menu">
+                <ListButton name="Mark as read" onClick={() => onMenuAction("Mark server as read")} role="menuitem" />
+                <ListButton
+                  name="Mute notifications"
+                  onClick={() => onMenuAction("Mute notifications")}
+                  role="menuitem"
+                />
+                <ListButton
                   icon={<IconLogout aria-hidden="true" />}
+                  name="Leave server"
                   onClick={() => onMenuAction("Leave server")}
+                  role="menuitem"
                   tone="danger"
-                >
-                  Leave server
-                </MenuItem>
-              </Menu>
+                />
+              </List>
             </Popup>
           ) : null}
         </div>

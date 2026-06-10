@@ -36,6 +36,7 @@ import {
 
 import { BrandLockup } from "@/components/brand-lockup";
 import { Bar as ContentTabs, type Item as ContentTab } from "@/components/content-tabs/bar";
+import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
 import { Controls } from "@/components/profile/controls";
 import { TabMenu } from "./tab-menu";
 import { Root as Tabs } from "./tabs/root";
@@ -617,9 +618,22 @@ export function MainLayout({
   const hasContentTabs = tabs.length > 0;
   const voiceActionsAvailable = routeTab?.kind === "server" && activeTabId === "voice";
 
-  const navLinks = nav.map((item) => {
+  const activeNavId = nav.find((item) => isPrimaryNavRoute(pathname, item.href))?.href;
+  const sidebarNavItems: MenuEntry[] = nav.map((item) => {
+    const NavIcon = item.icon;
+
+    return {
+      ariaLabel: item.label,
+      href: item.href,
+      icon: <NavIcon aria-hidden="true" />,
+      id: item.href,
+      name: item.label,
+    };
+  });
+  const topbarNavLinks = nav.map((item) => {
     const active = isPrimaryNavRoute(pathname, item.href);
     const NavIcon = item.icon;
+
     return (
       <Link
         aria-current={active ? "page" : undefined}
@@ -721,7 +735,7 @@ export function MainLayout({
             <div className={styles.topbarPrimary}>
               {brand}
               <nav aria-label="Primary" className={styles.topbarNav}>
-                {navLinks}
+                {topbarNavLinks}
               </nav>
             </div>
             <div className={styles.openTabsStack} role="group" aria-label="Open tabs">
@@ -735,9 +749,19 @@ export function MainLayout({
           <aside className={styles.sidebar}>
             <div className={styles.sidebarPrimary}>
               {brand}
-              <nav aria-label="Primary" className={styles.topNav}>
-                {navLinks}
-              </nav>
+              <Menu
+                activeId={activeNavId}
+                activeIndicator="rail"
+                aria-label="Primary"
+                as="nav"
+                collapsed={collapsed}
+                iconColor="accent"
+                idleBorder={false}
+                items={sidebarNavItems}
+                panel
+                skin="sidebar"
+                spacing="sm"
+              />
             </div>
 
             <div className={styles.openTabsStack} role="group" aria-label="Open tabs">

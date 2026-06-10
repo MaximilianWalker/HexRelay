@@ -1,6 +1,6 @@
 import { IconPinned, IconPinnedOff, IconX } from "@tabler/icons-react";
 
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { List, ListButton } from "@/components/ui/list";
 import { Popup } from "@/components/ui/popup";
 import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
@@ -14,17 +14,21 @@ type TabMenuProps = {
 export function TabMenu({ onCloseTab, onTogglePinned, position, tab }: TabMenuProps) {
   return (
     <Popup position="fixed" style={{ left: position.x, top: position.y }}>
-      <Menu onClick={(event) => event.stopPropagation()}>
-        <MenuItem
+      <List onClick={(event) => event.stopPropagation()} role="menu">
+        <ListButton
           icon={tab.pinned ? <IconPinnedOff aria-hidden="true" /> : <IconPinned aria-hidden="true" />}
+          name={tab.pinned ? "Unpin tab" : "Pin tab"}
           onClick={() => onTogglePinned(tab)}
-        >
-          {tab.pinned ? "Unpin tab" : "Pin tab"}
-        </MenuItem>
-        <MenuItem icon={<IconX aria-hidden="true" />} onClick={() => onCloseTab(tab)} tone="danger">
-          Close tab
-        </MenuItem>
-      </Menu>
+          role="menuitem"
+        />
+        <ListButton
+          icon={<IconX aria-hidden="true" />}
+          name="Close tab"
+          onClick={() => onCloseTab(tab)}
+          role="menuitem"
+          tone="danger"
+        />
+      </List>
     </Popup>
   );
 }
