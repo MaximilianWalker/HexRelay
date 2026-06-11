@@ -123,9 +123,14 @@ export function OverlaysSections({
         </div>
       </Section>
 
-      <Section hideHeader id="popups" title="Popups" visible={isVisible("popups")}>
+      <Section
+        id="popups"
+        title="Popups"
+        visible={isVisible("popups")}
+        description="Popups own anchored placement, fixed-position menus, and compact floating content."
+      >
         <div className={styles.exampleGrid}>
-          <Example title="Playground" wide>
+          <Example title="Placement" wide>
             <div className={styles.popupDemo}>
               <div className={styles.popupControls}>
                 <Field label="Vertical alignment">

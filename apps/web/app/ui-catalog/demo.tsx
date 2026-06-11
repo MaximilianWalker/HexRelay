@@ -35,6 +35,7 @@ import {
   type VisibleSectionGroup,
 } from "./data";
 import { NavGroups } from "./nav";
+import { AppPatternsSections } from "./sections/app-patterns";
 import { DataDisplaySections } from "./sections/data-display";
 import { FeedbackSections } from "./sections/feedback";
 import { IdentitySections } from "./sections/identity";
@@ -277,6 +278,7 @@ export function Demo() {
             popupOpen={popupOpen}
             popupVertical={popupVertical}
           />
+          <AppPatternsSections isVisible={isSectionVisible} />
         </ScrollArea>
       </div>
 

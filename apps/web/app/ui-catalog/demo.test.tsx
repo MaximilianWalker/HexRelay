@@ -267,8 +267,10 @@ describe("UI catalog", () => {
     const dialogsElement = document.getElementById("dialogs");
     const popupsElement = document.getElementById("popups");
     expect(Boolean(dialogsElement?.compareDocumentPosition(popupsElement as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-    expect(popups.queryByRole("heading", { name: "Popups" })).not.toBeInTheDocument();
-    expect(popups.queryByText("Popups own anchored placement")).not.toBeInTheDocument();
+    expect(popups.getByRole("heading", { name: "Popups" })).toBeInTheDocument();
+    expect(popups.getByText("Popups own anchored placement, fixed-position menus, and compact floating content.")).toBeInTheDocument();
+    expect(popups.getByText("Placement")).toBeInTheDocument();
+    expect(popups.queryByText("Playground")).not.toBeInTheDocument();
     expect(popups.getByRole("combobox", { name: "Vertical alignment" })).toBeInTheDocument();
     expect(popups.getByRole("combobox", { name: "Horizontal alignment" })).toBeInTheDocument();
     expect(popups.getByRole("combobox", { name: "Content" })).toBeInTheDocument();
@@ -286,5 +288,49 @@ describe("UI catalog", () => {
 
     await user.selectOptions(popups.getByRole("combobox", { name: "Content" }), "list");
     expect(popups.getByText("Open settings")).toBeInTheDocument();
+
+    const messages = section("messages");
+    expect(messages.getByText("Channel Rail")).toBeInTheDocument();
+    expect(messages.getByText("Timeline And Composer")).toBeInTheDocument();
+    expect(messages.getByText("Load earlier messages")).toBeInTheDocument();
+    expect(messages.getByPlaceholderText("Message #general")).toHaveValue("Draft a quick channel update...");
+    expect(messages.getByText("Online")).toBeInTheDocument();
+    expect(messages.getByText("Away")).toBeInTheDocument();
+
+    const profileControls = section("profile-controls");
+    expect(profileControls.getByText("Sidebar Controls")).toBeInTheDocument();
+    expect(profileControls.getByText("Aline Costa")).toBeInTheDocument();
+    expect(profileControls.getByRole("group", { name: "Profile actions" })).toBeInTheDocument();
+
+    const contentTabs = section("content-tabs");
+    expect(contentTabs.getByText("Scrollable Bar")).toBeInTheDocument();
+    expect(contentTabs.getByRole("button", { name: "Chat" })).toHaveAttribute("aria-pressed", "true");
+    expect(contentTabs.getByRole("button", { name: "New" })).toBeInTheDocument();
+
+    const settingsRows = section("settings-rows");
+    expect(settingsRows.getByText("Preference Rows")).toBeInTheDocument();
+    expect(settingsRows.getAllByText("Message alerts").length).toBeGreaterThan(0);
+    expect(settingsRows.getByText("Interface density")).toBeInTheDocument();
+    expect(settingsRows.getByText("Delivery route")).toBeInTheDocument();
+    expect(settingsRows.getByText("Cache controls")).toBeInTheDocument();
+
+    const hubSurfaces = section("hub-surfaces");
+    expect(hubSurfaces.getByText("Toolbar, Surface, And Bulk Actions")).toBeInTheDocument();
+    expect(hubSurfaces.getByRole("textbox", { name: "Search servers" })).toBeInTheDocument();
+    expect(hubSurfaces.getByText("Atlas Team")).toBeInTheDocument();
+    expect(hubSurfaces.getByText("1 selected")).toBeInTheDocument();
+
+    const workspaceRows = section("workspace-rows");
+    expect(workspaceRows.getByText("Server Identity")).toBeInTheDocument();
+    expect(workspaceRows.getByText("Members")).toBeInTheDocument();
+    expect(workspaceRows.getByText("Voice Participants")).toBeInTheDocument();
+    expect(workspaceRows.getAllByText("Aline Costa").length).toBeGreaterThan(0);
+    expect(workspaceRows.getByText("Speaking")).toBeInTheDocument();
+
+    const contacts = section("contacts");
+    expect(contacts.getByText("Requests")).toBeInTheDocument();
+    expect(contacts.getByText("Discovery")).toBeInTheDocument();
+    expect(contacts.getByText("Friend requests")).toBeInTheDocument();
+    expect(contacts.getByText("Nuno Reis")).toBeInTheDocument();
   });
 });

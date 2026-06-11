@@ -67,6 +67,19 @@ export const sectionGroups = [
       { id: "popups", label: "Popups", keywords: "popover floating anchored placement" },
     ],
   },
+  {
+    id: "app-patterns",
+    label: "App Patterns",
+    sections: [
+      { id: "messages", label: "Messages", keywords: "chat message timeline composer channel rail presence" },
+      { id: "profile-controls", label: "Profile Controls", keywords: "profile actions microphone sound compact menu" },
+      { id: "content-tabs", label: "Content Tabs", keywords: "tabs scroll open workspace content" },
+      { id: "settings-rows", label: "Settings Rows", keywords: "settings row panel status value control" },
+      { id: "hub-surfaces", label: "Hub Surfaces", keywords: "servers contacts hubs cards list bulk actions" },
+      { id: "workspace-rows", label: "Workspace Rows", keywords: "server workspace members voice participant icon" },
+      { id: "contacts", label: "Contacts", keywords: "friend request discovery contact cards" },
+    ],
+  },
 ] as const;
 
 export type SectionGroup = (typeof sectionGroups)[number];
