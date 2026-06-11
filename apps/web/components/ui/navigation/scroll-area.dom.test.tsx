@@ -3,7 +3,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ScrollArea } from "./navigation/scroll-area";
+import { ScrollArea } from "./scroll-area";
 
 afterEach(() => {
   cleanup();

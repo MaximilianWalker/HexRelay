@@ -749,19 +749,20 @@ export function MainLayout({
           <aside className={styles.sidebar}>
             <div className={styles.sidebarPrimary}>
               {brand}
-              <Menu
-                activeId={activeNavId}
-                activeIndicator="rail"
-                aria-label="Primary"
-                as="nav"
-                collapsed={collapsed}
-                iconColor="accent"
-                idleBorder={false}
-                items={sidebarNavItems}
-                panel
-                skin="sidebar"
-                spacing="sm"
-              />
+              <div className={styles.sidebarMenu}>
+                <Menu
+                  activeId={activeNavId}
+                  activeIndicator="rail"
+                  aria-label="Primary"
+                  as="nav"
+                  collapsed={collapsed}
+                  iconColor="accent"
+                  idleBorder={false}
+                  items={sidebarNavItems}
+                  panel
+                  spacing="sm"
+                />
+              </div>
             </div>
 
             <div className={styles.openTabsStack} role="group" aria-label="Open tabs">

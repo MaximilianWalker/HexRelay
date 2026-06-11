@@ -243,7 +243,7 @@ describe("UI catalog", () => {
     expect(menu.getByText("States")).toBeInTheDocument();
     expect(menu.getByText("Nested")).toBeInTheDocument();
     expect(menu.getByText("Panel Menu")).toBeInTheDocument();
-    expect(menu.getByText("Sidebar")).toBeInTheDocument();
+    expect(menu.getByText("Compact Panel")).toBeInTheDocument();
     expect(menu.getByRole("button", { name: "With badge" })).toBeInTheDocument();
     expect(menu.getByRole("button", { name: "Mentions" })).toBeInTheDocument();
     expect(menu.getByRole("button", { name: "Inputs & Controls" })).toHaveAttribute("aria-expanded", "true");

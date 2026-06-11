@@ -35,12 +35,12 @@ Only project-specific constraints are defined here.
 ## 4) Frontend UI Code Rules
 
 - Keep route files and shell components focused on data loading, layout orchestration, and composition; move reusable UI, interaction logic, and visual variants into named components.
-- Prefer one exported component per `.tsx` file. Do not stack multiple substantial components in one file; split them into separate files with colocated CSS modules. Small private helpers are allowed only when they are trivial and not reusable.
+- Each `.tsx` file should export at most one React component. Do not stack multiple substantial components in one file; split them into separate files with colocated CSS modules. Small private JSX helpers are allowed only when they are trivial, stateless, tightly coupled to the exported component, and not reusable.
 - Prefer simple, direct names. Use names such as `ProfileActions`, `NavLink`, `Row`, or `MessageBubble`; avoid broad, branded, clever, or implementation-heavy names unless the domain requires them.
 - Do not repeat path context in local component, file, function, or type names. If a component lives in `components/hubs`, use names such as `Toolbar`, `Surface`, or `ItemActions` instead of `HubToolbar`, `HubSurface`, or `HubItemActions`; let imports and folders provide the missing context.
 - Components should own one clear responsibility. If a component manages profile state, action buttons, menus, and layout at once, split it before adding more behavior.
-- Use existing internal UI primitives first (`Button`, `IconButton`, `Badge`, `Avatar`, `Panel`, `Field`, `Notice`, `Dialog`, `Toolbar`, and related app primitives). Do not create route-local copies of buttons, tabs, cards, switches, fields, menus, or badges.
-- Shared control behavior should come from internal UI APIs such as `Button`, `ButtonLink`, `ToggleButton`, `ToggleGroup`, `Menu`, `MenuItem`, and list/action recipes rather than local CSS classes or direct `aria-pressed` buttons.
+- Use existing internal UI primitives first (`Button`, `IconButton`, `Badge`, `Avatar`, `Panel`, `Field`, `Dialog`, `Toolbar`, and related app primitives). Do not create route-local copies of buttons, tabs, cards, switches, fields, menus, or badges.
+- Shared control behavior should come from internal UI APIs such as `Button`, `ButtonLink`, `ToggleButton`, `ToggleGroup`, `List`, `Menu`, and related recipes rather than local CSS classes or direct `aria-pressed` buttons.
 - Do not pass route-local `className` overrides or locally sized SVG classes into shared UI primitives such as buttons, icon buttons, badges, alerts, menus, toggle controls, or list actions. Add a small, typed primitive prop or a named recipe component instead; use wrapper elements for layout-only spacing when needed.
 - Use Tabler icons through shared button/link/icon patterns. Icon-only controls must have `aria-label` and `title`; visible labels should be added only when the layout calls for text.
 - CSS Modules should be component-scoped and small enough to audit. If a CSS module grows because unrelated surfaces share it, split by component or feature instead of adding more classes.

@@ -157,38 +157,6 @@
   z-index: 3;
 }
 
-.scrollButton {
-  display: inline-flex;
-  width: var(--space-14);
-  height: 100%;
-  flex: 0 0 var(--space-14);
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-strong);
-  cursor: pointer;
-}
-
-.scrollButton:disabled {
-  color: var(--color-text-subtle);
-  cursor: not-allowed;
-  opacity: 0.64;
-}
-
-.scrollButton:not(:disabled):hover,
-.scrollButton:not(:disabled):focus-visible {
-  background: var(--color-surface);
-  color: var(--color-text-heading);
-}
-
-.scrollIcon {
-  width: var(--space-8);
-  height: var(--space-8);
-  stroke-width: 1.9;
-}
-
 @media (max-width: 860px) {
   .actions {
     order: 1;
@@ -204,7 +172,6 @@
     padding: var(--space-4) var(--space-6) 0;
   }
 
-  .scrollButton,
   .tabs {
     order: 2;
   }

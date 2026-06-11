@@ -39,63 +39,67 @@ export function ContactRequestSection({
   requests,
 }: ContactRequestSectionProps) {
   return (
-    <Panel aria-label={kind === "inbound" ? "Friend requests" : "Sent requests"} className={styles.requestSection}>
-      <p className={styles.requestTitle}>{kind === "inbound" ? "Friend requests" : "Sent requests"}</p>
-      <div className={styles.requestGrid}>
-        {requests.map((request) => {
-          const peerId = kind === "inbound" ? request.requester_identity_id : request.target_identity_id;
-          const peerName = identityLabel(peerId, identityId, personas);
+    <div className={styles.requestSectionFrame}>
+      <Panel aria-label={kind === "inbound" ? "Friend requests" : "Sent requests"}>
+        <div className={styles.requestSection}>
+          <p className={styles.requestTitle}>{kind === "inbound" ? "Friend requests" : "Sent requests"}</p>
+          <div className={styles.requestGrid}>
+            {requests.map((request) => {
+              const peerId = kind === "inbound" ? request.requester_identity_id : request.target_identity_id;
+              const peerName = identityLabel(peerId, identityId, personas);
 
-          return (
-            <article className={styles.requestCard} key={request.request_id}>
-              <div className={styles.requestHeader}>
-                <Avatar kind="user" text={initials(peerName)} />
-                <div className={styles.requestPeer}>
-                  <p>{peerName}</p>
-                  <span>{kind === "inbound" ? "Wants to add you" : "Waiting for them to accept"}</span>
-                </div>
-              </div>
-              <div className={styles.requestBadges}>
-                <Badge tone={kind === "inbound" ? "accent" : "muted"}>
-                  {kind === "inbound" ? "Needs your approval" : "Pending"}
-                </Badge>
-                {request.created_at ? <Badge tone="muted">Sent {formatDateTime(request.created_at)}</Badge> : null}
-              </div>
-              <div className={styles.requestActions}>
-                {kind === "inbound" ? (
-                  <>
-                    <Button
-                      disabled={busyRequestId === request.request_id}
-                      icon={<IconInfoCircle aria-hidden="true" />}
-                      onClick={() => void onTransition(request.request_id, "accept")}
-                      size="sm"
-                    >
-                      Accept
-                    </Button>
-                    <Button
-                      disabled={busyRequestId === request.request_id}
-                      icon={<IconX aria-hidden="true" />}
-                      onClick={() => void onTransition(request.request_id, "decline")}
-                      size="sm"
-                    >
-                      Decline
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    disabled={busyRequestId === request.request_id}
-                    icon={<IconX aria-hidden="true" />}
-                    onClick={() => void onTransition(request.request_id, "cancel")}
-                    size="sm"
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </Panel>
+              return (
+                <article className={styles.requestCard} key={request.request_id}>
+                  <div className={styles.requestHeader}>
+                    <Avatar kind="user" text={initials(peerName)} />
+                    <div className={styles.requestPeer}>
+                      <p>{peerName}</p>
+                      <span>{kind === "inbound" ? "Wants to add you" : "Waiting for them to accept"}</span>
+                    </div>
+                  </div>
+                  <div className={styles.requestBadges}>
+                    <Badge tone={kind === "inbound" ? "accent" : "muted"}>
+                      {kind === "inbound" ? "Needs your approval" : "Pending"}
+                    </Badge>
+                    {request.created_at ? <Badge tone="muted">Sent {formatDateTime(request.created_at)}</Badge> : null}
+                  </div>
+                  <div className={styles.requestActions}>
+                    {kind === "inbound" ? (
+                      <>
+                        <Button
+                          disabled={busyRequestId === request.request_id}
+                          icon={<IconInfoCircle aria-hidden="true" />}
+                          onClick={() => void onTransition(request.request_id, "accept")}
+                          size="sm"
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          disabled={busyRequestId === request.request_id}
+                          icon={<IconX aria-hidden="true" />}
+                          onClick={() => void onTransition(request.request_id, "decline")}
+                          size="sm"
+                        >
+                          Decline
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        disabled={busyRequestId === request.request_id}
+                        icon={<IconX aria-hidden="true" />}
+                        onClick={() => void onTransition(request.request_id, "cancel")}
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
+    </div>
   );
 }

@@ -8,6 +8,7 @@ const sharedButtonStylesPath = "components/ui/buttons/button.module.css";
 const sharedToggleGroupStylesPath = "components/ui/toggles/toggle-group.module.css";
 const sharedListStylesPath = "components/ui/navigation/list.module.css";
 const sharedMenuStylesPath = "components/ui/navigation/menu.module.css";
+const sharedScrollButtonStylesPath = "components/ui/navigation/scroll-button.module.css";
 const sharedActionControlBaseExpectations = [
   {
     stylesPath: sharedButtonStylesPath,
@@ -133,30 +134,9 @@ const sharedActionControlBaseExpectations = [
   },
   {
     stylesPath: sharedMenuStylesPath,
-    selector: ".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]",
-    properties: {
-      "border-radius": "var(--radius-xl)",
-    },
-  },
-  {
-    stylesPath: sharedMenuStylesPath,
     selector: ".menu[data-menu-idle-border=\"hidden\"] [data-list-item=\"true\"]",
     properties: {
       "border-color": "transparent",
-    },
-  },
-  {
-    stylesPath: sharedMenuStylesPath,
-    selector: ".menu[data-menu-skin=\"sidebar\"] [data-list-item=\"true\"]",
-    properties: {
-      "background": "transparent",
-    },
-  },
-  {
-    stylesPath: sharedMenuStylesPath,
-    selector: ".menu[data-menu-skin=\"sidebar\"] [data-list-icon-color=\"accent\"]",
-    properties: {
-      "stroke-width": "1.9",
     },
   },
   {
@@ -164,6 +144,23 @@ const sharedActionControlBaseExpectations = [
     selector: ".listIconAccent",
     properties: {
       "color": "var(--color-accent-strong)",
+    },
+  },
+  {
+    stylesPath: sharedScrollButtonStylesPath,
+    selector: ".scrollButton",
+    properties: {
+      "height": "var(--nav-icon-target, var(--size-control-md))",
+      "width": "calc(var(--space-14) + var(--space-1))",
+    },
+  },
+  {
+    stylesPath: sharedScrollButtonStylesPath,
+    selector: ".scrollButton[data-scroll-button-appearance=\"plain\"]",
+    properties: {
+      "background": "transparent",
+      "border": "0",
+      "height": "100%",
     },
   },
 ];

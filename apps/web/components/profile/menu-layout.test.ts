@@ -30,11 +30,9 @@ describe("profile menu layout styles", () => {
     expect(profileMenuCss).not.toContain(".listIcon");
   });
 
-  it("keeps sidebar menu skin as a cosmetic shared exception", () => {
-    const sidebarSkinRule =
-      sharedMenuCss.match(
-        /\.menu\[data-menu-skin="sidebar"\] \[data-list-item="true"\],\s*\.menu\[data-menu-skin="sidebar"\] \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/,
-      )
+  it("keeps sidebar menu cosmetics local to the app sidebar", () => {
+    const sidebarMenuRule =
+      layoutCss.match(/\.sidebarMenu \[data-list-item="true"\],\s*\.sidebarMenu \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/)
         ?.groups?.body ?? "";
     const menuPrimaryRule =
       sharedMenuCss.match(/\.menu \[data-list-primary="true"\],\s*\.menu \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/)
@@ -43,14 +41,14 @@ describe("profile menu layout styles", () => {
       sharedMenuCss.match(/\.menu \[data-list-item="true"\],\s*\.menu \[data-list-row="true"\]\s*\{(?<body>[^}]+)\}/)
         ?.groups?.body ?? "";
 
-    expect(sharedMenuCss).toContain(".menu[data-list-panel=\"true\"][data-menu-skin=\"sidebar\"]");
+    expect(sharedMenuCss).not.toContain("data-menu-skin");
+    expect(layoutCss).toContain(".sidebarMenu > [data-list-panel=\"true\"]");
     expect(sharedMenuCss).toContain(".menu[data-menu-idle-border=\"hidden\"] [data-list-item=\"true\"]");
-    expect(sharedMenuCss).toContain(".menu[data-menu-skin=\"sidebar\"] [data-list-item=\"true\"]");
-    expect(sharedMenuCss).toContain("[data-list-icon-color=\"accent\"]");
+    expect(layoutCss).toContain(".sidebarMenu [data-list-icon-color=\"accent\"]");
     expect(listCss).toContain(".listIconAccent");
     expect(menuRowRule).toContain("background: transparent");
     expect(sharedMenuCss).toContain("background: var(--color-surface-selected);");
-    expect(sidebarSkinRule).not.toContain("border-color: transparent");
+    expect(sidebarMenuRule).not.toContain("border-color: transparent");
     expect(menuPrimaryRule).not.toContain("padding:");
     expect(sharedMenuCss).not.toContain("data-menu-variant");
     expect(sharedMenuCss).not.toContain("data-menu-surface");

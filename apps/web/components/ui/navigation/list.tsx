@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type {
   AnchorHTMLAttributes,
+  AriaRole,
   AriaAttributes,
   ButtonHTMLAttributes,
   ComponentProps,
@@ -10,6 +11,7 @@ import type {
   KeyboardEvent,
   ReactNode,
 } from "react";
+import { createContext, useContext } from "react";
 
 import { cx } from "@/lib/ui/cx";
 
@@ -39,6 +41,8 @@ const iconColorClass: Record<ListIconColor, string | undefined> = {
   default: undefined,
   muted: styles.listIconMuted,
 };
+
+const ListRoleContext = createContext<AriaRole | undefined>(undefined);
 
 type RootProps = HTMLAttributes<HTMLElement> & {
   as?: RootElement;
@@ -82,6 +86,10 @@ function getAriaCurrent(current: Current | undefined): AriaAttributes["aria-curr
   }
 
   return current || undefined;
+}
+
+function useListItemRole(): "listitem" | undefined {
+  return useContext(ListRoleContext) === "list" ? "listitem" : undefined;
 }
 
 function renderContent({
@@ -166,15 +174,17 @@ export function List({
   const resolvedRole = role ?? (Component === "nav" ? undefined : "list");
 
   return (
-    <Component
-      className={cx(styles.list, className)}
-      data-list-panel={panel ? "true" : "false"}
-      onKeyDown={handleKeyDown}
-      role={resolvedRole}
-      {...props}
-    >
-      {children}
-    </Component>
+    <ListRoleContext.Provider value={resolvedRole}>
+      <Component
+        className={cx(styles.list, className)}
+        data-list-panel={panel ? "true" : "false"}
+        onKeyDown={handleKeyDown}
+        role={resolvedRole}
+        {...props}
+      >
+        {children}
+      </Component>
+    </ListRoleContext.Provider>
   );
 }
 
@@ -194,6 +204,7 @@ export function ListButton({
   ...props
 }: ButtonProps) {
   const checkedRole = role === "menuitemcheckbox" || role === "checkbox";
+  const listItemRole = useListItemRole();
 
   return (
     <div
@@ -201,6 +212,7 @@ export function ListButton({
       data-active={active ? "true" : undefined}
       data-disabled={props.disabled ? "true" : undefined}
       data-list-item="true"
+      role={listItemRole}
     >
       <button
         {...props}
@@ -243,6 +255,8 @@ export function ListLink({
   tone = "neutral",
   ...props
 }: LinkProps) {
+  const listItemRole = useListItemRole();
+
   function handleClick(event: Parameters<NonNullable<AnchorHTMLAttributes<HTMLAnchorElement>["onClick"]>>[0]) {
     if (disabled) {
       event.preventDefault();
@@ -258,6 +272,7 @@ export function ListLink({
       data-active={active ? "true" : undefined}
       data-disabled={disabled ? "true" : undefined}
       data-list-item="true"
+      role={listItemRole}
     >
       <Link
         {...props}
@@ -291,15 +306,19 @@ export function ListRow({
   icon,
   iconColor,
   name,
+  role,
   size = "md",
   tone = "neutral",
   ...props
 }: RowProps) {
+  const listItemRole = useListItemRole();
+
   return (
     <div
       className={cx(styles.listRow, rowSizeClass[size], tone === "danger" && styles.listItemDanger, className)}
       data-active={active ? "true" : undefined}
       data-list-row="true"
+      role={role ?? listItemRole}
       {...props}
     >
       {renderContent({ children, icon, iconColor, name })}

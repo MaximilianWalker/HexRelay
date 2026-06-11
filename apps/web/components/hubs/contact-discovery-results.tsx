@@ -38,27 +38,29 @@ export function ContactDiscoveryResults({
   return (
     <div className={styles.discoveryGrid}>
       {users.map((user) => (
-        <Panel className={styles.discoveryCard} key={user.identity_id}>
-          <div className={styles.discoveryHeader}>
-            <Avatar kind="user" text={initials(user.display_name)} />
-            <div className={styles.discoveryCopy}>
-              <p>{user.display_name}</p>
-              <span>{shortIdentity(user.identity_id)}</span>
+        <Panel key={user.identity_id}>
+          <div className={styles.discoveryCard}>
+            <div className={styles.discoveryHeader}>
+              <Avatar kind="user" text={initials(user.display_name)} />
+              <div className={styles.discoveryCopy}>
+                <p>{user.display_name}</p>
+                <span>{shortIdentity(user.identity_id)}</span>
+              </div>
             </div>
+            <div className={styles.discoveryBadges}>
+              {user.shared_server_count > 0 ? <Badge tone="muted">{user.shared_server_count} shared servers</Badge> : null}
+              {user.has_pending_outbound_request ? <Badge tone="muted">Request pending</Badge> : null}
+              {user.has_pending_inbound_request ? <Badge tone="accent">Needs approval</Badge> : null}
+            </div>
+            <Button
+              disabled={!user.can_send_friend_request || sendBusyIdentityId === user.identity_id}
+              icon={<IconUserPlus aria-hidden="true" />}
+              onClick={() => onSendFriendRequest(user.identity_id)}
+              size="sm"
+            >
+              {user.can_send_friend_request ? "Send request" : "Unavailable"}
+            </Button>
           </div>
-          <div className={styles.discoveryBadges}>
-            {user.shared_server_count > 0 ? <Badge tone="muted">{user.shared_server_count} shared servers</Badge> : null}
-            {user.has_pending_outbound_request ? <Badge tone="muted">Request pending</Badge> : null}
-            {user.has_pending_inbound_request ? <Badge tone="accent">Needs approval</Badge> : null}
-          </div>
-          <Button
-            disabled={!user.can_send_friend_request || sendBusyIdentityId === user.identity_id}
-            icon={<IconUserPlus aria-hidden="true" />}
-            onClick={() => onSendFriendRequest(user.identity_id)}
-            size="sm"
-          >
-            {user.can_send_friend_request ? "Send request" : "Unavailable"}
-          </Button>
         </Panel>
       ))}
     </div>

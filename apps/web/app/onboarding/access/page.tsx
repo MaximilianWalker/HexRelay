@@ -27,13 +27,17 @@ export default function AccessOnboardingPage() {
       </Alert>
 
       <div className={styles.choiceGrid}>
-        <Panel className={styles.choice} padding="sm">
-          <p className={styles.choiceTitle}>Join server in-app</p>
-          <p className={styles.choiceText}>Use the Servers hub after onboarding.</p>
+        <Panel padding="sm">
+          <div className={styles.choice}>
+            <p className={styles.choiceTitle}>Join server in-app</p>
+            <p className={styles.choiceText}>Use the Servers hub after onboarding.</p>
+          </div>
         </Panel>
-        <Panel className={styles.choice} padding="sm">
-          <p className={styles.choiceTitle}>Manage contacts in-app</p>
-          <p className={styles.choiceText}>Use the Contacts hub for friend requests.</p>
+        <Panel padding="sm">
+          <div className={styles.choice}>
+            <p className={styles.choiceTitle}>Manage contacts in-app</p>
+            <p className={styles.choiceText}>Use the Contacts hub for friend requests.</p>
+          </div>
         </Panel>
       </div>
 

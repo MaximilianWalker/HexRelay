@@ -145,10 +145,13 @@
   color: var(--color-text-inverse);
 }
 
+.requestSectionFrame {
+  margin-bottom: var(--gap-section);
+}
+
 .requestSection {
   display: grid;
   gap: var(--gap-panel);
-  margin-bottom: var(--gap-section);
 }
 
 .requestTitle {

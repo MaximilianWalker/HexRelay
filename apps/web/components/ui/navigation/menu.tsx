@@ -11,7 +11,6 @@ import styles from "./menu.module.css";
 
 type IdCollection = Iterable<string>;
 type MenuRootElement = "div" | "nav";
-type MenuSkin = "default" | "sidebar";
 type MenuActiveIndicator = "rail" | "none";
 type MenuSpacing = "sm" | "md";
 type MenuCurrent = AriaAttributes["aria-current"] | boolean;
@@ -50,7 +49,6 @@ type MenuProps = Omit<HTMLAttributes<HTMLElement>, "children" | "onSelect"> & {
   onExpandedChange?: (expandedIds: string[]) => void;
   onItemActivate?: (item: Item) => void;
   panel?: boolean;
-  skin?: MenuSkin;
   spacing?: MenuSpacing;
 };
 
@@ -101,7 +99,6 @@ export function Menu({
   onItemActivate,
   panel = false,
   role,
-  skin = "default",
   spacing = "md",
   ...props
 }: MenuProps) {
@@ -214,7 +211,6 @@ export function Menu({
       data-menu-collapsed={collapsed ? "true" : undefined}
       data-menu-idle-border={idleBorder ? undefined : "hidden"}
       data-menu-indent-submenus={indentSubmenus ? "true" : undefined}
-      data-menu-skin={skin === "default" ? undefined : skin}
       data-menu-spacing={spacing}
       panel={panel}
       role={role}

@@ -68,6 +68,88 @@
   margin-bottom: var(--space-14);
 }
 
+.sidebarMenu > [data-list-panel="true"] {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border) 74%, transparent);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-surface-glass) 60%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-raised) 32%, transparent) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 8%, transparent),
+    var(--shadow-panel);
+}
+
+.sidebarMenu > [data-list-panel="true"]::after {
+  position: absolute;
+  top: var(--space-8);
+  right: calc(-1 * var(--space-10));
+  width: calc(var(--space-20) * 3);
+  height: calc(var(--space-20) * 2);
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 48%,
+      color-mix(in srgb, var(--color-accent) 20%, transparent) 49% 51%,
+      transparent 52% 100%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 58%,
+      color-mix(in srgb, var(--color-accent) 16%, transparent) 59% 60%,
+      transparent 61% 100%
+    );
+  content: "";
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.sidebarMenu [data-list-item="true"],
+.sidebarMenu [data-list-row="true"] {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  background: transparent;
+  color: var(--color-text-heading);
+}
+
+.sidebarMenu [data-list-icon-color="accent"] {
+  color: color-mix(in srgb, var(--color-accent-strong) 78%, var(--color-text-heading));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-accent-strong) 24%, transparent));
+  stroke-width: 1.9;
+}
+
+.sidebarMenu [data-list-item="true"]:hover,
+.sidebarMenu [data-list-item="true"]:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent-border) 48%, transparent);
+  background: color-mix(in srgb, var(--color-surface-selected) 44%, transparent);
+  color: var(--color-text-heading);
+}
+
+.sidebarMenu [data-list-item="true"][data-active="true"] {
+  border-color: color-mix(in srgb, var(--color-accent) 74%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 30%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-selected) 58%, transparent) 46%,
+      color-mix(in srgb, var(--color-surface-raised) 22%, transparent) 100%
+    );
+  box-shadow:
+    inset 3px 0 0 var(--color-accent-strong),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 14%, transparent),
+    0 12px 26px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-text-heading);
+}
+
+.collapsed .sidebarMenu > [data-list-panel="true"]::after {
+  display: none;
+}
+
 .topbar {
   display: grid;
   grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;

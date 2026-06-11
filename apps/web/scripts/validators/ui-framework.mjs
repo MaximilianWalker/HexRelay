@@ -7,12 +7,8 @@ const allowedPressedFiles = new Set([
   "components/ui/navigation/list.tsx",
   "components/ui/navigation/menu.tsx",
 ]);
-const allowedRawButtonFiles = new Set([
-  "components/content-tabs/bar.tsx",
-  "components/layout/tabs/root.tsx",
-]);
 const primitiveComponentPattern =
-  /<(?:Button|ButtonLink|IconButton|Badge|Alert|List|ListButton|ListLink|ListRow|Menu|Popup|ToggleButton|ToggleSwitch|ToggleGroup)\b[^>]*\bclassName=/s;
+  /<(?:Button|ButtonLink|IconButton|Badge|Alert|EmptyState|List|ListButton|ListLink|ListRow|Menu|Panel|Popup|ScrollButton|ToggleButton|ToggleSwitch|ToggleGroup|Toolbar)\b[^>]*\bclassName=/s;
 const primitiveIconClassPattern =
   /\b(?:end|icon)=\{<Icon[A-Za-z0-9]+\b[^}]*\bclassName=\{(?:styles|[A-Za-z0-9]+Styles)\.icon\}/s;
 const iconButtonChildClassPattern =
@@ -85,16 +81,12 @@ function auditControlCopies(fullPath, source) {
 
 function auditRawButtons(fullPath, source) {
   const normalizedPath = normalizePath(fullPath);
-  if (
-    normalizedPath.startsWith("components/ui/") ||
-    normalizedPath.includes(".test.") ||
-    allowedRawButtonFiles.has(normalizedPath)
-  ) {
+  if (normalizedPath.startsWith("components/ui/") || normalizedPath.includes(".test.")) {
     return;
   }
 
   if (source.includes("<button")) {
-    failures.push(`${normalizedPath}: raw button must use shared Button, IconButton, PressableButton, ListButton, or Menu`);
+    failures.push(`${normalizedPath}: raw button must use shared Button, IconButton, PressableButton, ListButton, Menu, or ScrollButton`);
   }
 }
 

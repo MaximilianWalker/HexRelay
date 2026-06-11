@@ -1,6 +1,6 @@
 import type { DragEvent, KeyboardEvent, MouseEvent, Ref, WheelEvent } from "react";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
+import { ScrollButton } from "@/components/ui/navigation/scroll-button";
 import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
 import { List } from "./list";
@@ -59,14 +59,11 @@ export function Root({
         ) : (
           <>
             {scrollState?.canScrollLeft ? (
-              <button
-                aria-label="Scroll open tabs left"
-                className={styles.scrollButton}
+              <ScrollButton
+                direction="previous"
+                label="Scroll open tabs left"
                 onClick={() => onScrollTabs?.(-1)}
-                type="button"
-              >
-                <IconChevronLeft className={styles.scrollIcon} aria-hidden="true" />
-              </button>
+              />
             ) : null}
             <List
               activeTabId={activeTabId}
@@ -84,14 +81,11 @@ export function Root({
               variant={variant}
             />
             {scrollState?.canScrollRight ? (
-              <button
-                aria-label="Scroll open tabs right"
-                className={styles.scrollButton}
+              <ScrollButton
+                direction="next"
+                label="Scroll open tabs right"
                 onClick={() => onScrollTabs?.(1)}
-                type="button"
-              >
-                <IconChevronRight className={styles.scrollIcon} aria-hidden="true" />
-              </button>
+              />
             ) : null}
           </>
         )}

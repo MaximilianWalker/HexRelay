@@ -161,43 +161,47 @@ export default function HomePage() {
 
         <div className={styles.list}>
           {personas.length === 0 ? (
-            <Panel className={styles.item} padding="sm">
-              <div>
-                <p className={styles.itemName}>No personas yet</p>
-                <p className={styles.itemMeta}>
-                  Create one above or restart onboarding.
-                </p>
+            <Panel padding="sm">
+              <div className={styles.item}>
+                <div>
+                  <p className={styles.itemName}>No personas yet</p>
+                  <p className={styles.itemMeta}>
+                    Create one above or restart onboarding.
+                  </p>
+                </div>
               </div>
             </Panel>
           ) : (
             personas.map((persona) => {
               const isActive = activePersonaId === persona.id;
               return (
-                <Panel className={styles.item} key={persona.id} padding="sm">
-                  <div>
-                    <p className={styles.itemName}>{persona.name}</p>
-                    <p className={styles.itemMeta}>
-                      last selected: {new Date(persona.lastSelectedAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className={styles.itemActions}>
-                    <Button
-                      disabled={busyPersonaId === persona.id}
-                      onClick={() => handleSwitchPersona(persona.id)}
-                      pressed={isActive}
-                      size="sm"
-                      variant={isActive ? "primary" : "secondary"}
-                    >
-                      {isActive ? "Active" : "Switch"}
-                    </Button>
-                    <Button
-                      disabled={busyPersonaId === persona.id}
-                      onClick={() => handleRemovePersona(persona)}
-                      size="sm"
-                      variant="danger"
-                    >
-                      Remove
-                    </Button>
+                <Panel key={persona.id} padding="sm">
+                  <div className={styles.item}>
+                    <div>
+                      <p className={styles.itemName}>{persona.name}</p>
+                      <p className={styles.itemMeta}>
+                        last selected: {new Date(persona.lastSelectedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className={styles.itemActions}>
+                      <Button
+                        disabled={busyPersonaId === persona.id}
+                        onClick={() => handleSwitchPersona(persona.id)}
+                        pressed={isActive}
+                        size="sm"
+                        variant={isActive ? "primary" : "secondary"}
+                      >
+                        {isActive ? "Active" : "Switch"}
+                      </Button>
+                      <Button
+                        disabled={busyPersonaId === persona.id}
+                        onClick={() => handleRemovePersona(persona)}
+                        size="sm"
+                        variant="danger"
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 </Panel>
               );

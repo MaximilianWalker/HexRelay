@@ -1,7 +1,8 @@
 import type { Ref, ReactNode } from "react";
-import { IconChevronLeft, IconChevronRight, type Icon } from "@tabler/icons-react";
+import { type Icon } from "@tabler/icons-react";
 
 import { PressableButton } from "@/components/ui/buttons/pressable-button";
+import { ScrollButton } from "@/components/ui/navigation/scroll-button";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./styles.module.css";
@@ -49,15 +50,13 @@ export function Bar({
   return (
     <div className={cx(styles.bar, !hasItems && styles.actionsOnly)}>
       {hasItems && canScrollLeft ? (
-        <button
-          aria-label="Scroll tabs left"
-          className={styles.scrollButton}
+        <ScrollButton
+          appearance="plain"
           data-content-tab-scroll-button="left"
+          direction="previous"
+          label="Scroll tabs left"
           onClick={onScrollLeft}
-          type="button"
-        >
-          <IconChevronLeft className={styles.scrollIcon} aria-hidden="true" />
-        </button>
+        />
       ) : null}
       {hasItems ? (
         <div aria-label={label} className={styles.tabs} ref={listRef}>
@@ -98,15 +97,13 @@ export function Bar({
         </div>
       ) : null}
       {hasItems && canScrollRight ? (
-        <button
-          aria-label="Scroll tabs right"
-          className={styles.scrollButton}
+        <ScrollButton
+          appearance="plain"
           data-content-tab-scroll-button="right"
+          direction="next"
+          label="Scroll tabs right"
           onClick={onScrollRight}
-          type="button"
-        >
-          <IconChevronRight className={styles.scrollIcon} aria-hidden="true" />
-        </button>
+        />
       ) : null}
       {actions ? <div className={styles.actions}>{actions}</div> : null}
     </div>
