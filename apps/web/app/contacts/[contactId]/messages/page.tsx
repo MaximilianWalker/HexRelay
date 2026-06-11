@@ -13,10 +13,10 @@ import {
 } from "@tabler/icons-react";
 
 import { Composer } from "@/components/chat/composer";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
+import { Alert } from "@/components/ui/feedback/alert";
 import { MainLayout } from "@/components/layout/main";
 import { fetchContacts, updateContactPreferences } from "@/lib/api";
 import { readActivePersonaId, readPersonas } from "@/lib/personas";

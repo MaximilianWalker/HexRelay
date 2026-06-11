@@ -1,7 +1,7 @@
 import type { Ref, ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight, type Icon } from "@tabler/icons-react";
 
-import { PressableButton } from "@/components/ui/pressable-button";
+import { PressableButton } from "@/components/ui/buttons/pressable-button";
 import { cx } from "@/lib/ui/cx";
 
 import styles from "./styles.module.css";

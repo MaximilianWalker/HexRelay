@@ -1,6 +1,6 @@
 import { IconClock, IconMessageCircle, IconPinned, IconPinnedOff, IconTrash, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/buttons/button";
 
 type ItemActionsProps = {
   busy: boolean;

@@ -9,11 +9,20 @@ const ignoredDirectories = new Set([
   "node_modules",
 ]);
 const ignoredParentNames = new Set([
+  "accessibility",
   "app",
+  "buttons",
   "components",
+  "display",
+  "feedback",
+  "forms",
   "lib",
+  "navigation",
+  "overlays",
   "scripts",
   "styles",
+  "surfaces",
+  "toggles",
 ]);
 const ignoredFileNames = new Set([
   "page.tsx",

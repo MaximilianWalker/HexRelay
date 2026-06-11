@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar } from "@/components/ui/display/avatar";
 import { cx } from "@/lib/ui/cx";
 
 import type { Profile } from "./types";

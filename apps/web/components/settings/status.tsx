@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/display/badge";
 
 export type Status = "Live" | "Review" | "Locked" | "Dev only";
 

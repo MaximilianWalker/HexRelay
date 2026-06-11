@@ -1,8 +1,8 @@
 import { IconArrowsExchange, IconChevronRight, IconFocusCentered, IconMicrophone } from "@tabler/icons-react";
 
-import { ButtonGroup } from "@/components/ui/button-group";
-import { List, ListButton, ListRow } from "@/components/ui/list";
-import { Popup, type PopupPlacement } from "@/components/ui/popup";
+import { ToggleGroup } from "@/components/ui/toggles/toggle-group";
+import { List, ListButton, ListRow } from "@/components/ui/navigation/list";
+import { Popup, type PopupPlacement } from "@/components/ui/overlays/popup";
 import type { NavLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 
@@ -61,7 +61,7 @@ export function Menu({
           name="Navigation"
           end={
             <div className={styles.layoutChoices}>
-              <ButtonGroup
+              <ToggleGroup
                 label="Navigation layout"
                 onChange={selectNavLayout}
                 options={navLayoutOptions}

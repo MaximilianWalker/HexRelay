@@ -3,16 +3,16 @@ import { extname, join } from "node:path";
 
 const roots = ["app", "components"];
 const allowedPressedFiles = new Set([
-  "components/ui/button/root.tsx",
-  "components/ui/list/root.tsx",
-  "components/ui/menu/root.tsx",
+  "components/ui/buttons/button.tsx",
+  "components/ui/navigation/list.tsx",
+  "components/ui/navigation/menu.tsx",
 ]);
 const allowedRawButtonFiles = new Set([
   "components/content-tabs/bar.tsx",
   "components/layout/tabs/root.tsx",
 ]);
 const primitiveComponentPattern =
-  /<(?:Button|ButtonLink|IconButton|Badge|Alert|List|ListButton|ListLink|ListRow|Menu|Popup|ToggleButton|ToggleSwitch|ButtonGroup)\b[^>]*\bclassName=/s;
+  /<(?:Button|ButtonLink|IconButton|Badge|Alert|List|ListButton|ListLink|ListRow|Menu|Popup|ToggleButton|ToggleSwitch|ToggleGroup)\b[^>]*\bclassName=/s;
 const primitiveIconClassPattern =
   /\b(?:end|icon)=\{<Icon[A-Za-z0-9]+\b[^}]*\bclassName=\{(?:styles|[A-Za-z0-9]+Styles)\.icon\}/s;
 const iconButtonChildClassPattern =

@@ -2,9 +2,9 @@
 
 import { IconPinned, IconPinnedOff, IconTrash, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Toolbar } from "@/components/ui/toolbar";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
+import { Toolbar } from "@/components/ui/surfaces/toolbar";
 
 export function BulkActions({
   busy,

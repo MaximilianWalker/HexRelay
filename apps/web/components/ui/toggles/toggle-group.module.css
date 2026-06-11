@@ -1,0 +1,70 @@
+.toggleGroupButton {
+  font-family: inherit;
+  font-size: var(--toggle-group-font-size);
+  font-weight: var(--weight-medium);
+  line-height: var(--line-tight);
+  white-space: nowrap;
+}
+
+.toggleGroup {
+  --toggle-group-height: var(--size-control-md);
+  --toggle-group-padding: var(--pad-control-md);
+  --toggle-group-font-size: var(--text-md);
+  --toggle-group-icon-size: var(--size-icon-sm);
+
+  display: inline-flex;
+  box-sizing: border-box;
+  height: var(--toggle-group-height);
+  min-height: var(--toggle-group-height);
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+}
+
+.toggleGroupSm {
+  --toggle-group-height: var(--size-control-sm);
+  --toggle-group-padding: var(--pad-control-sm);
+  --toggle-group-font-size: var(--text-sm);
+}
+
+.toggleGroupLg {
+  --toggle-group-height: var(--size-control-lg);
+  --toggle-group-padding: var(--pad-control-lg);
+  --toggle-group-font-size: var(--text-body);
+  --toggle-group-icon-size: var(--size-icon-md);
+}
+
+.toggleGroupButton {
+  display: inline-flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  gap: var(--gap-icon);
+  border: 0;
+  border-right: 1px solid var(--color-border-control);
+  padding: var(--toggle-group-padding);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.toggleGroupButton > svg {
+  display: block;
+  width: var(--toggle-group-icon-size);
+  height: var(--toggle-group-icon-size);
+  flex: 0 0 var(--toggle-group-icon-size);
+  stroke-width: 1.8;
+}
+
+.toggleGroupButton:last-child {
+  border-right: 0;
+}
+
+.toggleGroupButton.toggleGroupButtonActive {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-text-inverse);
+}

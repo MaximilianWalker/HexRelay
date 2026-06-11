@@ -1,6 +1,6 @@
 import { IconBell, IconBellOff, IconClock, IconStar } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/display/badge";
 
 import type { Member } from "./types";
 

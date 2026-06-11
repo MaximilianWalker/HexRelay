@@ -29,28 +29,29 @@ import {
 
 import { BrandLockup } from "@/components/brand-lockup";
 import { BrandLogo } from "@/components/brand-logo";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { ButtonGroup } from "@/components/ui/button-group";
-import { Button } from "@/components/ui/button";
-import { CheckboxField } from "@/components/ui/checkbox-field";
-import { Dialog } from "@/components/ui/dialog";
-import { DialogActions } from "@/components/ui/dialog-actions";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Field } from "@/components/ui/field";
-import { IconButton } from "@/components/ui/icon-button";
-import { List, ListButton, ListRow } from "@/components/ui/list";
-import { Menu, type Item as CatalogEntry } from "@/components/ui/menu";
-import { Alert } from "@/components/ui/alert";
-import { Panel } from "@/components/ui/panel";
-import { Popup, type PopupPlacement } from "@/components/ui/popup";
-import { PressableButton } from "@/components/ui/pressable-button";
-import { SelectField } from "@/components/ui/select-field";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { TextArea } from "@/components/ui/text-area";
-import { TextInput } from "@/components/ui/text-input";
-import { ToggleButton } from "@/components/ui/toggle-button";
-import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { ToggleGroup } from "@/components/ui/toggles/toggle-group";
+import { Button } from "@/components/ui/buttons/button";
+import { CheckboxField } from "@/components/ui/forms/checkbox-field";
+import { Dialog } from "@/components/ui/overlays/dialog";
+import { DialogActions } from "@/components/ui/overlays/dialog-actions";
+import { EmptyState } from "@/components/ui/feedback/empty-state";
+import { Field } from "@/components/ui/forms/field";
+import { IconButton } from "@/components/ui/buttons/icon-button";
+import { List, ListButton, ListRow } from "@/components/ui/navigation/list";
+import { Menu, type Item as CatalogEntry } from "@/components/ui/navigation/menu";
+import { Alert } from "@/components/ui/feedback/alert";
+import { Panel } from "@/components/ui/surfaces/panel";
+import { Toolbar } from "@/components/ui/surfaces/toolbar";
+import { Popup, type PopupPlacement } from "@/components/ui/overlays/popup";
+import { PressableButton } from "@/components/ui/buttons/pressable-button";
+import { SelectField } from "@/components/ui/forms/select-field";
+import { ScrollArea } from "@/components/ui/navigation/scroll-area";
+import { TextArea } from "@/components/ui/forms/text-area";
+import { TextInput } from "@/components/ui/forms/text-input";
+import { ToggleButton } from "@/components/ui/toggles/toggle-button";
+import { ToggleSwitch } from "@/components/ui/toggles/toggle-switch";
 import {
   THEME_OPTIONS,
   readThemePreference,
@@ -61,7 +62,7 @@ import {
 
 import styles from "./styles.module.css";
 
-type ButtonGroupState = "list" | "cards" | "disabled";
+type ToggleGroupState = "list" | "cards" | "disabled";
 type Filter = "all" | "unread" | "muted";
 type PopupContent = "alert" | "list" | "panel";
 type PopupHorizontal = "center" | "left" | "right";
@@ -96,6 +97,7 @@ const sectionGroups = [
     sections: [
       { id: "list", label: "List", keywords: "list row item popover" },
       { id: "menu", label: "Menu", keywords: "menu nav row channel action submenu sidebar" },
+      { id: "scroll-area", label: "Scroll Area", keywords: "scroll viewport overflow custom scrollbar" },
     ],
   },
   {
@@ -117,7 +119,10 @@ const sectionGroups = [
   {
     id: "surfaces",
     label: "Surfaces",
-    sections: [{ id: "panels", label: "Panels", keywords: "card container raised subtle" }],
+    sections: [
+      { id: "panels", label: "Panels", keywords: "card container raised subtle" },
+      { id: "toolbar", label: "Toolbar", keywords: "toolbar action row controls" },
+    ],
   },
   {
     id: "overlays",
@@ -169,6 +174,17 @@ const popupContentOptions: Array<{ label: string; value: PopupContent }> = [
   { label: "List", value: "list" },
   { label: "Alert", value: "alert" },
 ];
+
+const scrollAreaItems = [
+  "Announcements",
+  "Design review",
+  "Backend sync",
+  "Release checklist",
+  "Support triage",
+  "Voice room notes",
+  "Mobile polish",
+  "Security follow-up",
+] as const;
 
 function getPopupPlacement(vertical: PopupVertical, horizontal: PopupHorizontal): PopupPlacement {
   if (vertical === "center" && horizontal === "center") {
@@ -334,7 +350,7 @@ function PopupPreviewContent({ content }: { content: PopupContent }) {
 }
 
 export function Demo() {
-  const [buttonGroup, setButtonGroup] = useState<ButtonGroupState>("list");
+  const [toggleGroup, setToggleGroup] = useState<ToggleGroupState>("list");
   const [filter, setFilter] = useState<Filter>("muted");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [popupContent, setPopupContent] = useState<PopupContent>("panel");
@@ -691,7 +707,7 @@ export function Demo() {
             id="toggles"
             title="Toggles"
             visible={isSectionVisible("toggles")}
-            description="Toggle buttons, button groups, and switches share active color, font, weight, and icon sizing."
+            description="Toggle buttons, toggle groups, and switches share active color, font, weight, and icon sizing."
           >
             <div className={styles.buttonLayout}>
               <div className={styles.buttonStack}>
@@ -736,39 +752,39 @@ export function Demo() {
               <Example title="Sizes">
                 <div className={styles.controlSizeList}>
                   <span className={styles.matrixLabel}>Small</span>
-                  <ButtonGroup
+                  <ToggleGroup
                     label="Small view mode"
-                    onChange={setButtonGroup}
+                    onChange={setToggleGroup}
                     options={[
                       { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
                       { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
                       { id: "disabled", label: "Disabled", disabled: true },
                     ]}
                     size="sm"
-                    value={buttonGroup}
+                    value={toggleGroup}
                   />
                   <span className={styles.matrixLabel}>Medium</span>
-                  <ButtonGroup
+                  <ToggleGroup
                     label="Medium view mode"
-                    onChange={setButtonGroup}
+                    onChange={setToggleGroup}
                     options={[
                       { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
                       { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
                       { id: "disabled", label: "Disabled", disabled: true },
                     ]}
-                    value={buttonGroup}
+                    value={toggleGroup}
                   />
                   <span className={styles.matrixLabel}>Large</span>
-                  <ButtonGroup
+                  <ToggleGroup
                     label="Large view mode"
-                    onChange={setButtonGroup}
+                    onChange={setToggleGroup}
                     options={[
                       { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
                       { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
                       { id: "disabled", label: "Disabled", disabled: true },
                     ]}
                     size="lg"
-                    value={buttonGroup}
+                    value={toggleGroup}
                   />
                 </div>
               </Example>
@@ -1015,6 +1031,39 @@ export function Demo() {
           </Section>
 
           <Section
+            id="scroll-area"
+            title="Scroll Area"
+            visible={isSectionVisible("scroll-area")}
+            description="Scroll areas provide a consistent viewport and scrollbar treatment for dense component surfaces."
+          >
+            <div className={styles.exampleGrid}>
+              <Example title="Overlay Scrollbar">
+                <ScrollArea className={styles.scrollAreaDemo} hideWhenIdle width={6}>
+                  <div className={styles.scrollAreaContent}>
+                    {scrollAreaItems.map((item) => (
+                      <p className={styles.scrollAreaItem} key={item}>
+                        {item}
+                      </p>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </Example>
+
+              <Example title="Reserved Track">
+                <ScrollArea className={styles.scrollAreaDemo} overlay={false} width={8}>
+                  <div className={styles.scrollAreaContent}>
+                    {scrollAreaItems.map((item) => (
+                      <p className={styles.scrollAreaItem} key={item}>
+                        {item}
+                      </p>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </Example>
+            </div>
+          </Section>
+
+          <Section
             id="avatars"
             title="Avatars"
             visible={isSectionVisible("avatars")}
@@ -1222,6 +1271,69 @@ export function Demo() {
                     <p>Settings and detail surfaces.</p>
                   </Panel>
                 </div>
+              </Example>
+            </div>
+          </Section>
+
+          <Section
+            id="toolbar"
+            title="Toolbar"
+            visible={isSectionVisible("toolbar")}
+            description="Toolbars group repeated filters, view controls, search, and secondary actions without route-local control styling."
+          >
+            <div className={styles.exampleGrid}>
+              <Example title="Filters" wide>
+                <Toolbar
+                  actions={
+                    <>
+                      <Button icon={<IconUserPlus aria-hidden="true" />} variant="primary">
+                        Invite
+                      </Button>
+                      <IconButton label="Toolbar settings">
+                        <IconSettings aria-hidden="true" />
+                      </IconButton>
+                    </>
+                  }
+                >
+                  <ToggleButton
+                    icon={<IconPinned aria-hidden="true" />}
+                    onPressedChange={() => setFilter(filter === "all" ? "muted" : "all")}
+                    pressed={filter === "all"}
+                  >
+                    Pinned
+                  </ToggleButton>
+                  <ToggleButton
+                    icon={<IconMessageCircle aria-hidden="true" />}
+                    onPressedChange={() => setFilter(filter === "unread" ? "all" : "unread")}
+                    pressed={filter === "unread"}
+                  >
+                    Unread
+                  </ToggleButton>
+                  <ToggleGroup
+                    label="Toolbar view mode"
+                    onChange={setToggleGroup}
+                    options={[
+                      { id: "list", label: "List", icon: <IconList aria-hidden="true" /> },
+                      { id: "cards", label: "Cards", icon: <IconLayoutGrid aria-hidden="true" /> },
+                    ]}
+                    value={toggleGroup}
+                  />
+                </Toolbar>
+              </Example>
+
+              <Example title="Search" wide>
+                <Toolbar
+                  actions={
+                    <Button icon={<IconCheck aria-hidden="true" />} variant="primary">
+                      Apply
+                    </Button>
+                  }
+                >
+                  <TextInput aria-label="Toolbar search" placeholder="Search channels" />
+                  <Button icon={<IconChevronDown aria-hidden="true" />} iconPosition="end">
+                    Sort
+                  </Button>
+                </Toolbar>
               </Example>
             </div>
           </Section>

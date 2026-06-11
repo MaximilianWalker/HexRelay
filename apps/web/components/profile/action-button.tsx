@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
-import type { ButtonTone } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+import type { ButtonTone } from "@/components/ui/buttons/button";
+import { IconButton } from "@/components/ui/buttons/icon-button";
 
 type Tone = "mic" | "sound" | "stream" | "leave" | "more";
 

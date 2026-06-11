@@ -13,7 +13,7 @@
 
 - Purpose: define the MVP navigation and layout model with Discord-like UX baseline and explicit deviations.
 - Primary edit location: update this file when navigation patterns, primary surfaces, or interaction hierarchy changes.
-- Latest meaningful change: 2026-06-10 split shared control primitives into owned component folders and colocated CSS modules. `List` owns customizable rows, icon color, and optional panel framing while `Menu` owns object-driven navigation/action lists, overall spacing, optional idle borders, and sidebar skin limited to cosmetic exceptions.
+- Latest meaningful change: 2026-06-10 grouped shared control primitives into UI category folders with component-named CSS modules. `List` owns customizable rows, icon color, and optional panel framing while `Menu` owns object-driven navigation/action lists, overall spacing, optional idle borders, and sidebar skin limited to cosmetic exceptions.
 
 ## Design Direction
 
@@ -26,12 +26,12 @@
 
 ## UI Framework Conventions
 
-- Shared UI code for `apps/web` lives under `apps/web/components/ui`, with token-backed CSS Modules and no route-owned visual systems for repeated controls. Shared primitives that own behavior and CSS should live in component folders, for example `components/ui/button`, `components/ui/list`, and `components/ui/menu`, with an `index.ts`, implementation file, and colocated CSS module.
+- Shared UI code for `apps/web` lives under `apps/web/components/ui`, with token-backed CSS Modules and no route-owned visual systems for repeated controls. Shared primitives are grouped by UI catalog category folders, for example `components/ui/buttons/button.tsx`, `components/ui/navigation/menu.tsx`, and `components/ui/forms/text-input.tsx`. CSS modules are named after the owning component or recipe, such as `button.module.css`, `menu.module.css`, and `field.module.css`.
 - The UI framework is layered as tokens/themes, headless behavior hooks, primitives, feature recipes, and route composition. Route files should orchestrate data and layout instead of owning repeated control semantics.
 - Global CSS is split into `apps/web/app/styles/tokens.css`, `themes.css`, and `base.css`, imported only through `apps/web/app/globals.css`.
 - Component CSS should use semantic variables such as `--color-bg-app`, `--color-surface`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-accent`, `--color-danger`, `--color-warning`, and `--color-success`.
 - Primitive palette values stay private to the theme files. Custom themes override semantic variables instead of editing component internals.
-- Reusable primitives are `Avatar`, `Badge`, `Button`, `ButtonLink`, `Dialog`, `EmptyState`, `Field`, `IconButton`, `List`, `ListButton`, `ListLink`, `ListRow`, `Menu`, `Notice`, `Panel`, `SegmentedControl`, `ToggleButton`, `ToggleGroup`, `Toolbar`, and `VisuallyHidden`.
+- Reusable visual primitives are `Alert`, `Avatar`, `Badge`, `Button`, `ButtonLink`, `CheckboxField`, `Dialog`, `DialogActions`, `EmptyState`, `Field`, `IconButton`, `List`, `ListButton`, `ListLink`, `ListRow`, `Menu`, `Panel`, `Popup`, `PressableButton`, `ScrollArea`, `SelectField`, `TextArea`, `TextInput`, `ToggleButton`, `ToggleGroup`, `ToggleSwitch`, and `Toolbar`. `VisuallyHidden` is a shared accessibility utility rather than a visible catalog component.
 - `List` is the low-level customizable row primitive for popup rows, static rows, links, buttons, icons, icon color, end slots, and optional panel framing through `panel`. `Menu` composes `List` from item objects for sidebars, channel rails, action lists, and nested navigation, and exposes `panel`, `spacing`, plus `idleBorder` for borderless idle rows that still gain borders on hover, focus, or active state. Core row sizing and spacing stay in `Menu`; named skins are exceptions and must stay cosmetic. The app sidebar uses `panel`, `spacing="sm"`, `idleBorder={false}`, the explicit `sidebar` skin, accent icons, and a rail indicator without arrow decoration.
 - Component and file names should use folder context instead of repeating it. For example, `components/hubs/toolbar.tsx` exports `Toolbar`; callers rely on the import path for hub context.
 - Feature components own repeated behavior by surface:

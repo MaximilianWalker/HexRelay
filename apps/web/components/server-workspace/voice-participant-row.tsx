@@ -1,6 +1,6 @@
 import { IconMicrophone } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/display/badge";
 
 import styles from "@/app/surfaces.module.css";
 import { initials } from "@/lib/ui/initials";

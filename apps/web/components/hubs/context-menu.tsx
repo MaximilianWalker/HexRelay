@@ -2,8 +2,8 @@
 
 import { IconCheck, IconExternalLink } from "@tabler/icons-react";
 
-import { List, ListButton } from "@/components/ui/list";
-import { Popup } from "@/components/ui/popup";
+import { List, ListButton } from "@/components/ui/navigation/list";
+import { Popup } from "@/components/ui/overlays/popup";
 
 export function ContextMenu({
   noun,

@@ -1,9 +1,9 @@
 import { IconInfoCircle, IconX } from "@tabler/icons-react";
 
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
+import { Panel } from "@/components/ui/surfaces/panel";
 import type { PersonaRecord } from "@/lib/personas";
 import { initials } from "@/lib/ui/initials";
 

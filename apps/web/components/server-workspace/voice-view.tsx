@@ -1,9 +1,9 @@
 import { IconInfoCircle, IconMicrophone, IconVolume } from "@tabler/icons-react";
 
 import { ChannelRail } from "@/components/chat/channel-rail";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
+import { Button } from "@/components/ui/buttons/button";
+import { Badge } from "@/components/ui/display/badge";
+import { Menu, type Item as MenuEntry } from "@/components/ui/navigation/menu";
 
 import { VoiceParticipantRow } from "./voice-participant-row";
 import type { VoiceChannel } from "./types";

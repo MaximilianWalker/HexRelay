@@ -4,9 +4,9 @@ import { ChannelRail } from "@/components/chat/channel-rail";
 import { Composer } from "@/components/chat/composer";
 import { MessageRow } from "@/components/chat/message-row";
 import { MessageTimeline } from "@/components/chat/message-timeline";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
+import { Menu, type Item as MenuEntry } from "@/components/ui/navigation/menu";
 import type { ServerChannelMessage } from "@/lib/api";
 
 import type { AuthorFormatters, ChatData, ChatPrefs, ChatState } from "./types";

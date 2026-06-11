@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/buttons/button";
 import { readActivePersonaId } from "@/lib/personas";
 import { getOrCreateRecoveryPhraseForPersona } from "@/lib/recovery";
 import { Shell } from "@/components/onboarding/shell";
-import { Field } from "@/components/ui/field";
-import { Alert } from "@/components/ui/alert";
-import { TextInput } from "@/components/ui/text-input";
+import { Field } from "@/components/ui/forms/field";
+import { Alert } from "@/components/ui/feedback/alert";
+import { TextInput } from "@/components/ui/forms/text-input";
 import styles from "../styles.module.css";
 
 export default function RecoveryOnboardingPage() {

@@ -1,9 +1,9 @@
 "use client";
 
 import { Shell } from "@/components/onboarding/shell";
-import { ButtonLink } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
-import { Panel } from "@/components/ui/panel";
+import { ButtonLink } from "@/components/ui/buttons/button";
+import { Alert } from "@/components/ui/feedback/alert";
+import { Panel } from "@/components/ui/surfaces/panel";
 import styles from "../styles.module.css";
 
 export default function AccessOnboardingPage() {

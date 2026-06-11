@@ -1,7 +1,7 @@
 import { IconHash, IconInfoCircle, IconShieldCheck, IconUsers, IconVolume } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
 import type { ServerChannelSummary, ServerSummary } from "@/lib/api";
 
 import { Icon } from "./icon";

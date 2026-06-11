@@ -1,8 +1,8 @@
 import { IconMessageCircle } from "@tabler/icons-react";
 
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/icon-button";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { IconButton } from "@/components/ui/buttons/icon-button";
 import type { ServerChannelMessage } from "@/lib/api";
 import type { MessageAlignment, MessageBubbleSize, MessageLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";

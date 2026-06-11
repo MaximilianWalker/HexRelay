@@ -1,7 +1,7 @@
 import { IconMessageCircle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/buttons/button";
 import type { MessageBubbleSize, MessageLayout } from "@/lib/workspace-preferences";
 import { cx } from "@/lib/ui/cx";
 

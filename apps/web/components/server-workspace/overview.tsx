@@ -1,9 +1,9 @@
 import { IconDotsVertical, IconInfoCircle, IconLogout } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/icon-button";
-import { List, ListButton } from "@/components/ui/list";
-import { Popup } from "@/components/ui/popup";
+import { Badge } from "@/components/ui/display/badge";
+import { IconButton } from "@/components/ui/buttons/icon-button";
+import { List, ListButton } from "@/components/ui/navigation/list";
+import { Popup } from "@/components/ui/overlays/popup";
 import type { ServerSummary } from "@/lib/api";
 
 import { Icon } from "./icon";

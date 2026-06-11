@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 const profileMenuCss = readFileSync(join(__dirname, "menu.module.css"), "utf8");
 const profileCardCss = readFileSync(join(__dirname, "card.module.css"), "utf8");
-const listCss = readFileSync(join(__dirname, "../ui/list/styles.module.css"), "utf8");
-const popupCss = readFileSync(join(__dirname, "../ui/popup/styles.module.css"), "utf8");
-const sharedMenuCss = readFileSync(join(__dirname, "../ui/menu/styles.module.css"), "utf8");
+const listCss = readFileSync(join(__dirname, "../ui/navigation/list.module.css"), "utf8");
+const popupCss = readFileSync(join(__dirname, "../ui/overlays/popup.module.css"), "utf8");
+const sharedMenuCss = readFileSync(join(__dirname, "../ui/navigation/menu.module.css"), "utf8");
 const layoutCss = readFileSync(join(__dirname, "../layout/main.module.css"), "utf8");
 const settingsCss = readFileSync(join(__dirname, "../../app/settings/styles.module.css"), "utf8");
 
@@ -70,7 +70,7 @@ describe("profile menu layout styles", () => {
     expect(profileMenuCss).not.toContain("bottom: calc(100%");
   });
 
-  it("renders navigation choices as one inline button group instead of a second row", () => {
+  it("renders navigation choices as one inline toggle group instead of a second row", () => {
     const layoutChoicesRule = profileMenuCss.match(/\.layoutChoices \{(?<body>[^}]+)\}/)?.groups?.body ?? "";
 
     expect(layoutChoicesRule).toContain("display: inline-flex;");

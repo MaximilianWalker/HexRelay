@@ -4,14 +4,14 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Badge } from "./badge";
-import { ButtonGroup } from "./button-group";
-import { Button, ButtonLink } from "./button";
-import { IconButton } from "./icon-button";
-import { List, ListButton, ListLink, ListRow } from "./list";
-import { Menu } from "./menu";
-import { Popup } from "./popup";
-import { ToggleButton } from "./toggle-button";
+import { Button, ButtonLink } from "./buttons/button";
+import { IconButton } from "./buttons/icon-button";
+import { Badge } from "./display/badge";
+import { List, ListButton, ListLink, ListRow } from "./navigation/list";
+import { Menu } from "./navigation/menu";
+import { Popup } from "./overlays/popup";
+import { ToggleGroup } from "./toggles/toggle-group";
+import { ToggleButton } from "./toggles/toggle-button";
 
 describe("shared controls", () => {
   it("maps pressed state through the shared toggle button behavior", async () => {
@@ -32,12 +32,12 @@ describe("shared controls", () => {
     expect(onPressedChange).toHaveBeenCalledWith(true);
   });
 
-  it("uses the same pressed behavior for button group options", async () => {
+  it("uses the same pressed behavior for toggle group options", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
 
     render(
-      <ButtonGroup
+      <ToggleGroup
         label="View mode"
         onChange={onChange}
         options={[
@@ -56,10 +56,10 @@ describe("shared controls", () => {
     expect(onChange).toHaveBeenCalledWith("cards");
   });
 
-  it("exposes button group sizes through shared classes", () => {
+  it("exposes toggle group sizes through shared classes", () => {
     render(
       <>
-        <ButtonGroup
+        <ToggleGroup
           label="Small view mode"
           onChange={vi.fn()}
           options={[
@@ -69,7 +69,7 @@ describe("shared controls", () => {
           size="sm"
           value="list"
         />
-        <ButtonGroup
+        <ToggleGroup
           label="Medium view mode"
           onChange={vi.fn()}
           options={[
@@ -78,7 +78,7 @@ describe("shared controls", () => {
           ]}
           value="list"
         />
-        <ButtonGroup
+        <ToggleGroup
           label="Large view mode"
           onChange={vi.fn()}
           options={[
@@ -91,10 +91,10 @@ describe("shared controls", () => {
       </>,
     );
 
-    expect(screen.getByRole("group", { name: "Small view mode" }).className).toContain("buttonGroupSm");
-    expect(screen.getByRole("group", { name: "Medium view mode" }).className).not.toContain("buttonGroupSm");
-    expect(screen.getByRole("group", { name: "Medium view mode" }).className).not.toContain("buttonGroupLg");
-    expect(screen.getByRole("group", { name: "Large view mode" }).className).toContain("buttonGroupLg");
+    expect(screen.getByRole("group", { name: "Small view mode" }).className).toContain("toggleGroupSm");
+    expect(screen.getByRole("group", { name: "Medium view mode" }).className).not.toContain("toggleGroupSm");
+    expect(screen.getByRole("group", { name: "Medium view mode" }).className).not.toContain("toggleGroupLg");
+    expect(screen.getByRole("group", { name: "Large view mode" }).className).toContain("toggleGroupLg");
   });
 
   it("renders link-capable buttons with navigation semantics", () => {

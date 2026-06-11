@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-import { Button as UiButton } from "@/components/ui/button";
+import { Button as UiButton } from "@/components/ui/buttons/button";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;

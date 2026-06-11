@@ -36,7 +36,7 @@ import {
 
 import { BrandLockup } from "@/components/brand-lockup";
 import { Bar as ContentTabs, type Item as ContentTab } from "@/components/content-tabs/bar";
-import { Menu, type Item as MenuEntry } from "@/components/ui/menu";
+import { Menu, type Item as MenuEntry } from "@/components/ui/navigation/menu";
 import { Controls } from "@/components/profile/controls";
 import { TabMenu } from "./tab-menu";
 import { Root as Tabs } from "./tabs/root";

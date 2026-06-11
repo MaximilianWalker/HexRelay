@@ -3,11 +3,11 @@
 import { useState, useSyncExternalStore } from "react";
 import { IconClock, IconHome, IconInfoCircle } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
-import { Panel } from "@/components/ui/panel";
-import { TextInput } from "@/components/ui/text-input";
+import { Badge } from "@/components/ui/display/badge";
+import { Button, ButtonLink } from "@/components/ui/buttons/button";
+import { Alert } from "@/components/ui/feedback/alert";
+import { Panel } from "@/components/ui/surfaces/panel";
+import { TextInput } from "@/components/ui/forms/text-input";
 import { MainLayout } from "@/components/layout/main";
 import { revokeSession } from "@/lib/api";
 import {

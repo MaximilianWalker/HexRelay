@@ -12,8 +12,8 @@ import { BulkActions } from "@/components/hubs/bulk-actions";
 import { ItemActions } from "@/components/hubs/item-actions";
 import { Surface } from "@/components/hubs/surface";
 import { Toolbar } from "@/components/hubs/toolbar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/display/badge";
+import { Button } from "@/components/ui/buttons/button";
 import { MainLayout } from "@/components/layout/main";
 import {
   acceptFriendRequest,

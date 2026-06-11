@@ -1,6 +1,6 @@
 import { IconCircleCheck, IconInfoCircle, IconShieldCheck, IconUsers } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/display/badge";
 
 import { MemberCard } from "./member-card";
 import type { RoleGroup } from "./types";

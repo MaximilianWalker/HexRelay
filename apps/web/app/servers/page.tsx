@@ -11,7 +11,7 @@ import { Toolbar } from "@/components/hubs/toolbar";
 import { ServerCreateDialog } from "@/components/hubs/server-create-dialog";
 import { ServerJoinDialog } from "@/components/hubs/server-join-dialog";
 import { ServerLeaveDialog } from "@/components/hubs/server-leave-dialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/buttons/button";
 import { MainLayout } from "@/components/layout/main";
 import {
   createServer,

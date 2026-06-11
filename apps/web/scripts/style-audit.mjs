@@ -4,10 +4,10 @@ import { join } from "node:path";
 const colorRoots = ["app", "components"];
 const rawColorAllowedFiles = new Set(["app/styles/tokens.css", "app/styles/themes.css"]);
 const frameworkRoots = ["components"];
-const sharedButtonStylesPath = "components/ui/button/styles.module.css";
-const sharedToggleGroupStylesPath = "components/ui/toggle-group/styles.module.css";
-const sharedListStylesPath = "components/ui/list/styles.module.css";
-const sharedMenuStylesPath = "components/ui/menu/styles.module.css";
+const sharedButtonStylesPath = "components/ui/buttons/button.module.css";
+const sharedToggleGroupStylesPath = "components/ui/toggles/toggle-group.module.css";
+const sharedListStylesPath = "components/ui/navigation/list.module.css";
+const sharedMenuStylesPath = "components/ui/navigation/menu.module.css";
 const sharedActionControlBaseExpectations = [
   {
     stylesPath: sharedButtonStylesPath,
@@ -39,35 +39,35 @@ const sharedActionControlBaseExpectations = [
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroup",
+    selector: ".toggleGroup",
     properties: {
-      "--button-group-height": "var(--size-control-md)",
-      "--button-group-font-size": "var(--text-md)",
-      "--button-group-icon-size": "var(--size-icon-sm)",
-      "height": "var(--button-group-height)",
-      "min-height": "var(--button-group-height)",
+      "--toggle-group-height": "var(--size-control-md)",
+      "--toggle-group-font-size": "var(--text-md)",
+      "--toggle-group-icon-size": "var(--size-icon-sm)",
+      "height": "var(--toggle-group-height)",
+      "min-height": "var(--toggle-group-height)",
     },
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupSm",
+    selector: ".toggleGroupSm",
     properties: {
-      "--button-group-height": "var(--size-control-sm)",
-      "--button-group-font-size": "var(--text-sm)",
+      "--toggle-group-height": "var(--size-control-sm)",
+      "--toggle-group-font-size": "var(--text-sm)",
     },
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupLg",
+    selector: ".toggleGroupLg",
     properties: {
-      "--button-group-height": "var(--size-control-lg)",
-      "--button-group-font-size": "var(--text-body)",
-      "--button-group-icon-size": "var(--size-icon-md)",
+      "--toggle-group-height": "var(--size-control-lg)",
+      "--toggle-group-font-size": "var(--text-body)",
+      "--toggle-group-icon-size": "var(--size-icon-md)",
     },
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupButton",
+    selector: ".toggleGroupButton",
     properties: {
       "height": "100%",
       "min-height": "0",
@@ -75,12 +75,12 @@ const sharedActionControlBaseExpectations = [
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupButton > svg",
+    selector: ".toggleGroupButton > svg",
     properties: {
       "display": "block",
-      "width": "var(--button-group-icon-size)",
-      "height": "var(--button-group-icon-size)",
-      "flex": "0 0 var(--button-group-icon-size)",
+      "width": "var(--toggle-group-icon-size)",
+      "height": "var(--toggle-group-icon-size)",
+      "flex": "0 0 var(--toggle-group-icon-size)",
       "stroke-width": "1.8",
     },
   },
@@ -181,10 +181,10 @@ const sharedActionControlTypographyExpectations = [
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupButton",
+    selector: ".toggleGroupButton",
     properties: {
       "font-family": "inherit",
-      "font-size": "var(--button-group-font-size)",
+      "font-size": "var(--toggle-group-font-size)",
       "font-weight": "var(--weight-medium)",
       "line-height": "var(--line-tight)",
       "white-space": "nowrap",
@@ -230,7 +230,7 @@ const activeControlExpectations = [
   },
   {
     stylesPath: sharedToggleGroupStylesPath,
-    selector: ".buttonGroupButton.buttonGroupButtonActive",
+    selector: ".toggleGroupButton.toggleGroupButtonActive",
     properties: {
       "background": "var(--color-accent-strong)",
       "border-color": "var(--color-accent-strong)",
@@ -244,7 +244,7 @@ const forbiddenSharedControlTypographyOverrides = [
   { selector: ".buttonGhost", stylesPath: sharedButtonStylesPath },
   { selector: ".buttonDanger", stylesPath: sharedButtonStylesPath },
   { selector: ".buttonPressed", stylesPath: sharedButtonStylesPath },
-  { selector: ".buttonGroupButton.buttonGroupButtonActive", stylesPath: sharedToggleGroupStylesPath },
+  { selector: ".toggleGroupButton.toggleGroupButtonActive", stylesPath: sharedToggleGroupStylesPath },
 ].flatMap(({ selector, stylesPath }) =>
   ["font-family", "font-size", "font-weight", "line-height"].map((property) => ({
     property,

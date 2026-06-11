@@ -1,10 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { CheckboxField } from "@/components/ui/checkbox-field";
-import { Dialog } from "@/components/ui/dialog";
-import { DialogActions } from "@/components/ui/dialog-actions";
-import { Field } from "@/components/ui/field";
-import { Alert } from "@/components/ui/alert";
-import { TextInput } from "@/components/ui/text-input";
+import { Button } from "@/components/ui/buttons/button";
+import { CheckboxField } from "@/components/ui/forms/checkbox-field";
+import { Dialog } from "@/components/ui/overlays/dialog";
+import { DialogActions } from "@/components/ui/overlays/dialog-actions";
+import { Field } from "@/components/ui/forms/field";
+import { Alert } from "@/components/ui/feedback/alert";
+import { TextInput } from "@/components/ui/forms/text-input";
 
 import styles from "./styles.module.css";
 

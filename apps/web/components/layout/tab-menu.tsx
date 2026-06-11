@@ -1,7 +1,7 @@
 import { IconPinned, IconPinnedOff, IconX } from "@tabler/icons-react";
 
-import { List, ListButton } from "@/components/ui/list";
-import { Popup } from "@/components/ui/popup";
+import { List, ListButton } from "@/components/ui/navigation/list";
+import { Popup } from "@/components/ui/overlays/popup";
 import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";
 
 type TabMenuProps = {

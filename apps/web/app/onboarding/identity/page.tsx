@@ -8,12 +8,12 @@ import {
   registerIdentityKey,
   verifyAuthChallenge,
 } from "@/lib/api";
-import { ButtonGroup, type ButtonGroupOption } from "@/components/ui/button-group";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Alert } from "@/components/ui/alert";
-import { TextArea } from "@/components/ui/text-area";
-import { TextInput } from "@/components/ui/text-input";
+import { ToggleGroup, type ToggleGroupOption } from "@/components/ui/toggles/toggle-group";
+import { Button, ButtonLink } from "@/components/ui/buttons/button";
+import { Field } from "@/components/ui/forms/field";
+import { Alert } from "@/components/ui/feedback/alert";
+import { TextArea } from "@/components/ui/forms/text-area";
+import { TextInput } from "@/components/ui/forms/text-input";
 import {
   bytesToHex,
   derivePublicKey,
@@ -28,7 +28,7 @@ import { Shell } from "@/components/onboarding/shell";
 import styles from "../styles.module.css";
 
 const SAMPLE_PUBLIC_KEY = "7f:31:9c:4a:22:09:11:ab:c4:17:59:82:1d:ef:4b:10";
-const IDENTITY_MODE_OPTIONS: ButtonGroupOption<"create" | "import">[] = [
+const IDENTITY_MODE_OPTIONS: ToggleGroupOption<"create" | "import">[] = [
   { id: "create", label: "Create identity" },
   { id: "import", label: "Import identity" },
 ];
@@ -168,7 +168,7 @@ export default function IdentityOnboardingPage() {
         />
       </Field>
 
-      <ButtonGroup label="Identity setup mode" onChange={setMode} options={IDENTITY_MODE_OPTIONS} value={mode} />
+      <ToggleGroup label="Identity setup mode" onChange={setMode} options={IDENTITY_MODE_OPTIONS} value={mode} />
 
       {mode === "create" ? (
         <>

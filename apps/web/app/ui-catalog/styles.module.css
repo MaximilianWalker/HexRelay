@@ -548,6 +548,31 @@
   min-height: calc(var(--space-20) * 4);
 }
 
+.scrollAreaDemo {
+  height: calc(var(--space-20) * 5);
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.scrollAreaContent {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.scrollAreaItem {
+  margin: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-muted);
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  line-height: var(--line-tight);
+}
+
 .dialogCopy {
   margin: 0;
   color: var(--color-text);

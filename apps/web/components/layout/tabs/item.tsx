@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { IconX } from "@tabler/icons-react";
 
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/icon-button";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { IconButton } from "@/components/ui/buttons/icon-button";
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
 import type { WorkspaceTab as OpenTab } from "@/lib/workspace-tabs";

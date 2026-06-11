@@ -1,8 +1,8 @@
 import { IconSend } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { TextArea } from "@/components/ui/text-area";
+import { Button } from "@/components/ui/buttons/button";
+import { TextArea } from "@/components/ui/forms/text-area";
 
 import styles from "./styles.module.css";
 

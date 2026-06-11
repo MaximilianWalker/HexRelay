@@ -10,10 +10,10 @@ import {
   IconVolumeOff,
 } from "@tabler/icons-react";
 
-import { ButtonGroup } from "@/components/ui/button-group";
-import { TextInput } from "@/components/ui/text-input";
-import { ToggleButton } from "@/components/ui/toggle-button";
-import { Toolbar as UiToolbar } from "@/components/ui/toolbar";
+import { ToggleGroup } from "@/components/ui/toggles/toggle-group";
+import { TextInput } from "@/components/ui/forms/text-input";
+import { ToggleButton } from "@/components/ui/toggles/toggle-button";
+import { Toolbar as UiToolbar } from "@/components/ui/surfaces/toolbar";
 import type { HubLayout } from "@/lib/hub-state";
 
 import styles from "./styles.module.css";
@@ -69,7 +69,7 @@ export function Toolbar({
         >
           Muted
         </ToggleButton>
-        <ButtonGroup
+        <ToggleGroup
           label="View mode"
           onChange={onLayoutChange}
           options={[

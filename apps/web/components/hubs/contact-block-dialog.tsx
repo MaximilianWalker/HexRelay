@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { DialogActions } from "@/components/ui/dialog-actions";
+import { Button } from "@/components/ui/buttons/button";
+import { Dialog } from "@/components/ui/overlays/dialog";
+import { DialogActions } from "@/components/ui/overlays/dialog-actions";
 
 type ContactBlockDialogProps = {
   busy: boolean;

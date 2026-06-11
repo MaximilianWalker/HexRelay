@@ -153,9 +153,12 @@ describe("UI catalog", () => {
   it("uses custom catalog scrollbar chrome instead of the native rail", () => {
     render(<Demo />);
 
-    expect(screen.getByTestId("scroll-area")).toHaveAttribute("data-overlay", "true");
-    expect(screen.getByTestId("scroll-area")).toHaveStyle({ "--scroll-area-thumb-width": "4px" });
-    expect(screen.getByTestId("scroll-area-viewport").className).toContain("content");
+    const catalogScrollArea = screen.getAllByTestId("scroll-area")[0];
+    const catalogViewport = screen.getAllByTestId("scroll-area-viewport")[0];
+
+    expect(catalogScrollArea).toHaveAttribute("data-overlay", "true");
+    expect(catalogScrollArea).toHaveStyle({ "--scroll-area-thumb-width": "4px" });
+    expect(catalogViewport.className).toContain("content");
   });
 
   it("shows an empty state when no catalog sections match search", async () => {
@@ -208,14 +211,14 @@ describe("UI catalog", () => {
 
     const toggles = section("toggles");
     expect(screen.queryByText("Button Group Sizes")).not.toBeInTheDocument();
-    expect(toggles.queryByText("Button group")).not.toBeInTheDocument();
+    expect(toggles.queryByText("Toggle group")).not.toBeInTheDocument();
     expect(toggles.queryByText("Button", { exact: true })).not.toBeInTheDocument();
     expect(document.querySelector('#toggles [class*="sizeTable"]')).not.toBeInTheDocument();
     expect(document.querySelector('#toggles [class*="controlSizeList"]')).toBeInTheDocument();
-    expect(toggles.getByRole("group", { name: "Small view mode" }).className).toContain("buttonGroupSm");
-    expect(toggles.getByRole("group", { name: "Medium view mode" }).className).not.toContain("buttonGroupSm");
-    expect(toggles.getByRole("group", { name: "Medium view mode" }).className).not.toContain("buttonGroupLg");
-    expect(toggles.getByRole("group", { name: "Large view mode" }).className).toContain("buttonGroupLg");
+    expect(toggles.getByRole("group", { name: "Small view mode" }).className).toContain("toggleGroupSm");
+    expect(toggles.getByRole("group", { name: "Medium view mode" }).className).not.toContain("toggleGroupSm");
+    expect(toggles.getByRole("group", { name: "Medium view mode" }).className).not.toContain("toggleGroupLg");
+    expect(toggles.getByRole("group", { name: "Large view mode" }).className).toContain("toggleGroupLg");
 
     const list = section("list");
     expect(list.getByText("Items")).toBeInTheDocument();
@@ -245,6 +248,20 @@ describe("UI catalog", () => {
     expect(menu.getByRole("button", { name: "Mentions" })).toBeInTheDocument();
     expect(menu.getByRole("button", { name: "Inputs & Controls" })).toHaveAttribute("aria-expanded", "true");
     expect(menu.getByRole("button", { name: "Servers" })).toBeInTheDocument();
+
+    const scrollArea = section("scroll-area");
+    expect(scrollArea.getByText("Overlay Scrollbar")).toBeInTheDocument();
+    expect(scrollArea.getByText("Reserved Track")).toBeInTheDocument();
+    expect(scrollArea.getAllByText("Announcements")).toHaveLength(2);
+    expect(scrollArea.getAllByTestId("scroll-area")).toHaveLength(2);
+
+    const toolbar = section("toolbar");
+    expect(toolbar.getByText("Filters")).toBeInTheDocument();
+    expect(toolbar.getByText("Search")).toBeInTheDocument();
+    expect(toolbar.getByRole("button", { name: "Invite" })).toBeInTheDocument();
+    expect(toolbar.getByRole("button", { name: "Toolbar settings" })).toBeInTheDocument();
+    expect(toolbar.getByRole("group", { name: "Toolbar view mode" })).toBeInTheDocument();
+    expect(toolbar.getByRole("textbox", { name: "Toolbar search" })).toBeInTheDocument();
 
     const popups = section("popups");
     const dialogsElement = document.getElementById("dialogs");

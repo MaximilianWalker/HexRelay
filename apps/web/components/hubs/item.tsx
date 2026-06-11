@@ -3,9 +3,9 @@
 import type { PointerEvent, ReactNode } from "react";
 import { IconCheck, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { PressableButton } from "@/components/ui/pressable-button";
+import { Avatar } from "@/components/ui/display/avatar";
+import { Badge } from "@/components/ui/display/badge";
+import { PressableButton } from "@/components/ui/buttons/pressable-button";
 import { cx } from "@/lib/ui/cx";
 import { initials } from "@/lib/ui/initials";
 
