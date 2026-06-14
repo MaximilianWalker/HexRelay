@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/display/badge";
 import { List, ListButton, ListRow } from "@/components/ui/navigation/list";
 import { Menu } from "@/components/ui/navigation/menu";
 import { ScrollArea } from "@/components/ui/navigation/scroll-area";
+import { ScrollButton } from "@/components/ui/navigation/scroll-button";
 
 import type { SectionId } from "../data";
 import { Example } from "../example";
@@ -154,7 +155,7 @@ export function NavigationActionsSections({ isVisible }: { isVisible: (sectionId
                   id: "controls",
                   items: [
                     { href: "#buttons", id: "buttons-link", name: "Buttons" },
-                    { href: "#forms", id: "forms", name: "Forms" },
+                    { current: false, href: "#forms", id: "forms", name: "Forms" },
                   ],
                   name: "Inputs & Controls",
                 },
@@ -236,6 +237,13 @@ export function NavigationActionsSections({ isVisible }: { isVisible: (sectionId
                 ))}
               </div>
             </ScrollArea>
+          </Example>
+
+          <Example title="Scroll Buttons">
+            <div className={styles.row}>
+              <ScrollButton direction="previous" label="Previous item" />
+              <ScrollButton appearance="plain" direction="next" label="Next item" />
+            </div>
           </Example>
         </div>
       </Section>

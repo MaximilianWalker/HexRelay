@@ -16,7 +16,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
-import { Button } from "@/components/ui/buttons/button";
+import { Button, ButtonLink } from "@/components/ui/buttons/button";
 import { IconButton } from "@/components/ui/buttons/icon-button";
 import { CheckboxField } from "@/components/ui/forms/checkbox-field";
 import { Field } from "@/components/ui/forms/field";
@@ -109,6 +109,9 @@ export function InputsControlsSections({
                 <Button icon={<IconChevronDown aria-hidden="true" />} iconPosition="end">
                   End icon
                 </Button>
+                <ButtonLink href="#buttons" icon={<IconServer2 aria-hidden="true" />}>
+                  Link
+                </ButtonLink>
                 <IconButton label="Search">
                   <IconSearch aria-hidden="true" />
                 </IconButton>
@@ -122,6 +125,9 @@ export function InputsControlsSections({
                 </ToggleButton>
                 <Button disabled icon={<IconX aria-hidden="true" />}>
                   Disabled
+                </Button>
+                <Button loading icon={<IconBell aria-hidden="true" />}>
+                  Loading
                 </Button>
               </div>
             </Example>

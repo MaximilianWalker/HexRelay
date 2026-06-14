@@ -187,6 +187,7 @@ describe("UI catalog", () => {
         "true",
       );
       expect(within(sidebar).getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "page");
+      expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     });
   });
 
@@ -205,9 +206,9 @@ describe("UI catalog", () => {
     expect(buttons.getByText("Tones")).toBeInTheDocument();
     expect(buttons.queryByText("Icon Sizes")).not.toBeInTheDocument();
     expect(buttons.getByRole("button", { name: "Pressed" })).toHaveAttribute("aria-pressed", "true");
-    expect(buttons.queryByRole("button", { name: "Loading" })).not.toBeInTheDocument();
+    expect(buttons.getByRole("button", { name: "Loading" })).toHaveAttribute("aria-busy", "true");
     expect(buttons.queryByRole("button", { name: "Danger active" })).not.toBeInTheDocument();
-    expect(buttons.queryByRole("link", { name: "Link" })).not.toBeInTheDocument();
+    expect(buttons.getByRole("link", { name: "Link" })).toHaveAttribute("href", "#buttons");
 
     const toggles = section("toggles");
     expect(screen.queryByText("Button Group Sizes")).not.toBeInTheDocument();
@@ -252,6 +253,15 @@ describe("UI catalog", () => {
     const scrollArea = section("scroll-area");
     expect(scrollArea.getByText("Overlay Scrollbar")).toBeInTheDocument();
     expect(scrollArea.getByText("Reserved Track")).toBeInTheDocument();
+    expect(scrollArea.getByText("Scroll Buttons")).toBeInTheDocument();
+    expect(scrollArea.getByRole("button", { name: "Previous item" })).toHaveAttribute(
+      "data-scroll-button-appearance",
+      "framed",
+    );
+    expect(scrollArea.getByRole("button", { name: "Next item" })).toHaveAttribute(
+      "data-scroll-button-appearance",
+      "plain",
+    );
     expect(scrollArea.getAllByText("Announcements")).toHaveLength(2);
     expect(scrollArea.getAllByTestId("scroll-area")).toHaveLength(2);
 
